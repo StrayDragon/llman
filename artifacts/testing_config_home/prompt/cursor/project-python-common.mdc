@@ -1,0 +1,10 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+just a test rule
+
+- python
+- uv
+- requests
