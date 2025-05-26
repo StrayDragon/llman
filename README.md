@@ -20,6 +20,12 @@
 
 ## 📦 安装
 
+### 从 crates.io 安装
+
+```bash
+cargo install llman
+```
+
 ### 从代码安装
 
 ```bash
