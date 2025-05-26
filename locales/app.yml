@@ -1,0 +1,183 @@
+_version: 2
+
+# CLI 帮助信息
+cli:
+  description:
+    en: "A tool for managing LLM application rules(prompts) ..."
+    zh-CN: "用于管理 LLM 应用规则（提示）的工具..."
+
+  config_dir_help:
+    en: "Specify configuration directory path"
+    zh-CN: "指定配置目录路径"
+
+  log_level_help:
+    en: "Set log level"
+    zh-CN: "设置日志级别"
+
+  verbose_help:
+    en: "Verbose output"
+    zh-CN: "详细输出"
+
+# Prompt 子命令
+prompt:
+  about:
+    en: "Manage prompt rule files"
+    zh-CN: "管理提示规则文件"
+
+  gen:
+    about:
+      en: "Generate rule file"
+      zh-CN: "生成规则文件"
+
+    interactive_help:
+      en: "Use interactive mode"
+      zh-CN: "使用交互式模式"
+
+    app_help:
+      en: "Target application name (e.g.: cursor)"
+      zh-CN: "目标应用名称 (如: cursor)"
+
+    template_help:
+      en: "Template name"
+      zh-CN: "模板名称"
+
+    name_help:
+      en: "Rule name (optional, defaults to template name)"
+      zh-CN: "规则名称（可选，默认使用模板名称）"
+
+    force_help:
+      en: "Force generation, skip repository detection"
+      zh-CN: "强制生成，跳过仓库检测"
+
+  list:
+    about:
+      en: "List rule files"
+      zh-CN: "列出规则文件"
+
+    app_help:
+      en: "Specify application name"
+      zh-CN: "指定应用名称"
+
+  upsert:
+    about:
+      en: "Update or insert rule file"
+      zh-CN: "更新或插入规则文件"
+
+    app_help:
+      en: "Application name"
+      zh-CN: "应用名称"
+
+    name_help:
+      en: "Rule name"
+      zh-CN: "规则名称"
+
+    content_help:
+      en: "Rule content"
+      zh-CN: "规则内容"
+
+    file_help:
+      en: "File path containing rule content"
+      zh-CN: "包含规则内容的文件路径"
+
+  rm:
+    about:
+      en: "Remove rule file"
+      zh-CN: "删除规则文件"
+
+    app_help:
+      en: "Application name"
+      zh-CN: "应用名称"
+
+    name_help:
+      en: "Rule name"
+      zh-CN: "规则名称"
+
+# 交互式提示
+interactive:
+  title:
+    en: "🚀 Interactive rule file generation"
+    zh-CN: "🚀 交互式生成规则文件"
+
+  select_app:
+    en: "Select target application:"
+    zh-CN: "选择目标应用:"
+
+  select_template:
+    en: "Select template:"
+    zh-CN: "选择模板:"
+
+  input_name:
+    en: "Enter rule name:"
+    zh-CN: "输入规则名称:"
+
+  name_help:
+    en: "Rule name will be used as filename"
+    zh-CN: "规则名称将用作文件名"
+
+  no_templates:
+    en: "⚠️  No templates available, will create empty rule file"
+    zh-CN: "⚠️  没有可用的模板，将创建空规则文件"
+
+# 消息提示
+messages:
+  error:
+    en: "Error: %{error}"
+    zh-CN: "错误: %{error}"
+
+  log_level_set:
+    en: "Log level set to: %{level}"
+    zh-CN: "日志级别设置为: %{level}"
+
+  verbose_level:
+    en: "Verbose level: %{level}"
+    zh-CN: "详细级别: %{level}"
+
+  file_exists_overwrite:
+    en: "File %{path} already exists, overwrite?"
+    zh-CN: "文件 %{path} 已存在，是否覆盖?"
+
+  operation_cancelled:
+    en: "Operation cancelled"
+    zh-CN: "操作已取消"
+
+  rule_generated:
+    en: "✅ Rule file generated: %{path}"
+    zh-CN: "✅ 规则文件已生成: %{path}"
+
+  rule_generation_success:
+    en: "✅ Rule file generated successfully!"
+    zh-CN: "✅ 规则文件生成成功!"
+
+  rule_saved:
+    en: "✅ Rule saved: %{path}"
+    zh-CN: "✅ 规则已保存: %{path}"
+
+  confirm_delete:
+    en: "Are you sure you want to delete rule '%{name}'?"
+    zh-CN: "确定要删除规则 '%{name}' 吗?"
+
+  rule_deleted:
+    en: "✅ Rule deleted: %{name}"
+    zh-CN: "✅ 规则已删除: %{name}"
+
+  content_or_file_required:
+    en: "Must provide content or file path"
+    zh-CN: "必须提供内容或文件路径"
+
+# 错误信息
+errors:
+  unknown_subcommand:
+    en: "Unknown subcommand"
+    zh-CN: "未知的子命令"
+
+  subcommand_required:
+    en: "Subcommand is required"
+    zh-CN: "子命令是必需的"
+
+  unknown_prompt_subcommand:
+    en: "Unknown prompt subcommand"
+    zh-CN: "未知的 prompt 子命令"
+
+  not_find_config_dir:
+    en: "Cannot find config directory"
+    zh-CN: "无法找到配置目录"
