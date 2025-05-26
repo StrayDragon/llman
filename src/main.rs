@@ -3,7 +3,7 @@ extern crate rust_i18n;
 
 i18n!("locales");
 
-use crate::error::LlmanResult;
+use crate::error::Result;
 use std::env;
 
 mod cli;
@@ -14,7 +14,7 @@ mod prompt;
 use cli::Cli;
 use config::ENV_LANG;
 
-fn main() -> LlmanResult<()> {
+fn main() -> Result<()> {
     let locale = match env::var(ENV_LANG) {
         Ok(lang) if lang == "zh-CN" || lang == "zh" => "zh-CN",
         _ => "en",

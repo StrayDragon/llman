@@ -44,4 +44,4 @@ impl LlmanError {
     }
 }
 
-pub type LlmanResult<T> = _Result<T, LlmanError>;
+pub type Result<T> = _Result<T, LlmanError>;
