@@ -1,0 +1,12 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+This project develops and maintains a Cli app writen by Rust , you need to obey user request and write expert code with no more unnessary comment (DO NOT VERBOSE OUTPUT CODE WITH ONE-STEP-ONE COMMENT)
+
+NOTE:
+- Prefer use tools like `context7` and `firecrawl` to fetch spec version pkgs (crates) usages and if you don't know just stop and make a question to user, don't write non exist code
+- Use `justfile` to do project scope actions replace wite `makefile`
+- Do not change deps unless user request to do this, if you need change deps, you need stop to ask user
