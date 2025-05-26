@@ -1,0 +1,11 @@
+[package]
+name = "llman"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.98"
+clap = { version = "4.5.38", features = ["deprecated", "env", "unicode", "wrap_help", "string"] }
+directories = "6.0.0"
+inquire = "0.7.5"
+thiserror = "2.0.12"
