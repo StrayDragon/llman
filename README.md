@@ -38,6 +38,7 @@ cargo install --git https://github.com/StrayDragon/llman.git
 
 ## 🛠️ 开发与贡献
 
-0. 拉取该仓库
-1. 查看 [justfile](./justfile) 中 搜索 "(dev)" 相关的命令进行开发
+0. 确保安装了 [Rust](https://www.rust-lang.org) 和 [just](https://github.com/casey/just) 工具
+1. 拉取该仓库
+2. 查看 [justfile](./justfile) 中 搜索 "(dev)" 相关的命令进行开发
 
