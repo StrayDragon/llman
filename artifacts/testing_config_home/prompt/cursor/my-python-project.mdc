@@ -1,0 +1,9 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+just a test rule
+
+- python
+- requests
