@@ -1,5 +1,5 @@
 use crate::config::{CURSOR_APP, Config, TARGET_CURSOR_RULES_DIR};
-use crate::error::{LlmanError, Result};
+use crate::error::{LlmanError, LlmanResult};
 use inquire::{Confirm, MultiSelect, Select};
 use std::env;
 use std::fs;
@@ -10,17 +10,17 @@ pub struct PromptCommand {
 
 impl PromptCommand {
     #[allow(dead_code)]
-    pub fn new() -> Result<Self> {
+    pub fn new() -> LlmanResult<Self> {
         Self::with_config_dir(None)
     }
 
-    pub fn with_config_dir(config_dir: Option<&str>) -> Result<Self> {
+    pub fn with_config_dir(config_dir: Option<&str>) -> LlmanResult<Self> {
         Ok(Self {
             config: Config::with_config_dir(config_dir)?,
         })
     }
 
-    pub fn generate_interactive(&self) -> Result<()> {
+    pub fn generate_interactive(&self) -> LlmanResult<()> {
         println!("{}", t!("interactive.title"));
         self.check_project_directory()?;
 
@@ -46,7 +46,7 @@ impl PromptCommand {
         Ok(())
     }
 
-    pub fn generate_rules(&self, app: &str, template_name: &str, force: bool) -> Result<()> {
+    pub fn generate_rules(&self, app: &str, template_name: &str, force: bool) -> LlmanResult<()> {
         self.validate_app(app)?;
 
         if !force {
@@ -85,7 +85,7 @@ impl PromptCommand {
         Ok(())
     }
 
-    pub fn list_rules(&self, app: Option<&str>) -> Result<()> {
+    pub fn list_rules(&self, app: Option<&str>) -> LlmanResult<()> {
         if let Some(app) = app {
             self.validate_app(app)?;
             self.list_app_rules(app)?;
@@ -105,7 +105,7 @@ impl PromptCommand {
         name: &str,
         content: Option<&str>,
         file: Option<&str>,
-    ) -> Result<()> {
+    ) -> LlmanResult<()> {
         self.validate_app(app)?;
         self.config.ensure_app_dir(app)?;
 
@@ -126,7 +126,7 @@ impl PromptCommand {
         Ok(())
     }
 
-    pub fn remove_rule(&self, app: &str, name: &str) -> Result<()> {
+    pub fn remove_rule(&self, app: &str, name: &str) -> LlmanResult<()> {
         self.validate_app(app)?;
 
         let rule_path = self.config.rule_file_path(app, name);
@@ -151,7 +151,7 @@ impl PromptCommand {
         Ok(())
     }
 
-    fn validate_app(&self, app: &str) -> Result<()> {
+    fn validate_app(&self, app: &str) -> LlmanResult<()> {
         match app {
             CURSOR_APP => Ok(()),
             _ => Err(LlmanError::InvalidApp {
@@ -160,7 +160,7 @@ impl PromptCommand {
         }
     }
 
-    fn check_project_directory(&self) -> Result<()> {
+    fn check_project_directory(&self) -> LlmanResult<()> {
         let current_dir = env::current_dir()?;
 
         if let Some(user_dir) = directories::UserDirs::new() {
@@ -177,11 +177,13 @@ impl PromptCommand {
         Ok(())
     }
 
-    fn get_target_path(&self, app: &str, name: &str) -> Result<std::path::PathBuf> {
+    fn get_target_path(&self, app: &str, name: &str) -> LlmanResult<std::path::PathBuf> {
         match app {
             CURSOR_APP => {
                 let current_dir = env::current_dir()?;
-                Ok(current_dir.join(TARGET_CURSOR_RULES_DIR).join(format!("{}.mdc", name)))
+                Ok(current_dir
+                    .join(TARGET_CURSOR_RULES_DIR)
+                    .join(format!("{}.mdc", name)))
             }
             _ => Err(LlmanError::InvalidApp {
                 app: app.to_string(),
@@ -189,36 +191,27 @@ impl PromptCommand {
         }
     }
 
-    fn get_available_templates(&self, app: &str) -> Result<Vec<String>> {
+    fn get_available_templates(&self, app: &str) -> LlmanResult<Vec<String>> {
         self.config.list_rules(app)
     }
 
-    fn get_template_content(&self, app: &str, template: &str) -> Result<String> {
+    fn get_template_content(&self, app: &str, template: &str) -> LlmanResult<String> {
         let template_path = self.config.rule_file_path(app, template);
 
         if template_path.exists() {
             Ok(fs::read_to_string(template_path)?)
         } else {
-            // 如果模板文件不存在，返回默认内容
-            Ok(self.get_default_content(app, template))
+            Err(LlmanError::RuleNotFound {
+                name: template.to_string(),
+            })
         }
     }
 
-    fn get_default_content(&self, app: &str, template: &str) -> String {
-        match app {
-            CURSOR_APP => format!(
-                "# {} 规则文件\n\n这是一个由 llman 生成的 {} 规则文件。\n请在此处添加您的规则内容。\n",
-                template, app
-            ),
-            _ => format!("# {} 规则文件\n\n", template),
-        }
-    }
-
-    fn list_app_rules(&self, app: &str) -> Result<()> {
+    fn list_app_rules(&self, app: &str) -> LlmanResult<()> {
         let rules = self.config.list_rules(app)?;
 
         if rules.is_empty() {
-            println!("  (无规则文件)");
+            println!("  {}", t!("errors.no_rules_found"));
         } else {
             for rule in rules {
                 println!("  📄 {}", rule);

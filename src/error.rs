@@ -1,10 +1,8 @@
 use thiserror::Error;
+use anyhow::Result as _Result;
 
 #[derive(Error, Debug)]
 pub enum LlmanError {
-    #[error("IO Error: {0}")]
-    Io(#[from] std::io::Error),
-
     #[error("Config Error: {message}")]
     Config { message: String },
 
@@ -20,8 +18,30 @@ pub enum LlmanError {
     #[error("Rule file not found: {name}")]
     RuleNotFound { name: String },
 
-    #[error("Interactive prompt error: {0}")]
+    #[error("IO Error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Inquire Error: {0}")]
     Inquire(#[from] inquire::InquireError),
 }
 
-pub type Result<T> = std::result::Result<T, LlmanError>;
+impl LlmanError {
+    pub fn display_localized(&self) -> String {
+        match self {
+            LlmanError::Config { message } => {
+                t!("errors.config_error", message = message).to_string()
+            }
+            LlmanError::InvalidApp { app } => t!("errors.invalid_app", app = app).to_string(),
+            LlmanError::NotProjectDirectory => t!("errors.not_project_directory").to_string(),
+            LlmanError::HomeDirectoryNotAllowed => {
+                t!("errors.home_directory_not_allowed").to_string()
+            }
+            LlmanError::RuleNotFound { name } => {
+                t!("errors.rule_not_found", name = name).to_string()
+            }
+            _ => self.to_string(),
+        }
+    }
+}
+
+pub type LlmanResult<T> = _Result<T, LlmanError>;

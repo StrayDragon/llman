@@ -1,4 +1,5 @@
-use crate::error::{LlmanError, Result};
+use crate::error::LlmanResult;
+use crate::error::{LlmanError};
 use directories::ProjectDirs;
 use std::env;
 use std::fs;
@@ -20,11 +21,11 @@ pub struct Config {
 
 impl Config {
     #[allow(dead_code)]
-    pub fn new() -> Result<Self> {
+    pub fn new() -> LlmanResult<Self> {
         Self::with_config_dir(None)
     }
 
-    pub fn with_config_dir(config_dir_override: Option<&str>) -> Result<Self> {
+    pub fn with_config_dir(config_dir_override: Option<&str>) -> LlmanResult<Self> {
         let config_dir = if let Some(custom_dir) = config_dir_override {
             PathBuf::from(custom_dir)
         } else if let Ok(custom_dir) = env::var(ENV_CONFIG_DIR) {
@@ -62,7 +63,7 @@ impl Config {
         self.prompt_dir.join(app)
     }
 
-    pub fn ensure_app_dir(&self, app: &str) -> Result<PathBuf> {
+    pub fn ensure_app_dir(&self, app: &str) -> LlmanResult<PathBuf> {
         let app_dir = self.app_dir(app);
         fs::create_dir_all(&app_dir)?;
         Ok(app_dir)
@@ -76,7 +77,7 @@ impl Config {
         self.app_dir(app).join(format!("{}.{}", name, extension))
     }
 
-    pub fn list_rules(&self, app: &str) -> Result<Vec<String>> {
+    pub fn list_rules(&self, app: &str) -> LlmanResult<Vec<String>> {
         let app_dir = self.app_dir(app);
 
         if !app_dir.exists() {
