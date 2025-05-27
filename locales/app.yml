@@ -21,8 +21,8 @@ cli:
 # Prompt 子命令
 prompt:
   about:
-    en: "Manage prompt rule files"
-    zh-CN: "管理提示规则文件"
+    en: "Manage prompt rule files (alias: rule)"
+    zh-CN: "管理提示规则文件 (别名: rule)"
 
   gen:
     about:
@@ -181,3 +181,35 @@ errors:
   not_find_config_dir:
     en: "Cannot find config directory"
     zh-CN: "无法找到配置目录"
+
+  io_error:
+    en: "IO Error: %{error}"
+    zh-CN: "IO 错误: %{error}"
+
+  config_error:
+    en: "Configuration Error: %{message}"
+    zh-CN: "配置错误: %{message}"
+
+  invalid_app:
+    en: "Invalid application type: %{app}"
+    zh-CN: "无效的应用类型: %{app}"
+
+  not_project_directory:
+    en: "Current directory is not a valid project directory"
+    zh-CN: "当前目录不是有效的项目目录"
+
+  home_directory_not_allowed:
+    en: "Cannot generate rules in home directory"
+    zh-CN: "不能在家目录中生成规则"
+
+  rule_not_found:
+    en: "Rule file not found: %{name}"
+    zh-CN: "规则文件未找到: %{name}"
+
+  interactive_prompt_error:
+    en: "Interactive prompt error: %{error}"
+    zh-CN: "交互式提示错误: %{error}"
+
+  no_rules_found:
+    en: "(No rule files found)"
+    zh-CN: "(无规则文件)"

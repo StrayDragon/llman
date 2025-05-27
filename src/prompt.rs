@@ -181,7 +181,9 @@ impl PromptCommand {
         match app {
             CURSOR_APP => {
                 let current_dir = env::current_dir()?;
-                Ok(current_dir.join(TARGET_CURSOR_RULES_DIR).join(name))
+                Ok(current_dir
+                    .join(TARGET_CURSOR_RULES_DIR)
+                    .join(format!("{}.mdc", name)))
             }
             _ => Err(LlmanError::InvalidApp {
                 app: app.to_string(),
@@ -199,18 +201,9 @@ impl PromptCommand {
         if template_path.exists() {
             Ok(fs::read_to_string(template_path)?)
         } else {
-            // 如果模板文件不存在，返回默认内容
-            Ok(self.get_default_content(app, template))
-        }
-    }
-
-    fn get_default_content(&self, app: &str, template: &str) -> String {
-        match app {
-            CURSOR_APP => format!(
-                "# {} 规则文件\n\n这是一个由 llman 生成的 {} 规则文件。\n请在此处添加您的规则内容。\n",
-                template, app
-            ),
-            _ => format!("# {} 规则文件\n\n", template),
+            Err(LlmanError::RuleNotFound {
+                name: template.to_string(),
+            })
         }
     }
 
@@ -218,7 +211,7 @@ impl PromptCommand {
         let rules = self.config.list_rules(app)?;
 
         if rules.is_empty() {
-            println!("  (无规则文件)");
+            println!("  {}", t!("errors.no_rules_found"));
         } else {
             for rule in rules {
                 println!("  📄 {}", rule);

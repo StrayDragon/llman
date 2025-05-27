@@ -3,7 +3,7 @@ extern crate rust_i18n;
 
 i18n!("locales");
 
-use anyhow::Result;
+use crate::error::Result;
 use std::env;
 
 mod cli;
@@ -23,8 +23,8 @@ fn main() -> Result<()> {
 
     let cli = Cli::new();
 
-    if let Err(e) = cli.run() {
-        eprintln!("{}", t!("messages.error", error = e.to_string()));
+    if let Err(error) = cli.run() {
+        eprintln!("{}", error.display_localized());
         std::process::exit(1);
     }
 
