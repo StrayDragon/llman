@@ -181,7 +181,7 @@ impl PromptCommand {
         match app {
             CURSOR_APP => {
                 let current_dir = env::current_dir()?;
-                Ok(current_dir.join(TARGET_CURSOR_RULES_DIR).join(name))
+                Ok(current_dir.join(TARGET_CURSOR_RULES_DIR).join(format!("{}.mdc", name)))
             }
             _ => Err(LlmanError::InvalidApp {
                 app: app.to_string(),
