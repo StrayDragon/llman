@@ -44,3 +44,7 @@ check: fmt clippy test
 create-dev-template name content:
     @echo "{{content}}" > ./artifacts/testing_config_home/prompt/cursor/{{name}}.mdc
     @echo "✅ 模板 {{name}} 已创建"
+
+# 检查 i18n 状态 (dev)
+check-i18n:
+    ./scripts/check-i18n.sh
