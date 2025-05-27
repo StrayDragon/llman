@@ -1,5 +1,5 @@
 use crate::config::ENV_CONFIG_DIR;
-use crate::error::LlmanResult;
+use crate::error::Result;
 use crate::prompt::PromptCommand;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use clap::{crate_name, crate_version};
@@ -151,7 +151,7 @@ impl Cli {
         Self { command }
     }
 
-    pub fn run(&self) -> LlmanResult<()> {
+    pub fn run(&self) -> Result<()> {
         let matches = self.command.clone().get_matches();
 
         self.handle_global_options(&matches);
@@ -177,7 +177,7 @@ impl Cli {
         }
     }
 
-    fn handle_prompt_command(&self, matches: &ArgMatches) -> LlmanResult<()> {
+    fn handle_prompt_command(&self, matches: &ArgMatches) -> Result<()> {
         let config_dir = matches.get_one::<String>("config-dir").map(|s| s.as_str());
         let prompt_cmd = PromptCommand::with_config_dir(config_dir)?;
 
