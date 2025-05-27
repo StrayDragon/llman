@@ -1,4 +1,5 @@
-use crate::error::{LlmanError, Result};
+use crate::error::Result;
+use crate::error::{LlmanError};
 use directories::ProjectDirs;
 use std::env;
 use std::fs;
