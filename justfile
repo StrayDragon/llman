@@ -26,7 +26,7 @@ fmt:
     cargo fmt
 
 # 代码检查 (dev)
-clippy:
+lint:
     cargo clippy -- -D warnings
 
 # 清理构建产物 (dev)
@@ -38,7 +38,7 @@ install:
     cargo install --path .
 
 # 检查一条龙 (dev)
-check: fmt clippy test
+check: fmt lint test
 
 # 创建新的规则模板 (dev)
 create-dev-template name content:
