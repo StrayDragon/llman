@@ -68,11 +68,14 @@ cargo install --git https://github.com/StrayDragon/llman.git
 ### Prompt管理
 
 ```bash
+# 更新(增加)prompt规则
+llman prompt upsert --app cursor --name rust --content "This is example rules of rust"
+
 # 生成新的prompt规则
 llman prompt gen --app cursor --template rust
 
 # 交互式生成
-llman prompt gen --interactive
+llman prompt gen -i # --interactive
 
 # 列出所有规则
 llman prompt list
@@ -85,81 +88,5 @@ llman prompt list --app cursor
 
 ```bash
 # 交互式导出对话
-llman x cursor export --interactive
-
-# 或者直接使用默认交互模式
-llman x cursor export
+llman x cursor export -i # --interactive
 ```
-
-#### 导出功能演示：
-
-1. **启动导出工具**：自动扫描Cursor工作区，显示找到的对话数量
-2. **选择对话**：
-   - 显示最近的5个对话供快速选择
-   - 提供搜索功能查找历史对话
-   - 支持多选，使用空格键选择/取消选择
-3. **选择导出方式**：
-   - 输出到控制台：直接在终端显示
-   - 保存为Markdown文件：每个对话保存为单独文件
-   - 保存为单个合并文件：所有对话合并到一个文件
-
-### 项目管理 (使用justfile)
-
-```bash
-# 查看所有可用命令
-just
-
-# 检查代码
-just check
-
-# 运行测试
-just test
-
-# 格式化代码
-just fmt
-
-# 构建项目
-just build
-
-# 测试cursor功能
-just test-cursor
-```
-
-## 🛠️ 技术架构
-
-### 依赖关系
-- **clap**: CLI框架，支持子命令嵌套
-- **inquire**: 交互式用户界面
-- **diesel**: SQLite数据库ORM
-- **serde**: JSON序列化/反序列化
-- **chrono**: 时间处理
-- **glob**: 文件匹配
-
-### Cursor数据存储
-Cursor将对话数据存储在SQLite数据库中：
-- 路径：`~/.config/Cursor/User/workspaceStorage/*/state.vscdb`
-- 表：`ItemTable`
-- 键：`workbench.panel.aichat.view.aichat.chatdata`
-- 格式：JSON格式的对话数据
-
-## 🛠️ 开发
-
-```bash
-# 克隆项目
-git clone <repository-url>
-cd llman
-
-# 安装依赖并构建
-cargo build
-
-# 运行测试
-cargo test
-
-# 开发模式检查
-just dev
-```
-
-## 📜 许可证
-
-MIT License
-
