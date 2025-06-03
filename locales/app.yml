@@ -199,17 +199,330 @@ errors:
     zh-CN: "当前目录不是有效的项目目录"
 
   home_directory_not_allowed:
-    en: "Cannot generate rules in home directory"
-    zh-CN: "不能在家目录中生成规则"
+    en: "Home directory access not allowed"
+    zh-CN: "不允许访问主目录"
 
   rule_not_found:
-    en: "Rule file not found: %{name}"
-    zh-CN: "规则文件未找到: %{name}"
+    en: "Rule not found: %{name}"
+    zh-CN: "规则未找到: %{name}"
 
   interactive_prompt_error:
     en: "Interactive prompt error: %{error}"
     zh-CN: "交互式提示错误: %{error}"
 
   no_rules_found:
-    en: "(No rule files found)"
-    zh-CN: "(无规则文件)"
+    en: "No rules found"
+    zh-CN: "未找到任何规则"
+
+  not_find_user_cursor_dir:
+    en: "Cannot find user cursor main directory"
+    zh-CN: "无法获取用户cursor主目录"
+
+# Cursor 功能
+cursor:
+  about:
+    en: "Cursor-related features"
+    zh-CN: "Cursor相关功能"
+
+  database:
+    using_db:
+      en: "Using database"
+      zh-CN: "使用数据库"
+
+    workspace_path_not_exist:
+      en: "Cursor workspace storage path does not exist: %{path}"
+      zh-CN: "Cursor工作区存储路径不存在: %{path}"
+
+    no_workspace_db_found:
+      en: "No Cursor workspace database files found"
+      zh-CN: "未找到任何Cursor工作区数据库文件"
+
+    home_dir_error:
+      en: "Cannot find home directory"
+      zh-CN: "无法找到用户主目录"
+
+    cursor_dir_not_found:
+      en: "Cursor directory not found: %{path}"
+      zh-CN: "未找到Cursor目录: %{path}"
+
+  workspace:
+    scanning_workspaces:
+      en: "🔍 Scanning available workspaces..."
+      zh-CN: "🔍 正在扫描可用的工作区..."
+
+    found_workspaces:
+      en: "✅ Found %{count} workspaces"
+      zh-CN: "✅ 找到 %{count} 个工作区"
+
+    auto_select:
+      en: "Auto selected"
+      zh-CN: "自动选择"
+
+    select_workspace:
+      en: "📁 Please select workspace to export conversations"
+      zh-CN: "📁 请选择要导出对话的工作区"
+
+    no_workspaces:
+      en: "❌ No Cursor workspaces found"
+      zh-CN: "❌ 未找到任何Cursor工作区"
+
+    workspace_mapping_failed:
+      en: "⚠️ Unable to map workspace: %{id}"
+      zh-CN: "⚠️ Unable to map workspace: %{id}"
+
+    unknown_path:
+      en: "Unknown path"
+      zh-CN: "未知路径"
+
+    current_dir:
+      en: "Current directory"
+      zh-CN: "当前目录"
+
+  export:
+    about:
+      en: "Export Cursor AI conversations to local files"
+      zh-CN: "导出Cursor AI对话记录到本地文件"
+
+    interactive_help:
+      en: "Use interactive mode to select and export conversations"
+      zh-CN: "使用交互式模式选择和导出对话"
+
+    db_path_help:
+      en: "Specify Cursor database file path"
+      zh-CN: "指定Cursor数据库文件路径"
+
+    workspace_dir_help:
+      en: "Specify workspace directory to avoid interactive selection"
+      zh-CN: "指定工作区目录，避免交互式选择"
+
+    output_mode_help:
+      en: "Output mode: console, file, single-file"
+      zh-CN: "输出模式: console, file, single-file"
+
+    output_file_help:
+      en: "Output filename (used when output-mode is file or single-file)"
+      zh-CN: "输出文件名（当output-mode为file或single-file时使用）"
+
+    composer_id_help:
+      en: "Directly specify composer ID for export"
+      zh-CN: "直接指定composer ID进行导出"
+
+    debug_help:
+      en: "Enable debug mode, show detailed processing information"
+      zh-CN: "开启调试模式，显示详细的处理信息"
+
+    title:
+      en: "🎯 Cursor Conversation Export Tool"
+      zh-CN: "🎯 Cursor对话导出工具"
+
+    scanning:
+      en: "🔍 Scanning Cursor conversation records..."
+      zh-CN: "🔍 正在扫描Cursor对话记录..."
+
+    found_conversations:
+      en: "✅ Found %{count} conversations"
+      zh-CN: "✅ 找到 %{count} 个对话"
+
+    no_conversations:
+      en: "❌ No conversation records found"
+      zh-CN: "❌ 没有找到对话记录"
+
+    no_selection:
+      en: "❌ No conversations selected"
+      zh-CN: "❌ 未选择任何对话"
+
+    select_conversations:
+      en: "📝 Please select conversations to export"
+      zh-CN: "📝 请选择要导出的对话"
+
+    select_help:
+      en: "Use space to select/deselect, Enter to confirm"
+      zh-CN: "使用空格键选择/取消选择，回车键确认"
+
+    search_more:
+      en: "🔍 Search more conversations..."
+      zh-CN: "🔍 搜索更多对话..."
+
+    search_keyword:
+      en: "🔍 Please enter search keyword"
+      zh-CN: "🔍 请输入搜索关键词"
+
+    search_help:
+      en: "Enter title, content or any relevant keywords to search"
+      zh-CN: "输入标题、内容或任何相关关键词进行搜索"
+
+    search_no_results:
+      en: "❌ No matching conversations found"
+      zh-CN: "❌ 未找到匹配的对话"
+
+    search_found:
+      en: "✅ Found %{count} matching conversations"
+      zh-CN: "✅ 搜索到 %{count} 个对话"
+
+    select_search_results:
+      en: "📋 Please select search results"
+      zh-CN: "📋 请选择搜索结果"
+
+    select_export_method:
+      en: "📤 Please select export method"
+      zh-CN: "📤 请选择导出方式"
+
+    export_to_console:
+      en: "🖥️ Export to console"
+      zh-CN: "🖥️ 导出到控制台"
+
+    export_to_files:
+      en: "📁 Export as multiple files"
+      zh-CN: "📁 导出为多个文件"
+
+    export_to_single_file:
+      en: "📄 Export as single file"
+      zh-CN: "📄 导出为单个文件"
+
+    exported_content_title:
+      en: "📋 Exported conversation content"
+      zh-CN: "📋 导出的对话内容"
+
+    input_output_dir:
+      en: "📁 Please enter output directory path"
+      zh-CN: "📁 请输入输出目录路径"
+
+    output_dir_created:
+      en: "✅ Output directory created: %{path}"
+      zh-CN: "✅ 输出目录已创建: %{path}"
+
+    export_success_file:
+      en: "✅ Export successful: %{path}"
+      zh-CN: "✅ 导出成功: %{path}"
+
+    export_success_summary:
+      en: "🎉 Successfully exported %{count} conversations to: %{path}"
+      zh-CN: "🎉 成功导出 %{count} 个对话到: %{path}"
+
+    input_filename:
+      en: "📄 Please enter filename"
+      zh-CN: "📄 请输入文件名"
+
+    single_file_title:
+      en: "# Cursor Conversation Export\n\n"
+      zh-CN: "# Cursor对话导出\n\n"
+
+    export_time:
+      en: "**Export time:** %{time}\n"
+      zh-CN: "**导出时间:** %{time}\n"
+
+    conversation_count:
+      en: "**Conversation count:** %{count}\n\n"
+      zh-CN: "**对话数量:** %{count}\n\n"
+
+    export_success_single:
+      en: "✅ Export successful: %{filename}"
+      zh-CN: "✅ 导出成功: %{filename}"
+
+    untitled_conversation:
+      en: "Untitled Conversation"
+      zh-CN: "未命名对话"
+
+    user_message:
+      en: "User"
+      zh-CN: "用户"
+
+    ai_message:
+      en: "AI Assistant"
+      zh-CN: "AI助手"
+
+    message_number:
+      en: "Message %{number}"
+      zh-CN: "消息%{number}"
+
+    message_count:
+      en: "%{count} messages"
+      zh-CN: "%{count} 条消息"
+
+    composer_chat:
+      en: "Composer conversation"
+      zh-CN: "Composer对话"
+
+    last_updated:
+      en: "**Last updated:** %{time}\n\n"
+      zh-CN: "**最后更新:** %{time}\n\n"
+
+    terminal_output:
+      en: "**Terminal output:**"
+      zh-CN: "**终端输出:**"
+
+    raw_text:
+      en: "**Raw text:**"
+      zh-CN: "**原始文本:**"
+
+    selected_file:
+      en: "**Selected file:** %{path}"
+      zh-CN: "**选中文件:** %{path}"
+
+    message_with_id:
+      en: "*%{type} message (ID: %{id})*"
+      zh-CN: "*%{type} message (ID: %{id})*"
+
+    unknown_id:
+      en: "Unknown"
+      zh-CN: "未知"
+
+    mixed_conversations:
+      en: "Contains %{traditional} traditional conversations and %{composer} Composer conversations"
+      zh-CN: "包含 %{traditional} 个传统对话和 %{composer} 个Composer对话"
+
+    composer_mode_chat:
+      en: "Chat"
+      zh-CN: "聊天"
+
+    composer_mode_agent:
+      en: "Agent"
+      zh-CN: "代理"
+
+    composer_mode_edit:
+      en: "Edit"
+      zh-CN: "编辑"
+
+    composer_mode_label:
+      en: "Mode"
+      zh-CN: "模式"
+
+    composer_content_note:
+      en: "Note: Specific content of Composer conversations is not yet supported for export."
+      zh-CN: "注意：Composer对话的具体内容暂不支持导出。"
+
+    type_traditional:
+      en: "Traditional Chat"
+      zh-CN: "传统聊天"
+
+    type_composer_chat:
+      en: "Composer Chat"
+      zh-CN: "Composer聊天"
+
+    type_composer_agent:
+      en: "Composer Agent"
+      zh-CN: "Composer代理"
+
+    type_composer_edit:
+      en: "Composer Edit"
+      zh-CN: "Composer编辑"
+
+# 扩展功能
+x:
+  about:
+    en: "Extended features"
+    zh-CN: "扩展功能"
+
+# Composer 相关
+composer:
+  untitled_chat:
+    en: "Untitled Chat"
+    zh-CN: "未命名聊天"
+
+  untitled_agent:
+    en: "Untitled Agent"
+    zh-CN: "未命名代理"
+
+  untitled_edit:
+    en: "Untitled Edit"
+    zh-CN: "未命名编辑"

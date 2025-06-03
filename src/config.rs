@@ -1,5 +1,5 @@
+use crate::error::LlmanError;
 use crate::error::Result;
-use crate::error::{LlmanError};
 use directories::ProjectDirs;
 use std::env;
 use std::fs;

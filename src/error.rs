@@ -1,5 +1,5 @@
-use thiserror::Error;
 use anyhow::Result as _Result;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum LlmanError {
@@ -18,11 +18,29 @@ pub enum LlmanError {
     #[error("Rule file not found: {name}")]
     RuleNotFound { name: String },
 
+    #[error("Custom Error: {0}")]
+    Custom(String),
+
     #[error("IO Error: {0}")]
     Io(#[from] std::io::Error),
 
     #[error("Inquire Error: {0}")]
     Inquire(#[from] inquire::InquireError),
+
+    #[error("Database Error: {0}")]
+    Database(#[from] diesel::result::Error),
+
+    #[error("Connection Error: {0}")]
+    Connection(#[from] diesel::result::ConnectionError),
+
+    #[error("JSON Parse Error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("Glob Pattern Error: {0}")]
+    Glob(#[from] glob::GlobError),
+
+    #[error("Glob Pattern Match Error: {0}")]
+    GlobPattern(#[from] glob::PatternError),
 }
 
 impl LlmanError {
