@@ -10,6 +10,7 @@ mod cli;
 mod config;
 mod error;
 mod prompt;
+mod x;
 
 use cli::Cli;
 use config::ENV_LANG;
