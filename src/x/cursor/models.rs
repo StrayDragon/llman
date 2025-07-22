@@ -446,8 +446,7 @@ impl ComposerBubble {
                                     contents.to_string()
                                 };
                                 return Some(format!(
-                                    "🔍 **读取文件**: {}\n\n```\n{}\n```",
-                                    status, preview
+                                    "🔍 **读取文件**: {status}\n\n```\n{preview}\n```"
                                 ));
                             }
                         }
@@ -460,20 +459,19 @@ impl ComposerBubble {
                                     output.to_string()
                                 };
                                 return Some(format!(
-                                    "💻 **执行命令**: {}\n\n```\n{}\n```",
-                                    status, preview
+                                    "💻 **执行命令**: {status}\n\n```\n{preview}\n```"
                                 ));
                             }
                         }
                         _ => {
                             // 其他工具的通用处理
-                            return Some(format!("🔧 **{}**: {}", tool_name, status));
+                            return Some(format!("🔧 **{tool_name}**: {status}"));
                         }
                     }
                 }
             }
 
-            return Some(format!("🔧 **{}**: {}", tool_name, status));
+            return Some(format!("🔧 **{tool_name}**: {status}"));
         }
         None
     }

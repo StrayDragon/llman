@@ -539,7 +539,7 @@ impl CursorDatabase {
         if let Some(mut connection) = self.connect_global()? {
             use crate::x::cursor::database::cursor_disk_kv::dsl::*;
 
-            let pattern = format!("bubbleId:{}:%", composer_id);
+            let pattern = format!("bubbleId:{composer_id}:%");
             match cursor_disk_kv
                 .filter(key.like(pattern))
                 .count()
@@ -559,7 +559,7 @@ impl CursorDatabase {
     /// 获取composer对话的所有bubble数据
     fn get_composer_bubbles(&self, composer_id: &str) -> Result<Vec<ComposerBubble>> {
         if let Some(mut connection) = self.connect_global()? {
-            let pattern = format!("bubbleId:{}:%", composer_id);
+            let pattern = format!("bubbleId:{composer_id}:%");
 
             // 使用diesel的sql_query功能来查询rowid
             let query =
