@@ -1,5 +1,5 @@
 use crate::config::{CURSOR_APP, Config, TARGET_CURSOR_RULES_DIR};
-use crate::error::{LlmanError, Result};
+use anyhow::{Result, anyhow};
 use inquire::{Confirm, MultiSelect, Select};
 use std::env;
 use std::fs;
@@ -11,9 +11,12 @@ pub struct PromptCommand {
 impl PromptCommand {
     #[allow(dead_code)]
     pub fn new() -> Result<Self> {
-        Self::with_config_dir(None)
+        Ok(Self {
+            config: Config::new()?,
+        })
     }
 
+    #[allow(dead_code)]
     pub fn with_config_dir(config_dir: Option<&str>) -> Result<Self> {
         Ok(Self {
             config: Config::with_config_dir(config_dir)?,
@@ -114,9 +117,7 @@ impl PromptCommand {
         } else if let Some(file_path) = file {
             fs::read_to_string(file_path)?
         } else {
-            return Err(LlmanError::Config {
-                message: t!("messages.content_or_file_required").to_string(),
-            });
+            return Err(anyhow!(t!("messages.content_or_file_required")));
         };
 
         let rule_path = self.config.rule_file_path(app, name);
@@ -132,9 +133,7 @@ impl PromptCommand {
         let rule_path = self.config.rule_file_path(app, name);
 
         if !rule_path.exists() {
-            return Err(LlmanError::RuleNotFound {
-                name: name.to_string(),
-            });
+            return Err(anyhow!(t!("errors.rule_not_found", name = name)));
         }
 
         let confirm = Confirm::new(&t!("messages.confirm_delete", name = name))
@@ -154,9 +153,7 @@ impl PromptCommand {
     fn validate_app(&self, app: &str) -> Result<()> {
         match app {
             CURSOR_APP => Ok(()),
-            _ => Err(LlmanError::InvalidApp {
-                app: app.to_string(),
-            }),
+            _ => Err(anyhow!(t!("errors.invalid_app", app = app))),
         }
     }
 
@@ -165,13 +162,13 @@ impl PromptCommand {
 
         if let Some(user_dir) = directories::UserDirs::new() {
             if current_dir == user_dir.home_dir().to_path_buf() {
-                return Err(LlmanError::HomeDirectoryNotAllowed);
+                return Err(anyhow!(t!("errors.home_dir_not_allowed")));
             }
         }
 
         let git_dir = current_dir.join(".git");
         if !git_dir.exists() {
-            return Err(LlmanError::NotProjectDirectory);
+            return Err(anyhow!(t!("errors.not_project_directory")));
         }
 
         Ok(())
@@ -185,9 +182,7 @@ impl PromptCommand {
                     .join(TARGET_CURSOR_RULES_DIR)
                     .join(format!("{}.mdc", name)))
             }
-            _ => Err(LlmanError::InvalidApp {
-                app: app.to_string(),
-            }),
+            _ => Err(anyhow!(t!("errors.invalid_app", app = app))),
         }
     }
 
@@ -201,9 +196,7 @@ impl PromptCommand {
         if template_path.exists() {
             Ok(fs::read_to_string(template_path)?)
         } else {
-            Err(LlmanError::RuleNotFound {
-                name: template.to_string(),
-            })
+            Err(anyhow!(t!("errors.rule_not_found", name = template)))
         }
     }
 

@@ -664,6 +664,7 @@ dependencies = [
  "directories",
  "dirs",
  "glob",
+ "ignore",
  "inquire",
  "once_cell",
  "rust-i18n",
@@ -671,6 +672,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.12",
  "toml",
+ "walkdir",
 ]
 
 [[package]]
