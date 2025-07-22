@@ -71,7 +71,7 @@ impl Config {
             CURSOR_APP => CURSOR_EXTENSION,
             _ => DEFAULT_EXTENSION,
         };
-        self.app_dir(app).join(format!("{}.{}", name, extension))
+        self.app_dir(app).join(format!("{name}.{extension}"))
     }
 
     pub fn list_rules(&self, app: &str) -> Result<Vec<String>> {

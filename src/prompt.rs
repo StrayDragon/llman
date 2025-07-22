@@ -95,7 +95,7 @@ impl PromptCommand {
         } else {
             let apps = vec![CURSOR_APP];
             for app in apps {
-                println!("\n📁 {}:", app);
+                println!("\n📁 {app}:");
                 self.list_app_rules(app)?;
             }
         }
@@ -180,7 +180,7 @@ impl PromptCommand {
                 let current_dir = env::current_dir()?;
                 Ok(current_dir
                     .join(TARGET_CURSOR_RULES_DIR)
-                    .join(format!("{}.mdc", name)))
+                    .join(format!("{name}.mdc")))
             }
             _ => Err(anyhow!(t!("errors.invalid_app", app = app))),
         }
@@ -207,7 +207,7 @@ impl PromptCommand {
             println!("  {}", t!("errors.no_rules_found"));
         } else {
             for rule in rules {
-                println!("  📄 {}", rule);
+                println!("  📄 {rule}");
             }
         }
 

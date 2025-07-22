@@ -21,7 +21,7 @@ fn main() {
     rust_i18n::set_locale(locale);
 
     if let Err(e) = cli::run() {
-        eprintln!("Error: {}", e);
+        eprintln!("{}", t!("messages.error", error = e.to_string()));
         std::process::exit(1);
     }
 }

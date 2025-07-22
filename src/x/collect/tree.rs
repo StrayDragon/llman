@@ -109,13 +109,13 @@ pub fn run(args: &TreeArgs) -> Result<()> {
 
                 // 为目录添加 / 后缀以区分文件和目录
                 let display_name = if is_dir {
-                    format!("{}/", file_name)
+                    format!("{file_name}/")
                 } else {
                     file_name.to_string()
                 };
 
                 let tree_symbol = if is_last { "└── " } else { "├── " };
-                output.push_str(&format!("{}{}{}\n", prefix, tree_symbol, display_name));
+                output.push_str(&format!("{prefix}{tree_symbol}{display_name}\n"));
 
                 // 检查是否需要添加文件内容
                 if append_context && !is_dir && meaningful_files.contains(&file_name.as_ref()) {
@@ -131,9 +131,9 @@ pub fn run(args: &TreeArgs) -> Result<()> {
                 // 递归处理子目录
                 if is_dir {
                     let new_prefix = if is_last {
-                        format!("{}    ", prefix)
+                        format!("{prefix}    ")
                     } else {
-                        format!("{}│   ", prefix)
+                        format!("{prefix}│   ")
                     };
                     generate_tree_output(
                         entry.path(),
@@ -177,7 +177,7 @@ pub fn run(args: &TreeArgs) -> Result<()> {
         fs::write(output_file, &final_output)?;
         println!("Output written to {}", output_file.display());
     } else {
-        println!("{}", final_output);
+        println!("{final_output}");
     }
 
     Ok(())

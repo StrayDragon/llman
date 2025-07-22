@@ -108,7 +108,7 @@ fn export_composer_by_id(
     debug: bool,
 ) -> Result<()> {
     if debug {
-        println!("[DEBUG] 正在导出composer: {}", composer_id);
+        println!("[DEBUG] 正在导出composer: {composer_id}");
     }
     let all_conversations = db.get_all_conversations_mixed()?;
 
@@ -127,14 +127,14 @@ fn export_composer_by_id(
             "single-file" => {
                 let filename = output_file.unwrap_or("cursor_export.md");
                 if debug {
-                    println!("[DEBUG] 导出到文件: {}", filename);
+                    println!("[DEBUG] 导出到文件: {filename}");
                 }
                 export_to_single_file_with_name(&conversations, filename)?;
             }
-            _ => println!("不支持的输出模式: {}", output_mode),
+            _ => println!("不支持的输出模式: {output_mode}"),
         }
     } else {
-        println!("未找到composer ID: {}", composer_id);
+        println!("未找到composer ID: {composer_id}");
     }
 
     Ok(())
@@ -414,7 +414,7 @@ fn export_to_single_file_with_name(
         content.push_str("\n\n");
     }
     fs::write(filename, content)?;
-    println!("✅ 导出成功: {}", filename);
+    println!("✅ 导出成功: {filename}");
     Ok(())
 }
 
