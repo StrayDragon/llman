@@ -1,5 +1,4 @@
-use crate::error::LlmanError;
-use crate::error::Result;
+use anyhow::{Result, anyhow};
 use directories::ProjectDirs;
 use std::env;
 use std::fs;
@@ -31,10 +30,8 @@ impl Config {
         } else if let Ok(custom_dir) = env::var(ENV_CONFIG_DIR) {
             PathBuf::from(custom_dir)
         } else {
-            let project_dirs =
-                ProjectDirs::from("", "", APP_NAME).ok_or_else(|| LlmanError::Config {
-                    message: t!("errors.not_find_config_dir").to_string(),
-                })?;
+            let project_dirs = ProjectDirs::from("", "", APP_NAME)
+                .ok_or_else(|| anyhow!(t!("errors.not_find_config_dir")))?;
             project_dirs.config_dir().to_path_buf()
         };
 

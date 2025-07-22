@@ -1,7 +1,8 @@
 use anyhow::Result as _Result;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
+#[allow(dead_code)]
 pub enum LlmanError {
     #[error("Config Error: {message}")]
     Config { message: String },
@@ -44,6 +45,7 @@ pub enum LlmanError {
 }
 
 impl LlmanError {
+    #[allow(dead_code)]
     pub fn display_localized(&self) -> String {
         match self {
             LlmanError::Config { message } => {

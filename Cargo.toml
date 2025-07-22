@@ -16,6 +16,7 @@ clap = { version = "4.5.38", features = [
     "wrap_help",
     "string",
     "cargo",
+    "derive",
 ] }
 directories = "6.0.0"
 inquire = "0.7.5"
@@ -29,3 +30,5 @@ diesel = { version = "2.2.10", features = ["sqlite", "chrono"] }
 chrono = { version = "0.4.38", features = ["serde"] }
 dirs = "5.0.1"
 glob = "0.3.1"
+walkdir = "2.5.0"
+ignore = "0.4.22"
