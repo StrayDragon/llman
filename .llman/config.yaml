@@ -1,0 +1,88 @@
+version: "0.1"
+tools:
+  clean-useless-comments:
+    scope:
+      include:
+        - "**/*.py"
+        - "**/*.js"
+        - "**/*.ts"
+        - "**/*.rs"
+        - "**/*.go"
+      exclude:
+        - "**/node_modules/**"
+        - "**/target/**"
+        - "**/.git/**"
+        - "**/dist/**"
+        - "**/build/**"
+
+    lang-rules:
+      python:
+        single-line-comments: true
+        multi-line-comments: false
+        docstrings: false
+        preserve-patterns:
+          - "^\\s*#\\s*(TODO|FIXME|NOTE|HACK):\\s*.*"
+          - "^\\s*#\\s*(type|param|return|raises):\\s*.*"
+          - "^\\s*#\\s*(Copyright|License):\\s*.*"
+        min-comment-length: 25
+        min-code-complexity: 3
+        remove-duplicate-comments: true
+
+      javascript:
+        single-line-comments: false
+        multi-line-comments: false
+        jsdoc: false
+        preserve-patterns:
+          - "^\\s*//\\s*(TODO|FIXME|NOTE|HACK):\\s*.*"
+          - "^\\s*/\\*\\*.*\\*/"
+          - "^\\s*//\\s*(type|param|return):\\s*.*"
+        min-comment-length: 25
+        min-code-complexity: 3
+        remove-duplicate-comments: true
+
+      rust:
+        single-line-comments: false
+        multi-line-comments: false
+        doc-comments: false
+        preserve-patterns:
+          - "^\\s*///\\s*(TODO|FIXME|NOTE|HACK):\\s*.*"
+          - "^\\s*//!\\s*(TODO|FIXME|NOTE|HACK):\\s*.*"
+          - "^\\s*///\\s*(Examples|Safety|Panics):\\s*.*"
+        min-comment-length: 8
+        min-code-complexity: 2
+        remove-duplicate-comments: true
+
+      go:
+        single-line-comments: false
+        multi-line-comments: false
+        godoc: false
+        preserve-patterns:
+          - "^\\s*//\\s*(TODO|FIXME|NOTE|HACK):\\s*.*"
+          - "^\\s*//\\s*(Package|Function|Return|Parameters):\\s*.*"
+        min-comment-length: 25
+        min-code-complexity: 3
+        remove-duplicate-comments: true
+
+    global-rules:
+      preserve-empty-lines: true
+      remove-consecutive-empty-lines: true
+      remove-duplicate-comments: true
+      max-comment-density: 0.3
+      min-comment-length: 8
+      min-code-complexity: 2
+
+    safety:
+      backup-enabled: true
+      backup-dir: ".llman/backups"
+      backup-compression: true
+      dry-run-first: true
+      git-aware: true
+      require-git-commit: true
+      max-backup-age: "30d"
+
+    output:
+      show-changed-files: true
+      show-removed-comments: true
+      show-statistics: true
+      generate-report: true
+      report-format: "markdown"

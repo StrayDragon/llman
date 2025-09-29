@@ -1,4 +1,5 @@
 use crate::prompt::PromptCommand;
+use crate::tool::command::{ToolArgs, ToolCommands};
 use crate::x::collect::command::{CollectArgs, CollectCommands};
 use crate::x::cursor::command::CursorArgs;
 use anyhow::Result;
@@ -22,6 +23,8 @@ pub enum Commands {
     Project(ProjectArgs),
     /// Experimental commands
     X(XArgs),
+    /// Developer tools
+    Tool(ToolArgs),
 }
 
 #[derive(Parser)]
@@ -110,6 +113,7 @@ pub fn run() -> Result<()> {
         Commands::Prompt(args) => handle_prompt_command(args),
         Commands::Project(args) => handle_project_command(args),
         Commands::X(args) => handle_x_command(args),
+        Commands::Tool(args) => handle_tool_command(args),
     }
 }
 
@@ -164,5 +168,13 @@ fn handle_x_command(args: &XArgs) -> Result<()> {
 fn handle_project_command(args: &ProjectArgs) -> Result<()> {
     match &args.command {
         ProjectCommands::Tree(tree_args) => crate::x::collect::tree::run(tree_args),
+    }
+}
+
+fn handle_tool_command(args: &ToolArgs) -> Result<()> {
+    match &args.command {
+        ToolCommands::CleanUselessComments(args) => {
+            crate::tool::clean_comments::run(args)
+        }
     }
 }

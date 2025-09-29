@@ -7,6 +7,14 @@ description = "A tool for managing LLM application rules(prompts) ..."
 license = "MIT"
 repository = "https://github.com/StrayDragon/llman"
 
+[[bin]]
+name = "llman"
+path = "src/main.rs"
+
+[lib]
+name = "llman"
+path = "src/lib.rs"
+
 [dependencies]
 anyhow = "1.0.98"
 clap = { version = "4.5.38", features = [
@@ -32,3 +40,28 @@ dirs = "5.0.1"
 glob = "0.3.1"
 walkdir = "2.5.0"
 ignore = "0.4.22"
+
+# Comment processing and parsing
+tree-sitter = "0.20.10"
+tree-sitter-highlight = "0.20.1"
+tree-sitter-javascript = "0.20.0"
+tree-sitter-python = "0.20.3"
+tree-sitter-rust = "0.20.3"
+tree-sitter-go = "0.19.1"
+
+# Configuration and validation
+schemars = { version = "0.8.21", features = ["derive"] }
+
+# Parallel processing
+rayon = "1.10.0"
+
+# File comparison and backup
+similar = "2.6.0"
+tempfile = "3.13.0"
+
+# Progress reporting
+indicatif = "0.17.8"
+
+# Additional utilities
+regex = "1.11.1"
+serde_yaml = "0.9.34"
