@@ -495,10 +495,8 @@ impl ComposerBubble {
         }
 
         // 如果有代码块，那是AI回复
-        if let Some(code_blocks) = &self.code_blocks {
-            if !code_blocks.is_empty() {
-                return false;
-            }
+        if !self.code_blocks.as_deref().unwrap_or_default().is_empty() {
+            return false;
         }
 
         // 如果有AI建议的差异，那是AI回复
