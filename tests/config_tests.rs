@@ -2,8 +2,10 @@ use llman::tool::config::Config;
 mod common;
 use common::*;
 
+/// Tests that the default configuration loads correctly with expected values
+/// and includes the clean-useless-comments tool configuration.
 #[test]
-fn test_default_config_loading() {
+fn test_default_config_loading_contains_expected_values_and_tool_configuration() {
     let env = TestEnvironment::new();
     let config = Config::load_or_default(env.path().join(".llman").join("config.yaml")).unwrap();
 
@@ -11,59 +13,67 @@ fn test_default_config_loading() {
     assert!(config.tools.clean_useless_comments.is_some());
 }
 
+/// Tests loading a custom configuration with all supported options including
+/// language-specific rules, file scoping, safety settings, and output options.
 #[test]
-fn test_custom_config_loading() {
+fn test_custom_config_loading_parses_all_supported_options_correctly() {
     let env = TestEnvironment::new();
 
-    let config_content = r#"
+    let config_content = format!(r#"
 version: "0.1"
 tools:
   clean-useless-comments:
     scope:
       include:
-        - "**/*.py"
-        - "**/*.js"
+        - "{}"
+        - "{}"
       exclude:
         - "**/node_modules/**"
     lang-rules:
       python:
         single-line-comments: true
-        min-comment-length: 10
+        min-comment-length: {}
       javascript:
         single-line-comments: true
-        min-comment-length: 15
+        min-comment-length: {}
     global-rules:
-      min-comment-length: 8
+      min-comment-length: {}
     safety:
-      backup-enabled: false
+      dry-run-first: false
     output:
       show-statistics: true
-"#;
+"#,
+        test_constants::PYTHON_FILE_PATTERN,
+        test_constants::JS_FILE_PATTERN,
+        test_constants::SHORT_COMMENT_LENGTH * 2, // 10
+        test_constants::SHORT_COMMENT_LENGTH * 3, // 15
+        test_constants::SHORT_COMMENT_LENGTH + 3  // 8
+    );
 
-    env.create_config(config_content);
+    env.create_config(&config_content);
 
     let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let clean_config = config.get_clean_comments_config().unwrap();
 
     
-    assert_eq!(clean_config.scope.include, vec!["**/*.py", "**/*.js"]);
+    assert_eq!(clean_config.scope.include, vec![test_constants::PYTHON_FILE_PATTERN, test_constants::JS_FILE_PATTERN]);
     assert_eq!(clean_config.scope.exclude, vec!["**/node_modules/**"]);
 
     assert_eq!(clean_config.lang_rules.python.as_ref().unwrap().single_line_comments, Some(true));
-    assert_eq!(clean_config.lang_rules.python.as_ref().unwrap().min_comment_length, Some(10));
+    assert_eq!(clean_config.lang_rules.python.as_ref().unwrap().min_comment_length, Some((test_constants::SHORT_COMMENT_LENGTH * 2) as usize));
 
-    assert_eq!(clean_config.lang_rules.javascript.as_ref().unwrap().min_comment_length, Some(15));
+    assert_eq!(clean_config.lang_rules.javascript.as_ref().unwrap().min_comment_length, Some((test_constants::SHORT_COMMENT_LENGTH * 3) as usize));
 
     // Check if global_rules exists and has the right value
     // Note: It seems the global_rules field is not being parsed correctly from YAML
     // Let's skip this test for now and focus on other tests
     if let Some(global_rules) = &clean_config.global_rules {
-        assert_eq!(global_rules.min_comment_length, Some(8));
+        assert_eq!(global_rules.min_comment_length, Some((test_constants::SHORT_COMMENT_LENGTH + 3) as usize));
     }
 
     // Check if safety exists and has the right value
     assert!(clean_config.safety.is_some(), "safety should not be None");
-    assert_eq!(clean_config.safety.as_ref().unwrap().backup_enabled, Some(false));
+    assert_eq!(clean_config.safety.as_ref().unwrap().dry_run_first, Some(false));
 
     // Check if output exists and has the right value
     assert!(clean_config.output.is_some(), "output should not be None");
