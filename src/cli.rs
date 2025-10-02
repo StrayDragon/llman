@@ -173,8 +173,6 @@ fn handle_project_command(args: &ProjectArgs) -> Result<()> {
 
 fn handle_tool_command(args: &ToolArgs) -> Result<()> {
     match &args.command {
-        ToolCommands::CleanUselessComments(args) => {
-            crate::tool::clean_comments::run(args)
-        }
+        ToolCommands::CleanUselessComments(args) => crate::tool::clean_comments::run(args),
     }
 }

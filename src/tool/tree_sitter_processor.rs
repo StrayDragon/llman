@@ -1,8 +1,8 @@
-use anyhow::{Result, anyhow};
-use tree_sitter::{Parser, Node, Language, Query, QueryCursor};
-use tree_sitter_highlight::HighlightConfiguration;
-use std::path::Path;
 use crate::tool::config::LanguageSpecificRules;
+use anyhow::{Result, anyhow};
+use std::path::Path;
+use tree_sitter::{Language, Node, Parser, Query, QueryCursor};
+use tree_sitter_highlight::HighlightConfiguration;
 
 pub struct TreeSitterProcessor {
     parser: Parser,
@@ -23,10 +23,7 @@ impl TreeSitterProcessor {
         let parser = Parser::new();
         let languages = Self::init_supported_languages()?;
 
-        Ok(Self {
-            parser,
-            languages,
-        })
+        Ok(Self { parser, languages })
     }
 
     fn init_supported_languages() -> Result<Vec<SupportedLanguage>> {
@@ -39,7 +36,6 @@ impl TreeSitterProcessor {
                 comment_query: Self::create_python_comment_query()?,
                 highlight_config: None,
             },
-
             // JavaScript
             SupportedLanguage {
                 name: "javascript".to_string(),
@@ -48,7 +44,6 @@ impl TreeSitterProcessor {
                 comment_query: Self::create_javascript_comment_query()?,
                 highlight_config: None,
             },
-
             // Rust
             SupportedLanguage {
                 name: "rust".to_string(),
@@ -57,7 +52,6 @@ impl TreeSitterProcessor {
                 comment_query: Self::create_rust_comment_query()?,
                 highlight_config: None,
             },
-
             // Go
             SupportedLanguage {
                 name: "go".to_string(),
@@ -118,19 +112,32 @@ impl TreeSitterProcessor {
     pub fn get_language_for_file(&self, file_path: &Path) -> Option<&SupportedLanguage> {
         let extension = file_path.extension()?.to_str()?;
 
-        self.languages.iter().find(|&lang| lang.file_extensions.contains(&extension.to_string()))
+        self.languages
+            .iter()
+            .find(|&lang| lang.file_extensions.contains(&extension.to_string()))
     }
 
-    pub fn extract_comments(&mut self, content: &str, file_path: &Path) -> Result<Vec<CommentInfo>> {
+    pub fn extract_comments(
+        &mut self,
+        content: &str,
+        file_path: &Path,
+    ) -> Result<Vec<CommentInfo>> {
         let (language, has_query, lang_name) = match self.get_language_for_file(file_path) {
-            Some(lang) => (lang.language, lang.comment_query.is_some(), lang.name.clone()),
+            Some(lang) => (
+                lang.language,
+                lang.comment_query.is_some(),
+                lang.name.clone(),
+            ),
             None => return Ok(Vec::new()),
         };
 
-        self.parser.set_language(language)
+        self.parser
+            .set_language(language)
             .map_err(|e| anyhow!("Failed to set language: {}", e))?;
 
-        let tree = self.parser.parse(content, None)
+        let tree = self
+            .parser
+            .parse(content, None)
             .ok_or_else(|| anyhow!("Failed to parse content"))?;
 
         let mut comments = Vec::new();
@@ -166,7 +173,13 @@ impl TreeSitterProcessor {
         Ok(comments)
     }
 
-    fn extract_comments_fallback(&self, node: Node, content: &str, comments: &mut Vec<CommentInfo>, lang_name: &str) {
+    fn extract_comments_fallback(
+        &self,
+        node: Node,
+        content: &str,
+        comments: &mut Vec<CommentInfo>,
+        lang_name: &str,
+    ) {
         if node.kind().contains("comment") {
             let comment_text = &content[node.byte_range()];
             comments.push(CommentInfo {
@@ -194,53 +207,54 @@ impl TreeSitterProcessor {
                 } else {
                     CommentKind::Unknown
                 }
+            }
+            "javascript" => match node_kind {
+                "comment" => CommentKind::Line,
+                "block_comment" | "multiline_comment" => CommentKind::Block,
+                _ => CommentKind::Unknown,
             },
-            "javascript" => {
-                match node_kind {
-                    "comment" => CommentKind::Line,
-                    "block_comment" | "multiline_comment" => CommentKind::Block,
-                    _ => CommentKind::Unknown,
-                }
+            "rust" => match node_kind {
+                "line_comment" => CommentKind::Line,
+                "block_comment" => CommentKind::Block,
+                "doc_comment" => CommentKind::Doc,
+                _ => CommentKind::Unknown,
             },
-            "rust" => {
-                match node_kind {
-                    "line_comment" => CommentKind::Line,
-                    "block_comment" => CommentKind::Block,
-                    "doc_comment" => CommentKind::Doc,
-                    _ => CommentKind::Unknown,
-                }
-            },
-            "go" => {
-                match node_kind {
-                    "comment" => CommentKind::Line,
-                    "block_comment" => CommentKind::Block,
-                    _ => CommentKind::Unknown,
-                }
+            "go" => match node_kind {
+                "comment" => CommentKind::Line,
+                "block_comment" => CommentKind::Block,
+                _ => CommentKind::Unknown,
             },
             _ => CommentKind::Unknown,
         }
     }
 
-    pub fn should_remove_comment(&self, comment: &CommentInfo, rules: &LanguageSpecificRules) -> bool {
+    pub fn should_remove_comment(
+        &self,
+        comment: &CommentInfo,
+        rules: &LanguageSpecificRules,
+    ) -> bool {
         // Check if comments are enabled for this type
         match comment.kind {
             CommentKind::Line => {
                 if rules.single_line_comments != Some(true) {
                     return false;
                 }
-            },
+            }
             CommentKind::Block => {
                 if rules.multi_line_comments != Some(true) {
                     return false;
                 }
-            },
+            }
             CommentKind::Doc => {
-                match rules.docstrings.or(rules.jsdoc.or(rules.doc_comments.or(rules.godoc))) {
+                match rules
+                    .docstrings
+                    .or(rules.jsdoc.or(rules.doc_comments.or(rules.godoc)))
+                {
                     Some(true) => return false,
-                    Some(false) => {},
+                    Some(false) => {}
                     None => return false,
                 }
-            },
+            }
             CommentKind::Unknown => return false,
         }
 
@@ -248,7 +262,7 @@ impl TreeSitterProcessor {
         if let Some(min_length) = rules.min_comment_length {
             let text_length = comment.text.trim().len();
             if text_length >= min_length {
-                return false;  // Don't remove long comments
+                return false; // Don't remove long comments
             }
         }
 
@@ -266,20 +280,25 @@ impl TreeSitterProcessor {
         true
     }
 
-    pub fn remove_comments_from_content(&mut self, content: &str, file_path: &Path, rules: &LanguageSpecificRules) -> Result<(String, Vec<CommentInfo>)> {
+    pub fn remove_comments_from_content(
+        &mut self,
+        content: &str,
+        file_path: &Path,
+        rules: &LanguageSpecificRules,
+    ) -> Result<(String, Vec<CommentInfo>)> {
         let comments = self.extract_comments(content, file_path)?;
         let mut removed_comments = Vec::new();
         let mut result = content.to_string();
 
         // Process comments in reverse order to maintain correct positions
-        let mut comments_to_remove: Vec<_> = comments.iter()
+        let mut comments_to_remove: Vec<_> = comments
+            .iter()
             .filter(|c| self.should_remove_comment(c, rules))
             .collect();
 
         // Sort by start position (descending)
-        comments_to_remove.sort_by(|a, b| {
-            (b.start_line, b.start_col).cmp(&(a.start_line, a.start_col))
-        });
+        comments_to_remove
+            .sort_by(|a, b| (b.start_line, b.start_col).cmp(&(a.start_line, a.start_col)));
 
         for comment in comments_to_remove {
             removed_comments.push(comment.clone());
@@ -295,7 +314,11 @@ impl TreeSitterProcessor {
         Ok((result, removed_comments))
     }
 
-    fn find_comment_range(&self, content: &str, comment: &CommentInfo) -> Option<std::ops::Range<usize>> {
+    fn find_comment_range(
+        &self,
+        content: &str,
+        comment: &CommentInfo,
+    ) -> Option<std::ops::Range<usize>> {
         // This is a simplified approach - find the comment text near the expected line
         let lines: Vec<&str> = content.lines().collect();
 
@@ -305,7 +328,12 @@ impl TreeSitterProcessor {
 
             let trimmed_text = comment.text.trim();
             if let Some(pos) = line[start_pos..].find(trimmed_text) {
-                let line_start = content[..content.lines().take(comment.start_line - 1).map(|l| l.len() + 1).sum::<usize>()].len();
+                let line_start = content[..content
+                    .lines()
+                    .take(comment.start_line - 1)
+                    .map(|l| l.len() + 1)
+                    .sum::<usize>()]
+                    .len();
                 let abs_start = line_start + start_pos + pos;
                 let abs_end = abs_start + trimmed_text.len();
 
@@ -343,11 +371,31 @@ mod tests {
     fn test_get_language_for_file() {
         let processor = TreeSitterProcessor::new().unwrap();
 
-        assert!(processor.get_language_for_file(Path::new("test.py")).is_some());
-        assert!(processor.get_language_for_file(Path::new("test.js")).is_some());
-        assert!(processor.get_language_for_file(Path::new("test.rs")).is_some());
-        assert!(processor.get_language_for_file(Path::new("test.go")).is_some());
-        assert!(processor.get_language_for_file(Path::new("test.unknown")).is_none());
+        assert!(
+            processor
+                .get_language_for_file(Path::new("test.py"))
+                .is_some()
+        );
+        assert!(
+            processor
+                .get_language_for_file(Path::new("test.js"))
+                .is_some()
+        );
+        assert!(
+            processor
+                .get_language_for_file(Path::new("test.rs"))
+                .is_some()
+        );
+        assert!(
+            processor
+                .get_language_for_file(Path::new("test.go"))
+                .is_some()
+        );
+        assert!(
+            processor
+                .get_language_for_file(Path::new("test.unknown"))
+                .is_none()
+        );
     }
 
     #[test]
@@ -360,7 +408,9 @@ def hello():
     pass
 "#;
 
-        let comments = processor.extract_comments(content, Path::new("test.py")).unwrap();
+        let comments = processor
+            .extract_comments(content, Path::new("test.py"))
+            .unwrap();
         assert_eq!(comments.len(), 2);
         assert!(comments[0].text.contains("This is a comment"));
         assert!(comments[1].text.contains("Another comment"));
@@ -377,7 +427,9 @@ function hello() {
 }
 "#;
 
-        let comments = processor.extract_comments(content, Path::new("test.js")).unwrap();
+        let comments = processor
+            .extract_comments(content, Path::new("test.js"))
+            .unwrap();
         assert_eq!(comments.len(), 2);
         assert!(comments[0].text.contains("Line comment"));
         assert!(comments[1].text.contains("Block comment"));

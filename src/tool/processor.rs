@@ -1,11 +1,11 @@
-use crate::tool::config::Config;
 use crate::tool::command::CleanUselessCommentsArgs;
+use crate::tool::config::Config;
 use crate::tool::tree_sitter_processor::TreeSitterProcessor;
 use anyhow::{Result, anyhow};
 use ignore::WalkBuilder;
+use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
-use regex::Regex;
 
 pub struct CommentProcessor {
     config: Config,
@@ -18,16 +18,22 @@ impl CommentProcessor {
         let tree_sitter_processor = match TreeSitterProcessor::new() {
             Ok(processor) => Some(processor),
             Err(e) => {
-                eprintln!("Warning: Failed to initialize TreeSitter processor: {}", e);
+                eprintln!("Warning: Failed to initialize TreeSitter processor: {e}");
                 None
             }
         };
 
-        Self { config, args, tree_sitter_processor }
+        Self {
+            config,
+            args,
+            tree_sitter_processor,
+        }
     }
 
     pub fn process(&mut self) -> Result<ProcessingResult> {
-        let clean_config = self.config.get_clean_comments_config()
+        let clean_config = self
+            .config
+            .get_clean_comments_config()
             .ok_or_else(|| anyhow!("No clean useless comments configuration found"))?;
 
         println!("Processing files...");
@@ -49,14 +55,16 @@ impl CommentProcessor {
                         results.comments_removed += file_result.comments_removed;
 
                         if self.args.verbose || !self.args.dry_run {
-                            println!("File: {} - Removed {} comments",
+                            println!(
+                                "File: {} - Removed {} comments",
                                 file_path.display(),
-                                file_result.comments_removed);
+                                file_result.comments_removed
+                            );
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error processing {}: {}", file_path.display(), e);
+                    eprintln!("Error processing {}: {e}", file_path.display());
                     results.errors += 1;
                 }
             }
@@ -100,7 +108,7 @@ impl CommentProcessor {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error walking directory: {}", e);
+                    eprintln!("Error walking directory: {e}");
                 }
             }
         }
@@ -113,14 +121,20 @@ impl CommentProcessor {
 
         // Check exclude patterns first
         for pattern in exclude {
-            if glob::Pattern::new(pattern).map(|p| p.matches_path(path)).unwrap_or(false) {
+            if glob::Pattern::new(pattern)
+                .map(|p| p.matches_path(path))
+                .unwrap_or(false)
+            {
                 return false;
             }
         }
 
         // Check include patterns
         for pattern in include {
-            if glob::Pattern::new(pattern).map(|p| p.matches_path(path)).unwrap_or(false) {
+            if glob::Pattern::new(pattern)
+                .map(|p| p.matches_path(path))
+                .unwrap_or(false)
+            {
                 return true;
             }
         }
@@ -128,12 +142,17 @@ impl CommentProcessor {
         false
     }
 
-    fn process_file(&mut self, file_path: &Path, clean_config: &crate::tool::config::CleanUselessCommentsConfig) -> Result<FileProcessingResult> {
+    fn process_file(
+        &mut self,
+        file_path: &Path,
+        clean_config: &crate::tool::config::CleanUselessCommentsConfig,
+    ) -> Result<FileProcessingResult> {
         let content = fs::read_to_string(file_path)?;
         let language = self.detect_language(file_path);
 
         if let Some(lang_rules) = self.get_language_rules(language, &clean_config.lang_rules) {
-            let (new_content, comments_removed) = self.remove_comments_with_tree_sitter(&content, file_path, lang_rules)?;
+            let (new_content, comments_removed) =
+                self.remove_comments_with_tree_sitter(&content, file_path, lang_rules)?;
 
             let has_changes = new_content != content;
 
@@ -165,7 +184,11 @@ impl CommentProcessor {
         }
     }
 
-    fn get_language_rules<'a>(&self, language: Option<&str>, lang_rules: &'a crate::tool::config::LanguageRules) -> Option<&'a crate::tool::config::LanguageSpecificRules> {
+    fn get_language_rules<'a>(
+        &self,
+        language: Option<&str>,
+        lang_rules: &'a crate::tool::config::LanguageRules,
+    ) -> Option<&'a crate::tool::config::LanguageSpecificRules> {
         match language {
             Some("python") => lang_rules.python.as_ref(),
             Some("javascript") | Some("typescript") => lang_rules.javascript.as_ref(),
@@ -175,7 +198,11 @@ impl CommentProcessor {
         }
     }
 
-    fn remove_comments(&self, content: &str, rules: &crate::tool::config::LanguageSpecificRules) -> Result<String> {
+    fn remove_comments(
+        &self,
+        content: &str,
+        rules: &crate::tool::config::LanguageSpecificRules,
+    ) -> Result<String> {
         let mut result = content.to_string();
 
         // Remove single-line comments if enabled
@@ -191,10 +218,15 @@ impl CommentProcessor {
         Ok(result)
     }
 
-    fn remove_single_line_comments(&self, content: &str, rules: &crate::tool::config::LanguageSpecificRules) -> Result<String> {
+    fn remove_single_line_comments(
+        &self,
+        content: &str,
+        rules: &crate::tool::config::LanguageSpecificRules,
+    ) -> Result<String> {
         let empty_patterns = vec![];
         let preserve_patterns = rules.preserve_patterns.as_ref().unwrap_or(&empty_patterns);
-        let preserve_regexes: Vec<_> = preserve_patterns.iter()
+        let preserve_regexes: Vec<_> = preserve_patterns
+            .iter()
             .filter_map(|p| Regex::new(p).ok())
             .collect();
 
@@ -214,7 +246,9 @@ impl CommentProcessor {
                 let comment = &line[comment_start..];
 
                 // Check if we should preserve this comment
-                let should_preserve = preserve_regexes.iter().any(|regex| regex.is_match(comment.trim()));
+                let should_preserve = preserve_regexes
+                    .iter()
+                    .any(|regex| regex.is_match(comment.trim()));
 
                 // Check minimum length requirement
                 let min_length = rules.min_comment_length.unwrap_or(0);
@@ -226,11 +260,16 @@ impl CommentProcessor {
                 should_remove = !should_preserve && comment_too_short;
 
                 if self.args.verbose {
-                    println!("Processing line: '{}'", line);
+                    println!("Processing line: '{line}'");
                     println!("  - comment: '{}'", comment.trim());
-                    println!("  - should_preserve: {}", should_preserve);
-                    println!("  - comment_too_short: {} (len: {}, min: {})", comment_too_short, comment.trim().len(), min_length);
-                    println!("  - would remove: {}", should_remove);
+                    println!("  - should_preserve: {should_preserve}");
+                    println!(
+                        "  - comment_too_short: {} (len: {}, min: {})",
+                        comment_too_short,
+                        comment.trim().len(),
+                        min_length
+                    );
+                    println!("  - would remove: {should_remove}");
                 }
             }
 
@@ -247,7 +286,11 @@ impl CommentProcessor {
         Ok(result.join("\n"))
     }
 
-    fn remove_multi_line_comments(&self, content: &str, _rules: &crate::tool::config::LanguageSpecificRules) -> Result<String> {
+    fn remove_multi_line_comments(
+        &self,
+        content: &str,
+        _rules: &crate::tool::config::LanguageSpecificRules,
+    ) -> Result<String> {
         // Simple multi-line comment removal (basic implementation)
         // This is a placeholder - a proper implementation would need more sophisticated parsing
         let mut result = content.to_string();
@@ -259,7 +302,12 @@ impl CommentProcessor {
         Ok(result)
     }
 
-    fn remove_comments_with_tree_sitter(&mut self, content: &str, file_path: &Path, rules: &crate::tool::config::LanguageSpecificRules) -> Result<(String, u32)> {
+    fn remove_comments_with_tree_sitter(
+        &mut self,
+        content: &str,
+        file_path: &Path,
+        rules: &crate::tool::config::LanguageSpecificRules,
+    ) -> Result<(String, u32)> {
         if let Some(ref mut tree_sitter_processor) = self.tree_sitter_processor {
             match tree_sitter_processor.remove_comments_from_content(content, file_path, rules) {
                 Ok((new_content, removed_comments)) => {
@@ -268,7 +316,11 @@ impl CommentProcessor {
                 }
                 Err(e) => {
                     if self.args.verbose {
-                        eprintln!("Tree-sitter processing failed for {}: {}, falling back to regex", file_path.display(), e);
+                        eprintln!(
+                            "Tree-sitter processing failed for {}: {}, falling back to regex",
+                            file_path.display(),
+                            e
+                        );
                     }
                     // Fallback to regex-based processing
                     let new_content = self.remove_comments(content, rules)?;

@@ -1,6 +1,6 @@
-use llman::tool::processor::CommentProcessor;
 use llman::tool::command::CleanUselessCommentsArgs;
 use llman::tool::config::Config;
+use llman::tool::processor::CommentProcessor;
 use std::time::Instant;
 mod common;
 use common::*;
@@ -13,11 +13,16 @@ mod performance_tests {
     use super::*;
 
     /// Creates a large Python file with many comments for performance testing
-    fn create_large_python_file_for_performance(env: &TestEnvironment, num_functions: usize) -> std::path::PathBuf {
-        let mut content = String::from("#!/usr/bin/env python3\n# This is a large performance test file\n\n");
+    fn create_large_python_file_for_performance(
+        env: &TestEnvironment,
+        num_functions: usize,
+    ) -> std::path::PathBuf {
+        let mut content =
+            String::from("#!/usr/bin/env python3\n# This is a large performance test file\n\n");
 
         for i in 0..num_functions {
-            content.push_str(&format!(r#"
+            content.push_str(&format!(
+                r#"
 # Function {} documentation
 def function_{}():
     # This is a short comment that should be removed
@@ -32,7 +37,9 @@ def helper_function_{}():
     data = process_data()
     # More comments here
     return data
-"#, i, i, i, i));
+"#,
+                i, i, i, i
+            ));
         }
 
         env.create_file("large_test.py", &content)
@@ -68,8 +75,11 @@ def helper_function_{}():
 
         // Whether files were changed depends on the content and thresholds
         // What's important for performance testing is that processing completed
-        println!("Files processed: {}, Files changed: {}",
-                 result.files_changed.len(), result.files_changed.len());
+        println!(
+            "Files processed: {}, Files changed: {}",
+            result.files_changed.len(),
+            result.files_changed.len()
+        );
 
         // Should complete within reasonable time (adjust threshold as needed)
         assert!(
@@ -78,7 +88,10 @@ def helper_function_{}():
             duration.as_millis()
         );
 
-        println!("Performance test - Medium file (100 functions): {}ms", duration.as_millis());
+        println!(
+            "Performance test - Medium file (100 functions): {}ms",
+            duration.as_millis()
+        );
     }
 
     /// Tests performance with a large file (~1000 functions)
@@ -108,8 +121,11 @@ def helper_function_{}():
 
         // Performance assertions - check that processing completed without errors
         assert_eq!(result.errors, 0, "Expected no processing errors");
-        println!("Files processed: {}, Files changed: {}",
-                 result.files_changed.len(), result.files_changed.len());
+        println!(
+            "Files processed: {}, Files changed: {}",
+            result.files_changed.len(),
+            result.files_changed.len()
+        );
 
         // Large files should still complete in reasonable time
         assert!(
@@ -118,7 +134,10 @@ def helper_function_{}():
             duration.as_millis()
         );
 
-        println!("Performance test - Large file (1000 functions): {}ms", duration.as_millis());
+        println!(
+            "Performance test - Large file (1000 functions): {}ms",
+            duration.as_millis()
+        );
     }
 
     /// Tests performance with multiple smaller files
@@ -127,8 +146,10 @@ def helper_function_{}():
         let env = TestEnvironment::new();
 
         // Create multiple smaller files
-        let files: Vec<_> = (0..10).map(|i| {
-            let content = format!(r#"#!/usr/bin/env python3
+        let files: Vec<_> = (0..10)
+            .map(|i| {
+                let content = format!(
+                    r#"#!/usr/bin/env python3
 # File {} content
 def func_{}():
     # Short comment in file {}
@@ -137,9 +158,12 @@ def func_{}():
 # TODO: Implement better logic
 def main_func_{}():
     print("Hello from file {}")
-"#, i, i, i, i, i, i);
-            env.create_file(&format!("test_file_{}.py", i), &content)
-        }).collect();
+"#,
+                    i, i, i, i, i, i
+                );
+                env.create_file(&format!("test_file_{}.py", i), &content)
+            })
+            .collect();
 
         env.create_python_clean_config(test_constants::SHORT_COMMENT_LENGTH); // Use lower threshold
 
@@ -161,8 +185,11 @@ def main_func_{}():
 
         // Should process all files efficiently
         assert_eq!(result.errors, 0, "Expected no processing errors");
-        println!("Files processed: {}, Files changed: {}",
-                 result.files_changed.len(), result.files_changed.len());
+        println!(
+            "Files processed: {}, Files changed: {}",
+            result.files_changed.len(),
+            result.files_changed.len()
+        );
 
         // Multiple small files should be processed quickly
         assert!(
@@ -171,7 +198,10 @@ def main_func_{}():
             duration.as_millis()
         );
 
-        println!("Performance test - Multiple files (10 files): {}ms", duration.as_millis());
+        println!(
+            "Performance test - Multiple files (10 files): {}ms",
+            duration.as_millis()
+        );
     }
 
     /// Memory efficiency test - ensures processing doesn't consume excessive memory
@@ -201,8 +231,11 @@ def main_func_{}():
 
         // Should complete without memory issues
         assert_eq!(result.errors, 0, "Expected no processing errors");
-        println!("Files processed: {}, Files changed: {}",
-                 result.files_changed.len(), result.files_changed.len());
+        println!(
+            "Files processed: {}, Files changed: {}",
+            result.files_changed.len(),
+            result.files_changed.len()
+        );
 
         // Even very large files should complete in reasonable time
         assert!(
@@ -211,6 +244,9 @@ def main_func_{}():
             duration.as_millis()
         );
 
-        println!("Memory efficiency test - Very large file (5000 functions): {}ms", duration.as_millis());
+        println!(
+            "Memory efficiency test - Very large file (5000 functions): {}ms",
+            duration.as_millis()
+        );
     }
 }

@@ -86,13 +86,11 @@ impl Config {
             let entry = entry?;
             let path = entry.path();
 
-            if path.is_file() {
-                if let Some(stem) = path.file_stem() {
-                    if let Some(name) = stem.to_str() {
-                        rules.push(name.to_string());
-                    }
+            if path.is_file()
+                && let Some(stem) = path.file_stem()
+                && let Some(name) = stem.to_str() {
+                    rules.push(name.to_string());
                 }
-            }
         }
 
         rules.sort();

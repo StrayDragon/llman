@@ -1,6 +1,6 @@
+use clap::Parser;
 use llman::cli::{Cli, Commands, ProjectCommands, XCommands};
 use llman::tool::command::{ToolArgs, ToolCommands};
-use clap::Parser;
 use std::path::PathBuf;
 
 /// Tests that the CLI can parse basic commands correctly
@@ -47,24 +47,25 @@ fn test_project_command_parsing() {
 fn test_tool_command_parsing() {
     // Test tool clean-useless-comments command
     let args = vec![
-        "llman", "tool", "clean-useless-comments",
-        "--dry-run", "--verbose"
+        "llman",
+        "tool",
+        "clean-useless-comments",
+        "--dry-run",
+        "--verbose",
     ];
     let cli = Cli::try_parse_from(args);
     assert!(cli.is_ok());
 
     if let Ok(cli) = cli {
         match cli.command {
-            Commands::Tool(tool_args) => {
-                match tool_args.command {
-                    ToolCommands::CleanUselessComments(args) => {
-                        assert!(args.dry_run);
-                        assert!(args.verbose);
-                        assert!(args.files.is_empty());
-                    }
-                    _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            Commands::Tool(tool_args) => match tool_args.command {
+                ToolCommands::CleanUselessComments(args) => {
+                    assert!(args.dry_run);
+                    assert!(args.verbose);
+                    assert!(args.files.is_empty());
                 }
-            }
+                _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            },
             _ => panic!("Expected Commands::Tool"),
         }
     }
@@ -74,24 +75,26 @@ fn test_tool_command_parsing() {
 #[test]
 fn test_tool_command_with_files() {
     let args = vec![
-        "llman", "tool", "clean-useless-comments",
-        "--dry-run", "file1.py", "file2.js"
+        "llman",
+        "tool",
+        "clean-useless-comments",
+        "--dry-run",
+        "file1.py",
+        "file2.js",
     ];
     let cli = Cli::try_parse_from(args);
     assert!(cli.is_ok());
 
     if let Ok(cli) = cli {
         match cli.command {
-            Commands::Tool(tool_args) => {
-                match tool_args.command {
-                    ToolCommands::CleanUselessComments(args) => {
-                        assert_eq!(args.files.len(), 2);
-                        assert_eq!(args.files[0], PathBuf::from("file1.py"));
-                        assert_eq!(args.files[1], PathBuf::from("file2.js"));
-                    }
-                    _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            Commands::Tool(tool_args) => match tool_args.command {
+                ToolCommands::CleanUselessComments(args) => {
+                    assert_eq!(args.files.len(), 2);
+                    assert_eq!(args.files[0], PathBuf::from("file1.py"));
+                    assert_eq!(args.files[1], PathBuf::from("file2.js"));
                 }
-            }
+                _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            },
             _ => panic!("Expected Commands::Tool"),
         }
     }
@@ -101,23 +104,24 @@ fn test_tool_command_with_files() {
 #[test]
 fn test_tool_command_with_config() {
     let args = vec![
-        "llman", "tool", "clean-useless-comments",
-        "--config", "custom.yaml"
+        "llman",
+        "tool",
+        "clean-useless-comments",
+        "--config",
+        "custom.yaml",
     ];
     let cli = Cli::try_parse_from(args);
     assert!(cli.is_ok());
 
     if let Ok(cli) = cli {
         match cli.command {
-            Commands::Tool(tool_args) => {
-                match tool_args.command {
-                    ToolCommands::CleanUselessComments(args) => {
-                        assert!(args.config.is_some());
-                        assert_eq!(args.config.unwrap(), PathBuf::from("custom.yaml"));
-                    }
-                    _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            Commands::Tool(tool_args) => match tool_args.command {
+                ToolCommands::CleanUselessComments(args) => {
+                    assert!(args.config.is_some());
+                    assert_eq!(args.config.unwrap(), PathBuf::from("custom.yaml"));
                 }
-            }
+                _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            },
             _ => panic!("Expected Commands::Tool"),
         }
     }
@@ -127,35 +131,36 @@ fn test_tool_command_with_config() {
 #[test]
 fn test_tool_command_with_all_options() {
     let args = vec![
-        "llman", "tool", "clean-useless-comments",
-        "--config", "test.yaml",
+        "llman",
+        "tool",
+        "clean-useless-comments",
+        "--config",
+        "test.yaml",
         "--dry-run",
         "--interactive",
         "--force",
         "--verbose",
         "--git-only",
-        "test.py"
+        "test.py",
     ];
     let cli = Cli::try_parse_from(args);
     assert!(cli.is_ok());
 
     if let Ok(cli) = cli {
         match cli.command {
-            Commands::Tool(tool_args) => {
-                match tool_args.command {
-                    ToolCommands::CleanUselessComments(args) => {
-                        assert!(args.config.is_some());
-                        assert!(args.dry_run);
-                        assert!(args.interactive);
-                        assert!(args.force);
-                        assert!(args.verbose);
-                        assert!(args.git_only);
-                        assert_eq!(args.files.len(), 1);
-                        assert_eq!(args.files[0], PathBuf::from("test.py"));
-                    }
-                    _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            Commands::Tool(tool_args) => match tool_args.command {
+                ToolCommands::CleanUselessComments(args) => {
+                    assert!(args.config.is_some());
+                    assert!(args.dry_run);
+                    assert!(args.interactive);
+                    assert!(args.force);
+                    assert!(args.verbose);
+                    assert!(args.git_only);
+                    assert_eq!(args.files.len(), 1);
+                    assert_eq!(args.files[0], PathBuf::from("test.py"));
                 }
-            }
+                _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            },
             _ => panic!("Expected Commands::Tool"),
         }
     }
@@ -227,23 +232,24 @@ fn test_cli_argument_edge_cases() {
 
     // Test conflicting flags (should still parse, let application handle logic)
     let args = vec![
-        "llman", "tool", "clean-useless-comments",
-        "--dry-run", "--force"
+        "llman",
+        "tool",
+        "clean-useless-comments",
+        "--dry-run",
+        "--force",
     ];
     let cli = Cli::try_parse_from(args);
     assert!(cli.is_ok());
 
     if let Ok(cli) = cli {
         match cli.command {
-            Commands::Tool(tool_args) => {
-                match tool_args.command {
-                    ToolCommands::CleanUselessComments(args) => {
-                        assert!(args.dry_run);
-                        assert!(args.force);
-                    }
-                    _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            Commands::Tool(tool_args) => match tool_args.command {
+                ToolCommands::CleanUselessComments(args) => {
+                    assert!(args.dry_run);
+                    assert!(args.force);
                 }
-            }
+                _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            },
             _ => panic!("Expected Commands::Tool"),
         }
     }
@@ -253,48 +259,38 @@ fn test_cli_argument_edge_cases() {
 #[test]
 fn test_cli_with_path_arguments() {
     // Test with relative path
-    let args = vec![
-        "llman", "tool", "clean-useless-comments",
-        "./src/main.py"
-    ];
+    let args = vec!["llman", "tool", "clean-useless-comments", "./src/main.py"];
     let cli = Cli::try_parse_from(args);
     assert!(cli.is_ok());
 
     if let Ok(cli) = cli {
         match cli.command {
-            Commands::Tool(tool_args) => {
-                match tool_args.command {
-                    ToolCommands::CleanUselessComments(args) => {
-                        assert_eq!(args.files.len(), 1);
-                        assert_eq!(args.files[0], PathBuf::from("./src/main.py"));
-                    }
-                    _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            Commands::Tool(tool_args) => match tool_args.command {
+                ToolCommands::CleanUselessComments(args) => {
+                    assert_eq!(args.files.len(), 1);
+                    assert_eq!(args.files[0], PathBuf::from("./src/main.py"));
                 }
-            }
+                _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            },
             _ => panic!("Expected Commands::Tool"),
         }
     }
 
     // Test with absolute path (this is a dummy absolute path for testing)
     let absolute_path = "/home/user/project/main.py";
-    let args = vec![
-        "llman", "tool", "clean-useless-comments",
-        absolute_path
-    ];
+    let args = vec!["llman", "tool", "clean-useless-comments", absolute_path];
     let cli = Cli::try_parse_from(args);
     assert!(cli.is_ok());
 
     if let Ok(cli) = cli {
         match cli.command {
-            Commands::Tool(tool_args) => {
-                match tool_args.command {
-                    ToolCommands::CleanUselessComments(args) => {
-                        assert_eq!(args.files.len(), 1);
-                        assert_eq!(args.files[0], PathBuf::from(absolute_path));
-                    }
-                    _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            Commands::Tool(tool_args) => match tool_args.command {
+                ToolCommands::CleanUselessComments(args) => {
+                    assert_eq!(args.files.len(), 1);
+                    assert_eq!(args.files[0], PathBuf::from(absolute_path));
                 }
-            }
+                _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            },
             _ => panic!("Expected Commands::Tool"),
         }
     }
@@ -304,24 +300,19 @@ fn test_cli_with_path_arguments() {
 #[test]
 fn test_cli_with_special_characters() {
     let special_file = "file with spaces.py";
-    let args = vec![
-        "llman", "tool", "clean-useless-comments",
-        special_file
-    ];
+    let args = vec!["llman", "tool", "clean-useless-comments", special_file];
     let cli = Cli::try_parse_from(args);
     assert!(cli.is_ok());
 
     if let Ok(cli) = cli {
         match cli.command {
-            Commands::Tool(tool_args) => {
-                match tool_args.command {
-                    ToolCommands::CleanUselessComments(args) => {
-                        assert_eq!(args.files.len(), 1);
-                        assert_eq!(args.files[0], PathBuf::from(special_file));
-                    }
-                    _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            Commands::Tool(tool_args) => match tool_args.command {
+                ToolCommands::CleanUselessComments(args) => {
+                    assert_eq!(args.files.len(), 1);
+                    assert_eq!(args.files[0], PathBuf::from(special_file));
                 }
-            }
+                _ => panic!("Expected ToolCommands::CleanUselessComments"),
+            },
             _ => panic!("Expected Commands::Tool"),
         }
     }
@@ -332,24 +323,33 @@ fn test_cli_with_special_characters() {
 fn test_cli_config_argument_formats() {
     // Test with YAML extension
     let args = vec![
-        "llman", "tool", "clean-useless-comments",
-        "--config", "config.yaml"
+        "llman",
+        "tool",
+        "clean-useless-comments",
+        "--config",
+        "config.yaml",
     ];
     let cli = Cli::try_parse_from(args);
     assert!(cli.is_ok());
 
     // Test with relative path
     let args = vec![
-        "llman", "tool", "clean-useless-comments",
-        "--config", "./config/config.yaml"
+        "llman",
+        "tool",
+        "clean-useless-comments",
+        "--config",
+        "./config/config.yaml",
     ];
     let cli = Cli::try_parse_from(args);
     assert!(cli.is_ok());
 
     // Test with absolute path
     let args = vec![
-        "llman", "tool", "clean-useless-comments",
-        "--config", "/home/user/.llman/config.yaml"
+        "llman",
+        "tool",
+        "clean-useless-comments",
+        "--config",
+        "/home/user/.llman/config.yaml",
     ];
     let cli = Cli::try_parse_from(args);
     assert!(cli.is_ok());

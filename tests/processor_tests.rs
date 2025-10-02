@@ -1,6 +1,6 @@
-use llman::tool::processor::CommentProcessor;
 use llman::tool::command::CleanUselessCommentsArgs;
 use llman::tool::config::Config;
+use llman::tool::processor::CommentProcessor;
 mod common;
 use common::*;
 
@@ -19,7 +19,7 @@ fn test_python_comment_processing_removes_short_comments_and_preserves_important
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
         interactive: false,
-                force: false,
+        force: false,
         verbose: false,
         git_only: false,
         files: vec![test_file.clone()],
@@ -30,7 +30,8 @@ fn test_python_comment_processing_removes_short_comments_and_preserves_important
 
     // Should detect changes but not actually modify files in dry-run mode
     assert_eq!(
-        result.files_changed.len(), 1,
+        result.files_changed.len(),
+        1,
         "Expected exactly 1 file to have changes, got {}",
         result.files_changed.len()
     );
@@ -55,7 +56,7 @@ fn test_javascript_comment_processing_preserves_patterns_and_filters_by_length()
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
         interactive: false,
-                force: false,
+        force: false,
         verbose: false,
         git_only: false,
         files: vec![test_file.clone()],
@@ -65,8 +66,11 @@ fn test_javascript_comment_processing_preserves_patterns_and_filters_by_length()
     let result = processor.process().unwrap();
 
     assert_eq!(result.errors, 0, "Expected no processing errors");
-    println!("Files processed: {}, Files changed: {}",
-             result.files_changed.len(), result.files_changed.len());
+    println!(
+        "Files processed: {}, Files changed: {}",
+        result.files_changed.len(),
+        result.files_changed.len()
+    );
 }
 
 #[test]
@@ -106,7 +110,7 @@ tools:
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
         interactive: false,
-                force: false,
+        force: false,
         verbose: false,
         git_only: false,
         files: vec![test_file.clone()],
@@ -155,7 +159,7 @@ tools:
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
         interactive: false,
-                force: false,
+        force: false,
         verbose: false,
         git_only: false,
         files: vec![test_file.clone()],
@@ -203,7 +207,7 @@ tools:
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
         interactive: false,
-                force: false,
+        force: false,
         verbose: false,
         git_only: false,
         files: vec![],
@@ -214,7 +218,11 @@ tools:
 
     // Should process both .py and .js files, but not .txt
     // Comments are not removed because they're exactly at the minimum length threshold
-    assert_eq!(result.errors, 0, "Expected no errors, but got {}", result.errors);
+    assert_eq!(
+        result.errors, 0,
+        "Expected no errors, but got {}",
+        result.errors
+    );
 }
 
 #[test]
@@ -248,7 +256,7 @@ tools:
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true, // This should prevent actual file changes
         interactive: false,
-                force: false,
+        force: false,
         verbose: false, // Enable verbose to see debug output
         git_only: false,
         files: vec![test_file.clone()],

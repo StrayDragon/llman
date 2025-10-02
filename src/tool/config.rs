@@ -1,8 +1,8 @@
 use anyhow::{Result, anyhow};
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct Config {
@@ -227,7 +227,8 @@ impl Default for Config {
                             godoc: Some(false),
                             preserve_patterns: Some(vec![
                                 r"^\\s*//\\s*(TODO|FIXME|NOTE|HACK):\\s*.*".to_string(),
-                                r"^\\s*//\\s*(Package|Function|Return|Parameters):\\s*.*".to_string(),
+                                r"^\\s*//\\s*(Package|Function|Return|Parameters):\\s*.*"
+                                    .to_string(),
                             ]),
                             min_comment_length: Some(10),
                             min_code_complexity: Some(3),
@@ -262,12 +263,11 @@ impl Default for Config {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::NamedTempFile;
     use std::io::Write;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_default_config() {
