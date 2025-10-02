@@ -156,23 +156,24 @@ fn show_detailed_information(args: &CleanUselessCommentsArgs) -> Result<()> {
 
         // Try to load and show config details
         if let Ok(config) = crate::tool::config::Config::load(config_path.clone())
-            && let Some(clean_config) = config.get_clean_comments_config() {
-                println!("Include patterns: {:?}", clean_config.scope.include);
-                println!("Exclude patterns: {:?}", clean_config.scope.exclude);
+            && let Some(clean_config) = config.get_clean_comments_config()
+        {
+            println!("Include patterns: {:?}", clean_config.scope.include);
+            println!("Exclude patterns: {:?}", clean_config.scope.exclude);
 
-                if let Some(lang_rules) = &clean_config.lang_rules.python {
-                    println!("Python rules: {lang_rules:?}");
-                }
-                if let Some(lang_rules) = &clean_config.lang_rules.javascript {
-                    println!("JavaScript rules: {lang_rules:?}");
-                }
-                if let Some(lang_rules) = &clean_config.lang_rules.rust {
-                    println!("Rust rules: {lang_rules:?}");
-                }
-                if let Some(lang_rules) = &clean_config.lang_rules.go {
-                    println!("Go rules: {lang_rules:?}");
-                }
+            if let Some(lang_rules) = &clean_config.lang_rules.python {
+                println!("Python rules: {lang_rules:?}");
             }
+            if let Some(lang_rules) = &clean_config.lang_rules.javascript {
+                println!("JavaScript rules: {lang_rules:?}");
+            }
+            if let Some(lang_rules) = &clean_config.lang_rules.rust {
+                println!("Rust rules: {lang_rules:?}");
+            }
+            if let Some(lang_rules) = &clean_config.lang_rules.go {
+                println!("Go rules: {lang_rules:?}");
+            }
+        }
     }
 
     if !args.files.is_empty() {

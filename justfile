@@ -3,31 +3,35 @@ default:
 
 # 构建项目 (dev)
 build:
-    cargo build
+    cargo +nightly build
 
 # 构建发布版本 (dev)
 build-release:
-    cargo build --release
+    cargo +nightly build --release
 
 # 运行项目 (dev)
 run *args:
-    LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo run -- {{args}}
+    LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo +nightly run -- {{args}}
 
 # 使用测试配置运行
 run-prod *args:
-    cargo run -- {{args}}
+    cargo +nightly run -- {{args}}
 
 # 运行测试 (dev)
 test:
-    cargo test
+    cargo +nightly test
 
 # 代码格式化 (dev)
 fmt:
-    cargo fmt
+    cargo +nightly fmt
 
 # 代码检查 (dev)
 lint:
-    cargo clippy -- -D warnings
+    cargo +nightly clippy -- -D warnings
+
+# nightly 版本代码检查 (dev)
+lint-nightly:
+    cargo +nightly clippy -- -D warnings
 
 # 清理构建产物 (dev)
 clean:
@@ -35,10 +39,10 @@ clean:
 
 # 安装到本地
 install:
-    cargo install --path .
+    cargo +nightly install --path .
 
 # 检查一条龙 (dev)
-check: fmt lint test
+check: fmt lint-nightly test
 
 # 创建新的规则模板 (dev)
 create-dev-template name content:

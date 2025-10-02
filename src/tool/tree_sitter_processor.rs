@@ -143,25 +143,25 @@ impl TreeSitterProcessor {
         let mut comments = Vec::new();
 
         if has_query {
-            if let Some(lang) = self.get_language_for_file(file_path) {
-                if let Some(query) = &lang.comment_query {
-                    let mut cursor = QueryCursor::new();
-                    let matches = cursor.matches(query, tree.root_node(), content.as_bytes());
+            if let Some(lang) = self.get_language_for_file(file_path)
+                && let Some(query) = &lang.comment_query
+            {
+                let mut cursor = QueryCursor::new();
+                let matches = cursor.matches(query, tree.root_node(), content.as_bytes());
 
-                    for mat in matches {
-                        for capture in mat.captures {
-                            let node = capture.node;
-                            let comment_text = &content[node.byte_range()];
+                for mat in matches {
+                    for capture in mat.captures {
+                        let node = capture.node;
+                        let comment_text = &content[node.byte_range()];
 
-                            comments.push(CommentInfo {
-                                text: comment_text.to_string(),
-                                start_line: node.start_position().row + 1,
-                                start_col: node.start_position().column,
-                                end_line: node.end_position().row + 1,
-                                end_col: node.end_position().column,
-                                kind: self.classify_comment(node, &lang.name),
-                            });
-                        }
+                        comments.push(CommentInfo {
+                            text: comment_text.to_string(),
+                            start_line: node.start_position().row + 1,
+                            start_col: node.start_position().column,
+                            end_line: node.end_position().row + 1,
+                            end_col: node.end_position().column,
+                            kind: self.classify_comment(node, &lang.name),
+                        });
                     }
                 }
             }
@@ -269,10 +269,10 @@ impl TreeSitterProcessor {
         // Check preservation patterns
         if let Some(patterns) = &rules.preserve_patterns {
             for pattern in patterns {
-                if let Ok(regex) = regex::Regex::new(pattern) {
-                    if regex.is_match(&comment.text) {
-                        return false;
-                    }
+                if let Ok(regex) = regex::Regex::new(pattern)
+                    && regex.is_match(&comment.text)
+                {
+                    return false;
                 }
             }
         }

@@ -178,10 +178,10 @@ impl CursorDatabase {
                     .into_iter()
                     .filter(|tab| {
                         // 搜索标题
-                        if let Some(title) = &tab.chat_title {
-                            if title.to_lowercase().contains(&search_lower) {
-                                return true;
-                            }
+                        if let Some(title) = &tab.chat_title
+                            && title.to_lowercase().contains(&search_lower)
+                        {
+                            return true;
                         }
 
                         // 搜索消息内容
@@ -235,12 +235,12 @@ impl CursorDatabase {
         let mut workspaces = Vec::new();
 
         for db_path in db_files {
-            if let Some(parent) = db_path.parent() {
-                if let Some(_hash_id) = parent.file_name().and_then(|n| n.to_str()) {
-                    let workspace_info =
-                        Self::create_workspace_info(db_path.clone(), parent.to_path_buf())?;
-                    workspaces.push(workspace_info);
-                }
+            if let Some(parent) = db_path.parent()
+                && let Some(_hash_id) = parent.file_name().and_then(|n| n.to_str())
+            {
+                let workspace_info =
+                    Self::create_workspace_info(db_path.clone(), parent.to_path_buf())?;
+                workspaces.push(workspace_info);
             }
         }
 
@@ -250,10 +250,10 @@ impl CursorDatabase {
         // 分离当前目录对应的workspace和其他workspace
         let (mut current_workspaces, mut other_workspaces): (Vec<_>, Vec<_>) =
             workspaces.into_iter().partition(|w| {
-                if let Some(ref project_path) = w.project_path {
-                    if let Some(ref current) = current_dir {
-                        return project_path == current;
-                    }
+                if let Some(ref project_path) = w.project_path
+                    && let Some(ref current) = current_dir
+                {
+                    return project_path == current;
                 }
                 false
             });
@@ -571,10 +571,10 @@ impl CursorDatabase {
             let mut bubbles = Vec::new();
 
             for row in bubble_rows {
-                if let Ok(json_str) = String::from_utf8(row.value.unwrap_or_default()) {
-                    if let Ok(bubble) = serde_json::from_str::<ComposerBubble>(&json_str) {
-                        bubbles.push(bubble);
-                    }
+                if let Ok(json_str) = String::from_utf8(row.value.unwrap_or_default())
+                    && let Ok(bubble) = serde_json::from_str::<ComposerBubble>(&json_str)
+                {
+                    bubbles.push(bubble);
                 }
             }
 

@@ -161,9 +161,10 @@ impl PromptCommand {
         let current_dir = env::current_dir()?;
 
         if let Some(user_dir) = directories::UserDirs::new()
-            && current_dir == user_dir.home_dir().to_path_buf() {
-                return Err(anyhow!(t!("errors.home_dir_not_allowed")));
-            }
+            && current_dir == user_dir.home_dir().to_path_buf()
+        {
+            return Err(anyhow!(t!("errors.home_dir_not_allowed")));
+        }
 
         let git_dir = current_dir.join(".git");
         if !git_dir.exists() {
