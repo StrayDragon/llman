@@ -502,17 +502,13 @@ impl ComposerBubble {
         }
 
         // 如果有AI建议的差异，那是AI回复
-        if let Some(assistant_suggested_diffs) = &self.assistant_suggested_diffs {
-            if !assistant_suggested_diffs.is_empty() {
-                return false;
-            }
+        if !self.assistant_suggested_diffs.as_deref().unwrap_or_default().is_empty() {
+            return false;
         }
 
         // 如果有工具结果，那是AI回复
-        if let Some(tool_results) = &self.tool_results {
-            if !tool_results.is_empty() {
-                return false;
-            }
+        if !self.tool_results.as_deref().unwrap_or_default().is_empty() {
+            return false;
         }
 
         // 默认认为是用户消息

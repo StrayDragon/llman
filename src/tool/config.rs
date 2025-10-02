@@ -43,7 +43,7 @@ pub struct LanguageRules {
     pub go: Option<LanguageSpecificRules>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Default)]
 pub struct LanguageSpecificRules {
     #[serde(rename = "single-line-comments")]
     pub single_line_comments: Option<bool>,
@@ -262,22 +262,6 @@ impl Default for Config {
     }
 }
 
-impl Default for LanguageSpecificRules {
-    fn default() -> Self {
-        Self {
-            single_line_comments: None,
-            multi_line_comments: None,
-            docstrings: None,
-            jsdoc: None,
-            doc_comments: None,
-            godoc: None,
-            preserve_patterns: None,
-            min_comment_length: None,
-            min_code_complexity: None,
-            remove_duplicate_comments: None,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
