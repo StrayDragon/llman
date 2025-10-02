@@ -1,8 +1,8 @@
-use llman::cli::{Cli, Commands, XCommands, XArgs};
+use clap::Parser;
+use llman::cli::{Cli, Commands, XArgs, XCommands};
 use llman::x::collect::command::{CollectArgs, CollectCommands};
 use llman::x::collect::tree::TreeArgs;
 use llman::x::cursor::command::{CursorArgs, CursorCommands, ExportArgs};
-use clap::Parser;
 use std::path::PathBuf;
 mod common;
 use common::*;
@@ -165,10 +165,10 @@ fn test_x_module_error_handling() {
 
     // Test with malformed arguments
     let malformed_cases = vec![
-        vec!["llman", "x", ""],          // Empty subcommand
-        vec!["llman", "x", " "],         // Space subcommand
-        vec!["llman", "x", "cursor-"],   // Trailing dash
-        vec!["llman", "x", "-cursor"],   // Leading dash
+        vec!["llman", "x", ""],        // Empty subcommand
+        vec!["llman", "x", " "],       // Space subcommand
+        vec!["llman", "x", "cursor-"], // Trailing dash
+        vec!["llman", "x", "-cursor"], // Leading dash
     ];
 
     for case in malformed_cases {
@@ -251,8 +251,8 @@ fn test_x_module_cli_compatibility() {
                 output_mode: "console".to_string(),
                 output_file: None,
                 debug: false,
-            })
-        })
+            }),
+        }),
     });
 
     let collect_command = Commands::X(XArgs {
@@ -263,8 +263,8 @@ fn test_x_module_cli_compatibility() {
                 no_ignore: false,
                 max_depth: Some(2),
                 append_default_context: false,
-            })
-        })
+            }),
+        }),
     });
 
     // These should be constructible without panics

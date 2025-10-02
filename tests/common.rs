@@ -67,7 +67,11 @@ def important_function():
 "#;
 }
 
-pub fn create_test_file_with_content(dir: &Path, filename: &str, content: &str) -> std::path::PathBuf {
+pub fn create_test_file_with_content(
+    dir: &Path,
+    filename: &str,
+    content: &str,
+) -> std::path::PathBuf {
     let file_path = dir.join(filename);
     fs::write(&file_path, content).expect("Failed to write test file");
     file_path
@@ -117,7 +121,8 @@ impl TestEnvironment {
     /// Create a test configuration for Python comment cleaning
     #[allow(dead_code)]
     pub fn create_python_clean_config(&self, min_comment_length: u32) -> std::path::PathBuf {
-        let config = format!(r#"
+        let config = format!(
+            r#"
 version: "0.1"
 tools:
   clean-useless-comments:
@@ -130,14 +135,18 @@ tools:
         preserve-patterns:
           - "^\\s*#\\s*(TODO|FIXME):"
         min-comment-length: {}
-"#, test_constants::PYTHON_FILE_PATTERN, min_comment_length);
+"#,
+            test_constants::PYTHON_FILE_PATTERN,
+            min_comment_length
+        );
         self.create_config(&config)
     }
 
     /// Create a test configuration for JavaScript comment cleaning
     #[allow(dead_code)]
     pub fn create_javascript_clean_config(&self, min_comment_length: u32) -> std::path::PathBuf {
-        let config = format!(r#"
+        let config = format!(
+            r#"
 version: "0.1"
 tools:
   clean-useless-comments:
@@ -150,14 +159,18 @@ tools:
         preserve-patterns:
           - "^\\s*//\\s*(TODO|FIXME):"
         min-comment-length: {}
-"#, test_constants::JS_FILE_PATTERN, min_comment_length);
+"#,
+            test_constants::JS_FILE_PATTERN,
+            min_comment_length
+        );
         self.create_config(&config)
     }
 
     /// Create a test configuration for Rust comment cleaning
     #[allow(dead_code)]
     pub fn create_rust_clean_config(&self, min_comment_length: u32) -> std::path::PathBuf {
-        let config = format!(r#"
+        let config = format!(
+            r#"
 version: "0.1"
 tools:
   clean-useless-comments:
@@ -172,7 +185,10 @@ tools:
           - "^\\s*//\\s*(TODO|FIXME):"
           - "^\\s*///"
         min-comment-length: {}
-"#, test_constants::RUST_FILE_PATTERN, min_comment_length);
+"#,
+            test_constants::RUST_FILE_PATTERN,
+            min_comment_length
+        );
         self.create_config(&config)
     }
 }

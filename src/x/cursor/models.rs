@@ -236,11 +236,10 @@ impl ChatTab {
 impl ComposerItem {
     /// 获取标题
     pub fn get_title(&self) -> String {
-        if let Some(name) = &self.name {
-            if !name.trim().is_empty() {
+        if let Some(name) = &self.name
+            && !name.trim().is_empty() {
                 return name.clone();
             }
-        }
 
         // 如果没有设置name，使用默认标题
         format!(
@@ -318,60 +317,49 @@ impl ComposerBubble {
         // 根据bubble类型处理内容
         if self.is_user_message() {
             // 用户消息：优先使用text字段
-            if let Some(text) = &self.text {
-                if !text.trim().is_empty() {
+            if let Some(text) = &self.text
+                && !text.trim().is_empty() {
                     content.push(text.clone());
                 }
-            }
 
             // 如果text为空，尝试从richText中提取
-            if content.is_empty() {
-                if let Some(rich_text) = &self.rich_text {
-                    if let Ok(parsed) =
+            if content.is_empty()
+                && let Some(rich_text) = &self.rich_text
+                && let Ok(parsed) =
                         serde_json::from_value::<serde_json::Value>(rich_text.clone())
-                    {
-                        if let Some(extracted) = self.extract_text_from_rich_text(&parsed) {
-                            if !extracted.trim().is_empty() {
-                                content.push(extracted);
-                            }
-                        }
-                    }
+                && let Some(extracted) = self.extract_text_from_rich_text(&parsed)
+                && !extracted.trim().is_empty() {
+                    content.push(extracted);
                 }
-            }
         } else {
             // AI消息：检查text字段
-            if let Some(text) = &self.text {
-                if !text.trim().is_empty() {
+            if let Some(text) = &self.text
+                && !text.trim().is_empty() {
                     content.push(text.clone());
                 }
-            }
 
             // 如果text为空，检查工具调用结果
-            if content.is_empty() {
-                if let Some(tool_data) = self.extra.get("toolFormerData") {
-                    if let Some(tool_summary) = self.extract_tool_summary(tool_data) {
-                        content.push(tool_summary);
-                    }
+            if content.is_empty()
+                && let Some(tool_data) = self.extra.get("toolFormerData")
+                && let Some(tool_summary) = self.extract_tool_summary(tool_data) {
+                    content.push(tool_summary);
                 }
-            }
         }
 
         // 处理代码块（以折叠形式显示）
-        if let Some(code_blocks) = &self.code_blocks {
-            if !code_blocks.is_empty() {
+        if let Some(code_blocks) = &self.code_blocks
+            && !code_blocks.is_empty() {
                 content.push(format!(
                     "<details>\n<summary>📄 代码块 ({})</summary>\n\n*内容已折叠*\n\n</details>",
                     code_blocks.len()
                 ));
             }
-        }
 
         // 处理AI建议的差异（以折叠形式显示）
-        if let Some(assistant_suggested_diffs) = &self.assistant_suggested_diffs {
-            if !assistant_suggested_diffs.is_empty() {
+        if let Some(assistant_suggested_diffs) = &self.assistant_suggested_diffs
+            && !assistant_suggested_diffs.is_empty() {
                 content.push(format!("<details>\n<summary>🤖 AI建议差异 ({})</summary>\n\n*内容已折叠*\n\n</details>", assistant_suggested_diffs.len()));
             }
-        }
 
         if content.is_empty() {
             format!("*空消息 (type: {:?})*", self.bubble_type)
@@ -385,20 +373,18 @@ impl ComposerBubble {
         fn extract_text_recursive(value: &serde_json::Value) -> String {
             match value {
                 serde_json::Value::Object(obj) => {
-                    if let Some(text) = obj.get("text") {
-                        if let Some(text_str) = text.as_str() {
+                    if let Some(text) = obj.get("text")
+                        && let Some(text_str) = text.as_str() {
                             return text_str.to_string();
                         }
-                    }
-                    if let Some(children) = obj.get("children") {
-                        if let Some(children_array) = children.as_array() {
+                    if let Some(children) = obj.get("children")
+                        && let Some(children_array) = children.as_array() {
                             return children_array
                                 .iter()
                                 .map(extract_text_recursive)
                                 .collect::<Vec<_>>()
                                 .join("");
                         }
-                    }
                     String::new()
                 }
                 serde_json::Value::Array(arr) => arr
@@ -432,8 +418,8 @@ impl ComposerBubble {
                 .unwrap_or("未知状态");
 
             // 尝试从result中提取有用信息
-            if let Some(result_str) = tool_obj.get("result").and_then(|v| v.as_str()) {
-                if let Ok(result_obj) = serde_json::from_str::<serde_json::Value>(result_str) {
+            if let Some(result_str) = tool_obj.get("result").and_then(|v| v.as_str())
+                && let Ok(result_obj) = serde_json::from_str::<serde_json::Value>(result_str) {
                     // 对于不同的工具类型提取不同的信息
                     match tool_name {
                         "read_file" => {
@@ -469,7 +455,6 @@ impl ComposerBubble {
                         }
                     }
                 }
-            }
 
             return Some(format!("🔧 **{tool_name}**: {status}"));
         }
@@ -500,7 +485,12 @@ impl ComposerBubble {
         }
 
         // 如果有AI建议的差异，那是AI回复
-        if !self.assistant_suggested_diffs.as_deref().unwrap_or_default().is_empty() {
+        if !self
+            .assistant_suggested_diffs
+            .as_deref()
+            .unwrap_or_default()
+            .is_empty()
+        {
             return false;
         }
 

@@ -7,7 +7,9 @@ pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
     println!("Clean useless comments command");
 
     // Load configuration
-    let config_path = args.config.as_deref()
+    let config_path = args
+        .config
+        .as_deref()
         .unwrap_or_else(|| ".llman/config.yaml".as_ref());
 
     let config = Config::load_or_default(config_path)?;
@@ -120,7 +122,7 @@ fn ask_for_confirmation_with_default_no(args: &CleanUselessCommentsArgs) -> Resu
     }
 
     let options = vec![
-        "No, cancel operation",           // Default option (index 0)
+        "No, cancel operation", // Default option (index 0)
         "Yes, proceed with cleaning comments",
         "Show detailed information first",
     ];
@@ -153,25 +155,24 @@ fn show_detailed_information(args: &CleanUselessCommentsArgs) -> Result<()> {
         println!("\nConfiguration file: {}", config_path.display());
 
         // Try to load and show config details
-        if let Ok(config) = crate::tool::config::Config::load(config_path.clone()) {
-            if let Some(clean_config) = config.get_clean_comments_config() {
+        if let Ok(config) = crate::tool::config::Config::load(config_path.clone())
+            && let Some(clean_config) = config.get_clean_comments_config() {
                 println!("Include patterns: {:?}", clean_config.scope.include);
                 println!("Exclude patterns: {:?}", clean_config.scope.exclude);
 
                 if let Some(lang_rules) = &clean_config.lang_rules.python {
-                    println!("Python rules: {:?}", lang_rules);
+                    println!("Python rules: {lang_rules:?}");
                 }
                 if let Some(lang_rules) = &clean_config.lang_rules.javascript {
-                    println!("JavaScript rules: {:?}", lang_rules);
+                    println!("JavaScript rules: {lang_rules:?}");
                 }
                 if let Some(lang_rules) = &clean_config.lang_rules.rust {
-                    println!("Rust rules: {:?}", lang_rules);
+                    println!("Rust rules: {lang_rules:?}");
                 }
                 if let Some(lang_rules) = &clean_config.lang_rules.go {
-                    println!("Go rules: {:?}", lang_rules);
+                    println!("Go rules: {lang_rules:?}");
                 }
             }
-        }
     }
 
     if !args.files.is_empty() {

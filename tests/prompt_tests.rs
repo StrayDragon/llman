@@ -105,9 +105,9 @@ fn test_prompt_command_error_scenarios() {
 
     // Test with invalid config directory
     let invalid_dirs = vec![
-        "/root/llman",           // Might not exist or have permissions
-        "/tmp/invalid/llman",    // Nested non-existent path
-        "/dev/null/llman",       // Invalid path
+        "/root/llman",        // Might not exist or have permissions
+        "/tmp/invalid/llman", // Nested non-existent path
+        "/dev/null/llman",    // Invalid path
     ];
 
     for dir in invalid_dirs {
@@ -206,9 +206,7 @@ fn test_prompt_command_concurrent_creation() {
 
     for _i in 0..5 {
         let config_dir_clone = Arc::clone(&config_dir);
-        let handle = thread::spawn(move || {
-            PromptCommand::with_config_dir(Some(&config_dir_clone))
-        });
+        let handle = thread::spawn(move || PromptCommand::with_config_dir(Some(&config_dir_clone)));
         handles.push(handle);
     }
 

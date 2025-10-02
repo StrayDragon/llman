@@ -1,7 +1,7 @@
-use llman::tool::processor::CommentProcessor;
+use llman::tool::clean_comments;
 use llman::tool::command::CleanUselessCommentsArgs;
 use llman::tool::config::Config;
-use llman::tool::clean_comments;
+use llman::tool::processor::CommentProcessor;
 mod common;
 use common::*;
 

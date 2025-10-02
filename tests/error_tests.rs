@@ -7,29 +7,37 @@ use std::io;
 fn test_llman_error_variants_creation_and_messages() {
     // Test Config error
     let config_error = LlmanError::Config {
-        message: "Invalid configuration".to_string()
+        message: "Invalid configuration".to_string(),
     };
     assert!(config_error.to_string().contains("Config Error"));
     assert!(config_error.to_string().contains("Invalid configuration"));
 
     // Test InvalidApp error
     let app_error = LlmanError::InvalidApp {
-        app: "testapp".to_string()
+        app: "testapp".to_string(),
     };
     assert!(app_error.to_string().contains("Invalid App"));
     assert!(app_error.to_string().contains("testapp"));
 
     // Test NotProjectDirectory error
     let dir_error = LlmanError::NotProjectDirectory;
-    assert!(dir_error.to_string().contains("not a valid project directory"));
+    assert!(
+        dir_error
+            .to_string()
+            .contains("not a valid project directory")
+    );
 
     // Test HomeDirectoryNotAllowed error
     let home_error = LlmanError::HomeDirectoryNotAllowed;
-    assert!(home_error.to_string().contains("Cannot generate rules in home directory"));
+    assert!(
+        home_error
+            .to_string()
+            .contains("Cannot generate rules in home directory")
+    );
 
     // Test RuleNotFound error
     let rule_error = LlmanError::RuleNotFound {
-        name: "missing_rule".to_string()
+        name: "missing_rule".to_string(),
     };
     assert!(rule_error.to_string().contains("Rule file not found"));
     assert!(rule_error.to_string().contains("missing_rule"));
@@ -52,7 +60,7 @@ fn test_llman_error_from_conversions() {
     // Test that Result<T, LlmanError> works properly
     fn function_returns_error() -> Result<String> {
         Err(LlmanError::Config {
-            message: "Test error".to_string()
+            message: "Test error".to_string(),
         })
     }
 
@@ -66,13 +74,13 @@ fn test_llman_error_from_conversions() {
 #[test]
 fn test_llman_error_display_localized() {
     let config_error = LlmanError::Config {
-        message: "Config issue".to_string()
+        message: "Config issue".to_string(),
     };
     let localized = config_error.display_localized();
     assert!(!localized.is_empty());
 
     let app_error = LlmanError::InvalidApp {
-        app: "myapp".to_string()
+        app: "myapp".to_string(),
     };
     let localized = app_error.display_localized();
     assert!(!localized.is_empty());
@@ -86,13 +94,13 @@ fn test_llman_error_display_localized() {
 #[test]
 fn test_llman_error_clone_and_equality() {
     let error1 = LlmanError::Config {
-        message: "Test".to_string()
+        message: "Test".to_string(),
     };
     let error2 = LlmanError::Config {
-        message: "Test".to_string()
+        message: "Test".to_string(),
     };
     let error3 = LlmanError::Config {
-        message: "Different".to_string()
+        message: "Different".to_string(),
     };
 
     // Since we derive PartialEq through Debug, test string representation
@@ -122,7 +130,12 @@ fn test_llman_error_in_error_handling_contexts() {
 
     let error_result = function_that_propagates_error(true);
     assert!(error_result.is_err());
-    assert!(error_result.unwrap_err().to_string().contains("Propagation test"));
+    assert!(
+        error_result
+            .unwrap_err()
+            .to_string()
+            .contains("Propagation test")
+    );
 }
 
 /// Tests LlmanError with various complex error scenarios
@@ -132,10 +145,10 @@ fn test_llman_error_complex_scenarios() {
     fn nested_operation(level: u32) -> Result<String> {
         match level {
             0 => Err(LlmanError::Config {
-                message: "Level 0 config error".to_string()
+                message: "Level 0 config error".to_string(),
             }),
             1 => Err(LlmanError::InvalidApp {
-                app: "level1_app".to_string()
+                app: "level1_app".to_string(),
             }),
             2 => Ok("Success at level 2".to_string()),
             _ => Err(LlmanError::Custom("Unknown level".to_string())),
@@ -152,8 +165,12 @@ fn test_llman_error_complex_scenarios() {
 
     // Test error collection
     let errors: Vec<LlmanError> = vec![
-        LlmanError::Config { message: "Error 1".to_string() },
-        LlmanError::InvalidApp { app: "app1".to_string() },
+        LlmanError::Config {
+            message: "Error 1".to_string(),
+        },
+        LlmanError::InvalidApp {
+            app: "app1".to_string(),
+        },
         LlmanError::NotProjectDirectory,
     ];
 

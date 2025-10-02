@@ -5,7 +5,8 @@ on:
     branches: [ "main" ]
 
 env:
-  RUST_VERSION: stable
+  # Use nightly to support edition 2024 features
+  RUST_VERSION: nightly
 
 jobs:
   test:
@@ -25,9 +26,14 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
       - name: Print useful env versions
         run: |
           rustup --version
+          cargo --version
+          rustc --version
 
       - name: Setup justfile
         uses: extractions/setup-just@v2

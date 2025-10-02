@@ -3,8 +3,8 @@ extern crate rust_i18n;
 
 i18n!("locales");
 
-use llman::init_locale;
 use llman::cli;
+use llman::init_locale;
 
 fn main() {
     init_locale();
