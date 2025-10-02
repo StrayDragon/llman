@@ -9,11 +9,12 @@ pub struct TreeSitterProcessor {
     languages: Vec<SupportedLanguage>,
 }
 
-struct SupportedLanguage {
+pub struct SupportedLanguage {
     name: String,
     file_extensions: Vec<String>,
     language: Language,
     comment_query: Option<Query>,
+    #[allow(dead_code)]
     highlight_config: Option<HighlightConfiguration>,
 }
 
@@ -29,43 +30,43 @@ impl TreeSitterProcessor {
     }
 
     fn init_supported_languages() -> Result<Vec<SupportedLanguage>> {
-        let mut languages = Vec::new();
+        let languages = vec![
+            // Python
+            SupportedLanguage {
+                name: "python".to_string(),
+                file_extensions: vec!["py".to_string()],
+                language: tree_sitter_python::language(),
+                comment_query: Self::create_python_comment_query()?,
+                highlight_config: None,
+            },
 
-        // Python
-        languages.push(SupportedLanguage {
-            name: "python".to_string(),
-            file_extensions: vec!["py".to_string()],
-            language: tree_sitter_python::language(),
-            comment_query: Self::create_python_comment_query()?,
-            highlight_config: None,
-        });
+            // JavaScript
+            SupportedLanguage {
+                name: "javascript".to_string(),
+                file_extensions: vec!["js".to_string(), "jsx".to_string()],
+                language: tree_sitter_javascript::language(),
+                comment_query: Self::create_javascript_comment_query()?,
+                highlight_config: None,
+            },
 
-        // JavaScript
-        languages.push(SupportedLanguage {
-            name: "javascript".to_string(),
-            file_extensions: vec!["js".to_string(), "jsx".to_string()],
-            language: tree_sitter_javascript::language(),
-            comment_query: Self::create_javascript_comment_query()?,
-            highlight_config: None,
-        });
+            // Rust
+            SupportedLanguage {
+                name: "rust".to_string(),
+                file_extensions: vec!["rs".to_string()],
+                language: tree_sitter_rust::language(),
+                comment_query: Self::create_rust_comment_query()?,
+                highlight_config: None,
+            },
 
-        // Rust
-        languages.push(SupportedLanguage {
-            name: "rust".to_string(),
-            file_extensions: vec!["rs".to_string()],
-            language: tree_sitter_rust::language(),
-            comment_query: Self::create_rust_comment_query()?,
-            highlight_config: None,
-        });
-
-        // Go
-        languages.push(SupportedLanguage {
-            name: "go".to_string(),
-            file_extensions: vec!["go".to_string()],
-            language: tree_sitter_go::language(),
-            comment_query: Self::create_go_comment_query()?,
-            highlight_config: None,
-        });
+            // Go
+            SupportedLanguage {
+                name: "go".to_string(),
+                file_extensions: vec!["go".to_string()],
+                language: tree_sitter_go::language(),
+                comment_query: Self::create_go_comment_query()?,
+                highlight_config: None,
+            },
+        ];
 
         Ok(languages)
     }
@@ -117,13 +118,7 @@ impl TreeSitterProcessor {
     pub fn get_language_for_file(&self, file_path: &Path) -> Option<&SupportedLanguage> {
         let extension = file_path.extension()?.to_str()?;
 
-        for lang in &self.languages {
-            if lang.file_extensions.contains(&extension.to_string()) {
-                return Some(lang);
-            }
-        }
-
-        None
+        self.languages.iter().find(|&lang| lang.file_extensions.contains(&extension.to_string()))
     }
 
     pub fn extract_comments(&mut self, content: &str, file_path: &Path) -> Result<Vec<CommentInfo>> {
@@ -308,10 +303,11 @@ impl TreeSitterProcessor {
             let line = lines[comment.start_line - 1];
             let start_pos = comment.start_col.min(line.len());
 
-            if let Some(pos) = line[start_pos..].find(&comment.text.trim()) {
+            let trimmed_text = comment.text.trim();
+            if let Some(pos) = line[start_pos..].find(trimmed_text) {
                 let line_start = content[..content.lines().take(comment.start_line - 1).map(|l| l.len() + 1).sum::<usize>()].len();
                 let abs_start = line_start + start_pos + pos;
-                let abs_end = abs_start + comment.text.trim().len();
+                let abs_end = abs_start + trimmed_text.len();
 
                 return Some(abs_start..abs_end);
             }

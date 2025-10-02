@@ -7,8 +7,7 @@ pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
     println!("Clean useless comments command");
 
     // Load configuration
-    let config_path = args.config.as_ref()
-        .map(|p| p.as_path())
+    let config_path = args.config.as_deref()
         .unwrap_or_else(|| ".llman/config.yaml".as_ref());
 
     let config = Config::load_or_default(config_path)?;
@@ -32,10 +31,10 @@ pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
     // Check if we need confirmation before proceeding
     if !args.force && !args.dry_run {
         let should_proceed = if args.interactive {
-            ask_for_confirmation(&args)?
+            ask_for_confirmation(args)?
         } else {
             // Default behavior: don't continue unless explicitly confirmed
-            ask_for_confirmation_with_default_no(&args)?
+            ask_for_confirmation_with_default_no(args)?
         };
 
         if !should_proceed {
