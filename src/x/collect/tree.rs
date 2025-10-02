@@ -118,14 +118,16 @@ pub fn run(args: &TreeArgs) -> Result<()> {
                 output.push_str(&format!("{prefix}{tree_symbol}{display_name}\n"));
 
                 // 检查是否需要添加文件内容
-                if append_context && !is_dir && meaningful_files.contains(&file_name.as_ref()) {
-                    if let Ok(content) = fs::read_to_string(entry.path()) {
-                        meaningful_content.push_str(&format!(
-                            "\n\n---\n\n# {}\n\n```\n{}\n```",
-                            entry.path().display(),
-                            content
-                        ));
-                    }
+                if append_context
+                    && !is_dir
+                    && meaningful_files.contains(&file_name.as_ref())
+                    && let Ok(content) = fs::read_to_string(entry.path())
+                {
+                    meaningful_content.push_str(&format!(
+                        "\n\n---\n\n# {}\n\n```\n{}\n```",
+                        entry.path().display(),
+                        content
+                    ));
                 }
 
                 // 递归处理子目录

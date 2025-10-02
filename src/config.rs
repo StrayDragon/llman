@@ -88,9 +88,10 @@ impl Config {
 
             if path.is_file()
                 && let Some(stem) = path.file_stem()
-                && let Some(name) = stem.to_str() {
-                    rules.push(name.to_string());
-                }
+                && let Some(name) = stem.to_str()
+            {
+                rules.push(name.to_string());
+            }
         }
 
         rules.sort();
