@@ -136,3 +136,41 @@ src/
 - Template system allows for reusable prompt generation
 - Experimental features are organized under the `x` command namespace
 - Comprehensive error messages with internationalization support
+
+### Claude Code Configuration Management
+
+The tool includes comprehensive Claude Code API configuration management under `llman x claude-code` (alias: `llman x cc`):
+
+#### Commands
+- `llman x claude-code` - Interactive configuration selection and claude execution
+- `llman x claude-code account list` - List all configuration groups
+- `llman x claude-code account import` - Import configuration from JSON
+- `llman x claude-code account use <name>` - Use specific configuration with optional arguments
+
+#### Configuration Features
+- Multiple API configuration groups support
+- JSON-based configuration import with automatic repair
+- Environment variable injection for claude command execution
+- Interactive and non-interactive modes
+- Secure credential masking in display
+- Full internationalization support (English/Chinese)
+
+#### Configuration File Location
+- `~/.config/llman/claude-code.toml`
+- Supports both direct key-value and wrapped `{"env": {...}}` JSON formats
+- Automatic file permission setting (0600 on Unix systems)
+
+#### Example Configuration
+```toml
+[groups.production]
+ANTHROPIC_BASE_URL = "https://api.anthropic.com"
+ANTHROPIC_AUTH_TOKEN = "your-production-api-key"
+ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
+
+[groups.development]
+ANTHROPIC_BASE_URL = "https://api.anthropic.com"
+ANTHROPIC_AUTH_TOKEN = "your-dev-api-key"
+ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
+```
+- 当使用 inquire 中交互命令时应该修改代码编译成功后交给用户来处理
+- 当修改 i18n 文案后需要重新clean后build 不然有可能不生效

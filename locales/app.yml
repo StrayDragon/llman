@@ -526,3 +526,211 @@ composer:
   untitled_edit:
     en: "Untitled Edit"
     zh-CN: "未命名编辑"
+
+# Claude Code 配置管理
+claude_code:
+  interactive:
+    select_config_group:
+      en: "Select a configuration group to activate:"
+      zh-CN: "选择要激活的配置组："
+
+    import_title:
+      en: "Import configuration group from JSON"
+      zh-CN: "从 JSON 导入配置组"
+
+    config_group_name:
+      en: "Configuration group name:"
+      zh-CN: "配置组名称："
+
+    multi_line_json:
+      en: "Multi-line JSON Input"
+      zh-CN: "多行 JSON 输入"
+
+    you_can_now_paste:
+      en: "You can now paste multi-line JSON!"
+      zh-CN: "现在可以粘贴多行 JSON！"
+
+    supported_formats:
+      en: "Supported formats"
+      zh-CN: "支持的格式"
+
+    how_to_use_editor:
+      en: "How to use the editor"
+      zh-CN: "编辑器使用方法"
+
+    paste_json:
+      en: "Paste your JSON"
+      zh-CN: "粘贴您的 JSON"
+
+    supports_multiple_lines:
+      en: "supports multiple lines"
+      zh-CN: "支持多行"
+
+    navigate:
+      en: "Use arrow keys to navigate"
+      zh-CN: "使用箭头键导航"
+
+    use_arrow_keys:
+      en: "use arrow keys"
+      zh-CN: "使用箭头键"
+
+    finish:
+      en: "Press Enter on empty line or Ctrl+D to finish"
+      zh-CN: "在空行按 Enter 或 Ctrl+D 完成"
+
+    ctrl_d_or_enter:
+      en: "Ctrl+D or Enter on empty line"
+      zh-CN: "Ctrl+D 或空行 Enter"
+
+    cancel:
+      en: "Press Esc to cancel"
+      zh-CN: "按 Esc 取消"
+
+    esc:
+      en: "Esc"
+      zh-CN: "Esc"
+
+    example:
+      en: "Example"
+      zh-CN: "示例"
+
+    json_configuration:
+      en: "JSON configuration:"
+      zh-CN: "JSON 配置："
+
+    editor_help:
+      en: "Paste the complete JSON configuration here (multi-line supported). Press Ctrl+D or Enter on empty line to finish."
+      zh-CN: "在此粘贴完整的 JSON 配置（支持多行）。按 Ctrl+D 或在空行按 Enter 完成。"
+
+    warning_empty_config:
+      en: "Warning: No environment variables found in the JSON configuration."
+      zh-CN: "警告：在 JSON 配置中未找到环境变量。"
+
+    confirm_empty_import:
+      en: "Continue importing empty configuration?"
+      zh-CN: "继续导入空配置？"
+
+    parsed_env_vars:
+      en: "Parsed environment variables:"
+      zh-CN: "解析的环境变量："
+
+    confirm_import:
+      en: "Import configuration group \"%{name}\"?"
+      zh-CN: "导入配置组 \"%{name}\"？"
+
+    import_cancelled:
+      en: "Import cancelled."
+      zh-CN: "导入已取消。"
+
+    check_format_retry:
+      en: "Please check your JSON format and try again."
+      zh-CN: "请检查您的 JSON 格式并重试。"
+
+    no_config_groups:
+      en: "No configuration groups found."
+      zh-CN: "未找到配置组。"
+
+    use_import_command:
+      en: "Use 'llman x claude-code account import' to import a new configuration."
+      zh-CN: "使用 'llman x claude-code account import' 导入新配置。"
+
+    config_file_location:
+      en: "Create a configuration file at"
+      zh-CN: "在以下位置创建配置文件"
+
+    example_configuration:
+      en: "Example configuration"
+      zh-CN: "示例配置"
+
+    no_env_vars:
+      en: "no environment variables set"
+      zh-CN: "未设置环境变量"
+
+    configuration_groups:
+      en: "Configuration groups"
+      zh-CN: "配置组"
+
+    see_examples:
+      en: "See examples"
+      zh-CN: "查看示例"
+
+    import_from_klaudes:
+      en: "Found existing klaudes configuration. Would you like to import it?"
+      zh-CN: "发现现有 klaudes 配置。您想要导入它吗？"
+
+  validation:
+    name_required:
+      en: "Group name is required"
+      zh-CN: "配置组名称是必需的"
+
+    no_spaces:
+      en: "Group name cannot contain spaces"
+      zh-CN: "配置组名称不能包含空格"
+
+  main:
+    no_configs_found:
+      en: "No configuration groups found."
+      zh-CN: "未找到配置组。"
+
+    suggestion_import:
+      en: "Suggestions:"
+      zh-CN: "建议："
+
+    command_import:
+      en: "• Import a configuration: llman x claude-code account import"
+      zh-CN: "• 导入配置：llman x claude-code account import"
+
+    alternative_config:
+      en: "Or create a configuration file manually at:"
+      zh-CN: "或者手动在以下位置创建配置文件："
+
+  account:
+    group_exists:
+      en: "Configuration group \"%{name}\" already exists."
+      zh-CN: "配置组 \"%{name}\" 已存在。"
+
+    use_different_name_or_force:
+      en: "Use a different name, edit the configuration manually, or use --force to overwrite."
+      zh-CN: "使用不同的名称、手动编辑配置，或使用 --force 强制覆盖。"
+
+    overwriting_group:
+      en: "Overwriting existing configuration group: \"%{name}\""
+      zh-CN: "正在覆盖现有配置组：\"%{name}\""
+
+    import_success:
+      en: "✓ Successfully imported configuration group: \"%{name}\""
+      zh-CN: "✓ 成功导入配置组：\"%{name}\""
+
+    group_not_found:
+      en: "Configuration group \"%{name}\" not found."
+      zh-CN: "未找到配置组 \"%{name}\"。"
+
+    use_list_command:
+      en: "Use 'llman x claude-code account list' to see available configuration groups."
+      zh-CN: "使用 'llman x claude-code account list' 查看可用的配置组。"
+
+  migrate:
+    import_failed:
+      en: "Failed to import from klaudes"
+      zh-CN: "从 klaudes 导入失败"
+
+    check_klaudes_installation:
+      en: "Please check if klaudes is installed and has configuration."
+      zh-CN: "请检查 klaudes 是否已安装并包含配置。"
+
+    import_success:
+      en: "✅ Successfully imported configuration from klaudes"
+      zh-CN: "✅ 成功从 klaudes 导入配置"
+
+    cancelled:
+      en: "Migration cancelled."
+      zh-CN: "迁移已取消。"
+
+  error:
+    parsing_json:
+      en: "Error parsing JSON configuration"
+      zh-CN: "解析 JSON 配置时出错"
+
+    failed_claude_command:
+      en: "Failed to run claude command"
+      zh-CN: "运行 claude 命令失败"

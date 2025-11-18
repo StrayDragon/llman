@@ -2,6 +2,7 @@ use crate::prompt::PromptCommand;
 use crate::tool::command::{ToolArgs, ToolCommands};
 use crate::x::collect::command::{CollectArgs, CollectCommands};
 use crate::x::cursor::command::CursorArgs;
+use crate::x::claude_code::command::ClaudeCodeArgs;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -104,6 +105,9 @@ pub enum XCommands {
     Cursor(CursorArgs),
     /// A collection of commands for collecting information
     Collect(CollectArgs),
+    /// Commands for managing Claude Code configurations
+    #[command(alias = "cc")]
+    ClaudeCode(ClaudeCodeArgs),
 }
 
 pub fn run() -> Result<()> {
@@ -162,6 +166,7 @@ fn handle_x_command(args: &XArgs) -> Result<()> {
         XCommands::Collect(collect_args) => match &collect_args.command {
             CollectCommands::Tree(tree_args) => crate::x::collect::tree::run(tree_args),
         },
+        XCommands::ClaudeCode(claude_code_args) => crate::x::claude_code::command::run(claude_code_args),
     }
 }
 

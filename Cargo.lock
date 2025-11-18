@@ -627,6 +627,7 @@ dependencies = [
  "fxhash",
  "newline-converter",
  "once_cell",
+ "tempfile",
  "unicode-segmentation",
  "unicode-width 0.1.14",
 ]
@@ -701,6 +702,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd945864f07fe9f5371a27ad7b52a172b4b499999f1d97574c9fa68373937e12"
 
 [[package]]
+name = "llm_json"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d6a0ee634dc2211a67b3ee239fac8098647352fc73a39b50c57fbf7fb7a2928"
+dependencies = [
+ "clap",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "llman"
 version = "0.0.4"
 dependencies = [
@@ -714,6 +726,7 @@ dependencies = [
  "ignore",
  "indicatif",
  "inquire",
+ "llm_json",
  "once_cell",
  "rayon",
  "regex",

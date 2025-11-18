@@ -1,0 +1,204 @@
+use crate::x::claude_code::config::Config;
+use crate::x::claude_code::interactive;
+use anyhow::{Context, Result};
+use clap::{Args, Subcommand};
+use rust_i18n::t;
+use std::process::Command;
+
+#[derive(Args)]
+#[command(
+    author,
+    version,
+    about,
+    long_about = "Commands for managing Claude Code configurations and API settings"
+)]
+pub struct ClaudeCodeArgs {
+    #[command(subcommand)]
+    pub command: Option<ClaudeCodeCommands>,
+}
+
+#[derive(Subcommand)]
+pub enum ClaudeCodeCommands {
+    /// Account management commands for handling multiple API configurations
+    #[command(alias = "a")]
+    Account {
+        #[command(subcommand)]
+        action: Option<AccountAction>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum AccountAction {
+    /// Display all configured API configuration groups
+    ///
+    /// This command lists all configuration groups that have been created,
+    /// showing their names and the environment variables they contain.
+    /// Sensitive values like API keys are partially masked for security.
+    #[command(about = "List all configuration groups")]
+    List,
+    /// Import a new configuration group from JSON format
+    ///
+    /// Interactive mode allows you to paste JSON configuration in two formats:
+    ///   - Direct key-value pairs: {"KEY": "value", ...}
+    ///   - Wrapped in env object: {"env": {"KEY": "value", ...}}
+    ///
+    /// The command includes automatic JSON fixing for common syntax errors.
+    #[command(about = "Import a configuration group from JSON")]
+    Import {
+        /// Force overwrite existing configuration group
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        force: bool,
+    },
+    /// Switch to a specific configuration group and execute a command
+    ///
+    /// Selects the named configuration group and optionally executes a command
+    /// with that configuration active. The command will use the environment
+    /// variables from the selected group.
+    ///
+    /// Examples:
+    ///   llman x claude-code account use minimax --version
+    ///   llman x cc account use production -- claude code
+    #[command(about = "Use/select a configuration group")]
+    Use {
+        #[arg(help = "Name of the configuration group to use")]
+        name: String,
+        #[arg(
+            trailing_var_arg = true,
+            allow_hyphen_values = true,
+            help = "Arguments to pass to claude"
+        )]
+        args: Vec<String>,
+    },
+  }
+
+pub fn run(args: &ClaudeCodeArgs) -> Result<()> {
+    match &args.command {
+        Some(ClaudeCodeCommands::Account { action }) => {
+            handle_account_command(action.as_ref())?;
+        }
+        None => {
+            handle_main_command()?;
+        }
+    }
+
+    Ok(())
+}
+
+fn handle_main_command() -> Result<()> {
+    let config = Config::load().context("Failed to load configuration")?;
+
+    if config.is_empty() {
+        println!("{}", t!("claude_code.main.no_configs_found"));
+        println!();
+        println!("{}", t!("claude_code.main.suggestion_import"));
+        println!("  {}", t!("claude_code.main.command_import"));
+        println!();
+        println!("{}:", t!("claude_code.main.alternative_config"));
+        println!("  {}",
+            Config::config_file_path()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| "unknown".to_string())
+        );
+        return Ok(());
+    }
+
+    if let Some(selected_group) = interactive::select_config_group(&config)? {
+        if let Some(group) = config.get_group(&selected_group) {
+            // Execute claude command with all environment variables set
+            let mut cmd = Command::new("claude");
+
+            // Inject all environment variables from the group
+            for (key, value) in group {
+                cmd.env(key, value);
+            }
+
+            let status = cmd.status().context("Failed to execute claude command")?;
+
+            if !status.success() {
+                eprintln!("{}", t!("claude_code.error.failed_claude_command"));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn handle_account_command(action: Option<&AccountAction>) -> Result<()> {
+    let mut config = Config::load().context("Failed to load configuration")?;
+
+    match action {
+        Some(cli_action) => execute_account_action(&mut config, cli_action)?,
+        None => handle_list_groups(&config),
+    }
+
+    Ok(())
+}
+
+fn execute_account_action(
+    config: &mut Config,
+    action: &AccountAction,
+) -> Result<()> {
+    match action {
+        AccountAction::List => handle_list_groups(config),
+        AccountAction::Import { force } => handle_import_group(config, *force)?,
+        AccountAction::Use { name, args } => handle_use_group(config, name, args.clone())?,
+    }
+    Ok(())
+}
+
+fn handle_import_group(config: &mut Config, force: bool) -> Result<()> {
+    if let Some((name, group)) = interactive::prompt_import_config()? {
+        // Check if group already exists
+        if config.groups.contains_key(&name) {
+            if !force {
+                println!("{}", t!("claude_code.account.group_exists", name = name));
+                println!("{}", t!("claude_code.account.use_different_name_or_force"));
+                return Ok(());
+            } else {
+                println!("{}", t!("claude_code.account.overwriting_group", name = name));
+            }
+        }
+
+        config.add_group(name.clone(), group);
+        config
+            .save()
+            .with_context(|| "Failed to save configuration after import")?;
+        println!("{}", t!("claude_code.account.import_success", name = name));
+    } else {
+        println!("{}", t!("claude_code.interactive.import_cancelled"));
+    }
+
+    Ok(())
+}
+
+fn handle_list_groups(config: &Config) {
+    interactive::display_config_list(config);
+}
+
+fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()> {
+    if let Some(group) = config.get_group(name) {
+        // Execute claude command with all environment variables set
+        let mut cmd = Command::new("claude");
+
+        // Inject all environment variables from the group
+        for (key, value) in group {
+            cmd.env(key, value);
+        }
+
+        // Add any additional arguments
+        for arg in args {
+            cmd.arg(arg);
+        }
+
+        let status = cmd.status().context("Failed to execute claude command")?;
+
+        if !status.success() {
+            eprintln!("{}", t!("claude_code.error.failed_claude_command"));
+        }
+    } else {
+        println!("{}", t!("claude_code.account.group_not_found", name = name));
+        println!("{}", t!("claude_code.account.use_list_command"));
+    }
+    Ok(())
+}
+
