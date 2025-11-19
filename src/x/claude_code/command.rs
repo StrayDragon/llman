@@ -69,7 +69,7 @@ pub enum AccountAction {
         )]
         args: Vec<String>,
     },
-  }
+}
 
 pub fn run(args: &ClaudeCodeArgs) -> Result<()> {
     match &args.command {
@@ -94,7 +94,8 @@ fn handle_main_command() -> Result<()> {
         println!("  {}", t!("claude_code.main.command_import"));
         println!();
         println!("{}:", t!("claude_code.main.alternative_config"));
-        println!("  {}",
+        println!(
+            "  {}",
             Config::config_file_path()
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|_| "unknown".to_string())
@@ -102,21 +103,21 @@ fn handle_main_command() -> Result<()> {
         return Ok(());
     }
 
-    if let Some(selected_group) = interactive::select_config_group(&config)? {
-        if let Some(group) = config.get_group(&selected_group) {
-            // Execute claude command with all environment variables set
-            let mut cmd = Command::new("claude");
+    if let Some(selected_group) = interactive::select_config_group(&config)?
+        && let Some(group) = config.get_group(&selected_group)
+    {
+        // Execute claude command with all environment variables set
+        let mut cmd = Command::new("claude");
 
-            // Inject all environment variables from the group
-            for (key, value) in group {
-                cmd.env(key, value);
-            }
+        // Inject all environment variables from the group
+        for (key, value) in group {
+            cmd.env(key, value);
+        }
 
-            let status = cmd.status().context("Failed to execute claude command")?;
+        let status = cmd.status().context("Failed to execute claude command")?;
 
-            if !status.success() {
-                eprintln!("{}", t!("claude_code.error.failed_claude_command"));
-            }
+        if !status.success() {
+            eprintln!("{}", t!("claude_code.error.failed_claude_command"));
         }
     }
 
@@ -134,10 +135,7 @@ fn handle_account_command(action: Option<&AccountAction>) -> Result<()> {
     Ok(())
 }
 
-fn execute_account_action(
-    config: &mut Config,
-    action: &AccountAction,
-) -> Result<()> {
+fn execute_account_action(config: &mut Config, action: &AccountAction) -> Result<()> {
     match action {
         AccountAction::List => handle_list_groups(config),
         AccountAction::Import { force } => handle_import_group(config, *force)?,
@@ -155,7 +153,10 @@ fn handle_import_group(config: &mut Config, force: bool) -> Result<()> {
                 println!("{}", t!("claude_code.account.use_different_name_or_force"));
                 return Ok(());
             } else {
-                println!("{}", t!("claude_code.account.overwriting_group", name = name));
+                println!(
+                    "{}",
+                    t!("claude_code.account.overwriting_group", name = name)
+                );
             }
         }
 
@@ -201,4 +202,3 @@ fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()
     }
     Ok(())
 }
-

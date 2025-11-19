@@ -1,11 +1,11 @@
+use anyhow::{Context, Result, anyhow};
+use directories::ProjectDirs;
+use llm_json::{RepairOptions, loads};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use anyhow::{Context, Result, anyhow};
-use llm_json::{loads, RepairOptions};
-use directories::ProjectDirs;
 
 // Simplified ConfigGroup: 直接映射为环境变量
 pub type ConfigGroup = HashMap<String, String>;
@@ -55,8 +55,8 @@ impl Config {
             groups: HashMap<String, OldConfigGroup>,
         }
 
-        let old_config: OldConfig = toml::from_str(content)
-            .with_context(|| "Failed to parse old format config")?;
+        let old_config: OldConfig =
+            toml::from_str(content).with_context(|| "Failed to parse old format config")?;
 
         // Migrate to new format
         let mut new_config = Config::default();
@@ -74,7 +74,6 @@ impl Config {
     pub fn add_group(&mut self, name: String, group: ConfigGroup) {
         self.groups.insert(name, group);
     }
-
 
     pub fn get_group(&self, name: &str) -> Option<&ConfigGroup> {
         self.groups.get(name)
@@ -102,12 +101,13 @@ impl Config {
     pub fn save_to_path(&self, path: &PathBuf) -> Result<()> {
         // Create config directory if it doesn't exist
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create config directory: {}", parent.display()))?;
+            fs::create_dir_all(parent).with_context(|| {
+                format!("Failed to create config directory: {}", parent.display())
+            })?;
         }
 
-        let content = toml::to_string_pretty(self)
-            .with_context(|| "Failed to serialize config to TOML")?;
+        let content =
+            toml::to_string_pretty(self).with_context(|| "Failed to serialize config to TOML")?;
 
         fs::write(path, content)
             .with_context(|| format!("Failed to write config file: {}", path.display()))?;
@@ -120,33 +120,36 @@ impl Config {
                 .with_context(|| "Failed to get file metadata")?
                 .permissions();
             perms.set_mode(0o600);
-            fs::set_permissions(path, perms)
-                .with_context(|| "Failed to set file permissions")?;
+            fs::set_permissions(path, perms).with_context(|| "Failed to set file permissions")?;
         }
 
         Ok(())
     }
-
-    }
+}
 
 // Utility function for display formatting
 pub fn get_display_vars(group: &ConfigGroup) -> Vec<(String, String)> {
     let mut vars: Vec<_> = group.iter().collect();
     vars.sort_by(|a, b| a.0.cmp(b.0));
-    vars.into_iter().map(|(k, v)| {
-        (k.clone(), if k.contains("KEY") || k.contains("TOKEN") || k.contains("SECRET") {
-            mask_secret(v)
-        } else {
-            v.clone()
+    vars.into_iter()
+        .map(|(k, v)| {
+            (
+                k.clone(),
+                if k.contains("KEY") || k.contains("TOKEN") || k.contains("SECRET") {
+                    mask_secret(v)
+                } else {
+                    v.clone()
+                },
+            )
         })
-    }).collect()
+        .collect()
 }
 
 pub fn mask_secret(value: &str) -> String {
     if value.len() <= 8 {
         "*".repeat(value.len())
     } else {
-        format!("{}...{}", &value[..4], &value[value.len()-4..])
+        format!("{}...{}", &value[..4], &value[value.len() - 4..])
     }
 }
 
@@ -164,7 +167,10 @@ pub fn parse_json_config(json_str: &str) -> Result<ConfigGroup> {
                     repaired_value
                 }
                 Err(e) => {
-                    anyhow::bail!("Failed to parse JSON string even after repair attempts: {}", e);
+                    anyhow::bail!(
+                        "Failed to parse JSON string even after repair attempts: {}",
+                        e
+                    );
                 }
             }
         }
