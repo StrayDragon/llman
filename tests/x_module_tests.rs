@@ -216,6 +216,8 @@ fn test_x_module_extensibility() {
     let supported_test_cases = vec![
         (vec!["llman", "x", "cursor", "export"], "cursor"),
         (vec!["llman", "x", "collect", "tree"], "collect"),
+        (vec!["llman", "x", "claude-code", "account", "list"], "claude-code"),
+        (vec!["llman", "x", "cc", "account", "list"], "claude-code"),
     ];
 
     for (args, cmd_name) in supported_test_cases {
@@ -229,6 +231,7 @@ fn test_x_module_extensibility() {
                     match x_args.command {
                         XCommands::Cursor(_) => assert_eq!(cmd_name, "cursor"),
                         XCommands::Collect(_) => assert_eq!(cmd_name, "collect"),
+                        XCommands::ClaudeCode(_) => assert_eq!(cmd_name, "claude-code"),
                     }
                 }
                 _ => panic!("Expected Commands::X"),
