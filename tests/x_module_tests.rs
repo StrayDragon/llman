@@ -216,7 +216,10 @@ fn test_x_module_extensibility() {
     let supported_test_cases = vec![
         (vec!["llman", "x", "cursor", "export"], "cursor"),
         (vec!["llman", "x", "collect", "tree"], "collect"),
-        (vec!["llman", "x", "claude-code", "account", "list"], "claude-code"),
+        (
+            vec!["llman", "x", "claude-code", "account", "list"],
+            "claude-code",
+        ),
         (vec!["llman", "x", "cc", "account", "list"], "claude-code"),
     ];
 
