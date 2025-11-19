@@ -1,6 +1,6 @@
 [package]
 name = "llman"
-version = "0.0.4"
+version = "0.0.5"
 # Edition 2024 requires Rust nightly toolchain
 # CI configured to use nightly for edition 2024 support
 edition = "2024"
