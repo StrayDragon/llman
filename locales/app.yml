@@ -1171,6 +1171,21 @@ codex:
       en: "📋 Available profiles:"
       zh-CN: "📋 可用配置："
 
+  # 安全警告
+  security:
+    warning:
+      en: "Configuration path: <{config_path}> Configuration item: {config_item} is prohibited in <llman config>/claude-code.toml"
+      zh-CN: "配置路径: <{config_path}> 配置项: {config_item} 被禁止在 <llman config>/claude-code.toml 中"
+    disabled:
+      en: "Security checks are disabled"
+      zh-CN: "已禁用安全检查"
+    no_settings:
+      en: "No Claude Code settings files found"
+      zh-CN: "未找到 Claude Code 设置文件"
+    parse_error:
+      en: "Error parsing settings file {path}: {error}"
+      zh-CN: "解析设置文件 {path} 时出错: {error}"
+
   # 错误信息
   error:
     unknown_template:
