@@ -1,6 +1,7 @@
 use crate::prompt::PromptCommand;
 use crate::tool::command::{ToolArgs, ToolCommands};
 use crate::x::claude_code::command::ClaudeCodeArgs;
+use crate::x::codex::command::CodexArgs;
 use crate::x::collect::command::{CollectArgs, CollectCommands};
 use crate::x::cursor::command::CursorArgs;
 use anyhow::Result;
@@ -108,6 +109,8 @@ pub enum XCommands {
     /// Commands for managing Claude Code configurations
     #[command(alias = "cc")]
     ClaudeCode(ClaudeCodeArgs),
+    /// Commands for managing Codex configurations
+    Codex(CodexArgs),
 }
 
 pub fn run() -> Result<()> {
@@ -168,6 +171,9 @@ fn handle_x_command(args: &XArgs) -> Result<()> {
         },
         XCommands::ClaudeCode(claude_code_args) => {
             crate::x::claude_code::command::run(claude_code_args)
+        }
+        XCommands::Codex(codex_args) => {
+            crate::x::codex::command::run(codex_args)
         }
     }
 }
