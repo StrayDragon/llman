@@ -42,11 +42,5 @@ jobs:
       - name: Setup justfile
         uses: extractions/setup-just@v2
 
-      - name: Run formatting check
-        run: cargo +nightly fmt --all -- --check
-
-      - name: Run linting
-        run: just lint-nightly
-
-      - name: Check for doc issues
-        run: cargo +nightly doc --no-deps --all-features --document-private-items --dry-run
+      - name: Run linting checks
+        run: just check-all
