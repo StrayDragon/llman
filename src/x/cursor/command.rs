@@ -1,3 +1,4 @@
+use crate::path_utils::validate_path_str;
 use crate::x::cursor::database::CursorDatabase;
 use crate::x::cursor::models::{ConversationExport, ConversationSummary, ConversationType};
 use anyhow::{Result, anyhow};
@@ -349,6 +350,9 @@ fn export_to_files(conversations: &[&ConversationExport]) -> Result<()> {
     let output_dir = Text::new(&t!("cursor.export.input_output_dir"))
         .with_default("./cursor_exports")
         .prompt()?;
+
+    validate_path_str(&output_dir).map_err(|e| anyhow!("Invalid output directory: {}", e))?;
+
     let output_path = PathBuf::from(output_dir);
     if !output_path.exists() {
         fs::create_dir_all(&output_path)?;

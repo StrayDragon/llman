@@ -1,4 +1,6 @@
+use crate::path_utils::{safe_parent_for_creation, validate_path_str};
 use crate::x::codex::interactive;
+use anyhow::anyhow;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -106,6 +108,9 @@ impl CodexConfigManager {
         let base_config = std::env::var("LLMAN_CONFIG_DIR")
             .context("LLMAN_CONFIG_DIR environment variable not set")?;
 
+        validate_path_str(&base_config)
+            .map_err(|e| anyhow!("LLMAN_CONFIG_DIR environment variable is invalid: {}", e))?;
+
         let config_file = PathBuf::from(base_config).join("codex.toml");
         let codex_config_path = dirs::home_dir()
             .context("Failed to get home directory")?
@@ -180,7 +185,7 @@ impl CodexConfigManager {
             toml::to_string_pretty(config).context("Failed to serialize configuration")?;
 
         // Create parent directory if needed
-        if let Some(parent) = self.config_file.parent() {
+        if let Some(parent) = safe_parent_for_creation(&self.config_file) {
             fs::create_dir_all(parent).context("Failed to create configuration directory")?;
         }
 
@@ -194,7 +199,7 @@ impl CodexConfigManager {
         let config = self.load_config()?;
 
         // Create .codex directory
-        if let Some(parent) = self.codex_config_path.parent() {
+        if let Some(parent) = safe_parent_for_creation(&self.codex_config_path) {
             fs::create_dir_all(parent).context("Failed to create .codex directory")?;
         }
 

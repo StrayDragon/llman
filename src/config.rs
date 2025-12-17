@@ -1,3 +1,4 @@
+use crate::path_utils::validate_path_str;
 use anyhow::{Result, anyhow};
 use directories::ProjectDirs;
 use std::env;
@@ -26,8 +27,12 @@ impl Config {
 
     pub fn with_config_dir(config_dir_override: Option<&str>) -> Result<Self> {
         let config_dir = if let Some(custom_dir) = config_dir_override {
+            validate_path_str(custom_dir)
+                .map_err(|e| anyhow!("Invalid config directory: {}", e))?;
             PathBuf::from(custom_dir)
         } else if let Ok(custom_dir) = env::var(ENV_CONFIG_DIR) {
+            validate_path_str(&custom_dir)
+                .map_err(|e| anyhow!("Invalid config directory in environment variable: {}", e))?;
             PathBuf::from(custom_dir)
         } else {
             let project_dirs = ProjectDirs::from("", "", APP_NAME)
