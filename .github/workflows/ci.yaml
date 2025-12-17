@@ -73,5 +73,5 @@ jobs:
         uses: extractions/setup-just@v2
 
       - name: Build checks
-        run: just ci-build
+        run: just build-release
 
