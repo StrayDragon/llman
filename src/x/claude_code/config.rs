@@ -14,6 +14,70 @@ pub type ConfigGroup = HashMap<String, String>;
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Config {
     pub groups: HashMap<String, ConfigGroup>,
+    pub security: Option<SecurityConfig>,
+}
+
+/// Security configuration for Claude Code settings checking
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SecurityConfig {
+    /// Dangerous command patterns that should trigger warnings
+    pub dangerous_patterns: Option<Vec<String>>,
+    /// Claude Code settings files to check (in precedence order)
+    pub claude_settings_files: Option<Vec<String>>,
+    /// Whether security checks are enabled
+    pub enabled: Option<bool>,
+}
+
+impl SecurityConfig {
+    /// Get whether security checks are enabled (default: true)
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.unwrap_or(true)
+    }
+
+    /// Get dangerous patterns (default patterns if none specified)
+    pub fn get_dangerous_patterns(&self) -> Vec<String> {
+        self.dangerous_patterns.clone().unwrap_or_else(|| {
+            vec![
+                "rm -rf".to_string(),
+                "sudo rm".to_string(),
+                "dd if=".to_string(),
+                "mkfs".to_string(),
+                "format".to_string(),
+                "chmod 777".to_string(),
+                "chown root".to_string(),
+                ">:|".to_string(),
+                "curl | sh".to_string(),
+                "wget | sh".to_string(),
+                "eval $(".to_string(),
+                "exec $(".to_string(),
+                "system(".to_string(),
+                "__import__('os').system".to_string(),
+                "subprocess.call".to_string(),
+                "powershell -c".to_string(),
+                "cmd /c".to_string(),
+                "registry".to_string(),
+                "reg add".to_string(),
+                "net user".to_string(),
+                "crontab".to_string(),
+                "systemctl".to_string(),
+                "service".to_string(),
+                "iptables".to_string(),
+                "ufw".to_string(),
+                "firewall".to_string(),
+            ]
+        })
+    }
+
+    /// Get Claude Code settings files to check (default files if none specified)
+    pub fn get_claude_settings_files(&self) -> Vec<String> {
+        self.claude_settings_files.clone().unwrap_or_else(|| {
+            vec![
+                ".claude/settings.local.json".to_string(),
+                ".claude/settings.json".to_string(),
+                "~/.claude/settings.json".to_string(),
+            ]
+        })
+    }
 }
 
 impl Config {
@@ -89,6 +153,11 @@ impl Config {
     }
 
     pub fn config_file_path() -> Result<PathBuf> {
+        // Check if LLMAN_CONFIG_DIR environment variable is set
+        if let Ok(config_dir) = std::env::var("LLMAN_CONFIG_DIR") {
+            return Ok(PathBuf::from(config_dir).join("claude-code.toml"));
+        }
+
         let project_dirs = ProjectDirs::from("com", "StrayDragon", "llman")
             .ok_or_else(|| anyhow!("Could not find project directory"))?;
         Ok(project_dirs.config_dir().join("claude-code.toml"))
