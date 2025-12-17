@@ -1,0 +1,466 @@
+use crate::x::claude_code::config::Config;
+use anyhow::{Context, Result};
+use llm_json::{RepairOptions, loads};
+use rust_i18n::t;
+use serde_json::Value;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use dirs;
+
+/// Represents a security warning for dangerous Claude Code settings
+#[derive(Debug, Clone)]
+pub struct SecurityWarning {
+    pub config_path: String,
+    pub config_item: String,
+    pub reason: String,
+    pub severity: SecurityWarningSeverity,
+    pub matched_pattern: String,
+    pub description: String,
+    pub recommendation: String,
+}
+
+/// Severity levels for security warnings
+#[derive(Debug, Clone, PartialEq)]
+pub enum SecurityWarningSeverity {
+    Critical, // Can cause system damage or data loss
+    High,     // Can compromise security or privacy
+    Medium,   // Potentially risky operations
+    Low,      // Minor security concerns
+}
+
+impl SecurityWarningSeverity {
+    pub fn display_symbol(&self) -> &'static str {
+        match self {
+            SecurityWarningSeverity::Critical => "🚨",
+            SecurityWarningSeverity::High => "⚠️",
+            SecurityWarningSeverity::Medium => "⚡",
+            SecurityWarningSeverity::Low => "ℹ️",
+        }
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            SecurityWarningSeverity::Critical => "CRITICAL",
+            SecurityWarningSeverity::High => "HIGH",
+            SecurityWarningSeverity::Medium => "MEDIUM",
+            SecurityWarningSeverity::Low => "LOW",
+        }
+    }
+}
+
+/// Security checker for Claude Code settings
+pub struct SecurityChecker {
+    dangerous_patterns: Vec<String>,
+    settings_files: Vec<String>,
+    enabled: bool,
+}
+
+impl SecurityChecker {
+    /// Create a new SecurityChecker from configuration
+    pub fn from_config(config: &Config) -> Result<Self> {
+        let security_config = config.security.as_ref();
+
+        let enabled = security_config.and_then(|s| s.enabled).unwrap_or(true);
+
+        let dangerous_patterns = security_config
+            .and_then(|s| s.dangerous_patterns.clone())
+            .unwrap_or_else(Self::default_dangerous_patterns);
+
+        let settings_files = security_config
+            .and_then(|s| s.claude_settings_files.clone())
+            .unwrap_or_else(Self::default_settings_files);
+
+        Ok(Self {
+            dangerous_patterns,
+            settings_files,
+            enabled,
+        })
+    }
+
+    /// Check Claude Code settings for dangerous permissions
+    pub fn check_claude_settings(&self) -> Result<Vec<SecurityWarning>> {
+        if !self.enabled {
+            return Ok(vec![]);
+        }
+
+        let mut all_warnings = Vec::new();
+
+        for file_pattern in &self.settings_files {
+            if let Some(path) = self.resolve_settings_file_path(file_pattern) {
+                match self.check_settings_file(&path) {
+                    Ok(mut warnings) => all_warnings.append(&mut warnings),
+                    Err(e) => {
+                        // Log error but continue checking other files
+                        eprintln!(
+                            "{}",
+                            t!(
+                                "claude_code.security.parse_error",
+                                path = path.display(),
+                                error = e.to_string()
+                            )
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(all_warnings)
+    }
+
+    /// Check a specific settings file for dangerous permissions
+    fn check_settings_file(&self, path: &Path) -> Result<Vec<SecurityWarning>> {
+        if !path.exists() {
+            return Ok(vec![]);
+        }
+
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("Failed to read settings file: {}", path.display()))?;
+
+        // Try to parse JSON with repair capability
+        let settings = match serde_json::from_str::<Value>(&content) {
+            Ok(value) => value,
+            Err(_) => {
+                // Try to repair JSON
+                match loads(&content, &RepairOptions::default()) {
+                    Ok(repaired_value) => repaired_value,
+                    Err(e) => {
+                        anyhow::bail!("Failed to parse JSON even after repair: {}", e);
+                    }
+                }
+            }
+        };
+
+        Ok(self.extract_dangerous_permissions(&settings, &path.display().to_string()))
+    }
+
+    /// Extract dangerous permissions from parsed settings
+    fn extract_dangerous_permissions(
+        &self,
+        settings: &Value,
+        config_path: &str,
+    ) -> Vec<SecurityWarning> {
+        let mut warnings = Vec::new();
+
+        if let Some(permissions) = settings.get("permissions")
+            && let Some(allow) = permissions.get("allow")
+            && let Some(allow_array) = allow.as_array()
+        {
+            for (index, item) in allow_array.iter().enumerate() {
+                if let Some(permission) = item.as_str()
+                    && let Some((matched_pattern, (severity, description, recommendation))) =
+                        self.get_dangerous_pattern_info(permission)
+                {
+                    warnings.push(SecurityWarning {
+                        config_path: config_path.to_string(),
+                        config_item: format!("permissions.allow[{}] = \"{}\"", index, permission),
+                        reason: format!("Dangerous command pattern detected: {}", permission),
+                        severity,
+                        matched_pattern,
+                        description: description.to_string(),
+                        recommendation: recommendation.to_string(),
+                    });
+                }
+            }
+        }
+
+        warnings
+    }
+
+    /// Get detailed information about a dangerous pattern
+    fn get_dangerous_pattern_info(
+        &self,
+        permission: &str,
+    ) -> Option<(String, (SecurityWarningSeverity, &str, &str))> {
+        let permission_lower = permission.to_lowercase();
+
+        for pattern in &self.dangerous_patterns {
+            if permission_lower.contains(pattern) {
+                return Some((pattern.clone(), self.get_pattern_details(pattern)));
+            }
+        }
+
+        None
+    }
+
+    /// Get severity, description and recommendation for a dangerous pattern
+    fn get_pattern_details(&self, pattern: &str) -> (SecurityWarningSeverity, &str, &str) {
+        match pattern {
+            // File system destruction - CRITICAL
+            p if p.contains("rm -rf") => (
+                SecurityWarningSeverity::Critical,
+                "Force deletion of files and directories without confirmation",
+                "This can cause irreversible data loss. Consider using more specific permissions or add confirmation prompts.",
+            ),
+
+            p if p.contains("sudo rm") => (
+                SecurityWarningSeverity::Critical,
+                "Deletion of files with root privileges",
+                "Extremely dangerous as it can delete system files. Always avoid in automated tools.",
+            ),
+
+            p if p.contains("dd if=") => (
+                SecurityWarningSeverity::Critical,
+                "Raw disk writing that can destroy filesystems",
+                "This can wipe entire disks or partitions. Use with extreme caution.",
+            ),
+
+            p if p.contains("mkfs") || p.contains("format") => (
+                SecurityWarningSeverity::Critical,
+                "Filesystem formatting that destroys all data",
+                "This will erase all data on the target filesystem. Double-check targets.",
+            ),
+
+            // Privilege escalation - HIGH
+            p if p.contains("chmod 777") => (
+                SecurityWarningSeverity::High,
+                "Setting world-writable permissions on files",
+                "This creates serious security vulnerabilities. Use more specific permissions.",
+            ),
+
+            p if p.contains("chown root") => (
+                SecurityWarningSeverity::High,
+                "Changing file ownership to root",
+                "Can lead to privilege escalation vulnerabilities. Verify ownership changes carefully.",
+            ),
+
+            // Remote code execution - HIGH
+            p if p.contains("curl | sh") || p.contains("wget | sh") => (
+                SecurityWarningSeverity::High,
+                "Downloading and executing scripts from the internet",
+                "This can execute malicious code. Download first, review contents, then execute manually.",
+            ),
+
+            p if p.contains("eval $(") || p.contains("exec $(") => (
+                SecurityWarningSeverity::High,
+                "Dynamic command execution that can be exploited",
+                "This can lead to command injection attacks. Use safer alternatives.",
+            ),
+
+            // System configuration - MEDIUM
+            p if p.contains("system(") => (
+                SecurityWarningSeverity::Medium,
+                "Executing system commands through various programming languages",
+                "This bypasses shell safeguards. Validate all inputs thoroughly.",
+            ),
+
+            p if p.contains("crontab") => (
+                SecurityWarningSeverity::Medium,
+                "Modifying scheduled tasks that can persist malicious activities",
+                "Cron jobs can hide persistent malware. Review scheduled changes carefully.",
+            ),
+
+            p if p.contains("systemctl") || p.contains("service") => (
+                SecurityWarningSeverity::Medium,
+                "Managing system services that can enable persistence",
+                "Service modifications can create backdoors. Verify service configurations.",
+            ),
+
+            // Network security - MEDIUM
+            p if p.contains("iptables") || p.contains("ufw") || p.contains("firewall") => (
+                SecurityWarningSeverity::Medium,
+                "Modifying firewall rules that can expose systems to attack",
+                "Firewall changes can open attack vectors. Document and review all rule changes.",
+            ),
+
+            // Registry/Windows commands - HIGH
+            p if p.contains("registry") || p.contains("reg add") => (
+                SecurityWarningSeverity::High,
+                "Modifying Windows Registry which controls system behavior",
+                "Registry changes can cause system instability or security issues. Backup first.",
+            ),
+
+            p if p.contains("net user") => (
+                SecurityWarningSeverity::High,
+                "Managing user accounts that can grant unauthorized access",
+                "User account changes can create backdoors. Use principle of least privilege.",
+            ),
+
+            // Command interpreters - MEDIUM
+            p if p.contains("powershell -c") || p.contains("cmd /c") => (
+                SecurityWarningSeverity::Medium,
+                "Executing command interpreters that can run arbitrary commands",
+                "Shell execution can bypass security controls. Validate and sanitize inputs.",
+            ),
+
+            // Python specific - MEDIUM
+            p if p.contains("__import__('os').system") || p.contains("subprocess.call") => (
+                SecurityWarningSeverity::Medium,
+                "Python system command execution that can run shell commands",
+                "This can execute arbitrary shell commands. Use safer subprocess alternatives.",
+            ),
+
+            // Default for unknown patterns
+            _ => (
+                SecurityWarningSeverity::Medium,
+                "Pattern detected in command execution permissions",
+                "Review this command pattern for potential security implications.",
+            ),
+        }
+    }
+
+    /// Resolve settings file path from pattern (handles ~ expansion)
+    fn resolve_settings_file_path(&self, file_pattern: &str) -> Option<PathBuf> {
+        let path = if let Some(stripped) = file_pattern.strip_prefix("~/") {
+            if let Some(home_dir) = dirs::home_dir() {
+                home_dir.join(stripped)
+            } else {
+                PathBuf::from(file_pattern)
+            }
+        } else {
+            PathBuf::from(file_pattern)
+        };
+
+        Some(path)
+    }
+
+    /// Default dangerous command patterns
+    fn default_dangerous_patterns() -> Vec<String> {
+        vec![
+            "rm -rf".to_string(),
+            "sudo rm".to_string(),
+            "dd if=".to_string(),
+            "mkfs".to_string(),
+            "format".to_string(),
+            "chmod 777".to_string(),
+            "chown root".to_string(),
+            ">:|".to_string(),
+            "curl | sh".to_string(),
+            "wget | sh".to_string(),
+            "eval $(".to_string(),
+            "exec $(".to_string(),
+            "system(".to_string(),
+            "__import__('os').system".to_string(),
+            "subprocess.call".to_string(),
+            "powershell -c".to_string(),
+            "cmd /c".to_string(),
+            "registry".to_string(),
+            "reg add".to_string(),
+            "net user".to_string(),
+            "crontab".to_string(),
+            "systemctl".to_string(),
+            "service".to_string(),
+            "iptables".to_string(),
+            "ufw".to_string(),
+            "firewall".to_string(),
+        ]
+    }
+
+    /// Default Claude Code settings files to check
+    fn default_settings_files() -> Vec<String> {
+        vec![
+            ".claude/settings.local.json".to_string(),
+            ".claude/settings.json".to_string(),
+            "~/.claude/settings.json".to_string(),
+        ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_dangerous_pattern_info() {
+        let checker = SecurityChecker {
+            dangerous_patterns: vec!["rm -rf".to_string(), "curl | sh".to_string()],
+            settings_files: vec![],
+            enabled: true,
+        };
+
+        // Test matching patterns
+        assert!(
+            checker
+                .get_dangerous_pattern_info("Bash(rm -rf /tmp/*)")
+                .is_some()
+        );
+        assert!(
+            checker
+                .get_dangerous_pattern_info("Bash(curl | sh script.sh)")
+                .is_some()
+        );
+
+        // Test non-matching patterns
+        assert!(checker.get_dangerous_pattern_info("Bash(ls -la)").is_none());
+
+        // Test case insensitivity and sudo variants
+        assert!(
+            checker
+                .get_dangerous_pattern_info("Bash(sudo rm -rf /file)")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn test_extract_dangerous_permissions() {
+        let checker = SecurityChecker {
+            dangerous_patterns: vec!["rm -rf".to_string()],
+            settings_files: vec![],
+            enabled: true,
+        };
+
+        let settings_json = r#"
+        {
+            "permissions": {
+                "allow": [
+                    "Bash(ls -la)",
+                    "Bash(rm -rf /tmp/*)",
+                    "WebSearch"
+                ]
+            }
+        }
+        "#;
+
+        let settings: Value = serde_json::from_str(settings_json).unwrap();
+        let warnings = checker.extract_dangerous_permissions(&settings, "/test/path");
+
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(
+            warnings[0].config_item,
+            "permissions.allow[1] = \"Bash(rm -rf /tmp/*)\""
+        );
+        assert_eq!(warnings[0].config_path, "/test/path");
+        assert_eq!(warnings[0].matched_pattern, "rm -rf");
+        assert_eq!(warnings[0].severity, SecurityWarningSeverity::Critical);
+    }
+
+    #[test]
+    fn test_severity_display() {
+        assert_eq!(SecurityWarningSeverity::Critical.display_symbol(), "🚨");
+        assert_eq!(SecurityWarningSeverity::Critical.display_name(), "CRITICAL");
+        assert_eq!(SecurityWarningSeverity::High.display_symbol(), "⚠️");
+        assert_eq!(SecurityWarningSeverity::High.display_name(), "HIGH");
+        assert_eq!(SecurityWarningSeverity::Medium.display_symbol(), "⚡");
+        assert_eq!(SecurityWarningSeverity::Medium.display_name(), "MEDIUM");
+        assert_eq!(SecurityWarningSeverity::Low.display_symbol(), "ℹ️");
+        assert_eq!(SecurityWarningSeverity::Low.display_name(), "LOW");
+    }
+
+    #[test]
+    fn test_pattern_details() {
+        let checker = SecurityChecker {
+            dangerous_patterns: vec![
+                "rm -rf".to_string(),
+                "curl | sh".to_string(),
+                "chmod 777".to_string(),
+            ],
+            settings_files: vec![],
+            enabled: true,
+        };
+
+        // Test critical severity
+        let (severity, description, _) = checker.get_pattern_details("rm -rf");
+        assert_eq!(severity, SecurityWarningSeverity::Critical);
+        assert!(description.contains("Force deletion"));
+
+        // Test high severity
+        let (severity, description, _) = checker.get_pattern_details("curl | sh");
+        assert_eq!(severity, SecurityWarningSeverity::High);
+        assert!(description.contains("Downloading and executing"));
+
+        // Test high severity for chmod
+        let (severity, description, _) = checker.get_pattern_details("chmod 777");
+        assert_eq!(severity, SecurityWarningSeverity::High);
+        assert!(description.contains("world-writable"));
+    }
+}

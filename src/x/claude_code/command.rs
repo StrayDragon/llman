@@ -1,5 +1,6 @@
 use crate::x::claude_code::config::Config;
 use crate::x::claude_code::interactive;
+use crate::x::claude_code::security::SecurityChecker;
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
@@ -136,6 +137,34 @@ fn handle_main_command() -> Result<()> {
     if let Some(selected_group) = interactive::select_config_group(&config)?
         && let Some(group) = config.get_group(&selected_group)
     {
+        // Perform security check before executing claude
+        let security_checker = SecurityChecker::from_config(&config)?;
+        if let Ok(warnings) = security_checker.check_claude_settings()
+            && !warnings.is_empty()
+        {
+            eprintln!("\n🔒 {} Security Warnings Detected:", warnings.len());
+            eprintln!("{}", "═".repeat(60));
+
+            for warning in warnings {
+                eprintln!(
+                    "\n{} [{}] Dangerous Permission Detected",
+                    warning.severity.display_symbol(),
+                    warning.severity.display_name()
+                );
+                eprintln!("  📍 Location: {}", warning.config_path);
+                eprintln!("  ⚙️  Setting: {}", warning.config_item);
+                eprintln!("  🎯 Pattern: {}", warning.matched_pattern);
+                eprintln!("  📝 Description: {}", warning.description);
+                eprintln!("  💡 Recommendation: {}", warning.recommendation);
+            }
+
+            eprintln!(
+                "\n⚠️ These permissions are defined in your Claude Code settings but conflict with"
+            );
+            eprintln!("  security rules in <llman config>/claude-code.toml");
+            eprintln!();
+        }
+
         // Execute claude command with all environment variables set
         let mut cmd = Command::new("claude");
 
@@ -208,6 +237,34 @@ fn handle_list_groups(config: &Config) {
 
 fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()> {
     if let Some(group) = config.get_group(name) {
+        // Perform security check before executing claude
+        let security_checker = SecurityChecker::from_config(config)?;
+        if let Ok(warnings) = security_checker.check_claude_settings()
+            && !warnings.is_empty()
+        {
+            eprintln!("\n🔒 {} Security Warnings Detected:", warnings.len());
+            eprintln!("{}", "═".repeat(60));
+
+            for warning in warnings {
+                eprintln!(
+                    "\n{} [{}] Dangerous Permission Detected",
+                    warning.severity.display_symbol(),
+                    warning.severity.display_name()
+                );
+                eprintln!("  📍 Location: {}", warning.config_path);
+                eprintln!("  ⚙️  Setting: {}", warning.config_item);
+                eprintln!("  🎯 Pattern: {}", warning.matched_pattern);
+                eprintln!("  📝 Description: {}", warning.description);
+                eprintln!("  💡 Recommendation: {}", warning.recommendation);
+            }
+
+            eprintln!(
+                "\n⚠️ These permissions are defined in your Claude Code settings but conflict with"
+            );
+            eprintln!("  security rules in <llman config>/claude-code.toml");
+            eprintln!();
+        }
+
         // Execute claude command with all environment variables set
         let mut cmd = Command::new("claude");
 
@@ -281,6 +338,34 @@ fn handle_run_command(
             "{}",
             t!("claude_code.run.using_config", name = selected_group)
         );
+
+        // Perform security check before executing claude
+        let security_checker = SecurityChecker::from_config(&config)?;
+        if let Ok(warnings) = security_checker.check_claude_settings()
+            && !warnings.is_empty()
+        {
+            eprintln!("\n🔒 {} Security Warnings Detected:", warnings.len());
+            eprintln!("{}", "═".repeat(60));
+
+            for warning in warnings {
+                eprintln!(
+                    "\n{} [{}] Dangerous Permission Detected",
+                    warning.severity.display_symbol(),
+                    warning.severity.display_name()
+                );
+                eprintln!("  📍 Location: {}", warning.config_path);
+                eprintln!("  ⚙️  Setting: {}", warning.config_item);
+                eprintln!("  🎯 Pattern: {}", warning.matched_pattern);
+                eprintln!("  📝 Description: {}", warning.description);
+                eprintln!("  💡 Recommendation: {}", warning.recommendation);
+            }
+
+            eprintln!(
+                "\n⚠️ These permissions are defined in your Claude Code settings but conflict with"
+            );
+            eprintln!("  security rules in <llman config>/claude-code.toml");
+            eprintln!();
+        }
 
         let mut cmd = Command::new("claude");
 
