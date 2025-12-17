@@ -6,9 +6,9 @@ use crate::x::collect::command::{CollectArgs, CollectCommands};
 use crate::x::cursor::command::CursorArgs;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -127,7 +127,9 @@ pub fn run() -> Result<()> {
     let config_dir = determine_config_dir(cli.config_dir.as_ref())?;
 
     // Set LLMAN_CONFIG_DIR environment variable for all subcommands
-    unsafe { env::set_var("LLMAN_CONFIG_DIR", &config_dir); }
+    unsafe {
+        env::set_var("LLMAN_CONFIG_DIR", &config_dir);
+    }
 
     match &cli.command {
         Commands::Prompt(args) => handle_prompt_command(args),
@@ -169,7 +171,8 @@ fn is_llman_dev_project() -> bool {
 
         // Check for Cargo.toml with llman package name
         if cargo_toml.exists()
-            && let Ok(content) = fs::read_to_string(&cargo_toml) {
+            && let Ok(content) = fs::read_to_string(&cargo_toml)
+        {
             return content.contains("name = \"llman\"");
         }
     }
@@ -224,9 +227,7 @@ fn handle_x_command(args: &XArgs) -> Result<()> {
         XCommands::ClaudeCode(claude_code_args) => {
             crate::x::claude_code::command::run(claude_code_args)
         }
-        XCommands::Codex(codex_args) => {
-            crate::x::codex::command::run(codex_args)
-        }
+        XCommands::Codex(codex_args) => crate::x::codex::command::run(codex_args),
     }
 }
 

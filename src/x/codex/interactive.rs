@@ -4,7 +4,10 @@ use inquire::{Confirm, Select, Text, validator::Validation};
 /// Select a template for profile creation
 pub fn select_template() -> Result<String> {
     let templates = [
-        ("development", "Development environment with relaxed settings"),
+        (
+            "development",
+            "Development environment with relaxed settings",
+        ),
         ("production", "Production environment with strict security"),
     ];
 
@@ -26,14 +29,22 @@ pub fn prompt_profile_name() -> Result<String> {
 
             if trimmed.is_empty() {
                 Ok(Validation::Invalid("Profile name is required".into()))
-            } else if !trimmed.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            } else if !trimmed
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+            {
                 Ok(Validation::Invalid(
-                    "Profile name can only contain letters, numbers, hyphens, and underscores".into(),
+                    "Profile name can only contain letters, numbers, hyphens, and underscores"
+                        .into(),
                 ))
             } else if trimmed.len() < 2 {
-                Ok(Validation::Invalid("Profile name must be at least 2 characters".into()))
+                Ok(Validation::Invalid(
+                    "Profile name must be at least 2 characters".into(),
+                ))
             } else if trimmed.len() > 50 {
-                Ok(Validation::Invalid("Profile name must be less than 50 characters".into()))
+                Ok(Validation::Invalid(
+                    "Profile name must be less than 50 characters".into(),
+                ))
             } else {
                 Ok(Validation::Valid)
             }
@@ -48,10 +59,13 @@ pub fn confirm_delete(name: &str) -> Result<bool> {
     println!();
     println!("⚠️  You are about to delete profile: {}", name);
 
-    Confirm::new(&format!("Are you sure you want to delete profile '{}'?", name))
-        .with_default(false)
-        .prompt()
-        .context("Failed to confirm deletion")
+    Confirm::new(&format!(
+        "Are you sure you want to delete profile '{}'?",
+        name
+    ))
+    .with_default(false)
+    .prompt()
+    .context("Failed to confirm deletion")
 }
 
 /// Confirm directory overwrite

@@ -10,7 +10,7 @@ env:
 
 jobs:
   test:
-    name: Test with just
+    name: Test Suite
     runs-on: ubuntu-latest
 
     steps:
@@ -24,7 +24,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
@@ -36,12 +36,45 @@ jobs:
           rustup --version
           cargo --version
           rustc --version
-          cargo fmt --version
-          cargo clippy --version
 
       - name: Setup justfile
         uses: extractions/setup-just@v2
 
-      - name: Run just check
-        run: just check
+      - name: Run tests
+        run: just test
+
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Print useful env versions
+        run: |
+          rustup --version
+          cargo --version
+          rustc --version
+
+      - name: Setup justfile
+        uses: extractions/setup-just@v2
+
+      - name: Build debug
+        run: just build
+
+      - name: Build release
+        run: just build-release
 

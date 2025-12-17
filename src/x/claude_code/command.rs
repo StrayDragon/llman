@@ -29,7 +29,11 @@ pub enum ClaudeCodeCommands {
     #[command(about = "Run claude with configuration")]
     Run {
         /// Interactive mode: prompt for configuration and arguments
-        #[arg(short = 'i', long, help = "Interactive mode: prompt for configuration and arguments")]
+        #[arg(
+            short = 'i',
+            long,
+            help = "Interactive mode: prompt for configuration and arguments"
+        )]
         interactive: bool,
 
         /// Configuration group name to use (required in non-interactive mode)
@@ -95,7 +99,11 @@ pub fn run(args: &ClaudeCodeArgs) -> Result<()> {
         Some(ClaudeCodeCommands::Account { action }) => {
             handle_account_command(action.as_ref())?;
         }
-        Some(ClaudeCodeCommands::Run { interactive, group, args }) => {
+        Some(ClaudeCodeCommands::Run {
+            interactive,
+            group,
+            args,
+        }) => {
             handle_run_command(*interactive, group.as_deref(), args.clone())?;
         }
         None => {
@@ -225,7 +233,11 @@ fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()
     Ok(())
 }
 
-fn handle_run_command(interactive: bool, group_name: Option<&str>, args: Vec<String>) -> Result<()> {
+fn handle_run_command(
+    interactive: bool,
+    group_name: Option<&str>,
+    args: Vec<String>,
+) -> Result<()> {
     let config = Config::load().context("Failed to load configuration")?;
 
     if config.is_empty() {
@@ -246,7 +258,10 @@ fn handle_run_command(interactive: bool, group_name: Option<&str>, args: Vec<Str
 
     // 验证参数组合
     if !interactive && group_name.is_none() {
-        eprintln!("{}", t!("claude_code.run.error.group_required_non_interactive"));
+        eprintln!(
+            "{}",
+            t!("claude_code.run.error.group_required_non_interactive")
+        );
         eprintln!("{}", t!("claude_code.run.error.use_i_or_group"));
         return Ok(());
     }
@@ -262,7 +277,10 @@ fn handle_run_command(interactive: bool, group_name: Option<&str>, args: Vec<Str
 
     // 执行 claude 命令
     if let Some(env_vars) = config.get_group(&selected_group) {
-        println!("{}", t!("claude_code.run.using_config", name = selected_group));
+        println!(
+            "{}",
+            t!("claude_code.run.using_config", name = selected_group)
+        );
 
         let mut cmd = Command::new("claude");
 
@@ -282,7 +300,10 @@ fn handle_run_command(interactive: bool, group_name: Option<&str>, args: Vec<Str
             eprintln!("{}", t!("claude_code.error.failed_claude_command"));
         }
     } else {
-        println!("{}", t!("claude_code.account.group_not_found", name = selected_group));
+        println!(
+            "{}",
+            t!("claude_code.account.group_not_found", name = selected_group)
+        );
         println!("{}", t!("claude_code.account.use_list_command"));
     }
 
@@ -308,7 +329,10 @@ fn handle_interactive_mode(config: &Config) -> Result<(String, Vec<String>)> {
             .context("Failed to get claude arguments")?;
 
         // 简单的参数分割（可以用更复杂的方式处理引号等）
-        args_text.split_whitespace().map(|s| s.to_string()).collect()
+        args_text
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect()
     } else {
         Vec::new()
     };

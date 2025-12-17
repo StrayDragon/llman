@@ -1,9 +1,9 @@
+use crate::x::codex::interactive;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use toml;
-use crate::x::codex::interactive;
 
 /// Configuration manager for Codex
 /// Manages a single configuration file with all profiles
@@ -122,24 +122,34 @@ impl CodexConfigManager {
     pub fn initialize(&self) -> Result<()> {
         // If config file already exists, just use it
         if self.config_file.exists() {
-            println!("🔧 Using existing configuration file: {}", self.config_file.display());
+            println!(
+                "🔧 Using existing configuration file: {}",
+                self.config_file.display()
+            );
             return Ok(());
         }
 
         // Check if parent directory exists and has files that might conflict
-        if let Some(parent) = self.config_file.parent() {
-            if parent.exists() && parent.read_dir()?.next().is_some() {
-                // Directory exists and is not empty, but config file doesn't exist
-                println!("⚠️  Configuration directory '{}' exists but no config file found.", parent.display());
-                if !interactive::confirm_overwrite()? {
-                    println!("❌ Initialization cancelled.");
-                    return Ok(());
-                }
+        if let Some(parent) = self.config_file.parent()
+            && parent.exists()
+            && parent.read_dir()?.next().is_some()
+        {
+            // Directory exists and is not empty, but config file doesn't exist
+            println!(
+                "⚠️  Configuration directory '{}' exists but no config file found.",
+                parent.display()
+            );
+            if !interactive::confirm_overwrite()? {
+                println!("❌ Initialization cancelled.");
+                return Ok(());
             }
         }
 
         // Create new configuration
-        println!("📝 Creating new configuration file: {}", self.config_file.display());
+        println!(
+            "📝 Creating new configuration file: {}",
+            self.config_file.display()
+        );
         let config = CodexConfig::default();
         self.save_config(&config)?;
 
@@ -155,28 +165,26 @@ impl CodexConfigManager {
             return Ok(CodexConfig::default());
         }
 
-        let content = fs::read_to_string(&self.config_file)
-            .context("Failed to read configuration file")?;
+        let content =
+            fs::read_to_string(&self.config_file).context("Failed to read configuration file")?;
 
-        let config: CodexConfig = toml::from_str(&content)
-            .context("Failed to parse configuration file")?;
+        let config: CodexConfig =
+            toml::from_str(&content).context("Failed to parse configuration file")?;
 
         Ok(config)
     }
 
     /// Save configuration to file
     pub fn save_config(&self, config: &CodexConfig) -> Result<()> {
-        let content = toml::to_string_pretty(config)
-            .context("Failed to serialize configuration")?;
+        let content =
+            toml::to_string_pretty(config).context("Failed to serialize configuration")?;
 
         // Create parent directory if needed
         if let Some(parent) = self.config_file.parent() {
-            fs::create_dir_all(parent)
-                .context("Failed to create configuration directory")?;
+            fs::create_dir_all(parent).context("Failed to create configuration directory")?;
         }
 
-        fs::write(&self.config_file, content)
-            .context("Failed to write configuration file")?;
+        fs::write(&self.config_file, content).context("Failed to write configuration file")?;
 
         Ok(())
     }
@@ -187,17 +195,19 @@ impl CodexConfigManager {
 
         // Create .codex directory
         if let Some(parent) = self.codex_config_path.parent() {
-            fs::create_dir_all(parent)
-                .context("Failed to create .codex directory")?;
+            fs::create_dir_all(parent).context("Failed to create .codex directory")?;
         }
 
-        let content = toml::to_string_pretty(&config)
-            .context("Failed to serialize configuration")?;
+        let content =
+            toml::to_string_pretty(&config).context("Failed to serialize configuration")?;
 
         fs::write(&self.codex_config_path, content)
             .context("Failed to export configuration to ~/.codex/config.toml")?;
 
-        println!("✅ Configuration exported to: {}", self.codex_config_path.display());
+        println!(
+            "✅ Configuration exported to: {}",
+            self.codex_config_path.display()
+        );
         Ok(())
     }
 
@@ -208,7 +218,8 @@ impl CodexConfigManager {
 
     /// List all available profiles
     pub fn list_profiles(&self) -> Result<Vec<String>> {
-        let config = self.load_config()
+        let config = self
+            .load_config()
             .context("Failed to load configuration for profile listing")?;
         Ok(config.profiles.keys().cloned().collect())
     }
@@ -246,13 +257,16 @@ impl CodexConfigManager {
             "development" | "dev" => {
                 println!("✅ Using development template (relaxed security, enabled features)");
                 self.development_template()
-            },
+            }
             "production" | "prod" => {
                 println!("✅ Using production template (strict security, limited features)");
                 self.production_template()
-            },
+            }
             _ => {
-                eprintln!("⚠️  Unknown template '{}', falling back to development template", template);
+                eprintln!(
+                    "⚠️  Unknown template '{}', falling back to development template",
+                    template
+                );
                 println!("💡 Available templates: development, production");
                 self.development_template()
             }
@@ -270,12 +284,15 @@ impl CodexConfigManager {
             sandbox_mode: Some("workspace-write".to_string()),
             model_providers: Some({
                 let mut providers = std::collections::HashMap::new();
-                providers.insert("openai".to_string(), ModelProvider {
-                    name: "OpenAI".to_string(),
-                    base_url: "https://api.openai.com/v1".to_string(),
-                    env_key: "OPENAI_API_KEY".to_string(),
-                    wire_api: Some("chat".to_string()),
-                });
+                providers.insert(
+                    "openai".to_string(),
+                    ModelProvider {
+                        name: "OpenAI".to_string(),
+                        base_url: "https://api.openai.com/v1".to_string(),
+                        env_key: "OPENAI_API_KEY".to_string(),
+                        wire_api: Some("chat".to_string()),
+                    },
+                );
                 providers
             }),
             features: Some(Features {
@@ -317,12 +334,15 @@ impl CodexConfigManager {
             sandbox_mode: Some("read-only".to_string()),
             model_providers: Some({
                 let mut providers = std::collections::HashMap::new();
-                providers.insert("openai".to_string(), ModelProvider {
-                    name: "OpenAI".to_string(),
-                    base_url: "https://api.openai.com/v1".to_string(),
-                    env_key: "OPENAI_API_KEY".to_string(),
-                    wire_api: Some("chat".to_string()),
-                });
+                providers.insert(
+                    "openai".to_string(),
+                    ModelProvider {
+                        name: "OpenAI".to_string(),
+                        base_url: "https://api.openai.com/v1".to_string(),
+                        env_key: "OPENAI_API_KEY".to_string(),
+                        wire_api: Some("chat".to_string()),
+                    },
+                );
                 providers
             }),
             features: Some(Features {
