@@ -1,0 +1,49 @@
+# Production Configuration
+# Strict settings for production use and important projects
+# For full documentation, see: https://developers.openai.com/codex
+
+# Core settings - customize for your provider
+model = "your-model-name"
+model_provider = "your-provider"
+
+# Approval policy: untrusted | on-failure | on-request | never
+approval_policy = "on-request"  # Ask for approval before executing commands
+
+# Sandbox mode: read-only | workspace-write | danger-full-access
+sandbox_mode = "workspace-write"
+
+# Configure your model provider
+[model_providers.your-provider]
+name = "Your Provider"
+base_url = "https://api.your-provider.com/v1"  # Example: https://api.openai.com/v1
+env_key = "YOUR_API_KEY"                         # Environment variable with your API key
+wire_api = "chat"                                # "chat" for Chat Completions, "responses" for Responses API
+
+# Quick setup for popular providers:
+# OpenAI: model = "gpt-4", base_url = "https://api.openai.com/v1", env_key = "OPENAI_API_KEY"
+# Claude: model = "claude-3-sonnet", base_url = "https://api.anthropic.com/v1", env_key = "ANTHROPIC_API_KEY"
+# Local: model = "llama2", base_url = "http://localhost:11434/v1", env_key = "API_KEY"
+
+# Production-safe settings
+request_max_retries = 4
+stream_max_retries = 5
+stream_idle_timeout_ms = 300000
+
+# Restrictive feature settings for security
+[features]
+view_image_tool = true
+web_search_request = false  # Disabled for security, enable if needed
+# streamable_shell = false  # Uncomment to disable experimental shell
+# apply_patch_freeform = false  # Uncomment to disable beta patch feature
+
+# Restricted environment variables for security
+[shell_environment_policy]
+inherit = "core"
+include_only = ["PATH", "HOME", "LANG"]  # Only essential variables
+
+# Production workspace settings
+[sandbox_workspace_write]
+exclude_tmpdir_env_var = true   # Exclude $TMPDIR for security
+exclude_slash_tmp = true         # Exclude /tmp for security
+network_access = false           # Disable network access
+writable_roots = []              # No additional writable directories
