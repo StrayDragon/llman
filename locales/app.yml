@@ -902,54 +902,65 @@ codex:
 
   # 默认命令（无子命令时）
   default:
-    current_config:
-      en: "Current configuration"
-      zh-CN: "当前配置"
-    no_active_config:
-      en: "No active configuration"
-      zh-CN: "未设置激活配置"
-    suggestion_init:
-      en: "Use 'llman x codex init' to initialize configuration management"
-      zh-CN: "使用 'llman x codex init' 初始化配置管理"
+    starting_codex:
+      en: "Starting codex with configuration: %{config}"
+      zh-CN: "使用配置启动 codex: %{config}"
+    no_config_selected:
+      en: "No configuration selected"
+      zh-CN: "未选择配置"
     initialized:
       en: "Configuration management initialized"
       zh-CN: "配置管理已初始化"
-    suggestion_status:
-      en: "Use 'llman x codex' to check status"
-      zh-CN: "使用 'llman x codex' 检查状态"
-    available_commands:
-      en: "Available commands"
-      zh-CN: "可用命令"
-    cmd_list:
-      en: "List all configurations"
-      zh-CN: "列出所有配置"
-    cmd_create:
-      en: "Create a new configuration"
-      zh-CN: "创建新配置"
-    cmd_use:
-      en: "Switch to a configuration"
-      zh-CN: "切换配置"
-    cmd_show:
-      en: "Show current configuration"
-      zh-CN: "显示当前配置"
-    cmd_run:
-      en: "Run codex with current config"
-      zh-CN: "使用当前配置运行 codex"
+    suggestion_run:
+      en: "Use 'llman x codex' to select configuration and run codex"
+      zh-CN: "使用 'llman x codex' 选择配置并运行 codex"
+
+  # 账户管理
+  account:
+    menu:
+      title:
+        en: "Account Management"
+        zh-CN: "账户管理"
+      help:
+        en: "Select an action to manage your codex configurations"
+        zh-CN: "选择操作来管理你的 codex 配置"
+      upsert:
+        en: "Upsert configuration"
+        zh-CN: "创建/更新配置"
+      exit:
+        en: "Exit"
+        zh-CN: "退出"
+      continue:
+        en: "Continue managing configurations?"
+        zh-CN: "继续管理配置？"
+
+  # Upsert 配置
+  upsert:
+    updating:
+      en: "Updating configuration '%{name}'..."
+      zh-CN: "正在更新配置 '%{name}'..."
+    success:
+      en: "Configuration '%{name}' updated successfully at %{path}"
+      zh-CN: "配置 '%{name}' 已成功更新于 %{path}"
 
   # 配置模板
   template:
-    openai:
+    basic:
       description:
-        en: "OpenAI API configuration"
-        zh-CN: "OpenAI API 配置"
-    ollama:
+        en: "Basic template - customizable for any provider"
+        zh-CN: "基础模板 - 可自定义适配任何提供商"
+    openai-compatible:
       description:
-        en: "Ollama local model configuration"
-        zh-CN: "Ollama 本地模型配置"
-    minimal:
+        en: "OpenAI-compatible provider template"
+        zh-CN: "OpenAI兼容提供商模板"
+    secure:
       description:
-        en: "Minimal configuration template"
-        zh-CN: "最小配置模板"
+        en: "Secure template with strict settings for production"
+        zh-CN: "安全模板 - 生产环境严格设置"
+    development:
+      description:
+        en: "Development template with relaxed restrictions"
+        zh-CN: "开发模板 - 宽松限制便于开发"
 
   # 交互式功能
   interactive:
@@ -962,12 +973,18 @@ codex:
     select_config_to_edit:
       en: "Select a configuration to edit:"
       zh-CN: "选择要编辑的配置："
+    select_config_to_use:
+      en: "Select a configuration to use:"
+      zh-CN: "选择要使用的配置："
     select_config_to_switch:
       en: "Select a configuration to switch to:"
       zh-CN: "选择要切换的配置："
     switch_help:
       en: "The configuration will be set as active for OpenAI Codex"
       zh-CN: "该配置将被设置为 OpenAI Codex 的激活配置"
+    use_help:
+      en: "Select configuration to use for this session"
+      zh-CN: "选择本次会话要使用的配置"
     current_marker:
       en: "→"
       zh-CN: "→"
@@ -1034,6 +1051,125 @@ codex:
     name_too_long:
       en: "Name must be less than 50 characters"
       zh-CN: "名称必须少于50个字符"
+
+  # Account Management (新增)
+  account:
+    help_title:
+      en: "🎛️  LLMAN Codex Account Management"
+      zh-CN: "🎛️  LLMAN Codex 账户管理"
+    usage:
+      en: "Usage:"
+      zh-CN: "用法："
+    commands:
+      en: |-
+        llman x codex account           Show this help message
+        llman x codex account -i        Interactive profile management
+        llman x codex                   Select profile and run codex
+      zh-CN: |-
+        llman x codex account           显示此帮助信息
+        llman x codex account -i        交互式配置管理
+        llman x codex                   选择配置并运行 codex
+    examples:
+      en: "Examples:"
+      zh-CN: "示例："
+    management_title:
+      en: "🎛️  LLMAN Codex Account Management"
+      zh-CN: "🎛️  LLMAN Codex 账户管理"
+    select_action:
+      en: "What would you like to do?"
+      zh-CN: "您想做什么？"
+    action_help:
+      en: "Choose an action to manage your Codex profiles"
+      zh-CN: "选择操作来管理您的 Codex 配置"
+    actions:
+      upsert_profile:
+        en: "Upsert profile"
+        zh-CN: "创建/更新配置"
+      list_profiles:
+        en: "List profiles"
+        zh-CN: "列出配置"
+      edit_configuration:
+        en: "Edit configuration"
+        zh-CN: "编辑配置"
+      remove_profile:
+        en: "Remove profile"
+        zh-CN: "删除配置"
+      exit:
+        en: "Exit"
+        zh-CN: "退出"
+
+    # Profile Selection
+    profile_selection_title:
+      en: "🎛️  Select a Codex profile to use:"
+      zh-CN: "🎛️  选择要使用的 Codex 配置："
+    choose_profile:
+      en: "Choose profile:"
+      zh-CN: "选择配置："
+    profile_help:
+      en: "Select a profile to use with codex"
+      zh-CN: "选择要用于 codex 的配置"
+    running_codex:
+      en: "🚀 Running: codex --profile %{profile}"
+      zh-CN: "🚀 正在运行: codex --profile %{profile}"
+
+    # Upsert Profile
+    upsert_title:
+      en: "🔧 Upsert Profile"
+      zh-CN: "🔧 创建/更新配置"
+    select_security_template:
+      en: "Select security template:"
+      zh-CN: "选择安全模板："
+    template_help:
+      en: "Choose a security template based on your use case"
+      zh-CN: "根据您的用例选择安全模板"
+    templates:
+      development:
+        en: "Development environment (relaxed security, enabled features)"
+        zh-CN: "开发环境（宽松安全，启用功能）"
+      production:
+        en: "Production environment (strict security, limited features)"
+        zh-CN: "生产环境（严格安全，受限功能）"
+    profile_created:
+      en: "✅ Profile '%{name}' created/updated and exported!"
+      zh-CN: "✅ 配置 '%{name}' 已创建/更新并导出！"
+    profile_usage_hint:
+      en: "💡 Use with: llman x codex (select profile when prompted)"
+      zh-CN: "💡 使用方法: llman x codex (提示时选择配置)"
+
+    # Messages
+    no_profiles_configured:
+      en: "📭 No profiles configured."
+      zh-CN: "📭 未配置任何配置。"
+    use_account_import:
+      en: "💡 Use 'llman x codex account -i' to create a new configuration."
+      zh-CN: "💡 使用 'llman x codex account -i' 创建新配置。"
+    failed_select_profile:
+      en: "❌ Failed to select profile."
+      zh-CN: "❌ 选择配置失败。"
+    failed_select_action:
+      en: "❌ Failed to select action."
+      zh-CN: "❌ 选择操作失败。"
+    no_profiles_found:
+      en: "📭 No profiles found."
+      zh-CN: "📭 未找到任何配置。"
+    no_profiles_to_remove:
+      en: "📭 No profiles to remove."
+      zh-CN: "📭 没有要删除的配置。"
+    opening_config_file:
+      en: "📝 Opening configuration file: %{path}"
+      zh-CN: "📝 打开配置文件: %{path}"
+    config_updated:
+      en: "✅ Configuration updated and exported."
+      zh-CN: "✅ 配置已更新并导出。"
+    editor_failed:
+      en: "❌ Editor failed to open configuration file"
+      zh-CN: "❌ 编辑器打开配置文件失败"
+    goodbye:
+      en: "👋 Goodbye!"
+      zh-CN: "👋 再见！"
+    available_profiles:
+      en: "📋 Available profiles:"
+      zh-CN: "📋 可用配置："
 
   # 错误信息
   error:
