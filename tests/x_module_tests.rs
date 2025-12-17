@@ -235,6 +235,7 @@ fn test_x_module_extensibility() {
                         XCommands::Cursor(_) => assert_eq!(cmd_name, "cursor"),
                         XCommands::Collect(_) => assert_eq!(cmd_name, "collect"),
                         XCommands::ClaudeCode(_) => assert_eq!(cmd_name, "claude-code"),
+                        XCommands::Codex(_) => assert_eq!(cmd_name, "codex"),
                     }
                 }
                 _ => panic!("Expected Commands::X"),

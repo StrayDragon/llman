@@ -1,0 +1,52 @@
+name: Lint Check
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  # Use nightly to support edition 2024 features
+  RUST_VERSION: nightly
+
+jobs:
+  lint:
+    name: Lint Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy
+
+      - name: Print useful env versions
+        run: |
+          rustup --version
+          cargo --version
+          rustc --version
+          cargo fmt --version
+          cargo clippy --version
+
+      - name: Setup justfile
+        uses: extractions/setup-just@v2
+
+      - name: Run formatting check
+        run: cargo +nightly fmt --all -- --check
+
+      - name: Run linting
+        run: just lint-nightly
+
+      - name: Check for doc issues
+        run: cargo +nightly doc --no-deps --all-features --document-private-items --dry-run

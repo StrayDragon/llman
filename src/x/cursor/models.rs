@@ -288,12 +288,8 @@ impl WorkspaceInfo {
     /// 获取显示名称
     pub fn display_name(&self) -> String {
         if self.has_chat_data {
-            if self.project_path.is_some() {
-                format!(
-                    "🌟 {} ({})",
-                    self.project_name,
-                    self.project_path.as_ref().unwrap().display()
-                )
+            if let Some(project_path) = &self.project_path {
+                format!("🌟 {} ({})", self.project_name, project_path.display())
             } else {
                 format!("🌟 {} [Unknown path]", self.project_name)
             }
