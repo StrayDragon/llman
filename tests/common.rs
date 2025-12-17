@@ -67,6 +67,7 @@ def important_function():
 "#;
 }
 
+#[allow(dead_code)]
 pub fn create_test_file_with_content(
     dir: &Path,
     filename: &str,
@@ -87,8 +88,15 @@ pub fn create_test_config(dir: &Path, config_content: &str) -> std::path::PathBu
 
 pub struct TestEnvironment {
     // TempDir is kept to ensure cleanup happens when TestEnvironment is dropped
+    #[allow(dead_code)]
     pub(crate) temp_dir: TempDir,
     pub work_dir: std::path::PathBuf,
+}
+
+impl Default for TestEnvironment {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TestEnvironment {
@@ -98,7 +106,7 @@ impl TestEnvironment {
 
         // Initialize git repo for testing
         std::process::Command::new("git")
-            .args(&["init", "--quiet"])
+            .args(["init", "--quiet"])
             .current_dir(&work_dir)
             .output()
             .expect("Failed to initialize git repo");
@@ -110,6 +118,7 @@ impl TestEnvironment {
         &self.work_dir
     }
 
+    #[allow(dead_code)]
     pub fn create_file(&self, filename: &str, content: &str) -> std::path::PathBuf {
         create_test_file_with_content(&self.work_dir, filename, content)
     }

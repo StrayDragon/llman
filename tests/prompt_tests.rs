@@ -243,7 +243,6 @@ fn test_prompt_command_resource_usage() {
     }
 
     // If we reach here without panics or memory issues, the test passes
-    assert!(true);
 }
 
 /// Tests PromptCommand with various edge case inputs

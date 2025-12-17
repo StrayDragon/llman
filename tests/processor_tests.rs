@@ -119,7 +119,7 @@ tools:
     let mut processor = CommentProcessor::new(config, args);
     let result = processor.process().unwrap();
 
-    assert!(result.files_changed.len() > 0);
+    assert!(!result.files_changed.is_empty());
 }
 
 #[test]
@@ -169,7 +169,7 @@ tools:
     let result = processor.process().unwrap();
 
     // Should detect changes
-    assert!(result.files_changed.len() > 0);
+    assert!(!result.files_changed.is_empty());
 }
 
 #[test]

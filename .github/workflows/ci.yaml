@@ -72,9 +72,6 @@ jobs:
       - name: Setup justfile
         uses: extractions/setup-just@v2
 
-      - name: Build debug
-        run: just build
-
-      - name: Build release
-        run: just build-release
+      - name: Build checks
+        run: just ci-build
 

@@ -89,7 +89,7 @@ fn test_comment_processor_creation() {
 
     let _processor = CommentProcessor::new(config, args);
     // Processor should be created successfully (even if TreeSitter fails)
-    assert!(true); // If we reach here, creation succeeded
+    // If we reach here, creation succeeded
 }
 
 /// Tests CommentProcessor with various file scenarios

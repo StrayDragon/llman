@@ -1,54 +1,81 @@
 default:
     @just --list
 
-# 构建项目 (dev)
+# =============================================================================
+# 构建和运行命令
+# =============================================================================
+
+# 构建项目
 build:
     cargo +nightly build
 
-# 构建发布版本 (dev)
+# 构建发布版本
 build-release:
     cargo +nightly build --release
 
-# 运行项目 (dev)
+# 运行项目（使用测试配置）
 run *args:
     LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo +nightly run -- {{args}}
 
-# 使用测试配置运行
+# 使用生产配置运行
 run-prod *args:
     cargo +nightly run -- {{args}}
-
-# 运行测试 (dev)
-test:
-    cargo +nightly test
-
-# 代码格式化 (dev)
-fmt:
-    cargo +nightly fmt
-
-# 代码检查 (dev)
-lint:
-    cargo +nightly clippy -- -D warnings
-
-# nightly 版本代码检查 (dev)
-lint-nightly:
-    cargo +nightly clippy -- -D warnings
-
-# 清理构建产物 (dev)
-clean:
-    cargo clean
 
 # 安装到本地
 install:
     cargo +nightly install --path .
 
-# 检查一条龙 (dev)
-check: fmt lint-nightly test
+# 清理构建产物
+clean:
+    cargo clean
 
-# 创建新的规则模板 (dev)
+# =============================================================================
+# 测试命令
+# =============================================================================
+
+# 运行测试
+test:
+    cargo +nightly test
+
+# =============================================================================
+# 代码质量检查
+# =============================================================================
+
+# 代码格式化
+fmt:
+    cargo +nightly fmt
+
+# 检查代码格式化（不修改文件）
+fmt-check:
+    cargo +nightly fmt --all -- --check
+
+# 代码检查（clippy，包含重要警告）
+lint:
+    cargo +nightly clippy -- -D warnings
+
+# 快速编译检查
+check-compile:
+    cargo +nightly check --all-targets
+
+# 文档检查
+doc-check:
+    cargo +nightly doc --no-deps --all-features --document-private-items
+
+# 核心检查（格式化检查 + lint + 测试）
+check: fmt-check lint test
+
+# 完整检查（核心检查 + 文档 + release构建）
+check-all: check doc-check build-release
+
+# =============================================================================
+# 工具命令
+# =============================================================================
+
+# 创建新的规则模板
 create-dev-template name content:
     @echo "{{content}}" > ./artifacts/testing_config_home/prompt/cursor/{{name}}.mdc
     @echo "✅ 模板 {{name}} 已创建"
 
-# 检查 i18n 状态 (dev)
+# 检查 i18n 状态
 check-i18n:
     ./scripts/check-i18n.sh

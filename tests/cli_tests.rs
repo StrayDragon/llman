@@ -1,6 +1,6 @@
 use clap::Parser;
 use llman::cli::{Cli, Commands, ProjectCommands, XCommands};
-use llman::tool::command::{ToolArgs, ToolCommands};
+use llman::tool::command::ToolCommands;
 use std::path::PathBuf;
 
 /// Tests that the CLI can parse basic commands correctly
@@ -34,7 +34,6 @@ fn test_project_command_parsing() {
                     ProjectCommands::Tree(_) => {
                         // Successfully parsed project tree command
                     }
-                    _ => panic!("Expected ProjectCommands::Tree"),
                 }
             }
             _ => panic!("Expected Commands::Project"),
@@ -64,7 +63,6 @@ fn test_tool_command_parsing() {
                     assert!(args.verbose);
                     assert!(args.files.is_empty());
                 }
-                _ => panic!("Expected ToolCommands::CleanUselessComments"),
             },
             _ => panic!("Expected Commands::Tool"),
         }
@@ -93,7 +91,6 @@ fn test_tool_command_with_files() {
                     assert_eq!(args.files[0], PathBuf::from("file1.py"));
                     assert_eq!(args.files[1], PathBuf::from("file2.js"));
                 }
-                _ => panic!("Expected ToolCommands::CleanUselessComments"),
             },
             _ => panic!("Expected Commands::Tool"),
         }
@@ -120,7 +117,6 @@ fn test_tool_command_with_config() {
                     assert!(args.config.is_some());
                     assert_eq!(args.config.unwrap(), PathBuf::from("custom.yaml"));
                 }
-                _ => panic!("Expected ToolCommands::CleanUselessComments"),
             },
             _ => panic!("Expected Commands::Tool"),
         }
@@ -159,7 +155,6 @@ fn test_tool_command_with_all_options() {
                     assert_eq!(args.files.len(), 1);
                     assert_eq!(args.files[0], PathBuf::from("test.py"));
                 }
-                _ => panic!("Expected ToolCommands::CleanUselessComments"),
             },
             _ => panic!("Expected Commands::Tool"),
         }
@@ -248,7 +243,6 @@ fn test_cli_argument_edge_cases() {
                     assert!(args.dry_run);
                     assert!(args.force);
                 }
-                _ => panic!("Expected ToolCommands::CleanUselessComments"),
             },
             _ => panic!("Expected Commands::Tool"),
         }
@@ -270,7 +264,6 @@ fn test_cli_with_path_arguments() {
                     assert_eq!(args.files.len(), 1);
                     assert_eq!(args.files[0], PathBuf::from("./src/main.py"));
                 }
-                _ => panic!("Expected ToolCommands::CleanUselessComments"),
             },
             _ => panic!("Expected Commands::Tool"),
         }
@@ -289,7 +282,6 @@ fn test_cli_with_path_arguments() {
                     assert_eq!(args.files.len(), 1);
                     assert_eq!(args.files[0], PathBuf::from(absolute_path));
                 }
-                _ => panic!("Expected ToolCommands::CleanUselessComments"),
             },
             _ => panic!("Expected Commands::Tool"),
         }
@@ -311,7 +303,6 @@ fn test_cli_with_special_characters() {
                     assert_eq!(args.files.len(), 1);
                     assert_eq!(args.files[0], PathBuf::from(special_file));
                 }
-                _ => panic!("Expected ToolCommands::CleanUselessComments"),
             },
             _ => panic!("Expected Commands::Tool"),
         }

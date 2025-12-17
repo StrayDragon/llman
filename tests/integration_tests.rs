@@ -5,7 +5,7 @@ use std::process::Command;
 #[test]
 fn test_command_help() {
     let output = Command::new("cargo")
-        .args(&["run", "--", "tool", "clean-useless-comments", "--help"])
+        .args(["run", "--", "tool", "clean-useless-comments", "--help"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .expect("Failed to run command");
@@ -47,17 +47,13 @@ def hello():
     );
 
     let output = Command::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--",
             "tool",
             "clean-useless-comments",
-            "--config",
-            env.path()
-                .join(".llman")
-                .join("config.yaml")
-                .to_str()
-                .unwrap(),
+            "--config-dir",
+            env.path().to_str().unwrap(),
             "--dry-run",
             "--verbose",
         ])
@@ -84,9 +80,16 @@ def hello():
     );
 
     let output = Command::new("cargo")
-        .args(&["run", "--", "tool", "clean-useless-comments", "--dry-run"])
+        .args([
+            "run",
+            "--",
+            "tool",
+            "clean-useless-comments",
+            "--config-dir",
+            env.path().to_str().unwrap(),
+            "--dry-run",
+        ])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .env("LLMAN_CONFIG_DIR", env.path().to_str().unwrap())
         .output()
         .expect("Failed to run command");
 
@@ -103,17 +106,16 @@ fn test_command_file_not_found_falls_back_to_default_or_shows_error() {
     let env = TestEnvironment::new();
 
     let output = Command::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--",
             "tool",
             "clean-useless-comments",
-            "--config",
-            "nonexistent_config.yaml",
+            "--config-dir",
+            env.path().to_str().unwrap(),
             "--dry-run",
         ])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .env("LLMAN_CONFIG_DIR", env.path().to_str().unwrap())
         .output()
         .expect("Failed to run command");
 
