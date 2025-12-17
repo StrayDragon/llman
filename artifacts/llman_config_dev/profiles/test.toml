@@ -1,0 +1,50 @@
+# Development Configuration
+# Relaxed settings for daily development and experimentation
+# For full documentation, see: https://developers.openai.com/codex
+
+# Core settings - customize for your provider
+model = "your-model-name"
+model_provider = "your-provider"
+
+# Approval policy: untrusted | on-failure | on-request | never
+approval_policy = "never"  # Don't ask for approvals during development
+
+# Sandbox mode: read-only | workspace-write | danger-full-access
+sandbox_mode = "workspace-write"
+
+# Configure your model provider
+[model_providers.your-provider]
+name = "Your Provider"
+base_url = "https://api.your-provider.com/v1"  # Example: https://api.openai.com/v1
+env_key = "YOUR_API_KEY"                         # Environment variable with your API key
+wire_api = "chat"                                # chat" for Chat Completions, "responses" for Responses API
+
+# Quick setup for popular providers:
+# OpenAI: model = "gpt-4", base_url = "https://api.openai.com/v1", env_key = "OPENAI_API_KEY"
+# Claude: model = "claude-3-sonnet", base_url = "https://api.anthropic.com/v1", env_key = "ANTHROPIC_API_KEY"
+# Local: model = "llama2", base_url = "http://localhost:11434/v1", env_key = "API_KEY"
+
+# Development-friendly settings
+request_max_retries = 2
+stream_max_retries = 3
+
+# Enable useful features for development
+[features]
+view_image_tool = true
+web_search_request = true
+# apply_patch_freeform = true  # Uncomment to enable freeform patch application
+
+# Common development environment variables
+[shell_environment_policy]
+inherit = "core"
+include_only = [
+    "PATH", "HOME", "LANG",
+    "NODE_ENV", "RUST_LOG", "PYTHONPATH", "DEBUG"
+]
+
+# Development workspace settings
+[sandbox_workspace_write]
+exclude_tmpdir_env_var = false  # Allow $TMPDIR
+exclude_slash_tmp = false       # Allow /tmp
+network_access = true           # Enable network access
+writable_roots = ["/tmp"]      # Additional writable directories
