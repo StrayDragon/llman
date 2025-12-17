@@ -1,436 +1,352 @@
-use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
-use chrono::Utc;
-use regex::Regex;
-use rust_i18n::t;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
+use toml;
+use crate::x::codex::interactive;
 
-/// Configuration status for detection and migration
-#[derive(Debug, Clone)]
-pub enum ConfigStatus {
-    /// Symlink is active and functioning properly
-    SymlinkActive,
-    /// Imported existing configuration as 'default'
-    Imported,
-    /// Created new default configuration
-    Created,
-    /// Migrated from regular file to symlink system
-    Migrated,
+/// Configuration manager for Codex
+/// Manages a single configuration file with all profiles
+pub struct CodexConfigManager {
+    config_file: PathBuf,
+    codex_config_path: PathBuf,
 }
 
-/// Core manager for OpenAI Codex configuration using symlinks
-pub struct CodexManager {
-    codex_dir: PathBuf,
-    configs_dir: PathBuf,
-    active_config: PathBuf,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodexConfig {
+    pub model: Option<String>,
+    pub model_provider: Option<String>,
+    pub approval_policy: Option<String>,
+    pub sandbox_mode: Option<String>,
+    pub model_providers: std::collections::HashMap<String, ModelProvider>,
+    pub profiles: std::collections::HashMap<String, CodexProfile>,
+    pub features: Option<Features>,
+    pub shell_environment_policy: Option<ShellEnvironmentPolicy>,
+    #[serde(flatten)]
+    pub sandbox_config: SandboxConfig,
 }
 
-impl CodexManager {
-    /// Creates a new CodexManager instance
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodexProfile {
+    pub model: Option<String>,
+    pub model_provider: Option<String>,
+    pub approval_policy: Option<String>,
+    pub sandbox_mode: Option<String>,
+    pub model_providers: Option<std::collections::HashMap<String, ModelProvider>>,
+    pub features: Option<Features>,
+    pub shell_environment_policy: Option<ShellEnvironmentPolicy>,
+    #[serde(flatten)]
+    pub sandbox_config: SandboxConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelProvider {
+    pub name: String,
+    pub base_url: String,
+    pub env_key: String,
+    pub wire_api: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Features {
+    pub view_image_tool: Option<bool>,
+    pub web_search_request: Option<bool>,
+    pub apply_patch_freeform: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShellEnvironmentPolicy {
+    pub inherit: Option<String>,
+    pub include_only: Option<Vec<String>>,
+    pub exclude: Option<Vec<String>>,
+    pub set: Option<std::collections::HashMap<String, String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SandboxConfig {
+    #[serde(rename = "sandbox_workspace_write")]
+    pub sandbox_workspace_write: Option<SandboxWorkspaceWrite>,
+    #[serde(rename = "sandbox_read_only")]
+    pub sandbox_read_only: Option<SandboxReadOnly>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxWorkspaceWrite {
+    pub exclude_tmpdir_env_var: Option<bool>,
+    pub exclude_slash_tmp: Option<bool>,
+    pub network_access: Option<bool>,
+    pub writable_roots: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxReadOnly {
+    pub exclude_tmpdir_env_var: Option<bool>,
+    pub exclude_slash_tmp: Option<bool>,
+}
+
+impl Default for CodexConfig {
+    fn default() -> Self {
+        Self {
+            model: None,
+            model_provider: Some("openai".to_string()),
+            approval_policy: None,
+            sandbox_mode: Some("workspace-write".to_string()),
+            model_providers: std::collections::HashMap::new(),
+            profiles: std::collections::HashMap::new(),
+            features: None,
+            shell_environment_policy: None,
+            sandbox_config: SandboxConfig::default(),
+        }
+    }
+}
+
+impl CodexConfigManager {
+    /// Create a new CodexConfigManager
     pub fn new() -> Result<Self> {
-        let home = dirs::home_dir()
-            .context("Cannot find home directory")?;
+        let base_config = std::env::var("LLMAN_CONFIG_DIR")
+            .context("LLMAN_CONFIG_DIR environment variable not set")?;
 
-        let codex_dir = home.join(".codex");
-        let configs_dir = codex_dir.join("configs");
-        let active_config = codex_dir.join("config.toml");
+        let config_file = PathBuf::from(base_config).join("codex.toml");
+        let codex_config_path = dirs::home_dir()
+            .context("Failed to get home directory")?
+            .join(".codex")
+            .join("config.toml");
 
         Ok(Self {
-            codex_dir,
-            configs_dir,
-            active_config,
+            config_file,
+            codex_config_path,
         })
     }
 
-    /// Get the path to the active config file
-    pub fn active_config_path(&self) -> &Path {
-        &self.active_config
-    }
-
-    /// Get the path to the configs directory
-    pub fn configs_dir(&self) -> &Path {
-        &self.configs_dir
-    }
-
-    /// Initialize or detect existing configuration state
-    pub fn init_or_detect(&self) -> Result<ConfigStatus> {
-        // Create directory structure
-        std::fs::create_dir_all(&self.configs_dir)
-            .context("Failed to create configs directory")?;
-
-        // Detect existing configuration state
-        if !self.active_config.exists() {
-            // No main config file exists
-            return if self.has_existing_codex_config() {
-                // Found existing Codex config, import it
-                self.import_existing_config()
-            } else {
-                // Create default configuration
-                self.create_default_setup()
-            };
+    /// Initialize configuration file only if it doesn't exist
+    pub fn initialize(&self) -> Result<()> {
+        // If config file already exists, just use it
+        if self.config_file.exists() {
+            println!("🔧 Using existing configuration file: {}", self.config_file.display());
+            return Ok(());
         }
 
-        // Check if it's a symlink
-        match std::fs::read_link(&self.active_config) {
-            Ok(_target) => {
-                // Already a symlink, normal state
-                Ok(ConfigStatus::SymlinkActive)
-            }
-            Err(_) => {
-                // It's a regular file, need to migrate to symlink system
-                self.migrate_to_symlink()
-            }
-        }
-    }
-
-    /// Check if there's an existing Codex configuration
-    fn has_existing_codex_config(&self) -> bool {
-        self.active_config.exists()
-    }
-
-    /// Import existing Codex configuration
-    fn import_existing_config(&self) -> Result<ConfigStatus> {
-        println!("🔄 {} ", t!("codex.config.import.found_existing"));
-
-        // Save existing config as default
-        let default_config = self.configs_dir.join("default.toml");
-        std::fs::copy(&self.active_config, &default_config)
-            .context("Failed to copy existing config to default")?;
-
-        // Create symlink
-        self.create_symlink(&default_config)?;
-
-        // Add llman metadata
-        self.enhance_config_with_llman_metadata(&default_config, "imported")?;
-
-        println!("✅ {}", t!("codex.config.import.imported_as_default"));
-        println!("📁 {}", t!("codex.config.import.default_location",
-            path = default_config.display()));
-
-        Ok(ConfigStatus::Imported)
-    }
-
-    /// Create default setup for new installations
-    fn create_default_setup(&self) -> Result<ConfigStatus> {
-        println!("🚀 {} ", t!("codex.config.setup.creating_default"));
-
-        let default_config = self.configs_dir.join("default.toml");
-        self.create_default_config(&default_config)?;
-        self.create_symlink(&default_config)?;
-
-        println!("✅ {}", t!("codex.config.setup.default_created"));
-        Ok(ConfigStatus::Created)
-    }
-
-    /// Migrate existing regular file to symlink system
-    fn migrate_to_symlink(&self) -> Result<ConfigStatus> {
-        println!("🔄 {} ", t!("codex.config.migrate.detected_regular_file"));
-
-        // Backup existing config
-        let backup_path = self.active_config.with_extension("toml.llman.backup");
-        std::fs::copy(&self.active_config, &backup_path)
-            .context("Failed to backup existing config")?;
-
-        // Save as default config
-        let default_config = self.configs_dir.join("default.toml");
-        std::fs::copy(&self.active_config, &default_config)
-            .context("Failed to copy existing config to default")?;
-
-        // Create symlink
-        self.create_symlink(&default_config)?;
-
-        // Add llman metadata
-        self.enhance_config_with_llman_metadata(&default_config, "migrated")?;
-
-        println!("✅ {}", t!("codex.config.migrate.migrated_success"));
-        println!("💾 {}", t!("codex.config.migrate.backup_location",
-            path = backup_path.display()));
-
-        Ok(ConfigStatus::Migrated)
-    }
-
-    /// List all available configurations
-    pub fn list_configs(&self) -> Result<Vec<String>> {
-        let mut configs = Vec::new();
-
-        if self.configs_dir.exists() {
-            for entry in std::fs::read_dir(&self.configs_dir)? {
-                let entry = entry?;
-                let path = entry.path();
-
-                if path.extension().and_then(|s| s.to_str()) == Some("toml") {
-                    if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                        configs.push(name.to_string());
-                    }
-                }
-            }
-        }
-
-        configs.sort();
-        Ok(configs)
-    }
-
-    /// Create a new configuration
-    pub fn create_config(&self, name: &str, template: Option<&str>) -> Result<PathBuf> {
-        let config_path = self.configs_dir.join(format!("{}.toml", name));
-
-        if config_path.exists() {
-            anyhow::bail!("{}", t!("codex.config.error.config_exists", name = name));
-        }
-
-        let content = if let Some(template_name) = template {
-            self.get_template(template_name)?
-        } else {
-            self.get_default_template()?
-        };
-
-        std::fs::write(&config_path, content)
-            .context("Failed to write config file")?;
-
-        // Add llman metadata
-        self.enhance_config_with_llman_metadata(&config_path, template.unwrap_or("custom"))?;
-
-        Ok(config_path)
-    }
-
-    /// Switch to a specific configuration
-    pub fn use_config(&self, name: &str) -> Result<()> {
-        let config_path = self.configs_dir.join(format!("{}.toml", name));
-
-        if !config_path.exists() {
-            anyhow::bail!("{}", t!("codex.config.error.config_not_found", name = name));
-        }
-
-        // Don't do anything if it's already the active config
-        if let Ok(current) = self.get_current_config() {
-            if let Some(current_name) = current {
-                if current_name == name {
-                    println!("ℹ️️ {}", t!("codex.config.use.already_active", name = name));
+        // Check if parent directory exists and has files that might conflict
+        if let Some(parent) = self.config_file.parent() {
+            if parent.exists() && parent.read_dir()?.next().is_some() {
+                // Directory exists and is not empty, but config file doesn't exist
+                println!("⚠️  Configuration directory '{}' exists but no config file found.", parent.display());
+                if !interactive::confirm_overwrite()? {
+                    println!("❌ Initialization cancelled.");
                     return Ok(());
                 }
             }
         }
 
-        self.create_symlink(&config_path)?;
-        println!("✅ {}", t!("codex.config.use.switched", name = name));
-        Ok(())
-    }
+        // Create new configuration
+        println!("📝 Creating new configuration file: {}", self.config_file.display());
+        let config = CodexConfig::default();
+        self.save_config(&config)?;
 
-    /// Get the currently active configuration name
-    pub fn get_current_config(&self) -> Result<Option<String>> {
-        if !self.active_config.exists() {
-            return Ok(None);
-        }
-
-        match std::fs::read_link(&self.active_config) {
-            Ok(target) => {
-                Ok(target
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .map(|s| s.to_string()))
-            }
-            Err(_) => {
-                // It's not a symlink, check if it's a regular file in configs/
-                if self.active_config.exists() {
-                    // Try to get the name from the path if it's in configs dir
-                    if let (Some(parent), Some(filename)) = (self.active_config.parent(), self.active_config.file_stem()) {
-                        if let Some(expected_parent) = self.configs_dir.parent() {
-                            if parent == expected_parent {
-                                Ok(filename.to_str().map(|s| s.to_string()))
-                            } else {
-                                Ok(None)
-                            }
-                        } else {
-                            Ok(None)
-                        }
-                    } else {
-                        Ok(None)
-                    }
-                } else {
-                    Ok(None)
-                }
-            }
-        }
-    }
-
-    /// Delete a configuration
-    pub fn delete_config(&self, name: &str) -> Result<()> {
-        let config_path = self.configs_dir.join(format!("{}.toml", name));
-
-        if !config_path.exists() {
-            anyhow::bail!("{}", t!("codex.config.error.config_not_found", name = name));
-        }
-
-        // Check if it's the currently active config
-        if let Some(current) = self.get_current_config()? {
-            if current == name {
-                anyhow::bail!("{}", t!("codex.config.error.cannot_delete_active", name = name));
-            }
-        }
-
-        std::fs::remove_file(&config_path)
-            .context("Failed to delete config file")?;
-
-        println!("🗑️  {}", t!("codex.config.delete.deleted", name = name));
-        Ok(())
-    }
-
-    /// Create symlink from active config to target config
-    fn create_symlink(&self, target: &Path) -> Result<()> {
-        // Remove existing link or file
-        if self.active_config.exists() {
-            std::fs::remove_file(&self.active_config)
-                .context("Failed to remove existing config file")?;
-        }
-
-        // Create new symlink using platform-specific approach
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(target, &self.active_config)
-                .context("Failed to create symlink")?;
-        }
-
-        #[cfg(windows)]
-        {
-            std::os::windows::fs::symlink_file(target, &self.active_config)
-                .context("Failed to create symlink")?;
-        }
+        // Create development template profile
+        self.create_profile_from_template("dev", "development")?;
 
         Ok(())
     }
 
-    /// Create default configuration file
-    fn create_default_config(&self, path: &Path) -> Result<()> {
-        let template = self.get_default_template()?;
-        std::fs::write(path, template)
-            .context("Failed to write default config")?;
+    /// Load configuration from file
+    pub fn load_config(&self) -> Result<CodexConfig> {
+        if !self.config_file.exists() {
+            return Ok(CodexConfig::default());
+        }
+
+        let content = fs::read_to_string(&self.config_file)
+            .context("Failed to read configuration file")?;
+
+        let config: CodexConfig = toml::from_str(&content)
+            .context("Failed to parse configuration file")?;
+
+        Ok(config)
+    }
+
+    /// Save configuration to file
+    pub fn save_config(&self, config: &CodexConfig) -> Result<()> {
+        let content = toml::to_string_pretty(config)
+            .context("Failed to serialize configuration")?;
+
+        // Create parent directory if needed
+        if let Some(parent) = self.config_file.parent() {
+            fs::create_dir_all(parent)
+                .context("Failed to create configuration directory")?;
+        }
+
+        fs::write(&self.config_file, content)
+            .context("Failed to write configuration file")?;
+
         Ok(())
     }
 
-    /// Get default configuration template
-    fn get_default_template(&self) -> Result<String> {
-        Ok(format!(r#"# Default OpenAI Codex Configuration
-# For full documentation, see: https://developers.openai.com/codex
+    /// Export configuration to ~/.codex/config.toml
+    pub fn export(&self) -> Result<()> {
+        let config = self.load_config()?;
 
-# Model settings
-model = "gpt-4o"
-model_provider = "openai"
-
-# Approval policy: untrusted, on-failure, on-request, never
-approval_policy = "on-request"
-
-# Sandbox mode: read-only, workspace-write, danger-full-access
-sandbox_mode = "workspace-write"
-
-# OpenAI Provider
-[model_providers.openai]
-name = "OpenAI"
-base_url = "https://api.openai.com/v1"
-env_key = "OPENAI_API_KEY"
-wire_api = "chat"
-
-# llman specific configuration
-[llman]
-# This configuration is managed by llman
-auto_created = true
-template = "default"
-version = "1.0"
-
-[llman.profiles]
-# This section is reserved for llman-specific metadata
-
-# Optional: Add custom profiles
-[profiles.development]
-model = "gpt-4o"
-approval_policy = "on-request"
-
-[profiles.production]
-model = "gpt-4o"
-approval_policy = "never"
-
-# Optional: Enable features
-[features]
-# streamable_shell = true
-# web_search_request = true
-"#))
-    }
-
-    /// Get template by name
-    fn get_template(&self, template_name: &str) -> Result<String> {
-        match template_name {
-            "openai" => Ok(format!(r#"# OpenAI Configuration
-model = "gpt-4o"
-model_provider = "openai"
-approval_policy = "on-request"
-
-[model_providers.openai]
-name = "OpenAI"
-base_url = "https://api.openai.com/v1"
-env_key = "OPENAI_API_KEY"
-wire_api = "chat"
-"#)),
-            "ollama" => Ok(format!(r#"# Ollama Configuration
-model = "llama3"
-model_provider = "ollama"
-approval_policy = "never"
-
-[model_providers.ollama]
-name = "Ollama"
-base_url = "http://localhost:11434/v1"
-wire_api = "chat"
-"#)),
-            "minimal" => Ok(format!(r#"# Minimal Configuration
-model = "gpt-4o"
-model_provider = "openai"
-
-[model_providers.openai]
-env_key = "OPENAI_API_KEY"
-"#)),
-            _ => anyhow::bail!("{}", t!("codex.config.error.unknown_template", template = template_name)),
+        // Create .codex directory
+        if let Some(parent) = self.codex_config_path.parent() {
+            fs::create_dir_all(parent)
+                .context("Failed to create .codex directory")?;
         }
+
+        let content = toml::to_string_pretty(&config)
+            .context("Failed to serialize configuration")?;
+
+        fs::write(&self.codex_config_path, content)
+            .context("Failed to export configuration to ~/.codex/config.toml")?;
+
+        println!("✅ Configuration exported to: {}", self.codex_config_path.display());
+        Ok(())
     }
 
-    /// Enhance configuration with llman metadata
-    fn enhance_config_with_llman_metadata(&self, config_path: &Path, template: &str) -> Result<()> {
-        let mut content = std::fs::read_to_string(config_path)
-            .context("Failed to read config file for enhancement")?;
+    /// Get the path to the configuration file (for editing)
+    pub fn config_file_path(&self) -> &PathBuf {
+        &self.config_file
+    }
 
-        let timestamp = Utc::now().to_rfc3339();
+    /// List all available profiles
+    pub fn list_profiles(&self) -> Result<Vec<String>> {
+        let config = self.load_config()
+            .context("Failed to load configuration for profile listing")?;
+        Ok(config.profiles.keys().cloned().collect())
+    }
 
-        // Add or update llman section
-        let llman_section = format!(
-            r#"
-# llman specific configuration
-[llman]
-# This configuration is managed by llman
-auto_created = true
-template = "{}"
-created_at = "{}"
-version = "1.0"
+    /// Get a specific profile
+    pub fn get_profile(&self, name: &str) -> Result<Option<CodexProfile>> {
+        let config = self.load_config()?;
+        Ok(config.profiles.get(name).cloned())
+    }
 
-[llman.profiles]
-# This section is reserved for llman-specific metadata"#,
-            template,
-            timestamp
-        );
+    /// Add or update a profile
+    pub fn add_profile(&self, name: &str, profile: CodexProfile) -> Result<()> {
+        let mut config = self.load_config()?;
+        config.profiles.insert(name.to_string(), profile);
+        self.save_config(&config)?;
+        println!("✅ Profile '{}' added/updated", name);
+        Ok(())
+    }
 
-        // Use regex to find and replace the llman section, or append if not found
-        let llman_regex = Regex::new(r"(?s)\[llman\].*?(?=\n\[|\n#|$)")
-            .context("Failed to create regex for llman section")?;
-
-        if llman_regex.is_match(&content) {
-            // Update existing llman section
-            content = llman_regex
-                .replace(&content, llman_section.trim())
-                .to_string();
+    /// Remove a profile
+    pub fn remove_profile(&self, name: &str) -> Result<()> {
+        let mut config = self.load_config()?;
+        if config.profiles.remove(name).is_some() {
+            self.save_config(&config)?;
+            println!("✅ Profile '{}' removed", name);
         } else {
-            // Append llman section
-            content.push_str("\n");
-            content.push_str(&llman_section);
+            println!("⚠️  Profile '{}' not found", name);
         }
-
-        std::fs::write(config_path, content)
-            .context("Failed to write enhanced config file")?;
-
         Ok(())
+    }
+
+    /// Create profile from template
+    pub fn create_profile_from_template(&self, name: &str, template: &str) -> Result<()> {
+        let profile = match template {
+            "development" | "dev" => {
+                println!("✅ Using development template (relaxed security, enabled features)");
+                self.development_template()
+            },
+            "production" | "prod" => {
+                println!("✅ Using production template (strict security, limited features)");
+                self.production_template()
+            },
+            _ => {
+                eprintln!("⚠️  Unknown template '{}', falling back to development template", template);
+                println!("💡 Available templates: development, production");
+                self.development_template()
+            }
+        };
+
+        self.add_profile(name, profile)
+    }
+
+    /// Get development template
+    fn development_template(&self) -> CodexProfile {
+        CodexProfile {
+            model: Some("gpt-4".to_string()),
+            model_provider: Some("openai".to_string()),
+            approval_policy: Some("never".to_string()),
+            sandbox_mode: Some("workspace-write".to_string()),
+            model_providers: Some({
+                let mut providers = std::collections::HashMap::new();
+                providers.insert("openai".to_string(), ModelProvider {
+                    name: "OpenAI".to_string(),
+                    base_url: "https://api.openai.com/v1".to_string(),
+                    env_key: "OPENAI_API_KEY".to_string(),
+                    wire_api: Some("chat".to_string()),
+                });
+                providers
+            }),
+            features: Some(Features {
+                view_image_tool: Some(true),
+                web_search_request: Some(true),
+                apply_patch_freeform: Some(false),
+            }),
+            shell_environment_policy: Some(ShellEnvironmentPolicy {
+                inherit: Some("core".to_string()),
+                include_only: Some(vec![
+                    "PATH".to_string(),
+                    "HOME".to_string(),
+                    "LANG".to_string(),
+                    "NODE_ENV".to_string(),
+                    "RUST_LOG".to_string(),
+                    "PYTHONPATH".to_string(),
+                ]),
+                exclude: None,
+                set: None,
+            }),
+            sandbox_config: SandboxConfig {
+                sandbox_workspace_write: Some(SandboxWorkspaceWrite {
+                    exclude_tmpdir_env_var: Some(false),
+                    exclude_slash_tmp: Some(false),
+                    network_access: Some(true),
+                    writable_roots: Some(vec!["/tmp".to_string()]),
+                }),
+                sandbox_read_only: None,
+            },
+        }
+    }
+
+    /// Get production template
+    fn production_template(&self) -> CodexProfile {
+        CodexProfile {
+            model: Some("gpt-4".to_string()),
+            model_provider: Some("openai".to_string()),
+            approval_policy: Some("on-request".to_string()),
+            sandbox_mode: Some("read-only".to_string()),
+            model_providers: Some({
+                let mut providers = std::collections::HashMap::new();
+                providers.insert("openai".to_string(), ModelProvider {
+                    name: "OpenAI".to_string(),
+                    base_url: "https://api.openai.com/v1".to_string(),
+                    env_key: "OPENAI_API_KEY".to_string(),
+                    wire_api: Some("chat".to_string()),
+                });
+                providers
+            }),
+            features: Some(Features {
+                view_image_tool: Some(false),
+                web_search_request: Some(false),
+                apply_patch_freeform: Some(false),
+            }),
+            shell_environment_policy: Some(ShellEnvironmentPolicy {
+                inherit: Some("core".to_string()),
+                include_only: Some(vec![
+                    "PATH".to_string(),
+                    "HOME".to_string(),
+                    "LANG".to_string(),
+                ]),
+                exclude: None,
+                set: None,
+            }),
+            sandbox_config: SandboxConfig {
+                sandbox_workspace_write: None,
+                sandbox_read_only: Some(SandboxReadOnly {
+                    exclude_tmpdir_env_var: Some(true),
+                    exclude_slash_tmp: Some(true),
+                }),
+            },
+        }
     }
 }

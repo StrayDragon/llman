@@ -1,0 +1,101 @@
+model_provider = "openai"
+sandbox_mode = "workspace-write"
+
+[model_providers]
+
+[profiles.prod]
+model = "gpt-4"
+model_provider = "openai"
+approval_policy = "on-request"
+sandbox_mode = "read-only"
+
+[profiles.prod.model_providers.openai]
+name = "OpenAI"
+base_url = "https://api.openai.com/v1"
+env_key = "OPENAI_API_KEY"
+wire_api = "chat"
+
+[profiles.prod.features]
+view_image_tool = false
+web_search_request = false
+apply_patch_freeform = false
+
+[profiles.prod.shell_environment_policy]
+inherit = "core"
+include_only = [
+    "PATH",
+    "HOME",
+    "LANG",
+]
+
+[profiles.prod.sandbox_read_only]
+exclude_tmpdir_env_var = true
+exclude_slash_tmp = true
+
+[profiles.dev]
+model = "gpt-4"
+model_provider = "openai"
+approval_policy = "never"
+sandbox_mode = "workspace-write"
+
+[profiles.dev.model_providers.openai]
+name = "OpenAI"
+base_url = "https://api.openai.com/v1"
+env_key = "OPENAI_API_KEY"
+wire_api = "chat"
+
+[profiles.dev.features]
+view_image_tool = true
+web_search_request = true
+apply_patch_freeform = false
+
+[profiles.dev.shell_environment_policy]
+inherit = "core"
+include_only = [
+    "PATH",
+    "HOME",
+    "LANG",
+    "NODE_ENV",
+    "RUST_LOG",
+    "PYTHONPATH",
+]
+
+[profiles.dev.sandbox_workspace_write]
+exclude_tmpdir_env_var = false
+exclude_slash_tmp = false
+network_access = true
+writable_roots = ["/tmp"]
+
+[profiles.test2]
+model = "gpt-4"
+model_provider = "openai"
+approval_policy = "never"
+sandbox_mode = "workspace-write"
+
+[profiles.test2.model_providers.openai]
+name = "OpenAI"
+base_url = "https://api.openai.com/v1"
+env_key = "OPENAI_API_KEY"
+wire_api = "chat"
+
+[profiles.test2.features]
+view_image_tool = true
+web_search_request = true
+apply_patch_freeform = false
+
+[profiles.test2.shell_environment_policy]
+inherit = "core"
+include_only = [
+    "PATH",
+    "HOME",
+    "LANG",
+    "NODE_ENV",
+    "RUST_LOG",
+    "PYTHONPATH",
+]
+
+[profiles.test2.sandbox_workspace_write]
+exclude_tmpdir_env_var = false
+exclude_slash_tmp = false
+network_access = true
+writable_roots = ["/tmp"]
