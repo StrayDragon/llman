@@ -141,6 +141,12 @@ pub fn run() -> Result<()> {
 
 /// Determine the configuration directory to use
 fn determine_config_dir(cli_config_dir: Option<&PathBuf>) -> Result<PathBuf> {
+    // First, check if LLMAN_CONFIG_DIR environment variable is set
+    if let Ok(env_config_dir) = env::var("LLMAN_CONFIG_DIR") {
+        let env_path = PathBuf::from(env_config_dir);
+        return Ok(env_path);
+    }
+
     // If user explicitly provided config-dir, use it
     if let Some(config_dir) = cli_config_dir {
         return Ok(config_dir.clone());
@@ -153,6 +159,7 @@ fn determine_config_dir(cli_config_dir: Option<&PathBuf>) -> Result<PathBuf> {
         eprintln!("💡 You must specify --config-dir to avoid conflicts with user configurations");
         eprintln!("   Example: --config-dir ./artifacts/llman_dev_config");
         eprintln!("   Example: --config-dir ./artifacts/test_config");
+        eprintln!("   Alternatively, set LLMAN_CONFIG_DIR environment variable");
         std::process::exit(1);
     }
 
