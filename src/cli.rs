@@ -1,16 +1,24 @@
 use crate::prompt::PromptCommand;
 use crate::tool::command::{ToolArgs, ToolCommands};
 use crate::x::claude_code::command::ClaudeCodeArgs;
+use crate::x::codex::command::CodexArgs;
 use crate::x::collect::command::{CollectArgs, CollectCommands};
 use crate::x::cursor::command::CursorArgs;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use std::env;
+use std::fs;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
 pub struct Cli {
+    /// Configuration directory for llman (default: ~/.config/llman)
+    /// Required when running within llman project for development
+    #[arg(short = 'C', long = "config-dir", global = true)]
+    pub config_dir: Option<PathBuf>,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -108,10 +116,18 @@ pub enum XCommands {
     /// Commands for managing Claude Code configurations
     #[command(alias = "cc")]
     ClaudeCode(ClaudeCodeArgs),
+    /// Commands for managing Codex configurations
+    Codex(CodexArgs),
 }
 
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
+
+    // Determine and set config directory
+    let config_dir = determine_config_dir(cli.config_dir.as_ref())?;
+
+    // Set LLMAN_CONFIG_DIR environment variable for all subcommands
+    unsafe { env::set_var("LLMAN_CONFIG_DIR", &config_dir); }
 
     match &cli.command {
         Commands::Prompt(args) => handle_prompt_command(args),
@@ -119,6 +135,45 @@ pub fn run() -> Result<()> {
         Commands::X(args) => handle_x_command(args),
         Commands::Tool(args) => handle_tool_command(args),
     }
+}
+
+/// Determine the configuration directory to use
+fn determine_config_dir(cli_config_dir: Option<&PathBuf>) -> Result<PathBuf> {
+    // If user explicitly provided config-dir, use it
+    if let Some(config_dir) = cli_config_dir {
+        return Ok(config_dir.clone());
+    }
+
+    // Check if we're in llman development project
+    if is_llman_dev_project() {
+        // In llman project, config-dir is mandatory for safety
+        eprintln!("🚨 Error: Running within llman development project");
+        eprintln!("💡 You must specify --config-dir to avoid conflicts with user configurations");
+        eprintln!("   Example: --config-dir ./artifacts/llman_dev_config");
+        eprintln!("   Example: --config-dir ./artifacts/test_config");
+        std::process::exit(1);
+    }
+
+    // Default: ~/.config/llman
+    let default_config = dirs::config_dir()
+        .ok_or_else(|| anyhow::anyhow!("Failed to get config directory"))?
+        .join("llman");
+
+    Ok(default_config)
+}
+
+/// Check if current directory is an llman development project
+fn is_llman_dev_project() -> bool {
+    if let Ok(current_dir) = env::current_dir() {
+        let cargo_toml = current_dir.join("Cargo.toml");
+
+        // Check for Cargo.toml with llman package name
+        if cargo_toml.exists()
+            && let Ok(content) = fs::read_to_string(&cargo_toml) {
+            return content.contains("name = \"llman\"");
+        }
+    }
+    false
 }
 
 fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
@@ -168,6 +223,9 @@ fn handle_x_command(args: &XArgs) -> Result<()> {
         },
         XCommands::ClaudeCode(claude_code_args) => {
             crate::x::claude_code::command::run(claude_code_args)
+        }
+        XCommands::Codex(codex_args) => {
+            crate::x::codex::command::run(codex_args)
         }
     }
 }
