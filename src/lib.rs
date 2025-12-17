@@ -6,6 +6,7 @@ i18n!("locales");
 pub mod cli;
 pub mod config;
 pub mod error;
+pub mod path_utils;
 pub mod prompt;
 pub mod tool;
 pub mod x;

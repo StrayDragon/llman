@@ -1,3 +1,4 @@
+use crate::path_utils::safe_parent_for_creation;
 use anyhow::{Context, Result, anyhow};
 use directories::ProjectDirs;
 use llm_json::{RepairOptions, loads};
@@ -100,7 +101,7 @@ impl Config {
 
     pub fn save_to_path(&self, path: &PathBuf) -> Result<()> {
         // Create config directory if it doesn't exist
-        if let Some(parent) = path.parent() {
+        if let Some(parent) = safe_parent_for_creation(path) {
             fs::create_dir_all(parent).with_context(|| {
                 format!("Failed to create config directory: {}", parent.display())
             })?;

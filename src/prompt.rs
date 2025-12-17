@@ -1,4 +1,5 @@
 use crate::config::{CURSOR_APP, Config, TARGET_CURSOR_RULES_DIR};
+use crate::path_utils::safe_parent_for_creation;
 use anyhow::{Result, anyhow};
 use inquire::{Confirm, MultiSelect, Select};
 use std::env;
@@ -75,7 +76,7 @@ impl PromptCommand {
 
         let content = self.get_template_content(app, template_name)?;
 
-        if let Some(parent) = target_path.parent() {
+        if let Some(parent) = safe_parent_for_creation(&target_path) {
             fs::create_dir_all(parent)?;
         }
 
