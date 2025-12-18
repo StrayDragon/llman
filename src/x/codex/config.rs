@@ -87,10 +87,11 @@ impl ConfigManager {
             let entry = entry?;
             let path = entry.path();
 
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("toml") {
-                if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                    groups.push(name.to_string());
-                }
+            if path.is_file()
+                && path.extension().and_then(|s| s.to_str()) == Some("toml")
+                && let Some(name) = path.file_stem().and_then(|s| s.to_str())
+            {
+                groups.push(name.to_string());
             }
         }
 

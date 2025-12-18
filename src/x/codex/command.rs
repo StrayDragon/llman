@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::config::{ConfigManager, Metadata};
@@ -222,7 +222,7 @@ fn handle_account_edit(name: &str) -> Result<()> {
 }
 
 /// Handle account import (llman x codex account import <name> <path>)
-fn handle_account_import(name: &str, path: &PathBuf) -> Result<()> {
+fn handle_account_import(name: &str, path: &Path) -> Result<()> {
     if ConfigManager::group_exists(name)? {
         bail!("{}", t!("codex.error.group_exists", name = name));
     }
