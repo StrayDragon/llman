@@ -1,87 +1,69 @@
 use anyhow::{Context, Result};
-use inquire::{Confirm, Select, Text, validator::Validation};
+use inquire::{Confirm, Select};
+use rust_i18n::t;
 
-/// Select a template for profile creation
-pub fn select_template() -> Result<String> {
-    let templates = [
-        (
-            "development",
-            "Development environment with relaxed settings",
-        ),
-        ("production", "Production environment with strict security"),
-    ];
+use super::config::{Metadata, TemplateProvider};
 
-    let template_names = templates.iter().map(|(name, _)| *name).collect();
+/// Select a group from available groups
+pub fn select_group(groups: &[String]) -> Result<String> {
+    let metadata = Metadata::load()?;
 
-    let selection = Select::new("Select a template for your profile", template_names)
-        .with_help_message("Choose a template based on your use case")
+    // Add indicator for current group
+    let options: Vec<String> = groups
+        .iter()
+        .map(|name| {
+            if metadata.current_group.as_ref() == Some(name) {
+                format!("{} {}", name, t!("codex.account.current_indicator"))
+            } else {
+                name.clone()
+            }
+        })
+        .collect();
+
+    let selection = Select::new(&t!("codex.interactive.select_group"), options)
+        .prompt()
+        .context("Failed to select group")?;
+
+    // Extract group name (remove indicator if present)
+    let group_name = selection.split_whitespace().next().unwrap().to_string();
+
+    Ok(group_name)
+}
+
+/// Select a template provider
+pub fn select_template() -> Result<&'static str> {
+    let templates = TemplateProvider::all();
+
+    let options: Vec<String> = templates
+        .iter()
+        .map(|t| t.display_name().to_string())
+        .collect();
+
+    let selection = Select::new(&t!("codex.interactive.select_template"), options)
         .prompt()
         .context("Failed to select template")?;
 
-    Ok(selection.to_string())
+    // Map selection back to template key
+    let template = if selection.starts_with("OpenAI") {
+        "openai"
+    } else if selection.starts_with("MiniMax") {
+        "minimax"
+    } else if selection.starts_with("RightCode") {
+        "rightcode"
+    } else {
+        "custom"
+    };
+
+    Ok(template)
 }
 
-/// Interactive profile name prompt with validation
-pub fn prompt_profile_name() -> Result<String> {
-    Text::new("Enter profile name")
-        .with_validator(|input: &str| {
-            let trimmed = input.trim();
-
-            if trimmed.is_empty() {
-                Ok(Validation::Invalid("Profile name is required".into()))
-            } else if !trimmed
-                .chars()
-                .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
-            {
-                Ok(Validation::Invalid(
-                    "Profile name can only contain letters, numbers, hyphens, and underscores"
-                        .into(),
-                ))
-            } else if trimmed.len() < 2 {
-                Ok(Validation::Invalid(
-                    "Profile name must be at least 2 characters".into(),
-                ))
-            } else if trimmed.len() > 50 {
-                Ok(Validation::Invalid(
-                    "Profile name must be less than 50 characters".into(),
-                ))
-            } else {
-                Ok(Validation::Valid)
-            }
-        })
-        .with_help_message("Use a descriptive name like 'dev', 'prod', 'project-x'")
-        .prompt()
-        .context("Failed to input profile name")
-}
-
-/// Confirm profile deletion
+/// Confirm group deletion
 pub fn confirm_delete(name: &str) -> Result<bool> {
     println!();
-    println!("⚠️  You are about to delete profile: {}", name);
+    println!("⚠️  {}", t!("codex.interactive.delete_warning", name = name));
 
-    Confirm::new(&format!(
-        "Are you sure you want to delete profile '{}'?",
-        name
-    ))
-    .with_default(false)
-    .prompt()
-    .context("Failed to confirm deletion")
-}
-
-/// Confirm directory overwrite
-pub fn confirm_overwrite() -> Result<bool> {
-    println!();
-    Confirm::new("Do you want to continue and potentially overwrite existing files?")
+    Confirm::new(&t!("codex.interactive.confirm_delete", name = name))
         .with_default(false)
         .prompt()
-        .context("Failed to confirm overwrite")
-}
-
-/// Confirm creating a new profile
-pub fn confirm_create_profile() -> Result<bool> {
-    println!();
-    Confirm::new("Would you like to create a new profile?")
-        .with_default(true)
-        .prompt()
-        .context("Failed to confirm profile creation")
+        .context("Failed to confirm deletion")
 }
