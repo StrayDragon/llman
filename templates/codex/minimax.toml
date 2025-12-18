@@ -1,0 +1,29 @@
+# MiniMax Codex Configuration
+# Configuration for MiniMax's codex models
+
+model = "codex-MiniMax-M2"
+model_provider = "minimax"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[model_providers.minimax]
+name = "MiniMax"
+base_url = "https://api.minimaxi.com/v1"
+env_key = "MINIMAX_API_KEY"
+wire_api = "chat"
+
+# Optional: Enable helpful features
+[features]
+view_image_tool = true
+web_search_request = false
+
+# Optional: Shell environment policy
+[shell_environment_policy]
+inherit = "core"
+include_only = ["PATH", "HOME", "LANG"]
+
+# Optional: Sandbox workspace-write settings
+[sandbox_workspace_write]
+exclude_tmpdir_env_var = false
+exclude_slash_tmp = false
+network_access = true

@@ -1,377 +1,301 @@
-use crate::path_utils::{safe_parent_for_creation, validate_path_str};
-use crate::x::codex::interactive;
-use anyhow::anyhow;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
-use toml;
+use std::path::{Path, PathBuf};
 
-/// Configuration manager for Codex
-/// Manages a single configuration file with all profiles
-pub struct CodexConfigManager {
-    config_file: PathBuf,
-    codex_config_path: PathBuf,
+/// Metadata for codex configuration management
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Metadata {
+    /// Currently selected group
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_group: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CodexConfig {
-    pub model: Option<String>,
-    pub model_provider: Option<String>,
-    pub approval_policy: Option<String>,
-    pub sandbox_mode: Option<String>,
-    pub model_providers: std::collections::HashMap<String, ModelProvider>,
-    pub profiles: std::collections::HashMap<String, CodexProfile>,
-    pub features: Option<Features>,
-    pub shell_environment_policy: Option<ShellEnvironmentPolicy>,
-    #[serde(flatten)]
-    pub sandbox_config: SandboxConfig,
-}
+impl Metadata {
+    /// Load metadata from file
+    pub fn load() -> Result<Self> {
+        let path = Self::metadata_path()?;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CodexProfile {
-    pub model: Option<String>,
-    pub model_provider: Option<String>,
-    pub approval_policy: Option<String>,
-    pub sandbox_mode: Option<String>,
-    pub model_providers: Option<std::collections::HashMap<String, ModelProvider>>,
-    pub features: Option<Features>,
-    pub shell_environment_policy: Option<ShellEnvironmentPolicy>,
-    #[serde(flatten)]
-    pub sandbox_config: SandboxConfig,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelProvider {
-    pub name: String,
-    pub base_url: String,
-    pub env_key: String,
-    pub wire_api: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Features {
-    pub view_image_tool: Option<bool>,
-    pub web_search_request: Option<bool>,
-    pub apply_patch_freeform: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShellEnvironmentPolicy {
-    pub inherit: Option<String>,
-    pub include_only: Option<Vec<String>>,
-    pub exclude: Option<Vec<String>>,
-    pub set: Option<std::collections::HashMap<String, String>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct SandboxConfig {
-    #[serde(rename = "sandbox_workspace_write")]
-    pub sandbox_workspace_write: Option<SandboxWorkspaceWrite>,
-    #[serde(rename = "sandbox_read_only")]
-    pub sandbox_read_only: Option<SandboxReadOnly>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SandboxWorkspaceWrite {
-    pub exclude_tmpdir_env_var: Option<bool>,
-    pub exclude_slash_tmp: Option<bool>,
-    pub network_access: Option<bool>,
-    pub writable_roots: Option<Vec<String>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SandboxReadOnly {
-    pub exclude_tmpdir_env_var: Option<bool>,
-    pub exclude_slash_tmp: Option<bool>,
-}
-
-impl Default for CodexConfig {
-    fn default() -> Self {
-        Self {
-            model: None,
-            model_provider: Some("openai".to_string()),
-            approval_policy: None,
-            sandbox_mode: Some("workspace-write".to_string()),
-            model_providers: std::collections::HashMap::new(),
-            profiles: std::collections::HashMap::new(),
-            features: None,
-            shell_environment_policy: None,
-            sandbox_config: SandboxConfig::default(),
-        }
-    }
-}
-
-impl CodexConfigManager {
-    /// Create a new CodexConfigManager
-    pub fn new() -> Result<Self> {
-        let base_config = std::env::var("LLMAN_CONFIG_DIR")
-            .context("LLMAN_CONFIG_DIR environment variable not set")?;
-
-        validate_path_str(&base_config)
-            .map_err(|e| anyhow!("LLMAN_CONFIG_DIR environment variable is invalid: {}", e))?;
-
-        let config_file = PathBuf::from(base_config).join("codex.toml");
-        let codex_config_path = dirs::home_dir()
-            .context("Failed to get home directory")?
-            .join(".codex")
-            .join("config.toml");
-
-        Ok(Self {
-            config_file,
-            codex_config_path,
-        })
-    }
-
-    /// Initialize configuration file only if it doesn't exist
-    pub fn initialize(&self) -> Result<()> {
-        // If config file already exists, just use it
-        if self.config_file.exists() {
-            println!(
-                "🔧 Using existing configuration file: {}",
-                self.config_file.display()
-            );
-            return Ok(());
+        if !path.exists() {
+            return Ok(Self {
+                current_group: None,
+            });
         }
 
-        // Check if parent directory exists and has files that might conflict
-        if let Some(parent) = self.config_file.parent()
-            && parent.exists()
-            && parent.read_dir()?.next().is_some()
-        {
-            // Directory exists and is not empty, but config file doesn't exist
-            println!(
-                "⚠️  Configuration directory '{}' exists but no config file found.",
-                parent.display()
-            );
-            if !interactive::confirm_overwrite()? {
-                println!("❌ Initialization cancelled.");
-                return Ok(());
-            }
-        }
+        let content = fs::read_to_string(&path)
+            .context("Failed to read metadata file")?;
 
-        // Create new configuration
-        println!(
-            "📝 Creating new configuration file: {}",
-            self.config_file.display()
-        );
-        let config = CodexConfig::default();
-        self.save_config(&config)?;
+        let metadata: Self = toml::from_str(&content)
+            .context("Failed to parse metadata file")?;
 
-        // Create development template profile
-        self.create_profile_from_template("dev", "development")?;
-
-        Ok(())
+        Ok(metadata)
     }
 
-    /// Load configuration from file
-    pub fn load_config(&self) -> Result<CodexConfig> {
-        if !self.config_file.exists() {
-            return Ok(CodexConfig::default());
-        }
-
-        let content =
-            fs::read_to_string(&self.config_file).context("Failed to read configuration file")?;
-
-        let config: CodexConfig =
-            toml::from_str(&content).context("Failed to parse configuration file")?;
-
-        Ok(config)
-    }
-
-    /// Save configuration to file
-    pub fn save_config(&self, config: &CodexConfig) -> Result<()> {
-        let content =
-            toml::to_string_pretty(config).context("Failed to serialize configuration")?;
+    /// Save metadata to file
+    pub fn save(&self) -> Result<()> {
+        let path = Self::metadata_path()?;
 
         // Create parent directory if needed
-        if let Some(parent) = safe_parent_for_creation(&self.config_file) {
-            fs::create_dir_all(parent).context("Failed to create configuration directory")?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .context("Failed to create codex directory")?;
         }
 
-        fs::write(&self.config_file, content).context("Failed to write configuration file")?;
+        let content = toml::to_string_pretty(self)
+            .context("Failed to serialize metadata")?;
+
+        fs::write(&path, content)
+            .context("Failed to write metadata file")?;
 
         Ok(())
     }
 
-    /// Export configuration to ~/.codex/config.toml
-    pub fn export(&self) -> Result<()> {
-        let config = self.load_config()?;
-
-        // Create .codex directory
-        if let Some(parent) = safe_parent_for_creation(&self.codex_config_path) {
-            fs::create_dir_all(parent).context("Failed to create .codex directory")?;
-        }
-
-        let content =
-            toml::to_string_pretty(&config).context("Failed to serialize configuration")?;
-
-        fs::write(&self.codex_config_path, content)
-            .context("Failed to export configuration to ~/.codex/config.toml")?;
-
-        println!(
-            "✅ Configuration exported to: {}",
-            self.codex_config_path.display()
-        );
-        Ok(())
+    /// Get metadata file path
+    fn metadata_path() -> Result<PathBuf> {
+        let codex_dir = Self::codex_dir()?;
+        Ok(codex_dir.join("metadata.toml"))
     }
 
-    /// Get the path to the configuration file (for editing)
-    pub fn config_file_path(&self) -> &PathBuf {
-        &self.config_file
-    }
-
-    /// List all available profiles
-    pub fn list_profiles(&self) -> Result<Vec<String>> {
-        let config = self
-            .load_config()
-            .context("Failed to load configuration for profile listing")?;
-        Ok(config.profiles.keys().cloned().collect())
-    }
-
-    /// Get a specific profile
-    pub fn get_profile(&self, name: &str) -> Result<Option<CodexProfile>> {
-        let config = self.load_config()?;
-        Ok(config.profiles.get(name).cloned())
-    }
-
-    /// Add or update a profile
-    pub fn add_profile(&self, name: &str, profile: CodexProfile) -> Result<()> {
-        let mut config = self.load_config()?;
-        config.profiles.insert(name.to_string(), profile);
-        self.save_config(&config)?;
-        println!("✅ Profile '{}' added/updated", name);
-        Ok(())
-    }
-
-    /// Remove a profile
-    pub fn remove_profile(&self, name: &str) -> Result<()> {
-        let mut config = self.load_config()?;
-        if config.profiles.remove(name).is_some() {
-            self.save_config(&config)?;
-            println!("✅ Profile '{}' removed", name);
+    /// Get codex configuration directory
+    pub fn codex_dir() -> Result<PathBuf> {
+        let config_dir = if let Ok(dir) = std::env::var("LLMAN_CONFIG_DIR") {
+            PathBuf::from(dir)
         } else {
-            println!("⚠️  Profile '{}' not found", name);
+            dirs::config_dir()
+                .context("Failed to get config directory")?
+                .join("llman")
+        };
+        Ok(config_dir.join("codex"))
+    }
+
+    /// Get groups directory path
+    pub fn groups_dir() -> Result<PathBuf> {
+        Ok(Self::codex_dir()?.join("groups"))
+    }
+}
+
+/// Configuration manager for codex groups
+pub struct ConfigManager;
+
+impl ConfigManager {
+    /// List all available groups
+    pub fn list_groups() -> Result<Vec<String>> {
+        let groups_dir = Metadata::groups_dir()?;
+
+        if !groups_dir.exists() {
+            return Ok(Vec::new());
         }
+
+        let mut groups = Vec::new();
+
+        for entry in fs::read_dir(&groups_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("toml") {
+                if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
+                    groups.push(name.to_string());
+                }
+            }
+        }
+
+        groups.sort();
+        Ok(groups)
+    }
+
+    /// Get path to a group's config file
+    pub fn group_path(name: &str) -> Result<PathBuf> {
+        let groups_dir = Metadata::groups_dir()?;
+        Ok(groups_dir.join(format!("{}.toml", name)))
+    }
+
+    /// Check if a group exists
+    pub fn group_exists(name: &str) -> Result<bool> {
+        Ok(Self::group_path(name)?.exists())
+    }
+
+    /// Create a new group from template
+    pub fn create_group(name: &str, template: &str) -> Result<()> {
+        let group_path = Self::group_path(name)?;
+
+        if group_path.exists() {
+            bail!("Group '{}' already exists", name);
+        }
+
+        // Create groups directory if needed
+        if let Some(parent) = group_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        // Write template
+        fs::write(&group_path, template)?;
+
         Ok(())
     }
 
-    /// Create profile from template
-    pub fn create_profile_from_template(&self, name: &str, template: &str) -> Result<()> {
-        let profile = match template {
-            "development" | "dev" => {
-                println!("✅ Using development template (relaxed security, enabled features)");
-                self.development_template()
-            }
-            "production" | "prod" => {
-                println!("✅ Using production template (strict security, limited features)");
-                self.production_template()
-            }
-            _ => {
-                eprintln!(
-                    "⚠️  Unknown template '{}', falling back to development template",
-                    template
-                );
-                println!("💡 Available templates: development, production");
-                self.development_template()
-            }
-        };
+    /// Import a group from existing codex config
+    pub fn import_group(name: &str, source_path: &Path) -> Result<()> {
+        let group_path = Self::group_path(name)?;
 
-        self.add_profile(name, profile)
+        if group_path.exists() {
+            bail!("Group '{}' already exists", name);
+        }
+
+        // Create groups directory if needed
+        if let Some(parent) = group_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        // Copy file
+        fs::copy(source_path, &group_path)?;
+
+        Ok(())
     }
 
-    /// Get development template
-    fn development_template(&self) -> CodexProfile {
-        CodexProfile {
-            model: Some("gpt-4".to_string()),
-            model_provider: Some("openai".to_string()),
-            approval_policy: Some("never".to_string()),
-            sandbox_mode: Some("workspace-write".to_string()),
-            model_providers: Some({
-                let mut providers = std::collections::HashMap::new();
-                providers.insert(
-                    "openai".to_string(),
-                    ModelProvider {
-                        name: "OpenAI".to_string(),
-                        base_url: "https://api.openai.com/v1".to_string(),
-                        env_key: "OPENAI_API_KEY".to_string(),
-                        wire_api: Some("chat".to_string()),
-                    },
-                );
-                providers
-            }),
-            features: Some(Features {
-                view_image_tool: Some(true),
-                web_search_request: Some(true),
-                apply_patch_freeform: Some(false),
-            }),
-            shell_environment_policy: Some(ShellEnvironmentPolicy {
-                inherit: Some("core".to_string()),
-                include_only: Some(vec![
-                    "PATH".to_string(),
-                    "HOME".to_string(),
-                    "LANG".to_string(),
-                    "NODE_ENV".to_string(),
-                    "RUST_LOG".to_string(),
-                    "PYTHONPATH".to_string(),
-                ]),
-                exclude: None,
-                set: None,
-            }),
-            sandbox_config: SandboxConfig {
-                sandbox_workspace_write: Some(SandboxWorkspaceWrite {
-                    exclude_tmpdir_env_var: Some(false),
-                    exclude_slash_tmp: Some(false),
-                    network_access: Some(true),
-                    writable_roots: Some(vec!["/tmp".to_string()]),
-                }),
-                sandbox_read_only: None,
-            },
+    /// Delete a group
+    pub fn delete_group(name: &str) -> Result<()> {
+        let group_path = Self::group_path(name)?;
+
+        if !group_path.exists() {
+            bail!("Group '{}' does not exist", name);
+        }
+
+        fs::remove_file(&group_path)?;
+
+        Ok(())
+    }
+
+    /// Read a group's configuration
+    pub fn read_group(name: &str) -> Result<String> {
+        let group_path = Self::group_path(name)?;
+
+        if !group_path.exists() {
+            bail!("Group '{}' does not exist", name);
+        }
+
+        fs::read_to_string(&group_path)
+            .context("Failed to read group configuration")
+    }
+
+    /// Switch to a group by creating symlink
+    pub fn switch_group(name: &str) -> Result<()> {
+        let group_path = Self::group_path(name)?;
+
+        if !group_path.exists() {
+            bail!("Group '{}' does not exist", name);
+        }
+
+        let codex_config = Self::codex_config_path()?;
+
+        // Backup existing config if it's not a symlink
+        if codex_config.exists() && !Self::is_symlink(&codex_config) {
+            let backup_path = codex_config.with_extension("toml.backup");
+            fs::rename(&codex_config, &backup_path)?;
+            eprintln!("Backed up existing config to: {}", backup_path.display());
+        }
+
+        // Remove existing symlink/file
+        if codex_config.exists() {
+            fs::remove_file(&codex_config)?;
+        }
+
+        // Create parent directory if needed
+        if let Some(parent) = codex_config.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        // Create symlink
+        Self::create_symlink(&group_path, &codex_config)?;
+
+        // Update metadata
+        let mut metadata = Metadata::load()?;
+        metadata.current_group = Some(name.to_string());
+        metadata.save()?;
+
+        Ok(())
+    }
+
+    /// Get the path to ~/.codex/config.toml
+    fn codex_config_path() -> Result<PathBuf> {
+        let home = dirs::home_dir()
+            .context("Failed to get home directory")?;
+        Ok(home.join(".codex").join("config.toml"))
+    }
+
+    /// Check if a path is a symlink
+    #[cfg(unix)]
+    fn is_symlink(path: &Path) -> bool {
+        path.symlink_metadata()
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false)
+    }
+
+    #[cfg(windows)]
+    fn is_symlink(_path: &Path) -> bool {
+        // On Windows, we use file copy instead of symlink
+        false
+    }
+
+    /// Create a symlink (or copy on Windows)
+    #[cfg(unix)]
+    fn create_symlink(source: &Path, target: &Path) -> Result<()> {
+        std::os::unix::fs::symlink(source, target)
+            .context("Failed to create symlink")?;
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    fn create_symlink(source: &Path, target: &Path) -> Result<()> {
+        // On Windows, copy the file instead of creating symlink
+        fs::copy(source, target)
+            .context("Failed to copy config file")?;
+        Ok(())
+    }
+
+    /// Get default templates for common providers
+    pub fn get_template(provider: &str) -> &'static str {
+        match provider {
+            "openai" => include_str!("../../../templates/codex/openai.toml"),
+            "minimax" => include_str!("../../../templates/codex/minimax.toml"),
+            "rightcode" => include_str!("../../../templates/codex/rightcode.toml"),
+            _ => include_str!("../../../templates/codex/custom.toml"),
+        }
+    }
+}
+
+/// Template provider enum
+#[derive(Debug, Clone, Copy)]
+pub enum TemplateProvider {
+    OpenAI,
+    MiniMax,
+    RightCode,
+    Custom,
+}
+
+impl TemplateProvider {
+    pub fn all() -> Vec<Self> {
+        vec![Self::OpenAI, Self::MiniMax, Self::RightCode, Self::Custom]
+    }
+
+    pub fn display_name(&self) -> &str {
+        match self {
+            Self::OpenAI => "OpenAI (gpt-5-codex)",
+            Self::MiniMax => "MiniMax (codex-MiniMax-M2)",
+            Self::RightCode => "RightCode (gpt-5.1-codex)",
+            Self::Custom => "Custom",
         }
     }
 
-    /// Get production template
-    fn production_template(&self) -> CodexProfile {
-        CodexProfile {
-            model: Some("gpt-4".to_string()),
-            model_provider: Some("openai".to_string()),
-            approval_policy: Some("on-request".to_string()),
-            sandbox_mode: Some("read-only".to_string()),
-            model_providers: Some({
-                let mut providers = std::collections::HashMap::new();
-                providers.insert(
-                    "openai".to_string(),
-                    ModelProvider {
-                        name: "OpenAI".to_string(),
-                        base_url: "https://api.openai.com/v1".to_string(),
-                        env_key: "OPENAI_API_KEY".to_string(),
-                        wire_api: Some("chat".to_string()),
-                    },
-                );
-                providers
-            }),
-            features: Some(Features {
-                view_image_tool: Some(false),
-                web_search_request: Some(false),
-                apply_patch_freeform: Some(false),
-            }),
-            shell_environment_policy: Some(ShellEnvironmentPolicy {
-                inherit: Some("core".to_string()),
-                include_only: Some(vec![
-                    "PATH".to_string(),
-                    "HOME".to_string(),
-                    "LANG".to_string(),
-                ]),
-                exclude: None,
-                set: None,
-            }),
-            sandbox_config: SandboxConfig {
-                sandbox_workspace_write: None,
-                sandbox_read_only: Some(SandboxReadOnly {
-                    exclude_tmpdir_env_var: Some(true),
-                    exclude_slash_tmp: Some(true),
-                }),
-            },
+    pub fn key(&self) -> &str {
+        match self {
+            Self::OpenAI => "openai",
+            Self::MiniMax => "minimax",
+            Self::RightCode => "rightcode",
+            Self::Custom => "custom",
         }
+    }
+
+    pub fn template(&self) -> &'static str {
+        ConfigManager::get_template(self.key())
     }
 }

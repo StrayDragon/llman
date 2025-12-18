@@ -1,0 +1,23 @@
+last_used = "prod"
+
+[profiles.minimax]
+model = "codex-MiniMax-M2"
+model_provider = "minimax"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+base_url = "https://api.minimaxi.com/v1"
+env_key = "MINIMAX_API_KEY"
+
+[profiles.dev]
+model = "gpt-4"
+model_provider = "openai"
+approval_policy = "never"
+sandbox_mode = "workspace-write"
+env_key = "OPENAI_API_KEY"
+
+[profiles.prod]
+model = "gpt-5-codex"
+model_provider = "openai"
+approval_policy = "on-request"
+sandbox_mode = "read-only"
+env_key = "OPENAI_API_KEY"
