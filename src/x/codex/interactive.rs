@@ -60,7 +60,10 @@ pub fn select_template() -> Result<&'static str> {
 /// Confirm group deletion
 pub fn confirm_delete(name: &str) -> Result<bool> {
     println!();
-    println!("⚠️  {}", t!("codex.interactive.delete_warning", name = name));
+    println!(
+        "⚠️  {}",
+        t!("codex.interactive.delete_warning", name = name)
+    );
 
     Confirm::new(&t!("codex.interactive.confirm_delete", name = name))
         .with_default(false)

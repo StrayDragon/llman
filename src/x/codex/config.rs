@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -22,11 +22,9 @@ impl Metadata {
             });
         }
 
-        let content = fs::read_to_string(&path)
-            .context("Failed to read metadata file")?;
+        let content = fs::read_to_string(&path).context("Failed to read metadata file")?;
 
-        let metadata: Self = toml::from_str(&content)
-            .context("Failed to parse metadata file")?;
+        let metadata: Self = toml::from_str(&content).context("Failed to parse metadata file")?;
 
         Ok(metadata)
     }
@@ -37,15 +35,12 @@ impl Metadata {
 
         // Create parent directory if needed
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .context("Failed to create codex directory")?;
+            fs::create_dir_all(parent).context("Failed to create codex directory")?;
         }
 
-        let content = toml::to_string_pretty(self)
-            .context("Failed to serialize metadata")?;
+        let content = toml::to_string_pretty(self).context("Failed to serialize metadata")?;
 
-        fs::write(&path, content)
-            .context("Failed to write metadata file")?;
+        fs::write(&path, content).context("Failed to write metadata file")?;
 
         Ok(())
     }
@@ -173,8 +168,7 @@ impl ConfigManager {
             bail!("Group '{}' does not exist", name);
         }
 
-        fs::read_to_string(&group_path)
-            .context("Failed to read group configuration")
+        fs::read_to_string(&group_path).context("Failed to read group configuration")
     }
 
     /// Switch to a group by creating symlink
@@ -217,8 +211,7 @@ impl ConfigManager {
 
     /// Get the path to ~/.codex/config.toml
     fn codex_config_path() -> Result<PathBuf> {
-        let home = dirs::home_dir()
-            .context("Failed to get home directory")?;
+        let home = dirs::home_dir().context("Failed to get home directory")?;
         Ok(home.join(".codex").join("config.toml"))
     }
 
@@ -239,16 +232,14 @@ impl ConfigManager {
     /// Create a symlink (or copy on Windows)
     #[cfg(unix)]
     fn create_symlink(source: &Path, target: &Path) -> Result<()> {
-        std::os::unix::fs::symlink(source, target)
-            .context("Failed to create symlink")?;
+        std::os::unix::fs::symlink(source, target).context("Failed to create symlink")?;
         Ok(())
     }
 
     #[cfg(windows)]
     fn create_symlink(source: &Path, target: &Path) -> Result<()> {
         // On Windows, copy the file instead of creating symlink
-        fs::copy(source, target)
-            .context("Failed to copy config file")?;
+        fs::copy(source, target).context("Failed to copy config file")?;
         Ok(())
     }
 
