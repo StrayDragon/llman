@@ -6,16 +6,22 @@ use anyhow::Result;
 pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
     println!("Clean useless comments command");
 
-    // Load configuration
-    let config_path = args
-        .config
-        .as_deref()
-        .unwrap_or_else(|| ".llman/config.yaml".as_ref());
-
-    let config = Config::load_or_default(config_path)?;
+    // Load configuration with local-first priority
+    let config = Config::load_with_priority_or_default(args.config.as_deref())?;
 
     if args.verbose {
-        println!("Configuration loaded successfully");
+        // Show which config was loaded
+        if let Some(ref config_path) = args.config {
+            println!("Using explicit config: {}", config_path.display());
+        } else {
+            let local_config = std::env::current_dir()?.join(".llman/config.yaml");
+            if local_config.exists() {
+                println!("Using local config: .llman/config.yaml");
+            } else {
+                println!("Using global config");
+            }
+        }
+
         if let Some(clean_config) = config.get_clean_comments_config() {
             println!("Scope includes: {:?}", clean_config.scope.include);
             println!("Scope excludes: {:?}", clean_config.scope.exclude);

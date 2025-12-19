@@ -2,7 +2,6 @@ use crate::prompt::PromptCommand;
 use crate::tool::command::{ToolArgs, ToolCommands};
 use crate::x::claude_code::command::ClaudeCodeArgs;
 use crate::x::codex::command::CodexArgs;
-use crate::x::collect::command::{CollectArgs, CollectCommands};
 use crate::x::cursor::command::CursorArgs;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -28,8 +27,6 @@ pub enum Commands {
     /// Manage prompts and rules
     #[command(alias = "rule")]
     Prompt(PromptArgs),
-    /// Project utilities
-    Project(ProjectArgs),
     /// Experimental commands
     X(XArgs),
     /// Developer tools
@@ -95,24 +92,10 @@ pub struct XArgs {
     pub command: XCommands,
 }
 
-#[derive(Parser)]
-pub struct ProjectArgs {
-    #[command(subcommand)]
-    pub command: ProjectCommands,
-}
-
-#[derive(Subcommand)]
-pub enum ProjectCommands {
-    /// Generate directory tree structure
-    Tree(crate::x::collect::tree::TreeArgs),
-}
-
 #[derive(Subcommand)]
 pub enum XCommands {
     /// Commands for interacting with Cursor
     Cursor(CursorArgs),
-    /// A collection of commands for collecting information
-    Collect(CollectArgs),
     /// Commands for managing Claude Code configurations
     #[command(alias = "cc")]
     ClaudeCode(ClaudeCodeArgs),
@@ -133,7 +116,6 @@ pub fn run() -> Result<()> {
 
     match &cli.command {
         Commands::Prompt(args) => handle_prompt_command(args),
-        Commands::Project(args) => handle_project_command(args),
         Commands::X(args) => handle_x_command(args),
         Commands::Tool(args) => handle_tool_command(args),
     }
@@ -228,19 +210,10 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
 fn handle_x_command(args: &XArgs) -> Result<()> {
     match &args.command {
         XCommands::Cursor(cursor_args) => crate::x::cursor::command::run(cursor_args),
-        XCommands::Collect(collect_args) => match &collect_args.command {
-            CollectCommands::Tree(tree_args) => crate::x::collect::tree::run(tree_args),
-        },
         XCommands::ClaudeCode(claude_code_args) => {
             crate::x::claude_code::command::run(claude_code_args)
         }
         XCommands::Codex(codex_args) => crate::x::codex::command::run(codex_args),
-    }
-}
-
-fn handle_project_command(args: &ProjectArgs) -> Result<()> {
-    match &args.command {
-        ProjectCommands::Tree(tree_args) => crate::x::collect::tree::run(tree_args),
     }
 }
 
