@@ -1,8 +1,10 @@
 use anyhow::{Result, anyhow};
+use directories::ProjectDirs;
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct Config {
@@ -137,7 +139,19 @@ impl Default for ScopeConfig {
     }
 }
 
+/// Get the global configuration file path
+fn get_global_config_path() -> Result<PathBuf> {
+    if let Ok(config_dir) = env::var("LLMAN_CONFIG_DIR") {
+        Ok(PathBuf::from(config_dir).join("config.yaml"))
+    } else {
+        let project_dirs = ProjectDirs::from("", "", "llman")
+            .ok_or_else(|| anyhow!("Could not determine global config directory"))?;
+        Ok(project_dirs.config_dir().join("config.yaml"))
+    }
+}
+
 impl Config {
+    /// Load configuration from the specified path
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         if !path.exists() {
@@ -151,12 +165,49 @@ impl Config {
         Ok(config)
     }
 
+    /// Load configuration with local-first priority
+    /// 1. If explicit config path provided, use it
+    /// 2. Try local .llman/config.yaml in current directory
+    /// 3. Try global config from LLMAN_CONFIG_DIR or default location
+    pub fn load_with_priority(explicit_path: Option<&Path>) -> Result<Self> {
+        // If explicit path provided, use it
+        if let Some(path) = explicit_path {
+            return Self::load(path);
+        }
+
+        // Try local config first
+        let local_config = std::env::current_dir()?.join(".llman/config.yaml");
+        if local_config.exists() {
+            return Self::load(local_config);
+        }
+
+        // Fall back to global config
+        let global_config = get_global_config_path()?;
+        if global_config.exists() {
+            return Self::load(global_config);
+        }
+
+        // No config found, return error
+        Err(anyhow!(
+            "No configuration file found. Tried local: .llman/config.yaml and global config"
+        ))
+    }
+
+    /// Load configuration or return default if not found
     pub fn load_or_default<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         if path.exists() {
             Self::load(path)
         } else {
             Ok(Self::default())
+        }
+    }
+
+    /// Load configuration with local-first priority, returning default if none found
+    pub fn load_with_priority_or_default(explicit_path: Option<&Path>) -> Result<Self> {
+        match Self::load_with_priority(explicit_path) {
+            Ok(config) => Ok(config),
+            Err(_) => Ok(Self::default()),
         }
     }
 
