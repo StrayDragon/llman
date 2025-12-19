@@ -21,6 +21,8 @@ pub mod test_constants {
     pub const JS_FILE_PATTERN: &str = "**/*.js";
     /// Default file patterns for Rust files
     pub const RUST_FILE_PATTERN: &str = "**/*.rs";
+    /// Default file patterns for TypeScript files
+    pub const TS_FILE_PATTERN: &str = "**/*.ts";
 }
 
 /// Test content samples
@@ -52,6 +54,23 @@ fn main() {
     println!("Hello"); // Inline comment
     /// This is a doc comment and should be preserved
     // TODO: This should be preserved
+}
+"#;
+
+    /// Sample TypeScript code with comments
+    pub const TYPESCRIPT_CODE_WITH_COMMENTS: &str = r#"// Short comment
+interface User {
+    name: string;
+    age: number; // Inline comment
+    // TODO: This should be preserved
+}
+
+/**
+ * This is a JSDoc comment that should be preserved
+ */
+function greet(user: User): void {
+    console.log(`Hello, ${user.name}!`);
+    // FIXME: Implementation needed
 }
 "#;
 
@@ -196,6 +215,33 @@ tools:
         min-comment-length: {}
 "#,
             test_constants::RUST_FILE_PATTERN,
+            min_comment_length
+        );
+        self.create_config(&config)
+    }
+
+    /// Create a test configuration for TypeScript comment cleaning
+    #[allow(dead_code)]
+    pub fn create_typescript_clean_config(&self, min_comment_length: u32) -> std::path::PathBuf {
+        let config = format!(
+            r#"
+version: "0.1"
+tools:
+  clean-useless-comments:
+    scope:
+      include:
+        - "{}"
+    lang-rules:
+      javascript:
+        single-line-comments: true
+        multi-line-comments: true
+        doc-comments: false
+        preserve-patterns:
+          - "^\\s*//\\s*(TODO|FIXME):"
+          - "^\\s*/\\*\\*\\s*.*?\\*/"
+        min-comment-length: {}
+"#,
+            test_constants::TS_FILE_PATTERN,
             min_comment_length
         );
         self.create_config(&config)

@@ -44,6 +44,14 @@ impl TreeSitterProcessor {
                 comment_query: Self::create_javascript_comment_query()?,
                 highlight_config: None,
             },
+            // TypeScript
+            SupportedLanguage {
+                name: "typescript".to_string(),
+                file_extensions: vec!["ts".to_string(), "tsx".to_string()],
+                language: tree_sitter_typescript::language_typescript(),
+                comment_query: Self::create_typescript_comment_query()?,
+                highlight_config: None,
+            },
             // Rust
             SupportedLanguage {
                 name: "rust".to_string(),
@@ -82,6 +90,17 @@ impl TreeSitterProcessor {
         "#;
 
         match Query::new(tree_sitter_javascript::language(), query_str) {
+            Ok(query) => Ok(Some(query)),
+            Err(_) => Ok(None),
+        }
+    }
+
+    fn create_typescript_comment_query() -> Result<Option<Query>> {
+        let query_str = r#"
+(comment) @comment
+        "#;
+
+        match Query::new(tree_sitter_typescript::language_typescript(), query_str) {
             Ok(query) => Ok(Some(query)),
             Err(_) => Ok(None),
         }

@@ -159,7 +159,7 @@ fn handle_account_list() -> Result<()> {
     Ok(())
 }
 
-/// Handle account use (llman x codex account use <name>)
+/// Handle account use (llman x codex account use \<name\>)
 fn handle_account_use(name: &str) -> Result<()> {
     if !ConfigManager::group_exists(name)? {
         bail!("{}", t!("codex.error.group_not_found", name = name));
@@ -172,7 +172,7 @@ fn handle_account_use(name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Handle account create (llman x codex account create <name>)
+/// Handle account create (llman x codex account create \<name\>)
 fn handle_account_create(name: &str, template: Option<&str>) -> Result<()> {
     if ConfigManager::group_exists(name)? {
         bail!("{}", t!("codex.error.group_exists", name = name));
@@ -195,7 +195,7 @@ fn handle_account_create(name: &str, template: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-/// Handle account edit (llman x codex account edit <name>)
+/// Handle account edit (llman x codex account edit \<name\>)
 fn handle_account_edit(name: &str) -> Result<()> {
     if !ConfigManager::group_exists(name)? {
         bail!("{}", t!("codex.error.group_not_found", name = name));
@@ -221,7 +221,7 @@ fn handle_account_edit(name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Handle account import (llman x codex account import <name> <path>)
+/// Handle account import (llman x codex account import \<name\> \<path\>)
 fn handle_account_import(name: &str, path: &Path) -> Result<()> {
     if ConfigManager::group_exists(name)? {
         bail!("{}", t!("codex.error.group_exists", name = name));
@@ -238,7 +238,7 @@ fn handle_account_import(name: &str, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Handle account delete (llman x codex account delete <name>)
+/// Handle account delete (llman x codex account delete \<name\>)
 fn handle_account_delete(name: &str) -> Result<()> {
     if !ConfigManager::group_exists(name)? {
         bail!("{}", t!("codex.error.group_not_found", name = name));
