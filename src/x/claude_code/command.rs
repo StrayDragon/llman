@@ -1,6 +1,6 @@
-use crate::x::claude_code::config::Config;
+use crate::x::claude_code::config::{Config, ConfigGroup};
 use crate::x::claude_code::interactive;
-use crate::x::claude_code::security::SecurityChecker;
+use crate::x::claude_code::security::{SecurityChecker, SecurityWarning};
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
@@ -139,39 +139,13 @@ fn handle_main_command() -> Result<()> {
     {
         // Perform security check before executing claude
         let security_checker = SecurityChecker::from_config(&config)?;
-        if let Ok(warnings) = security_checker.check_claude_settings()
-            && !warnings.is_empty()
-        {
-            eprintln!("\n🔒 {} Security Warnings Detected:", warnings.len());
-            eprintln!("{}", "═".repeat(60));
-
-            for warning in warnings {
-                eprintln!(
-                    "\n{} [{}] Dangerous Permission Detected",
-                    warning.severity.display_symbol(),
-                    warning.severity.display_name()
-                );
-                eprintln!("  📍 Location: {}", warning.config_path);
-                eprintln!("  ⚙️  Setting: {}", warning.config_item);
-                eprintln!("  🎯 Pattern: {}", warning.matched_pattern);
-                eprintln!("  📝 Description: {}", warning.description);
-                eprintln!("  💡 Recommendation: {}", warning.recommendation);
-            }
-
-            eprintln!(
-                "\n⚠️ These permissions are defined in your Claude Code settings but conflict with"
-            );
-            eprintln!("  security rules in <llman config>/claude-code.toml");
-            eprintln!();
+        if let Ok(warnings) = security_checker.check_claude_settings() {
+            print_security_warnings(&warnings);
         }
 
         // Execute claude command with all environment variables set
         let mut cmd = Command::new("claude");
-
-        // Inject all environment variables from the group
-        for (key, value) in group {
-            cmd.env(key, value);
-        }
+        inject_env_vars(&mut cmd, group);
 
         let status = cmd.status().context("Failed to execute claude command")?;
 
@@ -239,39 +213,13 @@ fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()
     if let Some(group) = config.get_group(name) {
         // Perform security check before executing claude
         let security_checker = SecurityChecker::from_config(config)?;
-        if let Ok(warnings) = security_checker.check_claude_settings()
-            && !warnings.is_empty()
-        {
-            eprintln!("\n🔒 {} Security Warnings Detected:", warnings.len());
-            eprintln!("{}", "═".repeat(60));
-
-            for warning in warnings {
-                eprintln!(
-                    "\n{} [{}] Dangerous Permission Detected",
-                    warning.severity.display_symbol(),
-                    warning.severity.display_name()
-                );
-                eprintln!("  📍 Location: {}", warning.config_path);
-                eprintln!("  ⚙️  Setting: {}", warning.config_item);
-                eprintln!("  🎯 Pattern: {}", warning.matched_pattern);
-                eprintln!("  📝 Description: {}", warning.description);
-                eprintln!("  💡 Recommendation: {}", warning.recommendation);
-            }
-
-            eprintln!(
-                "\n⚠️ These permissions are defined in your Claude Code settings but conflict with"
-            );
-            eprintln!("  security rules in <llman config>/claude-code.toml");
-            eprintln!();
+        if let Ok(warnings) = security_checker.check_claude_settings() {
+            print_security_warnings(&warnings);
         }
 
         // Execute claude command with all environment variables set
         let mut cmd = Command::new("claude");
-
-        // Inject all environment variables from the group
-        for (key, value) in group {
-            cmd.env(key, value);
-        }
+        inject_env_vars(&mut cmd, group);
 
         // Add any additional arguments
         for arg in args {
@@ -341,38 +289,12 @@ fn handle_run_command(
 
         // Perform security check before executing claude
         let security_checker = SecurityChecker::from_config(&config)?;
-        if let Ok(warnings) = security_checker.check_claude_settings()
-            && !warnings.is_empty()
-        {
-            eprintln!("\n🔒 {} Security Warnings Detected:", warnings.len());
-            eprintln!("{}", "═".repeat(60));
-
-            for warning in warnings {
-                eprintln!(
-                    "\n{} [{}] Dangerous Permission Detected",
-                    warning.severity.display_symbol(),
-                    warning.severity.display_name()
-                );
-                eprintln!("  📍 Location: {}", warning.config_path);
-                eprintln!("  ⚙️  Setting: {}", warning.config_item);
-                eprintln!("  🎯 Pattern: {}", warning.matched_pattern);
-                eprintln!("  📝 Description: {}", warning.description);
-                eprintln!("  💡 Recommendation: {}", warning.recommendation);
-            }
-
-            eprintln!(
-                "\n⚠️ These permissions are defined in your Claude Code settings but conflict with"
-            );
-            eprintln!("  security rules in <llman config>/claude-code.toml");
-            eprintln!();
+        if let Ok(warnings) = security_checker.check_claude_settings() {
+            print_security_warnings(&warnings);
         }
 
         let mut cmd = Command::new("claude");
-
-        // 注入环境变量
-        for (key, value) in env_vars {
-            cmd.env(key, value);
-        }
+        inject_env_vars(&mut cmd, env_vars);
 
         // 添加传递的参数
         for arg in claude_args {
@@ -423,4 +345,38 @@ fn handle_interactive_mode(config: &Config) -> Result<(String, Vec<String>)> {
     };
 
     Ok((selected_group, claude_args))
+}
+
+/// Print security warnings to stderr
+fn print_security_warnings(warnings: &[SecurityWarning]) {
+    if warnings.is_empty() {
+        return;
+    }
+
+    eprintln!("\n🔒 {} Security Warnings Detected:", warnings.len());
+    eprintln!("{}", "═".repeat(60));
+
+    for warning in warnings {
+        eprintln!(
+            "\n{} [{}] Dangerous Permission Detected",
+            warning.severity.display_symbol(),
+            warning.severity.display_name()
+        );
+        eprintln!("  📍 Location: {}", warning.config_path);
+        eprintln!("  ⚙️  Setting: {}", warning.config_item);
+        eprintln!("  🎯 Pattern: {}", warning.matched_pattern);
+        eprintln!("  📝 Description: {}", warning.description);
+        eprintln!("  💡 Recommendation: {}", warning.recommendation);
+    }
+
+    eprintln!("\n⚠️ These permissions are defined in your Claude Code settings but conflict with");
+    eprintln!("  security rules in <llman config>/claude-code.toml");
+    eprintln!();
+}
+
+/// Inject environment variables from a config group into a Command
+fn inject_env_vars(cmd: &mut Command, group: &ConfigGroup) {
+    for (key, value) in group {
+        cmd.env(key, value);
+    }
 }

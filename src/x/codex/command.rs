@@ -106,7 +106,7 @@ pub fn run(args: &CodexArgs) -> Result<()> {
 
 /// Handle interactive group selection and execution (llman x codex)
 fn handle_interactive_execution(args: &[String]) -> Result<()> {
-    let groups = ConfigManager::list_groups()?;
+    let groups = ConfigManager::get_group_names()?;
 
     if groups.is_empty() {
         println!("{}", t!("codex.account.no_groups"));
@@ -130,7 +130,7 @@ fn handle_interactive_execution(args: &[String]) -> Result<()> {
 
 /// Handle account list (llman x codex account list)
 fn handle_account_list() -> Result<()> {
-    let groups = ConfigManager::list_groups()?;
+    let groups = ConfigManager::get_group_names()?;
 
     if groups.is_empty() {
         println!("{}", t!("codex.account.no_groups"));
