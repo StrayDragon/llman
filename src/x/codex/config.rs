@@ -74,7 +74,7 @@ pub struct ConfigManager;
 
 impl ConfigManager {
     /// List all available groups
-    pub fn list_groups() -> Result<Vec<String>> {
+    pub fn get_group_names() -> Result<Vec<String>> {
         let groups_dir = Metadata::groups_dir()?;
 
         if !groups_dir.exists() {
@@ -162,7 +162,7 @@ impl ConfigManager {
     }
 
     /// Read a group's configuration
-    pub fn read_group(name: &str) -> Result<String> {
+    pub fn get_group_content(name: &str) -> Result<String> {
         let group_path = Self::group_path(name)?;
 
         if !group_path.exists() {
