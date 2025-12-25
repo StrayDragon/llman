@@ -4,22 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`llman` is a Rust-based command-line tool for managing LLM application rules and prompts, with special focus on Cursor editor integration. The tool helps developers create, manage, and deploy prompt rules files for various LLM applications.
+**llman** is a Rust-based CLI tool for managing LLM application rules and prompts, with special focus on Cursor editor integration. Written in Rust 2024 edition (requires nightly toolchain).
 
-## Build System and Development Commands
+## Build System and Commands
 
-### Primary Commands (using just)
+### Using just (recommended)
 
 ```bash
 # Build and development
 just build                    # Debug build
 just build-release            # Release build
-just run [args]              # Run with test config (uses ./artifacts/testing_config_home)
+just run [args]              # Run with test config (./artifacts/testing_config_home)
 just run-prod [args]         # Run with production config
 just test                    # Run tests
-just check                   # Format, lint, and test (complete check)
+just check                   # Format check + lint + test
+just check-all               # Full check (doc + release build)
 just fmt                     # Format code
-just lint                    # Run clippy with warnings as errors
+just lint                    # Clippy with warnings as errors
 just clean                   # Clean build artifacts
 just install                 # Install locally
 
@@ -31,27 +32,37 @@ just check-i18n             # Check internationalization status
 ### Direct Cargo Commands
 
 ```bash
-cargo build                 # Build debug version
-cargo build --release       # Build release version
-cargo test                  # Run tests
-cargo fmt                   # Format code
-cargo clippy -- -D warnings # Lint with deny warnings
-cargo install --path .       # Install from source
+cargo +nightly build                 # Debug build
+cargo +nightly build --release       # Release build
+cargo +nightly test                  # Run tests
+cargo +nightly fmt                   # Format code
+cargo +nightly clippy -- -D warnings # Lint with deny warnings
 ```
+
+**Important**: The project uses Rust nightly toolchain for edition 2024 support.
 
 ## Architecture Overview
 
 ### Core Components
 
-- **`src/main.rs`**: Entry point with internationalization setup
-- **`src/cli.rs`**: Command-line interface definition and command routing
+- **`src/main.rs`**: Entry point with i18n setup
+- **`src/cli.rs`**: CLI definition and command routing (clap)
 - **`src/config.rs`**: Configuration management and file system operations
+- **`src/error.rs`**: Error handling with `thiserror`
 - **`src/prompt.rs`**: Core prompt management functionality
-- **`src/error.rs`**: Error handling and custom error types
+- **`src/path_utils.rs`**: Path validation utilities
+
+### Experimental Features (`src/x/`)
+
+- **`cursor/`**: Cursor-specific functionality (conversations export, database operations)
+- **`claude_code/`**: Claude Code API configuration management (alias: `cc`)
+- **`codex/`**: OpenAI Codex configuration management
+
+### Developer Tools (`src/tool/`)
+
+- **`clean-comments`**: Clean useless code comments using tree-sitter
 
 ### Command Structure
-
-The application follows a hierarchical command structure:
 
 ```
 llman <command> [subcommand] [options]
@@ -62,115 +73,37 @@ Main commands:
   - list: List existing prompts
   - upsert: Create or update prompts
   - rm: Remove prompts
-- project: Project utilities
-  - tree: Generate directory tree structure
 - x: Experimental commands
-  - cursor: Cursor-specific functionality
-  - collect: Information collection utilities
+  - cursor: Cursor functionality (export conversations)
+  - claude-code/cc: Claude Code API configuration
+  - codex: OpenAI Codex configuration
+- tool: Developer tools
+  - clean-comments: Clean code comments
 ```
 
-### Key Design Patterns
+## Key Design Patterns
 
-1. **Configuration Management**: Uses `Config` struct for centralized config handling with support for custom config directories via `LLMAN_CONFIG_DIR` environment variable
-2. **Command Separation**: Each major command group has its own module and handler
-3. **Internationalization**: Built-in i18n support using `rust-i18n` with English and Chinese locales
-4. **Error Handling**: Comprehensive error handling with `anyhow` and custom error types
+1. **Configuration Management**: `Config` struct for centralized config handling with `LLMAN_CONFIG_DIR` environment variable override
+2. **Error Handling**: `LlmanError` enum with `thiserror`, uses `display_localized()` for i18n error messages
+3. **Internationalization**: `rust-i18n` with YAML translations in `locales/app.yml`; use `t!("key.subkey", param = value)` pattern
+4. **Safety Checks**: Prevents running in home directory, requires Git repo
+5. **Interactive/Non-interactive Modes**: Commands support both modes via `inquire` crate
 
-### File Structure
+## Configuration
 
-```
-src/
-├── main.rs              # Application entry point
-├── cli.rs               # CLI definition and command routing
-├── config.rs            # Configuration management
-├── error.rs             # Error handling
-├── prompt.rs            # Prompt management logic
-└── x/                   # Experimental features
-    ├── mod.rs
-    ├── cursor/          # Cursor-specific functionality
-    │   ├── mod.rs
-    │   ├── command.rs   # Cursor command implementations
-    │   ├── database.rs  # Database operations
-    │   └── models.rs    # Data models
-    └── collect/         # Data collection utilities
-        ├── mod.rs
-        ├── command.rs   # Collection commands
-        └── tree.rs      # Directory tree generation
-```
+- **Default config dir**: `~/.config/llman/`
+- **Test config dir**: `./artifacts/testing_config_home/` (use `just run`)
+- **Claude Code config**: `~/.config/llman/claude-code.toml`
 
-## Development Environment
-
-### Configuration
-
-- **Test Configuration**: Use `just run` which automatically sets `LLMAN_CONFIG_DIR=./artifacts/testing_config_home`
-- **Production Configuration**: Use `just run-prod` or direct cargo commands
-- **Language**: Set `LLMAN_LANG=zh-CN` or `LLMAN_LANG=zh` for Chinese, defaults to English
-
-### Testing
-
-- Test fixtures are stored in `./artifacts/testing_config_home/`
-- Use `just create-dev-template` to create test prompt templates
-- The application validates that commands are run in project directories (Git repositories)
-
-### Cursor Integration
-
-- Cursor rules are stored in `.cursor/rules/` directory with `.mdc` extension
-- The tool can generate and manage Cursor-specific prompt rules
-- Supports interactive template selection and rule generation
-
-## Key Dependencies
-
-- **CLI**: `clap` (with derive, cargo, env features)
-- **Configuration**: `directories`, `once_cell`
-- **Database**: `diesel` with SQLite backend
-- **Serialization**: `serde`, `serde_json`, `toml`
-- **Interactive UI**: `inquire`
-- **Internationalization**: `rust-i18n`
-- **Error Handling**: `anyhow`, `thiserror`
-- **File Operations**: `glob`, `walkdir`, `ignore`
+Environment variables:
+- `LLMAN_CONFIG_DIR`: Custom configuration directory
+- `LLMAN_LANG`: Language (`zh-CN`, `zh`, or default English)
 
 ## Development Notes
 
-- The application enforces running in Git project directories for safety
-- Interactive commands provide user-friendly prompts and confirmations
-- Template system allows for reusable prompt generation
-- Experimental features are organized under the `x` command namespace
-- Comprehensive error messages with internationalization support
-
-### Claude Code Configuration Management
-
-The tool includes comprehensive Claude Code API configuration management under `llman x claude-code` (alias: `llman x cc`):
-
-#### Commands
-- `llman x claude-code` - Interactive configuration selection and claude execution
-- `llman x claude-code account list` - List all configuration groups
-- `llman x claude-code account import` - Import configuration from JSON
-- `llman x claude-code account use <name>` - Use specific configuration with optional arguments
-
-#### Configuration Features
-- Multiple API configuration groups support
-- JSON-based configuration import with automatic repair
-- Environment variable injection for claude command execution
-- Interactive and non-interactive modes
-- Secure credential masking in display
-- Full internationalization support (English/Chinese)
-
-#### Configuration File Location
-- `~/.config/llman/claude-code.toml`
-- Supports both direct key-value and wrapped `{"env": {...}}` JSON formats
-- Automatic file permission setting (0600 on Unix systems)
-
-#### Example Configuration
-```toml
-[groups.production]
-ANTHROPIC_BASE_URL = "https://api.anthropic.com"
-ANTHROPIC_AUTH_TOKEN = "your-production-api-key"
-ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
-
-[groups.development]
-ANTHROPIC_BASE_URL = "https://api.anthropic.com"
-ANTHROPIC_AUTH_TOKEN = "your-dev-api-key"
-ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
-```
-- 当使用 inquire 中交互命令时应该修改代码编译成功后交给用户来处理
-- 当修改 i18n 文案后需要重新clean后build 不然有可能不生效
+- **i18n changes**: Must `cargo clean` after modifying translations
+- **Prefer batch edits**: Reduce tool calls by batching text updates
+- **Don't change deps**: Ask user before modifying `Cargo.toml`
+- **Use `context7` MCP**: For crate API documentation instead of guessing
+- **Use justfile**: For project-level actions instead of Makefile
+- **Test fixtures**: Stored in `./artifacts/testing_config_home/`
