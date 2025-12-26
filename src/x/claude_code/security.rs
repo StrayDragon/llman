@@ -1,6 +1,7 @@
 use crate::x::claude_code::config::Config;
 use anyhow::{Context, Result};
 use llm_json::{RepairOptions, loads};
+use regex::Regex;
 use rust_i18n::t;
 use serde_json::Value;
 use std::fs;
@@ -175,12 +176,81 @@ impl SecurityChecker {
         let permission_lower = permission.to_lowercase();
 
         for pattern in &self.dangerous_patterns {
-            if permission_lower.contains(pattern) {
-                return Some((pattern.clone(), self.get_pattern_details(pattern)));
+            if let Some(matched) = self.matches_dangerous_pattern(&permission_lower, pattern) {
+                let matched_str = matched.clone();
+                return Some((matched, self.get_pattern_details(&matched_str)));
             }
         }
 
         None
+    }
+
+    /// Check if permission matches a dangerous pattern using regex for precision
+    fn matches_dangerous_pattern(&self, permission: &str, pattern: &str) -> Option<String> {
+        match pattern {
+            // For "format", match only when it's a command/argument, not part of a variable name
+            // e.g., matches "format C:" but not "LOGX_FORMAT"
+            p if p == "format" => {
+                // Use word boundary to avoid matching variable names like LOGX_FORMAT
+                // Also match specific dangerous format commands like "format C:", "format /dev/xxx"
+                let re = Regex::new(r"(?i)\bformat\s+[a-zA-Z:/\\]").ok()?;
+                if re.is_match(permission) {
+                    Some("format".to_string())
+                } else {
+                    None
+                }
+            }
+
+            // For "mkfs", match only as a standalone command with options
+            p if p == "mkfs" => {
+                let re = Regex::new(r"(?i)\bmkfs(?:\.|\s+)").ok()?;
+                if re.is_match(permission) {
+                    Some("mkfs".to_string())
+                } else {
+                    None
+                }
+            }
+
+            // For "rm -rf", match with proper context
+            p if p == "rm -rf" => {
+                // Match rm -rf followed by path (not just flags)
+                let re = Regex::new(r"(?i)\brm\s+-rf\b").ok()?;
+                if re.is_match(permission) {
+                    Some("rm -rf".to_string())
+                } else {
+                    None
+                }
+            }
+
+            // For "sudo rm", match dangerous sudo rm patterns
+            p if p == "sudo rm" => {
+                let re = Regex::new(r"(?i)\bsudo\s+rm\b").ok()?;
+                if re.is_match(permission) {
+                    Some("sudo rm".to_string())
+                } else {
+                    None
+                }
+            }
+
+            // For "dd if=", match dd with input file specification
+            p if p == "dd if=" => {
+                let re = Regex::new(r"(?i)\bdd\s+if=").ok()?;
+                if re.is_match(permission) {
+                    Some("dd if=".to_string())
+                } else {
+                    None
+                }
+            }
+
+            // Default: use simple contains for patterns that need flexibility
+            _ => {
+                if permission.contains(pattern) {
+                    Some(pattern.to_string())
+                } else {
+                    None
+                }
+            }
+        }
     }
 
     /// Get severity, description and recommendation for a dangerous pattern
@@ -462,5 +532,62 @@ mod tests {
         let (severity, description, _) = checker.get_pattern_details("chmod 777");
         assert_eq!(severity, SecurityWarningSeverity::High);
         assert!(description.contains("world-writable"));
+    }
+
+    #[test]
+    fn test_format_pattern_precision() {
+        let checker = SecurityChecker {
+            dangerous_patterns: vec!["format".to_string(), "mkfs".to_string()],
+            settings_files: vec![],
+            enabled: true,
+        };
+
+        // Should NOT match variable names containing "format"
+        assert!(
+            checker
+                .get_dangerous_pattern_info("Bash(LOGX_FORMAT=console just run-python:*)")
+                .is_none(),
+            "LOGX_FORMAT should not be matched as dangerous"
+        );
+        assert!(
+            checker
+                .get_dangerous_pattern_info("Bash(OUTPUT_FORMAT=json command)")
+                .is_none(),
+            "OUTPUT_FORMAT should not be matched as dangerous"
+        );
+
+        // Should match actual format commands
+        assert!(
+            checker
+                .get_dangerous_pattern_info("Bash(format C: /q)")
+                .is_some(),
+            "format C: should be matched as dangerous"
+        );
+        assert!(
+            checker
+                .get_dangerous_pattern_info("Bash(format /dev/sda)")
+                .is_some(),
+            "format /dev/sda should be matched as dangerous"
+        );
+
+        // Should match mkfs commands
+        assert!(
+            checker
+                .get_dangerous_pattern_info("Bash(mkfs.ext4 /dev/sda1)")
+                .is_some(),
+            "mkfs.ext4 should be matched as dangerous"
+        );
+        assert!(
+            checker
+                .get_dangerous_pattern_info("Bash(mkfs -t ext4 /dev/sda1)")
+                .is_some(),
+            "mkfs -t should be matched as dangerous"
+        );
+
+        // Should NOT match harmless commands
+        assert!(
+            checker.get_dangerous_pattern_info("Bash(formatted=123)").is_none(),
+            "formatted= should not be matched as dangerous"
+        );
     }
 }
