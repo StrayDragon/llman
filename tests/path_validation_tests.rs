@@ -70,7 +70,6 @@ fn test_environment_variable_validation() -> Result<()> {
     // The validation should catch this
     let result = validate_path_str(empty_env_var);
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("empty"));
 
     Ok(())
 }

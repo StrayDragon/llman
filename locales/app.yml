@@ -115,8 +115,12 @@ interactive:
     zh-CN: "规则名称将用作文件名"
 
   no_templates:
-    en: "⚠️  No templates available, will create empty rule file"
-    zh-CN: "⚠️  没有可用的模板，将创建空规则文件"
+    en: "⚠️  No templates available, nothing to generate"
+    zh-CN: "⚠️  没有可用的模板，无法生成规则文件"
+
+  no_templates_hint:
+    en: "Hint: add a template with `llman prompt upsert --app cursor --name <name> --content <content>`"
+    zh-CN: "提示：可用 `llman prompt upsert --app cursor --name <name> --content <content>` 新增模板"
 
 # 消息提示
 messages:
@@ -822,8 +826,20 @@ codex:
       en: "Group '%{name}' already exists"
       zh-CN: "配置组 '%{name}' 已存在"
     codex_not_found:
-      en: "codex command not found. Please install OpenAI Codex CLI first."
-      zh-CN: "未找到 codex 命令。请先安装 OpenAI Codex CLI。"
+      en: "Codex CLI not found. Please install it first: npm install -g @openai/codex"
+      zh-CN: "未找到 Codex CLI。请先安装：npm install -g @openai/codex"
+    unknown_template:
+      en: "Unknown template: %{template}"
+      zh-CN: "未知模板: %{template}"
+    failed_codex_command:
+      en: "Failed to run codex command"
+      zh-CN: "运行 codex 命令失败"
+    profile_not_found:
+      en: "Profile '%{name}' not found"
+      zh-CN: "未找到配置 '%{name}'"
+    no_last_used:
+      en: "No profile specified and no last used profile found"
+      zh-CN: "未指定配置且未找到上次使用的配置"
 
   # 配置导入/迁移
   config:
@@ -885,22 +901,3 @@ codex:
     parse_error:
       en: "Error parsing settings file {path}: {error}"
       zh-CN: "解析设置文件 {path} 时出错: {error}"
-
-
-  # 错误信息
-  error:
-    unknown_template:
-      en: "Unknown template: %{template}"
-      zh-CN: "未知模板: %{template}"
-    failed_codex_command:
-      en: "Failed to run codex command"
-      zh-CN: "运行 codex 命令失败"
-    codex_not_found:
-      en: "Codex CLI not found. Please install it first: npm install -g @openai/codex"
-      zh-CN: "未找到 Codex CLI。请先安装：npm install -g @openai/codex"
-    profile_not_found:
-      en: "Profile '%{name}' not found"
-      zh-CN: "未找到配置 '%{name}'"
-    no_last_used:
-      en: "No profile specified and no last used profile found"
-      zh-CN: "未指定配置且未找到上次使用的配置"

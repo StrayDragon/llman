@@ -26,6 +26,10 @@ pub struct CleanUselessCommentsArgs {
     #[arg(long, short = 'd')]
     pub dry_run: bool,
 
+    /// Apply changes (default: dry run)
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+
     /// Interactive mode, confirm changes before applying
     #[arg(long, short = 'i')]
     pub interactive: bool,

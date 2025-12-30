@@ -235,4 +235,3 @@ echo "💡 建议运行以下命令进行进一步测试:"
 echo "   LLMAN_LANG=zh-CN just run prompt list"
 echo "   LLMAN_LANG=en just run prompt list"
 echo "   LLMAN_LANG=zh-CN just run prompt gen --app invalid --template test"
-

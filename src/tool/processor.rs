@@ -4,8 +4,10 @@ use crate::tool::tree_sitter_processor::TreeSitterProcessor;
 use anyhow::{Result, anyhow};
 use ignore::WalkBuilder;
 use regex::Regex;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 pub struct CommentProcessor {
     config: Config,
@@ -37,10 +39,28 @@ impl CommentProcessor {
             .ok_or_else(|| anyhow!("No clean useless comments configuration found"))?;
 
         println!("Processing files...");
+        let effective_dry_run = self.effective_dry_run();
 
         // Clone the clean_config to avoid borrow issues
         let clean_config_clone = clean_config.clone();
-        let files_to_process = self.find_files(&clean_config_clone.scope)?;
+        let git_only = self.args.git_only
+            || clean_config_clone
+                .safety
+                .as_ref()
+                .and_then(|safety| safety.git_aware)
+                .unwrap_or(false);
+        let tracked_files = if git_only {
+            self.load_git_tracked_files()?
+        } else {
+            None
+        };
+        let cwd = std::env::current_dir()?;
+        let files_to_process = self.find_files(
+            &clean_config_clone.scope,
+            git_only,
+            tracked_files.as_ref(),
+            &cwd,
+        )?;
         let mut results = ProcessingResult::default();
 
         for file_path in files_to_process {
@@ -54,7 +74,7 @@ impl CommentProcessor {
                         results.files_changed.push(file_path.clone());
                         results.comments_removed += file_result.comments_removed;
 
-                        if self.args.verbose || !self.args.dry_run {
+                        if self.args.verbose || !effective_dry_run {
                             println!(
                                 "File: {} - Removed {} comments",
                                 file_path.display(),
@@ -73,14 +93,33 @@ impl CommentProcessor {
         Ok(results)
     }
 
-    fn find_files(&self, scope: &crate::tool::config::ScopeConfig) -> Result<Vec<PathBuf>> {
+    fn find_files(
+        &self,
+        scope: &crate::tool::config::ScopeConfig,
+        git_only: bool,
+        tracked_files: Option<&HashSet<PathBuf>>,
+        cwd: &Path,
+    ) -> Result<Vec<PathBuf>> {
         let mut files = Vec::new();
+
+        if git_only && tracked_files.is_none() {
+            eprintln!("Warning: git-only enabled but no git repository detected.");
+            return Ok(files);
+        }
 
         // If specific files are provided, use them
         if !self.args.files.is_empty() {
             for file in &self.args.files {
                 if file.exists() {
-                    files.push(file.clone());
+                    if !git_only
+                        || tracked_files
+                            .map(|tracked| self.is_tracked(file, cwd, tracked))
+                            .unwrap_or(false)
+                    {
+                        files.push(file.clone());
+                    } else {
+                        eprintln!("Warning: File not tracked by git: {}", file.display());
+                    }
                 } else {
                     eprintln!("Warning: File not found: {}", file.display());
                 }
@@ -89,12 +128,7 @@ impl CommentProcessor {
         }
 
         // Otherwise, walk the directory tree
-        let mut walker = WalkBuilder::new(".");
-
-        // Add include patterns
-        for pattern in &scope.include {
-            walker.add_custom_ignore_filename(pattern);
-        }
+        let walker = WalkBuilder::new(".");
 
         for result in walker.build() {
             match result {
@@ -102,7 +136,12 @@ impl CommentProcessor {
                     let path = entry.path();
                     if path.is_file() {
                         // Check if file matches include patterns
-                        if self.matches_patterns(path, &scope.include, &scope.exclude) {
+                        if self.matches_patterns(path, &scope.include, &scope.exclude)
+                            && (!git_only
+                                || tracked_files
+                                    .map(|tracked| self.is_tracked(path, cwd, tracked))
+                                    .unwrap_or(false))
+                        {
                             files.push(path.to_path_buf());
                         }
                     }
@@ -142,6 +181,74 @@ impl CommentProcessor {
         false
     }
 
+    fn is_tracked(&self, path: &Path, cwd: &Path, tracked_files: &HashSet<PathBuf>) -> bool {
+        let absolute = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            cwd.join(path)
+        };
+
+        match absolute.canonicalize() {
+            Ok(normalized) => tracked_files.contains(&normalized),
+            Err(_) => false,
+        }
+    }
+
+    fn load_git_tracked_files(&self) -> Result<Option<HashSet<PathBuf>>> {
+        let repo_root = match self.git_repo_root()? {
+            Some(root) => root,
+            None => return Ok(None),
+        };
+
+        let output = match Command::new("git")
+            .args(["ls-files", "-z"])
+            .current_dir(&repo_root)
+            .output()
+        {
+            Ok(output) => output,
+            Err(_) => return Ok(None),
+        };
+
+        if !output.status.success() {
+            return Ok(None);
+        }
+
+        let mut tracked = HashSet::new();
+        for entry in output.stdout.split(|byte| *byte == 0) {
+            if entry.is_empty() {
+                continue;
+            }
+            let rel = String::from_utf8_lossy(entry);
+            let candidate = repo_root.join(rel.as_ref());
+            if let Ok(canonical) = candidate.canonicalize() {
+                tracked.insert(canonical);
+            }
+        }
+
+        Ok(Some(tracked))
+    }
+
+    fn git_repo_root(&self) -> Result<Option<PathBuf>> {
+        let output = match Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
+            .output()
+        {
+            Ok(output) => output,
+            Err(_) => return Ok(None),
+        };
+
+        if !output.status.success() {
+            return Ok(None);
+        }
+
+        let root = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if root.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(PathBuf::from(root)))
+    }
+
     fn process_file(
         &mut self,
         file_path: &Path,
@@ -156,7 +263,7 @@ impl CommentProcessor {
 
             let has_changes = new_content != content;
 
-            if !self.args.dry_run && has_changes {
+            if !self.effective_dry_run() && has_changes {
                 fs::write(file_path, new_content)?;
             }
 
@@ -191,7 +298,11 @@ impl CommentProcessor {
     ) -> Option<&'a crate::tool::config::LanguageSpecificRules> {
         match language {
             Some("python") => lang_rules.python.as_ref(),
-            Some("javascript") | Some("typescript") => lang_rules.javascript.as_ref(),
+            Some("javascript") => lang_rules.javascript.as_ref(),
+            Some("typescript") => lang_rules
+                .typescript
+                .as_ref()
+                .or(lang_rules.javascript.as_ref()),
             Some("rust") => lang_rules.rust.as_ref(),
             Some("go") => lang_rules.go.as_ref(),
             _ => None,
@@ -350,6 +461,10 @@ impl CommentProcessor {
         let modified_lines = modified.lines().count();
 
         (original_lines.saturating_sub(modified_lines)) as u32
+    }
+
+    fn effective_dry_run(&self) -> bool {
+        self.args.dry_run || !self.args.yes
     }
 }
 

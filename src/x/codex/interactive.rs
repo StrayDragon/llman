@@ -20,14 +20,16 @@ pub fn select_group(groups: &[String]) -> Result<String> {
         })
         .collect();
 
-    let selection = Select::new(&t!("codex.interactive.select_group"), options)
+    let selection = Select::new(&t!("codex.interactive.select_group"), options.clone())
         .prompt()
         .context("Failed to select group")?;
 
-    // Extract group name (remove indicator if present)
-    let group_name = selection.split_whitespace().next().unwrap().to_string();
+    let index = options
+        .iter()
+        .position(|option| option == &selection)
+        .context("Failed to map selection to group")?;
 
-    Ok(group_name)
+    Ok(groups[index].clone())
 }
 
 /// Select a template provider
