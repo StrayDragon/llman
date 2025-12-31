@@ -74,4 +74,3 @@ jobs:
 
       - name: Build checks
         run: just build-release
-

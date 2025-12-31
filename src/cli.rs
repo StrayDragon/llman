@@ -123,15 +123,15 @@ pub fn run() -> Result<()> {
 
 /// Determine the configuration directory to use
 fn determine_config_dir(cli_config_dir: Option<&PathBuf>) -> Result<PathBuf> {
-    // First, check if LLMAN_CONFIG_DIR environment variable is set
-    if let Ok(env_config_dir) = env::var("LLMAN_CONFIG_DIR") {
-        let env_path = PathBuf::from(env_config_dir);
-        return Ok(env_path);
-    }
-
     // If user explicitly provided config-dir, use it
     if let Some(config_dir) = cli_config_dir {
         return Ok(config_dir.clone());
+    }
+
+    // Otherwise, check if LLMAN_CONFIG_DIR environment variable is set
+    if let Ok(env_config_dir) = env::var("LLMAN_CONFIG_DIR") {
+        let env_path = PathBuf::from(env_config_dir);
+        return Ok(env_path);
     }
 
     // Check if we're in llman development project
@@ -221,5 +221,30 @@ fn handle_tool_command(args: &ToolArgs) -> Result<()> {
     match &args.command {
         ToolCommands::CleanUselessComments(args) => crate::tool::clean_comments::run(args),
         ToolCommands::RmEmptyDirs(args) => crate::tool::rm_empty_dirs::run(args),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::determine_config_dir;
+    use crate::test_utils::ENV_MUTEX;
+    use std::env;
+
+    #[test]
+    fn test_config_dir_cli_overrides_env() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let env_dir = env::temp_dir().join("llman_env_dir");
+        let cli_dir = env::temp_dir().join("llman_cli_dir");
+
+        unsafe {
+            env::set_var("LLMAN_CONFIG_DIR", &env_dir);
+        }
+
+        let resolved = determine_config_dir(Some(&cli_dir)).unwrap();
+        assert_eq!(resolved, cli_dir);
+
+        unsafe {
+            env::remove_var("LLMAN_CONFIG_DIR");
+        }
     }
 }
