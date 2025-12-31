@@ -1,0 +1,37 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-case-conflict
+      - id: check-symlinks
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+  - repo: local
+    hooks:
+      - id: just-check-all
+        name: just check-all
+        entry: just check-all
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo +nightly fmt
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo +nightly clippy -- -D warnings
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
