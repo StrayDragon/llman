@@ -190,7 +190,7 @@ impl SecurityChecker {
         match pattern {
             // For "format", match only when it's a command/argument, not part of a variable name
             // e.g., matches "format C:" but not "LOGX_FORMAT"
-            p if p == "format" => {
+            "format" => {
                 // Use word boundary to avoid matching variable names like LOGX_FORMAT
                 // Also match specific dangerous format commands like "format C:", "format /dev/xxx"
                 let re = Regex::new(r"(?i)\bformat\s+[a-zA-Z:/\\]").ok()?;
@@ -202,7 +202,7 @@ impl SecurityChecker {
             }
 
             // For "mkfs", match only as a standalone command with options
-            p if p == "mkfs" => {
+            "mkfs" => {
                 let re = Regex::new(r"(?i)\bmkfs(?:\.|\s+)").ok()?;
                 if re.is_match(permission) {
                     Some("mkfs".to_string())
@@ -212,7 +212,7 @@ impl SecurityChecker {
             }
 
             // For "rm -rf", match with proper context
-            p if p == "rm -rf" => {
+            "rm -rf" => {
                 // Match rm -rf followed by path (not just flags)
                 let re = Regex::new(r"(?i)\brm\s+-rf\b").ok()?;
                 if re.is_match(permission) {
@@ -223,7 +223,7 @@ impl SecurityChecker {
             }
 
             // For "sudo rm", match dangerous sudo rm patterns
-            p if p == "sudo rm" => {
+            "sudo rm" => {
                 let re = Regex::new(r"(?i)\bsudo\s+rm\b").ok()?;
                 if re.is_match(permission) {
                     Some("sudo rm".to_string())
@@ -233,7 +233,7 @@ impl SecurityChecker {
             }
 
             // For "dd if=", match dd with input file specification
-            p if p == "dd if=" => {
+            "dd if=" => {
                 let re = Regex::new(r"(?i)\bdd\s+if=").ok()?;
                 if re.is_match(permission) {
                     Some("dd if=".to_string())
@@ -586,7 +586,9 @@ mod tests {
 
         // Should NOT match harmless commands
         assert!(
-            checker.get_dangerous_pattern_info("Bash(formatted=123)").is_none(),
+            checker
+                .get_dangerous_pattern_info("Bash(formatted=123)")
+                .is_none(),
             "formatted= should not be matched as dangerous"
         );
     }

@@ -220,5 +220,6 @@ fn handle_x_command(args: &XArgs) -> Result<()> {
 fn handle_tool_command(args: &ToolArgs) -> Result<()> {
     match &args.command {
         ToolCommands::CleanUselessComments(args) => crate::tool::clean_comments::run(args),
+        ToolCommands::RmEmptyDirs(args) => crate::tool::rm_empty_dirs::run(args),
     }
 }
