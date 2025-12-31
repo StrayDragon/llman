@@ -31,18 +31,12 @@ impl PromptCommand {
         let apps = vec![CURSOR_APP];
         let app = Select::new(&t!("interactive.select_app"), apps).prompt()?;
 
-        let templates = self.get_available_templates(app)?;
+        let templates = select_templates(self.get_available_templates(app)?)?;
         if templates.is_empty() {
-            println!("{}", t!("interactive.no_templates"));
+            return Ok(());
         }
 
-        let templates = if !templates.is_empty() {
-            Some(MultiSelect::new(&t!("interactive.select_template"), templates).prompt()?)
-        } else {
-            None
-        };
-
-        for template_name in templates.as_deref().unwrap() {
+        for template_name in &templates {
             self.generate_rules(app, template_name, false)?;
         }
 
@@ -213,5 +207,26 @@ impl PromptCommand {
         }
 
         Ok(())
+    }
+}
+
+fn select_templates(templates: Vec<String>) -> Result<Vec<String>> {
+    if templates.is_empty() {
+        println!("{}", t!("interactive.no_templates"));
+        println!("{}", t!("interactive.no_templates_hint"));
+        return Ok(Vec::new());
+    }
+
+    Ok(MultiSelect::new(&t!("interactive.select_template"), templates).prompt()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::select_templates;
+
+    #[test]
+    fn test_select_templates_empty_returns_empty() {
+        let result = select_templates(Vec::new()).unwrap();
+        assert!(result.is_empty());
     }
 }
