@@ -3,6 +3,7 @@ use llman::tool::config::Config;
 use llman::tool::processor::CommentProcessor;
 mod common;
 use common::*;
+use std::process::Command;
 
 /// Tests that the comment processor correctly identifies and processes Python comments
 /// based on length and pattern rules, preserving important comments while marking
@@ -18,6 +19,7 @@ fn test_python_comment_processing_removes_short_comments_and_preserves_important
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: false,
         verbose: false,
@@ -55,6 +57,7 @@ fn test_javascript_comment_processing_preserves_patterns_and_filters_by_length()
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: false,
         verbose: false,
@@ -109,6 +112,7 @@ tools:
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: false,
         verbose: false,
@@ -120,6 +124,51 @@ tools:
     let result = processor.process().unwrap();
 
     assert!(!result.files_changed.is_empty());
+}
+
+#[test]
+fn test_typescript_rules_prefer_typescript_config() {
+    let env = TestEnvironment::new();
+
+    let ts_code = r#"// short comment
+const value = 1;
+"#;
+
+    let config_content = r#"
+version: "0.1"
+tools:
+  clean-useless-comments:
+    scope:
+      include:
+        - "**/*.ts"
+    lang-rules:
+      javascript:
+        single-line-comments: true
+        min-comment-length: 5
+      typescript:
+        single-line-comments: true
+        min-comment-length: 50
+"#;
+
+    let test_file = env.create_file("test.ts", ts_code);
+    env.create_config(config_content);
+
+    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let args = CleanUselessCommentsArgs {
+        config: Some(env.path().join(".llman").join("config.yaml")),
+        dry_run: true,
+        yes: false,
+        interactive: false,
+        force: false,
+        verbose: false,
+        git_only: false,
+        files: vec![test_file.clone()],
+    };
+
+    let mut processor = CommentProcessor::new(config, args);
+    let result = processor.process().unwrap();
+
+    assert_eq!(result.files_changed.len(), 1);
 }
 
 #[test]
@@ -158,6 +207,7 @@ tools:
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: false,
         verbose: false,
@@ -206,6 +256,7 @@ tools:
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: false,
         verbose: false,
@@ -223,6 +274,54 @@ tools:
         "Expected no errors, but got {}",
         result.errors
     );
+}
+
+#[test]
+fn test_git_only_processes_tracked_files() {
+    let env = TestEnvironment::new();
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(env.path()).unwrap();
+
+    let _test_file = env.create_file("tracked.py", "# x\n");
+    Command::new("git")
+        .args(["add", "tracked.py"])
+        .current_dir(env.path())
+        .output()
+        .expect("Failed to add file to git index");
+
+    let config_content = r#"
+version: "0.1"
+tools:
+  clean-useless-comments:
+    scope:
+      include:
+        - "**/*.py"
+    lang-rules:
+      python:
+        single-line-comments: true
+        min-comment-length: 10
+"#;
+
+    env.create_config(config_content);
+
+    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let args = CleanUselessCommentsArgs {
+        config: Some(env.path().join(".llman").join("config.yaml")),
+        dry_run: true,
+        yes: false,
+        interactive: false,
+        force: false,
+        verbose: false,
+        git_only: true,
+        files: vec![],
+    };
+
+    let mut processor = CommentProcessor::new(config, args);
+    let result = processor.process().unwrap();
+
+    assert_eq!(result.files_changed.len(), 1);
+
+    std::env::set_current_dir(original_dir).unwrap();
 }
 
 #[test]
@@ -254,7 +353,8 @@ tools:
     let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
-        dry_run: true, // This should prevent actual file changes
+        dry_run: true,
+        yes: false, // This should prevent actual file changes
         interactive: false,
         force: false,
         verbose: false, // Enable verbose to see debug output

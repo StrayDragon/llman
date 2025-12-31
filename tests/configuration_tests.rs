@@ -197,6 +197,7 @@ tools:
             let args = CleanUselessCommentsArgs {
                 config: Some(env.path().join(".llman").join("config.yaml")),
                 dry_run: true,
+                yes: false,
                 interactive: false,
                 force: false,
                 verbose: true,
@@ -507,6 +508,7 @@ tools:
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: false,
         verbose: true,

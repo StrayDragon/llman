@@ -58,6 +58,7 @@ def helper_function_{}():
         let args = CleanUselessCommentsArgs {
             config: Some(env.path().join(".llman").join("config.yaml")),
             dry_run: true,
+            yes: false,
             interactive: false,
             force: true,
             verbose: true,
@@ -107,6 +108,7 @@ def helper_function_{}():
         let args = CleanUselessCommentsArgs {
             config: Some(env.path().join(".llman").join("config.yaml")),
             dry_run: true,
+            yes: false,
             interactive: false,
             force: true,
             verbose: true,
@@ -171,6 +173,7 @@ def main_func_{}():
         let args = CleanUselessCommentsArgs {
             config: Some(env.path().join(".llman").join("config.yaml")),
             dry_run: true,
+            yes: false,
             interactive: false,
             force: true,
             verbose: true,
@@ -217,6 +220,7 @@ def main_func_{}():
         let args = CleanUselessCommentsArgs {
             config: Some(env.path().join(".llman").join("config.yaml")),
             dry_run: true,
+            yes: false,
             interactive: false,
             force: true,
             verbose: true,

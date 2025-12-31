@@ -107,15 +107,12 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::ENV_MUTEX;
     use std::env;
-    use std::sync::Mutex;
-
-    // 使用互斥锁确保测试不会并发运行，避免环境变量冲突
-    static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_config_with_env_var() {
-        let _guard = TEST_MUTEX.lock().unwrap();
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
 
         let temp_dir = env::temp_dir().join("llman_test");
         unsafe {
@@ -133,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_app_dir() {
-        let _guard = TEST_MUTEX.lock().unwrap();
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
 
         let temp_dir = env::temp_dir().join("llman_test_app");
         unsafe {
@@ -151,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_rule_file_path() {
-        let _guard = TEST_MUTEX.lock().unwrap();
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
 
         let temp_dir = env::temp_dir().join("llman_test_rule");
         unsafe {

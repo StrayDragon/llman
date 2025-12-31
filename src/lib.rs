@@ -11,6 +11,9 @@ pub mod prompt;
 pub mod tool;
 pub mod x;
 
+#[cfg(test)]
+pub mod test_utils;
+
 use std::env;
 
 use config::ENV_LANG;

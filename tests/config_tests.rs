@@ -1,4 +1,5 @@
 use llman::tool::config::Config;
+use serde_json::Value;
 mod common;
 use common::*;
 
@@ -95,14 +96,18 @@ tools:
     );
 
     // Check if global_rules exists and has the right value
-    // Note: It seems the global_rules field is not being parsed correctly from YAML
-    // Let's skip this test for now and focus on other tests
-    if let Some(global_rules) = &clean_config.global_rules {
-        assert_eq!(
-            global_rules.min_comment_length,
-            Some((test_constants::SHORT_COMMENT_LENGTH + 3) as usize)
-        );
-    }
+    assert!(
+        clean_config.global_rules.is_some(),
+        "global_rules should not be None"
+    );
+    assert_eq!(
+        clean_config
+            .global_rules
+            .as_ref()
+            .unwrap()
+            .min_comment_length,
+        Some((test_constants::SHORT_COMMENT_LENGTH + 3) as usize)
+    );
 
     // Check if safety exists and has the right value
     assert!(clean_config.safety.is_some(), "safety should not be None");
@@ -184,9 +189,17 @@ fn test_config_schema_generation() {
     let schema_str = schema.unwrap();
 
     // Check that it's valid JSON and contains expected fields
-    assert!(schema_str.contains("\"type\": \"object\""));
-    assert!(schema_str.contains("\"version\""));
-    assert!(schema_str.contains("\"tools\""));
+    let schema_value: Value = serde_json::from_str(&schema_str).expect("Schema should be JSON");
+    assert_eq!(
+        schema_value.get("type").and_then(|value| value.as_str()),
+        Some("object")
+    );
+    let properties = schema_value
+        .get("properties")
+        .and_then(|value| value.as_object())
+        .expect("Schema should define properties");
+    assert!(properties.contains_key("version"));
+    assert!(properties.contains_key("tools"));
 }
 
 #[test]
