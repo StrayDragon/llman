@@ -18,6 +18,7 @@ fn test_clean_comments_command_with_valid_args() {
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: true,
         verbose: false,
@@ -39,6 +40,7 @@ fn test_clean_comments_command_with_default_config() {
     let args = CleanUselessCommentsArgs {
         config: None, // Use default
         dry_run: true,
+        yes: false,
         interactive: false,
         force: true,
         verbose: false,
@@ -59,6 +61,7 @@ fn test_clean_comments_command_with_missing_config() {
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join("nonexistent.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: true,
         verbose: false,
@@ -80,6 +83,7 @@ fn test_comment_processor_creation() {
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: true,
         verbose: false,
@@ -102,6 +106,7 @@ fn test_comment_processor_with_empty_files_list() {
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: true,
         verbose: false,
@@ -129,6 +134,7 @@ fn test_comment_processor_with_nonexistent_files() {
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: true,
         verbose: false,
@@ -176,6 +182,7 @@ fn test_clean_comments_verbose_mode() {
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: true,
         verbose: true, // Enable verbose mode
@@ -197,6 +204,7 @@ fn test_clean_comments_interactive_mode() {
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: true, // Enable interactive mode
         force: true,
         verbose: false,
@@ -218,6 +226,7 @@ fn test_clean_comments_git_only_mode() {
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: true,
         verbose: false,
@@ -240,6 +249,7 @@ fn test_clean_comments_dry_run_modes() {
     let args_dry = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
+        yes: false,
         interactive: false,
         force: true,
         verbose: false,
@@ -254,6 +264,7 @@ fn test_clean_comments_dry_run_modes() {
     let args_live = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: false,
+        yes: true,
         interactive: false,
         force: true,
         verbose: false,
@@ -263,4 +274,45 @@ fn test_clean_comments_dry_run_modes() {
 
     let result_live = clean_comments::run(&args_live);
     assert!(result_live.is_ok());
+}
+
+#[test]
+fn test_clean_comments_dry_run_first_safety() {
+    let env = TestEnvironment::new();
+    let original = "# Short comment\ndef test(): pass";
+    let test_file = env.create_file("test.py", original);
+
+    let config_content = r#"
+version: "0.1"
+tools:
+  clean-useless-comments:
+    scope:
+      include:
+        - "**/*.py"
+    lang-rules:
+      python:
+        single-line-comments: true
+        min-comment-length: 20
+    safety:
+      dry-run-first: true
+"#;
+
+    env.create_config(config_content);
+
+    let args = CleanUselessCommentsArgs {
+        config: Some(env.path().join(".llman").join("config.yaml")),
+        dry_run: false,
+        yes: true,
+        interactive: false,
+        force: false,
+        verbose: false,
+        git_only: false,
+        files: vec![test_file.clone()],
+    };
+
+    let result = clean_comments::run(&args);
+    assert!(result.is_ok());
+
+    let actual = std::fs::read_to_string(&test_file).unwrap();
+    assert_eq!(actual, original);
 }
