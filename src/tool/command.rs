@@ -12,6 +12,8 @@ pub enum ToolCommands {
     /// Clean useless comments from source code
     #[command(alias = "cuc")]
     CleanUselessComments(CleanUselessCommentsArgs),
+    /// Remove empty directories recursively
+    RmEmptyDirs(RmEmptyDirsArgs),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -42,4 +44,22 @@ pub struct CleanUselessCommentsArgs {
 
     /// Files to process (if not specified, use config scope)
     pub files: Vec<PathBuf>,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct RmEmptyDirsArgs {
+    /// Directory to scan (default: current directory)
+    pub path: Option<PathBuf>,
+
+    /// Actually delete empty directories (default: dry run)
+    #[arg(short = 'y', long)]
+    pub yes: bool,
+
+    /// Path to a .gitignore file to honor (default: ./.gitignore)
+    #[arg(long)]
+    pub gitignore: Option<PathBuf>,
+
+    /// Verbose output
+    #[arg(long, short = 'v')]
+    pub verbose: bool,
 }
