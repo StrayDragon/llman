@@ -29,9 +29,10 @@ llman tool clean-useless-comments [OPTIONS]
 # 选项
 --config <PATH>          # 指定配置文件路径（默认：.llman/config.yaml）
 --dry-run               # 预览模式，显示将要进行的更改但不实际执行
+--yes                   # 确认写入（默认只 dry-run）
 --interactive           # 交互模式，逐个确认更改
---backup <PATH>         # 备份目录路径（默认：.llman/backups）
---no-backup            # 禁用备份功能
+--backup <PATH>         # 备份目录路径（默认：.llman/backups，未实现）
+--no-backup            # 禁用备份功能（未实现）
 --force                # 强制执行，跳过确认提示
 --verbose              # 详细输出模式
 --git-only            # 仅处理 Git 已跟踪的文件
@@ -40,6 +41,7 @@ llman tool clean-useless-comments [OPTIONS]
 llman tool clean-useless-comments                    # 使用默认配置
 llman tool clean-useless-comments --dry-run          # 预览将要进行的更改
 llman tool clean-useless-comments --interactive      # 交互式确认
+llman tool clean-useless-comments -y                 # 实际写入
 llman tool clean-useless-comments --config custom.yaml  # 使用自定义配置
 ```
 
@@ -138,13 +140,14 @@ tools:
 
     # 安全设置
     safety:
-      backup-enabled: true             # 启用备份
-      backup-dir: ".llman/backups"     # 备份目录
-      backup-compression: true         # 压缩备份文件
+      # 备份能力为规划项，当前未实现
+      backup-enabled: true             # 启用备份（未实现）
+      backup-dir: ".llman/backups"     # 备份目录（未实现）
+      backup-compression: true         # 压缩备份文件（未实现）
       dry-run-first: true              # 首次运行时默认使用干运行
       git-aware: true                  # 仅处理 Git 已跟踪文件
       require-git-commit: true         # 要求 Git 提交后才能运行
-      max-backup-age: "30d"            # 备份文件保留时间
+      max-backup-age: "30d"            # 备份文件保留时间（未实现）
 
     # 输出设置
     output:
@@ -262,7 +265,7 @@ glob = "0.3"
 # 并行处理
 rayon = "1.8"
 
-# 文件比较和备份
+# 文件比较和备份（备份相关为规划项，未实现）
 similar = "2.4"
 tempfile = "3.10"
 tar = "0.4"
@@ -288,7 +291,7 @@ src/
 │   ├── mod.rs             # 工具命令主模块
 │   ├── clean_comments.rs  # 注释清理主逻辑
 │   ├── config.rs          # 配置管理
-│   ├── backup.rs          # 备份功能
+│   ├── backup.rs          # 备份功能（未实现）
 │   └── processors/        # 语言处理器
 │       ├── mod.rs
 │       ├── python.rs
@@ -324,7 +327,8 @@ src/
 
 ### 安全机制
 
-#### 1. 备份系统
+#### 1. 备份系统（未实现）
+当前决定不实现备份能力，以下为规划设计草案。
 ```rust
 pub struct BackupManager {
     backup_dir: PathBuf,
