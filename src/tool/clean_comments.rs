@@ -1,13 +1,20 @@
 use crate::tool::command::CleanUselessCommentsArgs;
 use crate::tool::config::Config;
 use crate::tool::processor::CommentProcessor;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
+use std::collections::HashSet;
+use std::path::Path;
+use std::process::Command;
 
 pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
     println!("Clean useless comments command");
 
     // Load configuration with local-first priority
     let config = Config::load_with_priority_or_default(args.config.as_deref())?;
+    let safety = config
+        .get_clean_comments_config()
+        .and_then(|clean_config| clean_config.safety.as_ref());
+    let effective_dry_run = effective_dry_run(args);
 
     if args.verbose {
         // Show which config was loaded
@@ -28,23 +35,55 @@ pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
         }
     }
 
-    if args.dry_run {
+    if effective_dry_run {
         println!("Dry run mode enabled - no files will be modified");
+        if !args.yes {
+            println!("Use -y to apply changes.");
+        }
     }
 
     if args.interactive {
         println!("Interactive mode enabled");
     }
 
-    // Check if we need confirmation before proceeding
-    if !args.force && !args.dry_run {
-        let should_proceed = if args.interactive {
-            ask_for_confirmation(args)?
-        } else {
-            // Default behavior: don't continue unless explicitly confirmed
-            ask_for_confirmation_with_default_no(args)?
-        };
+    warn_if_not_git_repo(args)?;
 
+    if let Some(safety) = safety {
+        if safety.dry_run_first.unwrap_or(false) && !effective_dry_run && !args.force {
+            println!("Safety: dry-run-first is enabled; running in dry-run mode only.");
+            println!("Re-run with -y --force to apply changes.");
+
+            let mut dry_args = args.clone();
+            dry_args.dry_run = true;
+            dry_args.yes = false;
+            dry_args.force = true;
+
+            let mut processor = CommentProcessor::new(config.clone(), dry_args);
+            let result = processor.process()?;
+            print_processing_results(&result);
+            return Ok(());
+        }
+
+        if safety.require_git_commit.unwrap_or(false) && !effective_dry_run && !args.force {
+            match is_git_repo_clean()? {
+                Some(true) => {}
+                Some(false) => {
+                    return Err(anyhow!(
+                        "Working tree has uncommitted changes; commit before running or use --force"
+                    ));
+                }
+                None => {
+                    eprintln!(
+                        "Warning: require-git-commit enabled but no git repository detected."
+                    );
+                }
+            }
+        }
+    }
+
+    // Check if we need confirmation before proceeding
+    if !args.force && !effective_dry_run && args.interactive {
+        let should_proceed = ask_for_confirmation(args)?;
         if !should_proceed {
             println!("Operation cancelled by user.");
             return Ok(());
@@ -56,6 +95,12 @@ pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
     let result = processor.process()?;
 
     // Display results
+    print_processing_results(&result);
+
+    Ok(())
+}
+
+fn print_processing_results(result: &crate::tool::processor::ProcessingResult) {
     println!("\n=== Processing Complete ===");
     println!("Files changed: {}", result.files_changed.len());
     println!("Comments removed: {}", result.comments_removed);
@@ -67,8 +112,6 @@ pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
             println!("  - {}", file.display());
         }
     }
-
-    Ok(())
 }
 
 fn ask_for_confirmation(args: &CleanUselessCommentsArgs) -> Result<bool> {
@@ -88,7 +131,7 @@ fn ask_for_confirmation(args: &CleanUselessCommentsArgs) -> Result<bool> {
         }
     }
 
-    if args.dry_run {
+    if effective_dry_run(args) {
         println!("Mode: Dry run (no files will be modified)");
     } else {
         println!("Mode: Live (files will be modified)");
@@ -102,105 +145,93 @@ fn ask_for_confirmation(args: &CleanUselessCommentsArgs) -> Result<bool> {
     Ok(answer)
 }
 
-fn ask_for_confirmation_with_default_no(args: &CleanUselessCommentsArgs) -> Result<bool> {
-    use inquire::Select;
+fn is_git_repo_clean() -> Result<Option<bool>> {
+    let output = match Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return Ok(None),
+    };
 
-    println!("\n=== Clean Useless Comments ===");
-    println!("This operation will remove comments from your source code files.");
-    println!("By default, this operation will NOT proceed without explicit confirmation.");
-
-    if let Some(config_path) = &args.config {
-        println!("Using configuration: {}", config_path.display());
+    if !output.status.success() {
+        return Ok(None);
     }
 
-    if !args.files.is_empty() {
-        println!("Files to process:");
-        for file in &args.files {
-            println!("  - {}", file.display());
-        }
+    let repo_root = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if repo_root.is_empty() {
+        return Ok(None);
     }
 
-    if args.dry_run {
-        println!("Mode: Dry run (no files will be modified)");
-    } else {
-        println!("Mode: Live (files will be modified)");
-        println!("⚠️  WARNING: This will modify your source files!");
+    let status = match Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&repo_root)
+        .output()
+    {
+        Ok(status) => status,
+        Err(_) => return Ok(None),
+    };
+
+    if !status.status.success() {
+        return Ok(None);
     }
 
-    let options = vec![
-        "No, cancel operation", // Default option (index 0)
-        "Yes, proceed with cleaning comments",
-        "Show detailed information first",
-    ];
-
-    let choice = Select::new("Choose an option:", options)
-        .with_starting_cursor(0) // Default to first option "No"
-        .with_help_message("Select whether to proceed with the operation")
-        .prompt()?;
-
-    match choice {
-        "Yes, proceed with cleaning comments" => Ok(true),
-        "No, cancel operation" => Ok(false),
-        "Show detailed information first" => {
-            show_detailed_information(args)?;
-            // After showing details, ask again with default to "No"
-            ask_for_confirmation_with_default_no(args)
-        }
-        _ => Ok(false),
-    }
+    Ok(Some(status.stdout.is_empty()))
 }
 
-fn show_detailed_information(args: &CleanUselessCommentsArgs) -> Result<()> {
-    println!("\n=== Detailed Information ===");
-    println!("This tool will scan and remove comments from source code files based on rules:");
-    println!("- Comments shorter than the minimum length will be removed");
-    println!("- Comments matching preservation patterns will be kept");
-    println!("- The operation respects file scope includes/excludes from configuration");
+fn warn_if_not_git_repo(args: &CleanUselessCommentsArgs) -> Result<()> {
+    let targets = if args.files.is_empty() {
+        vec![std::env::current_dir()?]
+    } else {
+        args.files.clone()
+    };
 
-    if let Some(config_path) = &args.config {
-        println!("\nConfiguration file: {}", config_path.display());
+    let mut checked = HashSet::new();
+    let mut missing = Vec::new();
 
-        // Try to load and show config details
-        if let Ok(config) = crate::tool::config::Config::load(config_path.clone())
-            && let Some(clean_config) = config.get_clean_comments_config()
-        {
-            println!("Include patterns: {:?}", clean_config.scope.include);
-            println!("Exclude patterns: {:?}", clean_config.scope.exclude);
+    for target in targets {
+        let path = if target.is_dir() {
+            target
+        } else {
+            target
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or(target.clone())
+        };
 
-            if let Some(lang_rules) = &clean_config.lang_rules.python {
-                println!("Python rules: {lang_rules:?}");
-            }
-            if let Some(lang_rules) = &clean_config.lang_rules.javascript {
-                println!("JavaScript rules: {lang_rules:?}");
-            }
-            if let Some(lang_rules) = &clean_config.lang_rules.rust {
-                println!("Rust rules: {lang_rules:?}");
-            }
-            if let Some(lang_rules) = &clean_config.lang_rules.go {
-                println!("Go rules: {lang_rules:?}");
-            }
+        if !path.exists() || !checked.insert(path.clone()) {
+            continue;
+        }
+
+        if !is_git_repo(&path)? {
+            missing.push(path);
         }
     }
 
-    if !args.files.is_empty() {
-        println!("\nSpecific files to process:");
-        for file in &args.files {
-            println!("  - {}", file.display());
+    if !missing.is_empty() {
+        eprintln!("Warning: target path is not inside a git repository:");
+        for path in missing {
+            eprintln!("  - {}", path.display());
         }
-    } else {
-        println!("\nWill process files based on configuration scope patterns.");
     }
-
-    if args.dry_run {
-        println!("\n🛡️  DRY RUN MODE: No files will actually be modified.");
-        println!("   You can safely review what would be changed.");
-    } else {
-        println!("\n⚠️  LIVE MODE: Files will be permanently modified!");
-        println!("   Make sure you have backups or use version control.");
-    }
-
-    println!("\n💡 Tip: You can use --force to skip this confirmation in the future.");
-    println!("   Or use --dry-run to preview changes without modifying files.");
 
     Ok(())
+}
+
+fn is_git_repo(path: &Path) -> Result<bool> {
+    let output = match Command::new("git")
+        .arg("-C")
+        .arg(path)
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return Ok(false),
+    };
+
+    Ok(output.status.success())
+}
+
+fn effective_dry_run(args: &CleanUselessCommentsArgs) -> bool {
+    args.dry_run || !args.yes
 }
