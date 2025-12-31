@@ -179,6 +179,8 @@ impl TreeSitterProcessor {
                             start_col: node.start_position().column,
                             end_line: node.end_position().row + 1,
                             end_col: node.end_position().column,
+                            start_byte: node.byte_range().start,
+                            end_byte: node.byte_range().end,
                             kind: self.classify_comment(node, &lang.name),
                         });
                     }
@@ -207,6 +209,8 @@ impl TreeSitterProcessor {
                 start_col: node.start_position().column,
                 end_line: node.end_position().row + 1,
                 end_col: node.end_position().column,
+                start_byte: node.byte_range().start,
+                end_byte: node.byte_range().end,
                 kind: self.classify_comment(node, lang_name),
             });
         }
@@ -227,7 +231,7 @@ impl TreeSitterProcessor {
                     CommentKind::Unknown
                 }
             }
-            "javascript" => match node_kind {
+            "javascript" | "typescript" => match node_kind {
                 "comment" => CommentKind::Line,
                 "block_comment" | "multiline_comment" => CommentKind::Block,
                 _ => CommentKind::Unknown,
@@ -316,52 +320,20 @@ impl TreeSitterProcessor {
             .collect();
 
         // Sort by start position (descending)
-        comments_to_remove
-            .sort_by(|a, b| (b.start_line, b.start_col).cmp(&(a.start_line, a.start_col)));
+        comments_to_remove.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
 
         for comment in comments_to_remove {
             removed_comments.push(comment.clone());
 
-            // Find the exact text in the source and remove it
-            // This is a simple implementation - in practice, we'd want to be more careful
-            // about whitespace and line breaks
-            if let Some(range) = self.find_comment_range(&result, comment) {
-                result.replace_range(range, "");
+            if comment.end_byte <= result.len() && comment.start_byte <= comment.end_byte {
+                result.replace_range(comment.start_byte..comment.end_byte, "");
             }
         }
 
         Ok((result, removed_comments))
     }
 
-    fn find_comment_range(
-        &self,
-        content: &str,
-        comment: &CommentInfo,
-    ) -> Option<std::ops::Range<usize>> {
-        // This is a simplified approach - find the comment text near the expected line
-        let lines: Vec<&str> = content.lines().collect();
-
-        if comment.start_line <= lines.len() {
-            let line = lines[comment.start_line - 1];
-            let start_pos = comment.start_col.min(line.len());
-
-            let trimmed_text = comment.text.trim();
-            if let Some(pos) = line[start_pos..].find(trimmed_text) {
-                let line_start = content[..content
-                    .lines()
-                    .take(comment.start_line - 1)
-                    .map(|l| l.len() + 1)
-                    .sum::<usize>()]
-                    .len();
-                let abs_start = line_start + start_pos + pos;
-                let abs_end = abs_start + trimmed_text.len();
-
-                return Some(abs_start..abs_end);
-            }
-        }
-
-        None
-    }
+    // Comment removal uses byte ranges from tree-sitter; no heuristic lookup needed.
 }
 
 #[derive(Debug, Clone)]
@@ -371,6 +343,8 @@ pub struct CommentInfo {
     pub start_col: usize,
     pub end_line: usize,
     pub end_col: usize,
+    pub start_byte: usize,
+    pub end_byte: usize,
     pub kind: CommentKind,
 }
 
@@ -452,5 +426,30 @@ function hello() {
         assert_eq!(comments.len(), 2);
         assert!(comments[0].text.contains("Line comment"));
         assert!(comments[1].text.contains("Block comment"));
+    }
+
+    #[test]
+    fn test_remove_multiline_block_comment_uses_byte_ranges() {
+        let mut processor = TreeSitterProcessor::new().unwrap();
+        let content = r#"
+fn main() {
+    /* Block comment
+       continues on another line */
+    let x = 1;
+}
+"#;
+
+        let rules = LanguageSpecificRules {
+            multi_line_comments: Some(true),
+            min_comment_length: Some(200),
+            ..Default::default()
+        };
+
+        let (new_content, removed) = processor
+            .remove_comments_from_content(content, Path::new("test.rs"), &rules)
+            .unwrap();
+
+        assert_eq!(removed.len(), 1);
+        assert!(!new_content.contains("Block comment"));
     }
 }
