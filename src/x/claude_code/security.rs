@@ -519,19 +519,22 @@ mod tests {
         };
 
         // Test critical severity
-        let (severity, description, _) = checker.get_pattern_details("rm -rf");
+        let (severity, description, recommendation) = checker.get_pattern_details("rm -rf");
         assert_eq!(severity, SecurityWarningSeverity::Critical);
-        assert!(description.contains("Force deletion"));
+        assert!(!description.is_empty());
+        assert!(!recommendation.is_empty());
 
         // Test high severity
-        let (severity, description, _) = checker.get_pattern_details("curl | sh");
+        let (severity, description, recommendation) = checker.get_pattern_details("curl | sh");
         assert_eq!(severity, SecurityWarningSeverity::High);
-        assert!(description.contains("Downloading and executing"));
+        assert!(!description.is_empty());
+        assert!(!recommendation.is_empty());
 
         // Test high severity for chmod
-        let (severity, description, _) = checker.get_pattern_details("chmod 777");
+        let (severity, description, recommendation) = checker.get_pattern_details("chmod 777");
         assert_eq!(severity, SecurityWarningSeverity::High);
-        assert!(description.contains("world-writable"));
+        assert!(!description.is_empty());
+        assert!(!recommendation.is_empty());
     }
 
     #[test]

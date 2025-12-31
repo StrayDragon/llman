@@ -23,6 +23,7 @@ pub struct CleanUselessCommentsConfig {
     pub scope: ScopeConfig,
     #[serde(rename = "lang-rules")]
     pub lang_rules: LanguageRules,
+    #[serde(rename = "global-rules")]
     pub global_rules: Option<GlobalRules>,
     pub safety: Option<SafetyConfig>,
     pub output: Option<OutputConfig>,
@@ -235,9 +236,9 @@ impl Default for Config {
                             multi_line_comments: Some(false),
                             docstrings: Some(false),
                             preserve_patterns: Some(vec![
-                                r"^\\s*#\\s*(TODO|FIXME|NOTE|HACK):\\s*.*".to_string(),
-                                r"^\\s*#\\s*(type|param|return|raises):\\s*.*".to_string(),
-                                r"^\\s*#\\s*(Copyright|License):\\s*.*".to_string(),
+                                r"^\s*#\s*(TODO|FIXME|NOTE|HACK):\s*.*".to_string(),
+                                r"^\s*#\s*(type|param|return|raises):\s*.*".to_string(),
+                                r"^\s*#\s*(Copyright|License):\s*.*".to_string(),
                             ]),
                             min_comment_length: Some(10),
                             min_code_complexity: Some(3),
@@ -249,9 +250,9 @@ impl Default for Config {
                             multi_line_comments: Some(false),
                             jsdoc: Some(false),
                             preserve_patterns: Some(vec![
-                                r"^\\s*//\\s*(TODO|FIXME|NOTE|HACK):\\s*.*".to_string(),
-                                r"^\\s*/\\*\\*.*\\*/".to_string(),
-                                r"^\\s*//\\s*(type|param|return):\\s*.*".to_string(),
+                                r"^\s*//\s*(TODO|FIXME|NOTE|HACK):\s*.*".to_string(),
+                                r"^\s*/\*\*.*\*/".to_string(),
+                                r"^\s*//\s*(type|param|return):\s*.*".to_string(),
                             ]),
                             min_comment_length: Some(10),
                             min_code_complexity: Some(3),
@@ -263,9 +264,9 @@ impl Default for Config {
                             multi_line_comments: Some(false),
                             doc_comments: Some(false),
                             preserve_patterns: Some(vec![
-                                r"^\\s*///\\s*(TODO|FIXME|NOTE|HACK):\\s*.*".to_string(),
-                                r"^\\s*//!\\s*(TODO|FIXME|NOTE|HACK):\\s*.*".to_string(),
-                                r"^\\s*///\\s*(Examples|Safety|Panics):\\s*.*".to_string(),
+                                r"^\s*///\s*(TODO|FIXME|NOTE|HACK):\s*.*".to_string(),
+                                r"^\s*//!\s*(TODO|FIXME|NOTE|HACK):\s*.*".to_string(),
+                                r"^\s*///\s*(Examples|Safety|Panics):\s*.*".to_string(),
                             ]),
                             min_comment_length: Some(8),
                             min_code_complexity: Some(2),
@@ -277,9 +278,8 @@ impl Default for Config {
                             multi_line_comments: Some(false),
                             godoc: Some(false),
                             preserve_patterns: Some(vec![
-                                r"^\\s*//\\s*(TODO|FIXME|NOTE|HACK):\\s*.*".to_string(),
-                                r"^\\s*//\\s*(Package|Function|Return|Parameters):\\s*.*"
-                                    .to_string(),
+                                r"^\s*//\s*(TODO|FIXME|NOTE|HACK):\s*.*".to_string(),
+                                r"^\s*//\s*(Package|Function|Return|Parameters):\s*.*".to_string(),
                             ]),
                             min_comment_length: Some(10),
                             min_code_complexity: Some(3),
@@ -354,5 +354,20 @@ tools:
         write!(temp_file, "{}", yaml).unwrap();
         let config = Config::load(temp_file.path());
         assert!(config.is_ok());
+    }
+
+    #[test]
+    fn test_default_preserve_patterns_match_todo() {
+        let config = Config::default();
+        let clean_config = config.tools.clean_useless_comments.unwrap();
+        let patterns = clean_config
+            .lang_rules
+            .python
+            .unwrap()
+            .preserve_patterns
+            .unwrap();
+
+        let regex = regex::Regex::new(&patterns[0]).unwrap();
+        assert!(regex.is_match("# TODO: check this"));
     }
 }
