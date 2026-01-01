@@ -285,6 +285,7 @@ impl CommentProcessor {
             Some("py") => Some("python"),
             Some("js") => Some("javascript"),
             Some("ts") => Some("typescript"),
+            Some("tsx") => Some("typescript"),
             Some("rs") => Some("rust"),
             Some("go") => Some("go"),
             _ => None,
