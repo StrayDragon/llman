@@ -1,7 +1,7 @@
 use crate::tool::config::LanguageSpecificRules;
 use anyhow::{Result, anyhow};
 use std::path::Path;
-use tree_sitter::{Language, Node, Parser, Query, QueryCursor};
+use tree_sitter::{Language, Node, Parser, Query, QueryCursor, StreamingIterator};
 use tree_sitter_highlight::HighlightConfiguration;
 
 pub struct TreeSitterProcessor {
@@ -27,45 +27,66 @@ impl TreeSitterProcessor {
     }
 
     fn init_supported_languages() -> Result<Vec<SupportedLanguage>> {
+        let python_language: Language = tree_sitter_python::LANGUAGE.into();
+        let python_comment_query = Self::create_comment_query(&python_language)?;
+        let javascript_language: Language = tree_sitter_javascript::LANGUAGE.into();
+        let javascript_comment_query = Self::create_comment_query(&javascript_language)?;
+        let typescript_language: Language = tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into();
+        let typescript_comment_query = Self::create_comment_query(&typescript_language)?;
+        let tsx_language: Language = tree_sitter_typescript::LANGUAGE_TSX.into();
+        let tsx_comment_query = Self::create_comment_query(&tsx_language)?;
+        let rust_language: Language = tree_sitter_rust::LANGUAGE.into();
+        let rust_comment_query = Self::create_comment_query(&rust_language)?;
+        let go_language: Language = tree_sitter_go::LANGUAGE.into();
+        let go_comment_query = Self::create_comment_query(&go_language)?;
+
         let languages = vec![
             // Python
             SupportedLanguage {
                 name: "python".to_string(),
                 file_extensions: vec!["py".to_string()],
-                language: tree_sitter_python::language(),
-                comment_query: Self::create_python_comment_query()?,
+                language: python_language,
+                comment_query: python_comment_query,
                 highlight_config: None,
             },
             // JavaScript
             SupportedLanguage {
                 name: "javascript".to_string(),
                 file_extensions: vec!["js".to_string(), "jsx".to_string()],
-                language: tree_sitter_javascript::language(),
-                comment_query: Self::create_javascript_comment_query()?,
+                language: javascript_language,
+                comment_query: javascript_comment_query,
                 highlight_config: None,
             },
             // TypeScript
             SupportedLanguage {
                 name: "typescript".to_string(),
-                file_extensions: vec!["ts".to_string(), "tsx".to_string()],
-                language: tree_sitter_typescript::language_typescript(),
-                comment_query: Self::create_typescript_comment_query()?,
+                file_extensions: vec!["ts".to_string()],
+                language: typescript_language,
+                comment_query: typescript_comment_query,
+                highlight_config: None,
+            },
+            // TSX
+            SupportedLanguage {
+                name: "typescript".to_string(),
+                file_extensions: vec!["tsx".to_string()],
+                language: tsx_language,
+                comment_query: tsx_comment_query,
                 highlight_config: None,
             },
             // Rust
             SupportedLanguage {
                 name: "rust".to_string(),
                 file_extensions: vec!["rs".to_string()],
-                language: tree_sitter_rust::language(),
-                comment_query: Self::create_rust_comment_query()?,
+                language: rust_language,
+                comment_query: rust_comment_query,
                 highlight_config: None,
             },
             // Go
             SupportedLanguage {
                 name: "go".to_string(),
                 file_extensions: vec!["go".to_string()],
-                language: tree_sitter_go::language(),
-                comment_query: Self::create_go_comment_query()?,
+                language: go_language,
+                comment_query: go_comment_query,
                 highlight_config: None,
             },
         ];
@@ -73,56 +94,12 @@ impl TreeSitterProcessor {
         Ok(languages)
     }
 
-    fn create_python_comment_query() -> Result<Option<Query>> {
+    fn create_comment_query(language: &Language) -> Result<Option<Query>> {
         let query_str = r#"
 (comment) @comment
         "#;
 
-        match Query::new(tree_sitter_python::language(), query_str) {
-            Ok(query) => Ok(Some(query)),
-            Err(_) => Ok(None),
-        }
-    }
-
-    fn create_javascript_comment_query() -> Result<Option<Query>> {
-        let query_str = r#"
-(comment) @comment
-        "#;
-
-        match Query::new(tree_sitter_javascript::language(), query_str) {
-            Ok(query) => Ok(Some(query)),
-            Err(_) => Ok(None),
-        }
-    }
-
-    fn create_typescript_comment_query() -> Result<Option<Query>> {
-        let query_str = r#"
-(comment) @comment
-        "#;
-
-        match Query::new(tree_sitter_typescript::language_typescript(), query_str) {
-            Ok(query) => Ok(Some(query)),
-            Err(_) => Ok(None),
-        }
-    }
-
-    fn create_rust_comment_query() -> Result<Option<Query>> {
-        let query_str = r#"
-(comment) @comment
-        "#;
-
-        match Query::new(tree_sitter_rust::language(), query_str) {
-            Ok(query) => Ok(Some(query)),
-            Err(_) => Ok(None),
-        }
-    }
-
-    fn create_go_comment_query() -> Result<Option<Query>> {
-        let query_str = r#"
-(comment) @comment
-        "#;
-
-        match Query::new(tree_sitter_go::language(), query_str) {
+        match Query::new(language, query_str) {
             Ok(query) => Ok(Some(query)),
             Err(_) => Ok(None),
         }
@@ -141,17 +118,13 @@ impl TreeSitterProcessor {
         content: &str,
         file_path: &Path,
     ) -> Result<Vec<CommentInfo>> {
-        let (language, has_query, lang_name) = match self.get_language_for_file(file_path) {
-            Some(lang) => (
-                lang.language,
-                lang.comment_query.is_some(),
-                lang.name.clone(),
-            ),
+        let (language, lang_name) = match self.get_language_for_file(file_path) {
+            Some(lang) => (lang.language.clone(), lang.name.clone()),
             None => return Ok(Vec::new()),
         };
 
         self.parser
-            .set_language(language)
+            .set_language(&language)
             .map_err(|e| anyhow!("Failed to set language: {}", e))?;
 
         let tree = self
@@ -161,29 +134,29 @@ impl TreeSitterProcessor {
 
         let mut comments = Vec::new();
 
-        if has_query {
-            if let Some(lang) = self.get_language_for_file(file_path)
-                && let Some(query) = &lang.comment_query
-            {
-                let mut cursor = QueryCursor::new();
-                let matches = cursor.matches(query, tree.root_node(), content.as_bytes());
+        let comment_query = self
+            .get_language_for_file(file_path)
+            .and_then(|lang| lang.comment_query.as_ref());
 
-                for mat in matches {
-                    for capture in mat.captures {
-                        let node = capture.node;
-                        let comment_text = &content[node.byte_range()];
+        if let Some(query) = comment_query {
+            let mut cursor = QueryCursor::new();
+            let mut matches = cursor.matches(query, tree.root_node(), content.as_bytes());
 
-                        comments.push(CommentInfo {
-                            text: comment_text.to_string(),
-                            start_line: node.start_position().row + 1,
-                            start_col: node.start_position().column,
-                            end_line: node.end_position().row + 1,
-                            end_col: node.end_position().column,
-                            start_byte: node.byte_range().start,
-                            end_byte: node.byte_range().end,
-                            kind: self.classify_comment(node, &lang.name),
-                        });
-                    }
+            while let Some(mat) = matches.next() {
+                for capture in mat.captures {
+                    let node = capture.node;
+                    let comment_text = &content[node.byte_range()];
+
+                    comments.push(CommentInfo {
+                        text: comment_text.to_string(),
+                        start_line: node.start_position().row + 1,
+                        start_col: node.start_position().column,
+                        end_line: node.end_position().row + 1,
+                        end_col: node.end_position().column,
+                        start_byte: node.byte_range().start,
+                        end_byte: node.byte_range().end,
+                        kind: self.classify_comment(node, &lang_name),
+                    });
                 }
             }
         } else {
