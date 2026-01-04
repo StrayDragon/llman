@@ -114,6 +114,14 @@ interactive:
     en: "Rule name will be used as filename"
     zh-CN: "规则名称将用作文件名"
 
+  input_target_dir:
+    en: "Target output directory:"
+    zh-CN: "目标输出目录:"
+
+  target_dir_help:
+    en: "Where to write generated rule files"
+    zh-CN: "生成规则文件的输出目录"
+
   no_templates:
     en: "⚠️  No templates available, nothing to generate"
     zh-CN: "⚠️  没有可用的模板，无法生成规则文件"
