@@ -59,6 +59,9 @@ llman prompt upsert --app cursor --name rust --content "This is example rules of
 # 生成新的prompt规则
 llman prompt gen --app cursor --template rust
 
+# 交互式生成(快捷)
+llman prompt
+
 # 交互式生成
 llman prompt gen -i # --interactive
 

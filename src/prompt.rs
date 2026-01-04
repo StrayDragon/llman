@@ -1,9 +1,12 @@
-use crate::config::{CURSOR_APP, Config, TARGET_CURSOR_RULES_DIR};
-use crate::path_utils::safe_parent_for_creation;
+use crate::config::{
+    CURSOR_APP, CURSOR_EXTENSION, Config, DEFAULT_EXTENSION, TARGET_CURSOR_RULES_DIR,
+};
+use crate::path_utils::{safe_parent_for_creation, validate_path_str};
 use anyhow::{Result, anyhow};
-use inquire::{Confirm, MultiSelect, Select};
+use inquire::{Confirm, MultiSelect, Select, Text, validator::Validation};
 use std::env;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 pub struct PromptCommand {
     config: Config,
@@ -36,8 +39,9 @@ impl PromptCommand {
             return Ok(());
         }
 
+        let target_dir = self.prompt_target_dir(app)?;
         for template_name in &templates {
-            self.generate_rules(app, template_name, false)?;
+            self.generate_rules_with_target_dir(app, template_name, false, Some(&target_dir))?;
         }
 
         println!("{}", t!("messages.rule_generation_success"));
@@ -45,6 +49,16 @@ impl PromptCommand {
     }
 
     pub fn generate_rules(&self, app: &str, template_name: &str, force: bool) -> Result<()> {
+        self.generate_rules_with_target_dir(app, template_name, force, None)
+    }
+
+    fn generate_rules_with_target_dir(
+        &self,
+        app: &str,
+        template_name: &str,
+        force: bool,
+        target_dir: Option<&Path>,
+    ) -> Result<()> {
         self.validate_app(app)?;
 
         if !force {
@@ -52,7 +66,7 @@ impl PromptCommand {
         }
 
         let rule_name = template_name;
-        let target_path = self.get_target_path(app, rule_name)?;
+        let target_path = self.get_target_path(app, rule_name, target_dir)?;
 
         if target_path.exists() && !force {
             let overwrite = Confirm::new(&t!(
@@ -169,13 +183,38 @@ impl PromptCommand {
         Ok(())
     }
 
-    fn get_target_path(&self, app: &str, name: &str) -> Result<std::path::PathBuf> {
+    fn prompt_target_dir(&self, app: &str) -> Result<PathBuf> {
+        let default_dir = self.resolve_target_dir(app, None)?;
+        let default_display = default_dir.to_string_lossy().to_string();
+        let target_dir = Text::new(&t!("interactive.input_target_dir"))
+            .with_default(&default_display)
+            .with_help_message(&t!("interactive.target_dir_help"))
+            .with_validator(|input: &str| match validate_path_str(input) {
+                Ok(()) => Ok(Validation::Valid),
+                Err(message) => Ok(Validation::Invalid(message.into())),
+            })
+            .prompt()?;
+        Ok(PathBuf::from(target_dir))
+    }
+
+    fn get_target_path(&self, app: &str, name: &str, target_dir: Option<&Path>) -> Result<PathBuf> {
+        let target_dir = self.resolve_target_dir(app, target_dir)?;
+        let extension = match app {
+            CURSOR_APP => CURSOR_EXTENSION,
+            _ => DEFAULT_EXTENSION,
+        };
+        Ok(target_dir.join(format!("{name}.{extension}")))
+    }
+
+    fn resolve_target_dir(&self, app: &str, target_dir: Option<&Path>) -> Result<PathBuf> {
+        if let Some(target_dir) = target_dir {
+            return Ok(target_dir.to_path_buf());
+        }
+
         match app {
             CURSOR_APP => {
                 let current_dir = env::current_dir()?;
-                Ok(current_dir
-                    .join(TARGET_CURSOR_RULES_DIR)
-                    .join(format!("{name}.mdc")))
+                Ok(current_dir.join(TARGET_CURSOR_RULES_DIR))
             }
             _ => Err(anyhow!(t!("errors.invalid_app", app = app))),
         }
@@ -222,11 +261,49 @@ fn select_templates(templates: Vec<String>) -> Result<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
-    use super::select_templates;
+    use super::{PromptCommand, select_templates};
+    use crate::config::{CURSOR_APP, TARGET_CURSOR_RULES_DIR};
+    use std::env;
+    use std::path::Path;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_config_dir(label: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        env::temp_dir().join(format!("llman_prompt_{label}_{nanos}"))
+    }
 
     #[test]
     fn test_select_templates_empty_returns_empty() {
         let result = select_templates(Vec::new()).unwrap();
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_get_target_path_with_custom_dir() {
+        let temp_dir = temp_config_dir("custom");
+        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        let target = command
+            .get_target_path(CURSOR_APP, "feedback-mode", Some(Path::new("custom/dir")))
+            .unwrap();
+        assert_eq!(target, Path::new("custom/dir").join("feedback-mode.mdc"));
+    }
+
+    #[test]
+    fn test_get_target_path_default_dir() {
+        let temp_dir = temp_config_dir("default");
+        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        let current_dir = env::current_dir().unwrap();
+        let target = command
+            .get_target_path(CURSOR_APP, "feedback-mode", None)
+            .unwrap();
+        assert_eq!(
+            target,
+            current_dir
+                .join(TARGET_CURSOR_RULES_DIR)
+                .join("feedback-mode.mdc")
+        );
     }
 }
