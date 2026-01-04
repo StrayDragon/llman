@@ -34,9 +34,10 @@ pub enum Commands {
 }
 
 #[derive(Parser)]
+#[command(subcommand_required = false)]
 pub struct PromptArgs {
     #[command(subcommand)]
-    pub command: PromptCommands,
+    pub command: Option<PromptCommands>,
 }
 
 #[derive(Subcommand)]
@@ -172,13 +173,13 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
     let prompt_cmd = PromptCommand::new()?;
 
     match &args.command {
-        PromptCommands::Gen {
+        Some(PromptCommands::Gen {
             interactive,
             app,
             template,
             force,
             ..
-        } => {
+        }) => {
             if *interactive {
                 prompt_cmd.generate_interactive()?;
             } else {
@@ -189,10 +190,10 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
                 )?;
             }
         }
-        PromptCommands::List { app } => {
+        Some(PromptCommands::List { app }) => {
             prompt_cmd.list_rules(app.as_deref())?;
         }
-        PromptCommands::Upsert { app, name, content } => {
+        Some(PromptCommands::Upsert { app, name, content }) => {
             prompt_cmd.upsert_rule(
                 app,
                 name,
@@ -200,8 +201,11 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
                 content.file.as_deref().and_then(|p| p.to_str()),
             )?;
         }
-        PromptCommands::Rm { app, name } => {
+        Some(PromptCommands::Rm { app, name }) => {
             prompt_cmd.remove_rule(app, name)?;
+        }
+        None => {
+            prompt_cmd.generate_interactive()?;
         }
     }
     Ok(())
