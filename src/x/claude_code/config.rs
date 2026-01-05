@@ -145,7 +145,9 @@ impl Config {
     }
 
     pub fn group_names(&self) -> Vec<String> {
-        self.groups.keys().cloned().collect()
+        let mut names: Vec<String> = self.groups.keys().cloned().collect();
+        names.sort();
+        names
     }
 
     pub fn is_empty(&self) -> bool {
