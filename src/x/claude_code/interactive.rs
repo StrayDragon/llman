@@ -168,16 +168,18 @@ pub fn display_config_list(config: &Config) {
     println!("{}:", t!("claude_code.interactive.configuration_groups"));
     println!();
 
-    for (name, group) in &config.groups {
-        println!("  📝 {}", name);
-        let display_vars = get_display_vars(group);
-        if display_vars.is_empty() {
-            println!("     ({})", t!("claude_code.interactive.no_env_vars"));
-        } else {
-            for (key, value) in display_vars {
-                println!("     {} = {}", key, value);
+    for name in config.group_names() {
+        if let Some(group) = config.get_group(&name) {
+            println!("  📝 {}", name);
+            let display_vars = get_display_vars(group);
+            if display_vars.is_empty() {
+                println!("     ({})", t!("claude_code.interactive.no_env_vars"));
+            } else {
+                for (key, value) in display_vars {
+                    println!("     {} = {}", key, value);
+                }
             }
+            println!();
         }
-        println!();
     }
 }
