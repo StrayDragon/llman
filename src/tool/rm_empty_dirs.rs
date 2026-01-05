@@ -36,6 +36,9 @@ pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
     } else {
         println!("Live mode enabled (empty directories will be removed).");
     }
+    if args.prune_ignored {
+        println!("Prune ignored entries enabled (ignored files/dirs may be deleted).");
+    }
     if args.verbose {
         if let Some(path) = gitignore_path.as_ref() {
             println!("Using .gitignore: {}", path.display());
@@ -48,10 +51,11 @@ pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
     let options = Options {
         dry_run,
         gitignore,
+        prune_ignored: args.prune_ignored,
         verbose: args.verbose,
     };
 
-    let root_empty = process_dir(&target, &options, &mut report)?;
+    let root_empty = process_dir(&target, false, &options, &mut report)?;
 
     if root_empty {
         if dry_run {
@@ -64,16 +68,41 @@ pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
     }
 
     println!("\n=== Summary ===");
-    if dry_run {
-        println!("Empty directories found: {}", report.targets.len());
-    } else {
+    println!("Empty directories found: {}", report.empty_dirs_found);
+    if !dry_run {
         println!("Empty directories removed: {}", report.targets.len());
+        if !report.failed.is_empty() {
+            println!("Empty directories failed: {}", report.failed.len());
+        }
+    }
+    println!("Directories scanned: {}", report.dirs_scanned);
+    println!("Files scanned: {}", report.files_scanned);
+    let ignored_entries = report.ignored_dirs + report.ignored_files;
+    if ignored_entries == 0 {
+        println!("Ignored entries: 0");
+    } else {
+        println!(
+            "Ignored entries: {} (dirs: {}, files: {})",
+            ignored_entries, report.ignored_dirs, report.ignored_files
+        );
     }
     println!("Errors: {}", report.errors);
 
     if !report.targets.is_empty() {
-        println!("\nDirectories:");
+        let label = if dry_run {
+            "Directories to remove"
+        } else {
+            "Directories removed"
+        };
+        println!("\n{}:", label);
         for dir in &report.targets {
+            println!("  - {}", dir.display());
+        }
+    }
+
+    if !report.failed.is_empty() {
+        println!("\nDirectories failed to remove:");
+        for dir in &report.failed {
             println!("  - {}", dir.display());
         }
     }
@@ -84,16 +113,29 @@ pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
 #[derive(Default)]
 struct RemovalReport {
     targets: Vec<PathBuf>,
+    failed: Vec<PathBuf>,
     errors: usize,
+    empty_dirs_found: usize,
+    dirs_scanned: usize,
+    files_scanned: usize,
+    ignored_dirs: usize,
+    ignored_files: usize,
 }
 
 struct Options {
     dry_run: bool,
     gitignore: Option<Gitignore>,
+    prune_ignored: bool,
     verbose: bool,
 }
 
-fn process_dir(dir: &Path, options: &Options, report: &mut RemovalReport) -> Result<bool> {
+fn process_dir(
+    dir: &Path,
+    parent_ignored: bool,
+    options: &Options,
+    report: &mut RemovalReport,
+) -> Result<bool> {
+    report.dirs_scanned += 1;
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(err) => {
@@ -108,6 +150,7 @@ fn process_dir(dir: &Path, options: &Options, report: &mut RemovalReport) -> Res
     };
 
     let mut is_empty = true;
+    let mut ignored_files = Vec::new();
 
     for entry in entries {
         let entry = match entry {
@@ -140,17 +183,46 @@ fn process_dir(dir: &Path, options: &Options, report: &mut RemovalReport) -> Res
         };
 
         let is_dir = file_type.is_dir();
-        if is_ignored(&path, is_dir, options) {
-            if options.verbose {
-                println!("Skipping ignored path: {}", path.display());
+        let match_result = match options.gitignore.as_ref() {
+            Some(gitignore) => gitignore.matched(&path, is_dir),
+            None => Match::None,
+        };
+        let ignored_by_match = matches!(match_result, Match::Ignore(_));
+        let is_whitelisted = matches!(match_result, Match::Whitelist(_));
+        let ignored = if parent_ignored {
+            !is_whitelisted
+        } else {
+            ignored_by_match
+        };
+        if ignored {
+            if is_dir {
+                report.ignored_dirs += 1;
+            } else {
+                report.ignored_files += 1;
             }
-            is_empty = false;
-            continue;
+            if !options.prune_ignored {
+                if options.verbose {
+                    println!("Skipping ignored path: {}", path.display());
+                }
+                is_empty = false;
+                continue;
+            }
+
+            if !is_dir {
+                ignored_files.push(path);
+                continue;
+            }
         }
 
         if is_dir {
-            let child_empty = process_dir(&path, options, report)?;
+            let child_parent_ignored = if is_whitelisted {
+                false
+            } else {
+                parent_ignored || ignored_by_match
+            };
+            let child_empty = process_dir(&path, child_parent_ignored, options, report)?;
             if child_empty {
+                report.empty_dirs_found += 1;
                 if try_remove_dir(&path, options, report) {
                     report.targets.push(path.clone());
                 } else {
@@ -160,7 +232,16 @@ fn process_dir(dir: &Path, options: &Options, report: &mut RemovalReport) -> Res
                 is_empty = false;
             }
         } else {
+            report.files_scanned += 1;
             is_empty = false;
+        }
+    }
+
+    if options.prune_ignored && is_empty && !ignored_files.is_empty() {
+        for file in ignored_files {
+            if !try_remove_ignored_file(&file, options, report) {
+                is_empty = false;
+            }
         }
     }
 
@@ -184,7 +265,35 @@ fn try_remove_dir(path: &Path, options: &Options, report: &mut RemovalReport) ->
         Ok(()) => true,
         Err(err) => {
             report.errors += 1;
+            report.failed.push(path.to_path_buf());
             eprintln!("Warning: failed to remove {}: {}", path.display(), err);
+            false
+        }
+    }
+}
+
+fn try_remove_ignored_file(path: &Path, options: &Options, report: &mut RemovalReport) -> bool {
+    if options.verbose {
+        if options.dry_run {
+            println!("Would remove ignored file: {}", path.display());
+        } else {
+            println!("Removing ignored file: {}", path.display());
+        }
+    }
+
+    if options.dry_run {
+        return true;
+    }
+
+    match fs::remove_file(path) {
+        Ok(()) => true,
+        Err(err) => {
+            report.errors += 1;
+            eprintln!(
+                "Warning: failed to remove ignored file {}: {}",
+                path.display(),
+                err
+            );
             false
         }
     }
@@ -218,11 +327,4 @@ fn load_gitignore(path: &Path) -> Result<Gitignore> {
         eprintln!("Warning: failed to fully parse {}: {}", path.display(), err);
     }
     Ok(gitignore)
-}
-
-fn is_ignored(path: &Path, is_dir: bool, options: &Options) -> bool {
-    match options.gitignore.as_ref() {
-        Some(gitignore) => matches!(gitignore.matched(path, is_dir), Match::Ignore(_)),
-        None => false,
-    }
 }

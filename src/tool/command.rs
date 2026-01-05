@@ -63,6 +63,10 @@ pub struct RmEmptyDirsArgs {
     #[arg(long)]
     pub gitignore: Option<PathBuf>,
 
+    /// Treat directories containing only ignored entries as removable (deletes ignored files/dirs)
+    #[arg(long)]
+    pub prune_ignored: bool,
+
     /// Verbose output
     #[arg(long, short = 'v')]
     pub verbose: bool,
