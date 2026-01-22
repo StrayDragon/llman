@@ -2,6 +2,7 @@ use crate::path_utils::safe_parent_for_creation;
 use anyhow::{Context, Result, anyhow};
 use directories::ProjectDirs;
 use llm_json::{RepairOptions, loads};
+use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -92,7 +93,7 @@ impl Config {
         }
 
         let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read config file: {}", path.display()))?;
+            .with_context(|| t!("claude_code.config.read_failed", path = path.display()))?;
 
         // Try to parse as new format first
         if let Ok(config) = Self::parse_new_format(&content) {
@@ -101,11 +102,11 @@ impl Config {
 
         // Try to parse as old format and migrate
         Self::parse_and_migrate_old_format(&content)
-            .with_context(|| "Failed to parse TOML config file (both old and new formats)")
+            .with_context(|| t!("claude_code.config.parse_all_failed"))
     }
 
     fn parse_new_format(content: &str) -> Result<Config> {
-        toml::from_str(content).with_context(|| "Failed to parse new format config")
+        toml::from_str(content).with_context(|| t!("claude_code.config.parse_new_failed"))
     }
 
     fn parse_and_migrate_old_format(content: &str) -> Result<Config> {
@@ -121,7 +122,7 @@ impl Config {
         }
 
         let old_config: OldConfig =
-            toml::from_str(content).with_context(|| "Failed to parse old format config")?;
+            toml::from_str(content).with_context(|| t!("claude_code.config.parse_old_failed"))?;
 
         // Migrate to new format
         let mut new_config = Config::default();
@@ -161,7 +162,7 @@ impl Config {
         }
 
         let project_dirs = ProjectDirs::from("com", "StrayDragon", "llman")
-            .ok_or_else(|| anyhow!("Could not find project directory"))?;
+            .ok_or_else(|| anyhow!(t!("claude_code.config.project_dir_not_found")))?;
         Ok(project_dirs.config_dir().join("claude-code.toml"))
     }
 
@@ -174,25 +175,29 @@ impl Config {
         // Create config directory if it doesn't exist
         if let Some(parent) = safe_parent_for_creation(path) {
             fs::create_dir_all(parent).with_context(|| {
-                format!("Failed to create config directory: {}", parent.display())
+                t!(
+                    "claude_code.config.create_dir_failed",
+                    path = parent.display()
+                )
             })?;
         }
 
-        let content =
-            toml::to_string_pretty(self).with_context(|| "Failed to serialize config to TOML")?;
+        let content = toml::to_string_pretty(self)
+            .with_context(|| t!("claude_code.config.serialize_failed"))?;
 
         fs::write(path, content)
-            .with_context(|| format!("Failed to write config file: {}", path.display()))?;
+            .with_context(|| t!("claude_code.config.write_failed", path = path.display()))?;
 
         // Set file permissions to 0600 (read/write for owner only)
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             let mut perms = fs::metadata(path)
-                .with_context(|| "Failed to get file metadata")?
+                .with_context(|| t!("claude_code.config.metadata_failed"))?
                 .permissions();
             perms.set_mode(0o600);
-            fs::set_permissions(path, perms).with_context(|| "Failed to set file permissions")?;
+            fs::set_permissions(path, perms)
+                .with_context(|| t!("claude_code.config.permissions_failed"))?;
         }
 
         Ok(())
@@ -232,17 +237,14 @@ pub fn parse_json_config(json_str: &str) -> Result<ConfigGroup> {
         Ok(value) => value,
         Err(_) => {
             // If standard parsing fails, try to repair the JSON
-            println!("⚠️  JSON format appears to be malformed, attempting to repair...");
+            eprintln!("{}", t!("claude_code.config.json_repairing"));
             match loads(json_str, &RepairOptions::default()) {
                 Ok(repaired_value) => {
-                    println!("✅ Successfully repaired JSON format");
+                    println!("{}", t!("claude_code.config.json_repaired"));
                     repaired_value
                 }
                 Err(e) => {
-                    anyhow::bail!(
-                        "Failed to parse JSON string even after repair attempts: {}",
-                        e
-                    );
+                    anyhow::bail!("{}", t!("claude_code.config.json_repair_failed", error = e));
                 }
             }
         }
@@ -254,13 +256,13 @@ pub fn parse_json_config(json_str: &str) -> Result<ConfigGroup> {
             if let Some(env_obj) = map.remove("env") {
                 match env_obj {
                     Value::Object(env_map) => convert_env_map(env_map),
-                    _ => anyhow::bail!("env field must be an object"),
+                    _ => anyhow::bail!(t!("claude_code.config.json_env_invalid")),
                 }
             } else {
                 convert_env_map(map)
             }
         }
-        _ => anyhow::bail!("JSON must be an object"),
+        _ => anyhow::bail!(t!("claude_code.config.json_must_object")),
     };
 
     Ok(env_vars)

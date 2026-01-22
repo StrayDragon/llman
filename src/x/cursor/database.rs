@@ -465,8 +465,8 @@ impl CursorDatabase {
             let default_name = workspace_dir
                 .file_name()
                 .and_then(|n| n.to_str())
-                .unwrap_or("Unknown")
-                .to_string();
+                .map(|name| name.to_string())
+                .unwrap_or_else(|| t!("cursor.workspace.unknown_name").to_string());
             (None, default_name)
         };
 

@@ -179,23 +179,17 @@ claude_code:
     interactive:
       prompt_args:
         en: "Do you want to pass arguments to claude?"
-        zh-CN: "是否要传递参数给 claude？"
       enter_args:
         en: "Enter arguments for claude command:"
-        zh-CN: "输入 claude 命令的参数："
       args_help:
         en: "e.g., --version --help project create"
-        zh-CN: "例如：--version --help project create"
     using_config:
       en: "Using configuration: %{name}"
-      zh-CN: "使用配置: %{name}"
     error:
       group_required_non_interactive:
         en: "Error: In non-interactive mode, --group is required"
-        zh-CN: "错误：非交互模式下必须指定 --group 参数"
       use_i_or_group:
         en: "Use -i for interactive mode or specify --group <name>"
-        zh-CN: "请使用 -i 进入交互模式，或指定 --group <名称>"
 ```
 
 ## 使用示例

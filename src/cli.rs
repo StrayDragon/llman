@@ -1,9 +1,10 @@
+use crate::config::{ENV_CONFIG_DIR, resolve_config_dir};
 use crate::prompt::PromptCommand;
 use crate::tool::command::{ToolArgs, ToolCommands};
 use crate::x::claude_code::command::ClaudeCodeArgs;
 use crate::x::codex::command::CodexArgs;
 use crate::x::cursor::command::CursorArgs;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use std::env;
 use std::fs;
@@ -112,7 +113,7 @@ pub fn run() -> Result<()> {
 
     // Set LLMAN_CONFIG_DIR environment variable for all subcommands
     unsafe {
-        env::set_var("LLMAN_CONFIG_DIR", &config_dir);
+        env::set_var(ENV_CONFIG_DIR, &config_dir);
     }
 
     match &cli.command {
@@ -124,34 +125,19 @@ pub fn run() -> Result<()> {
 
 /// Determine the configuration directory to use
 fn determine_config_dir(cli_config_dir: Option<&PathBuf>) -> Result<PathBuf> {
-    // If user explicitly provided config-dir, use it
-    if let Some(config_dir) = cli_config_dir {
-        return Ok(config_dir.clone());
-    }
-
-    // Otherwise, check if LLMAN_CONFIG_DIR environment variable is set
-    if let Ok(env_config_dir) = env::var("LLMAN_CONFIG_DIR") {
-        let env_path = PathBuf::from(env_config_dir);
-        return Ok(env_path);
-    }
+    let has_cli_override = cli_config_dir.is_some();
+    let has_env_override = env::var(ENV_CONFIG_DIR).is_ok();
 
     // Check if we're in llman development project
-    if is_llman_dev_project() {
-        // In llman project, config-dir is mandatory for safety
-        eprintln!("🚨 Error: Running within llman development project");
-        eprintln!("💡 You must specify --config-dir to avoid conflicts with user configurations");
-        eprintln!("   Example: --config-dir ./artifacts/llman_dev_config");
-        eprintln!("   Example: --config-dir ./artifacts/test_config");
-        eprintln!("   Alternatively, set LLMAN_CONFIG_DIR environment variable");
-        std::process::exit(1);
+    if !has_cli_override && !has_env_override && is_llman_dev_project() {
+        let message = t!(
+            "errors.dev_project_config_required",
+            env_var = ENV_CONFIG_DIR
+        );
+        return Err(anyhow!(message));
     }
 
-    // Default: ~/.config/llman
-    let default_config = dirs::config_dir()
-        .ok_or_else(|| anyhow::anyhow!("Failed to get config directory"))?
-        .join("llman");
-
-    Ok(default_config)
+    resolve_config_dir(cli_config_dir.map(|path| path.as_path()))
 }
 
 /// Check if current directory is an llman development project
@@ -231,6 +217,7 @@ fn handle_tool_command(args: &ToolArgs) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::determine_config_dir;
+    use crate::config::ENV_CONFIG_DIR;
     use crate::test_utils::ENV_MUTEX;
     use std::env;
 
@@ -241,14 +228,14 @@ mod tests {
         let cli_dir = env::temp_dir().join("llman_cli_dir");
 
         unsafe {
-            env::set_var("LLMAN_CONFIG_DIR", &env_dir);
+            env::set_var(ENV_CONFIG_DIR, &env_dir);
         }
 
         let resolved = determine_config_dir(Some(&cli_dir)).unwrap();
         assert_eq!(resolved, cli_dir);
 
         unsafe {
-            env::remove_var("LLMAN_CONFIG_DIR");
+            env::remove_var(ENV_CONFIG_DIR);
         }
     }
 }

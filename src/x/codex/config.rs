@@ -1,4 +1,6 @@
+use crate::config::resolve_config_dir;
 use anyhow::{Context, Result, bail};
+use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -22,9 +24,15 @@ impl Metadata {
             });
         }
 
-        let content = fs::read_to_string(&path).context("Failed to read metadata file")?;
+        let content = fs::read_to_string(&path).context(t!(
+            "codex.error.metadata_read_failed",
+            path = path.display()
+        ))?;
 
-        let metadata: Self = toml::from_str(&content).context("Failed to parse metadata file")?;
+        let metadata: Self = toml::from_str(&content).context(t!(
+            "codex.error.metadata_parse_failed",
+            path = path.display()
+        ))?;
 
         Ok(metadata)
     }
@@ -35,12 +43,19 @@ impl Metadata {
 
         // Create parent directory if needed
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).context("Failed to create codex directory")?;
+            fs::create_dir_all(parent).context(t!(
+                "codex.error.metadata_create_dir_failed",
+                path = parent.display()
+            ))?;
         }
 
-        let content = toml::to_string_pretty(self).context("Failed to serialize metadata")?;
+        let content =
+            toml::to_string_pretty(self).context(t!("codex.error.metadata_serialize_failed"))?;
 
-        fs::write(&path, content).context("Failed to write metadata file")?;
+        fs::write(&path, content).context(t!(
+            "codex.error.metadata_write_failed",
+            path = path.display()
+        ))?;
 
         Ok(())
     }
@@ -53,13 +68,7 @@ impl Metadata {
 
     /// Get codex configuration directory
     pub fn codex_dir() -> Result<PathBuf> {
-        let config_dir = if let Ok(dir) = std::env::var("LLMAN_CONFIG_DIR") {
-            PathBuf::from(dir)
-        } else {
-            dirs::config_dir()
-                .context("Failed to get config directory")?
-                .join("llman")
-        };
+        let config_dir = resolve_config_dir(None)?;
         Ok(config_dir.join("codex"))
     }
 
@@ -115,16 +124,22 @@ impl ConfigManager {
         let group_path = Self::group_path(name)?;
 
         if group_path.exists() {
-            bail!("Group '{}' already exists", name);
+            bail!("{}", t!("codex.error.group_exists", name = name));
         }
 
         // Create groups directory if needed
         if let Some(parent) = group_path.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent).context(t!(
+                "codex.error.create_group_dir_failed",
+                path = parent.display()
+            ))?;
         }
 
         // Write template
-        fs::write(&group_path, template)?;
+        fs::write(&group_path, template).context(t!(
+            "codex.error.create_group_write_failed",
+            path = group_path.display()
+        ))?;
 
         Ok(())
     }
@@ -134,16 +149,23 @@ impl ConfigManager {
         let group_path = Self::group_path(name)?;
 
         if group_path.exists() {
-            bail!("Group '{}' already exists", name);
+            bail!("{}", t!("codex.error.group_exists", name = name));
         }
 
         // Create groups directory if needed
         if let Some(parent) = group_path.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent).context(t!(
+                "codex.error.import_group_dir_failed",
+                path = parent.display()
+            ))?;
         }
 
         // Copy file
-        fs::copy(source_path, &group_path)?;
+        fs::copy(source_path, &group_path).context(t!(
+            "codex.error.import_group_copy_failed",
+            source = source_path.display(),
+            target = group_path.display()
+        ))?;
 
         Ok(())
     }
@@ -153,10 +175,13 @@ impl ConfigManager {
         let group_path = Self::group_path(name)?;
 
         if !group_path.exists() {
-            bail!("Group '{}' does not exist", name);
+            bail!("{}", t!("codex.error.group_not_found", name = name));
         }
 
-        fs::remove_file(&group_path)?;
+        fs::remove_file(&group_path).context(t!(
+            "codex.error.delete_group_failed",
+            path = group_path.display()
+        ))?;
 
         Ok(())
     }
@@ -166,10 +191,13 @@ impl ConfigManager {
         let group_path = Self::group_path(name)?;
 
         if !group_path.exists() {
-            bail!("Group '{}' does not exist", name);
+            bail!("{}", t!("codex.error.group_not_found", name = name));
         }
 
-        fs::read_to_string(&group_path).context("Failed to read group configuration")
+        fs::read_to_string(&group_path).context(t!(
+            "codex.error.read_group_failed",
+            path = group_path.display()
+        ))
     }
 
     /// Switch to a group by creating symlink
@@ -177,7 +205,7 @@ impl ConfigManager {
         let group_path = Self::group_path(name)?;
 
         if !group_path.exists() {
-            bail!("Group '{}' does not exist", name);
+            bail!("{}", t!("codex.error.group_not_found", name = name));
         }
 
         let codex_config = Self::codex_config_path()?;
@@ -185,18 +213,30 @@ impl ConfigManager {
         // Backup existing config if it's not a symlink
         if codex_config.exists() && !Self::is_symlink(&codex_config) {
             let backup_path = codex_config.with_extension("toml.backup");
-            fs::rename(&codex_config, &backup_path)?;
-            eprintln!("Backed up existing config to: {}", backup_path.display());
+            fs::rename(&codex_config, &backup_path).context(t!(
+                "codex.error.backup_failed",
+                path = codex_config.display()
+            ))?;
+            eprintln!(
+                "{}",
+                t!("codex.config.backup_notice", path = backup_path.display())
+            );
         }
 
         // Remove existing symlink/file
         if codex_config.exists() {
-            fs::remove_file(&codex_config)?;
+            fs::remove_file(&codex_config).context(t!(
+                "codex.error.remove_existing_config_failed",
+                path = codex_config.display()
+            ))?;
         }
 
         // Create parent directory if needed
         if let Some(parent) = codex_config.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent).context(t!(
+                "codex.error.create_codex_config_dir_failed",
+                path = parent.display()
+            ))?;
         }
 
         // Create symlink
@@ -212,7 +252,7 @@ impl ConfigManager {
 
     /// Get the path to ~/.codex/config.toml
     fn codex_config_path() -> Result<PathBuf> {
-        let home = dirs::home_dir().context("Failed to get home directory")?;
+        let home = dirs::home_dir().context(t!("codex.error.home_dir_failed"))?;
         Ok(home.join(".codex").join("config.toml"))
     }
 
@@ -233,14 +273,22 @@ impl ConfigManager {
     /// Create a symlink (or copy on Windows)
     #[cfg(unix)]
     fn create_symlink(source: &Path, target: &Path) -> Result<()> {
-        std::os::unix::fs::symlink(source, target).context("Failed to create symlink")?;
+        std::os::unix::fs::symlink(source, target).context(t!(
+            "codex.error.symlink_failed",
+            source = source.display(),
+            target = target.display()
+        ))?;
         Ok(())
     }
 
     #[cfg(windows)]
     fn create_symlink(source: &Path, target: &Path) -> Result<()> {
         // On Windows, copy the file instead of creating symlink
-        fs::copy(source, target).context("Failed to copy config file")?;
+        fs::copy(source, target).context(t!(
+            "codex.error.copy_failed",
+            source = source.display(),
+            target = target.display()
+        ))?;
         Ok(())
     }
 

@@ -6,7 +6,7 @@ use chrono::Utc;
 use clap::{Args, Subcommand};
 use inquire::{MultiSelect, Select, Text};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Args)]
 #[command(
@@ -60,9 +60,7 @@ pub struct ExportArgs {
 pub fn run(args: &CursorArgs) -> Result<()> {
     match &args.command {
         CursorCommands::Export(export_args) => {
-            if export_args.interactive
-                || export_args.composer_id.is_none() && export_args.workspace_dir.is_none()
-            {
+            if export_args.interactive {
                 export_interactive_with_path(
                     export_args.db_path.as_deref().and_then(|p| p.to_str()),
                 )
@@ -75,15 +73,38 @@ pub fn run(args: &CursorArgs) -> Result<()> {
 
 fn export_non_interactive(args: &ExportArgs) -> Result<()> {
     if args.debug {
-        println!("[DEBUG] 非交互式导出模式");
-        println!("[DEBUG] workspace_dir: {:?}", args.workspace_dir);
-        println!("[DEBUG] composer_id: {:?}", args.composer_id);
-        println!("[DEBUG] output_mode: {:?}", args.output_mode);
-        println!("[DEBUG] output_file: {:?}", args.output_file);
+        println!("{}", t!("cursor.export.debug_non_interactive"));
+        println!(
+            "{}",
+            t!(
+                "cursor.export.debug_workspace_dir",
+                path = display_option_path(&args.workspace_dir)
+            )
+        );
+        println!(
+            "{}",
+            t!(
+                "cursor.export.debug_composer_id",
+                id = display_option_string(&args.composer_id)
+            )
+        );
+        println!(
+            "{}",
+            t!(
+                "cursor.export.debug_output_mode",
+                mode = args.output_mode.as_str()
+            )
+        );
+        println!(
+            "{}",
+            t!(
+                "cursor.export.debug_output_file",
+                file = display_option_string(&args.output_file)
+            )
+        );
     }
 
-    // 暂时使用当前工作区的全局数据库
-    let db = CursorDatabase::new(None)?;
+    let db = resolve_database(args)?;
 
     if let Some(id) = &args.composer_id {
         // 直接导出指定的composer
@@ -96,9 +117,19 @@ fn export_non_interactive(args: &ExportArgs) -> Result<()> {
         );
     }
 
-    // 如果指定了workspace_dir，实现工作区选择逻辑
-    // 目前先用默认逻辑
-    export_interactive_with_path(None)
+    let all_conversations = db.get_all_conversations_mixed()?;
+    if all_conversations.is_empty() {
+        println!("{}", t!("cursor.export.no_conversations"));
+        return Ok(());
+    }
+
+    let selected_exports: Vec<&ConversationExport> = all_conversations.iter().collect();
+    export_by_mode(
+        &selected_exports,
+        &args.output_mode,
+        args.output_file.as_deref(),
+        args.debug,
+    )
 }
 
 fn export_composer_by_id(
@@ -109,7 +140,10 @@ fn export_composer_by_id(
     debug: bool,
 ) -> Result<()> {
     if debug {
-        println!("[DEBUG] 正在导出composer: {composer_id}");
+        println!(
+            "{}",
+            t!("cursor.export.debug_exporting_composer", id = composer_id)
+        );
     }
     let all_conversations = db.get_all_conversations_mixed()?;
 
@@ -123,19 +157,12 @@ fn export_composer_by_id(
 
     if let Some(conversation) = target_conversation {
         let conversations = vec![conversation];
-        match output_mode {
-            "console" => export_to_console(&conversations),
-            "single-file" => {
-                let filename = output_file.unwrap_or("cursor_export.md");
-                if debug {
-                    println!("[DEBUG] 导出到文件: {filename}");
-                }
-                export_to_single_file_with_name(&conversations, filename)?;
-            }
-            _ => println!("不支持的输出模式: {output_mode}"),
-        }
+        export_by_mode(&conversations, output_mode, output_file, debug)?;
     } else {
-        println!("未找到composer ID: {composer_id}");
+        return Err(anyhow!(t!(
+            "cursor.export.composer_not_found",
+            id = composer_id
+        )));
     }
 
     Ok(())
@@ -215,7 +242,7 @@ fn select_workspace() -> Result<String> {
         .iter()
         .find(|w| w.display_name() == selected)
         .map(|w| w.db_path.to_string_lossy().to_string())
-        .ok_or_else(|| anyhow!("Selected workspace not found"))
+        .ok_or_else(|| anyhow!(t!("cursor.workspace.selected_not_found")))
 }
 
 fn select_conversations(
@@ -226,8 +253,8 @@ fn select_conversations(
     let recent_count = std::cmp::min(5, summaries.len());
     for summary in summaries.iter().take(recent_count) {
         let type_indicator = match &summary.conversation_type {
-            ConversationType::Traditional => "(chat)",
-            ConversationType::Composer(_) => "(composer)",
+            ConversationType::Traditional => t!("cursor.export.conversation_type_chat"),
+            ConversationType::Composer(_) => t!("cursor.export.conversation_type_composer"),
         };
         options.push(format!(
             "📝 {} {} - {} - {}",
@@ -255,8 +282,8 @@ fn select_conversations(
             selected_indices.extend(search_conversations(db)?);
         } else if let Some(index) = summaries.iter().position(|summary| {
             let type_indicator = match &summary.conversation_type {
-                ConversationType::Traditional => "(chat)",
-                ConversationType::Composer(_) => "(composer)",
+                ConversationType::Traditional => t!("cursor.export.conversation_type_chat"),
+                ConversationType::Composer(_) => t!("cursor.export.conversation_type_composer"),
             };
             let option_text = format!(
                 "📝 {} {} - {} - {}",
@@ -334,14 +361,55 @@ fn handle_export(conversations: &[&ConversationExport]) -> Result<()> {
     Ok(())
 }
 
+fn export_by_mode(
+    conversations: &[&ConversationExport],
+    output_mode: &str,
+    output_file: Option<&str>,
+    debug: bool,
+) -> Result<()> {
+    match output_mode {
+        "console" => {
+            export_to_console(conversations);
+            Ok(())
+        }
+        "file" => {
+            let output_dir = resolve_output_dir(output_file)?;
+            export_to_files_with_dir(conversations, &output_dir)
+        }
+        "single-file" => {
+            let filename = output_file.unwrap_or("cursor_conversations.md");
+            if debug {
+                println!(
+                    "{}",
+                    t!("cursor.export.debug_exporting_file", filename = filename)
+                );
+            }
+            export_to_single_file_at(conversations, filename)
+        }
+        _ => Err(anyhow!(t!(
+            "cursor.export.unsupported_output_mode",
+            mode = output_mode
+        ))),
+    }
+}
+
 fn export_to_console(conversations: &[&ConversationExport]) {
-    println!("\n============================================================");
+    println!(
+        "\n{}",
+        t!("cursor.export.console_separator_char").repeat(60)
+    );
     println!("{}", t!("cursor.export.exported_content_title"));
-    println!("============================================================\n");
+    println!(
+        "{}\n",
+        t!("cursor.export.console_separator_char").repeat(60)
+    );
     for (i, conversation) in conversations.iter().enumerate() {
         println!("{}", conversation.to_markdown());
         if i < conversations.len() - 1 {
-            println!("\n----------------------------------------\n");
+            println!(
+                "\n{}\n",
+                t!("cursor.export.console_item_separator_char").repeat(40)
+            );
         }
     }
 }
@@ -351,30 +419,8 @@ fn export_to_files(conversations: &[&ConversationExport]) -> Result<()> {
         .with_default("./cursor_exports")
         .prompt()?;
 
-    validate_path_str(&output_dir).map_err(|e| anyhow!("Invalid output directory: {}", e))?;
-
-    let output_path = PathBuf::from(output_dir);
-    if !output_path.exists() {
-        fs::create_dir_all(&output_path)?;
-    }
-
-    for (i, conversation) in conversations.iter().enumerate() {
-        let filename = format!(
-            "{:02}_{}.md",
-            i + 1,
-            sanitize_filename(&conversation.get_title())
-        );
-        let file_path = output_path.join(&filename);
-        fs::write(&file_path, conversation.to_markdown())?;
-        println!(
-            "{}",
-            t!(
-                "cursor.export.export_success_file",
-                path = file_path.display()
-            )
-        );
-    }
-    Ok(())
+    let output_path = resolve_output_dir(Some(&output_dir))?;
+    export_to_files_with_dir(conversations, &output_path)
 }
 
 fn export_to_single_file(conversations: &[&ConversationExport]) -> Result<()> {
@@ -400,26 +446,7 @@ fn export_to_single_file(conversations: &[&ConversationExport]) -> Result<()> {
         content.push_str("\n\n---\n\n");
     }
 
-    fs::write(&filename, content)?;
-    println!(
-        "{}",
-        t!("cursor.export.export_success_single", filename = filename)
-    );
-    Ok(())
-}
-
-fn export_to_single_file_with_name(
-    conversations: &[&ConversationExport],
-    filename: &str,
-) -> Result<()> {
-    let mut content = String::new();
-    for conversation in conversations {
-        content.push_str(&conversation.to_markdown());
-        content.push_str("\n\n");
-    }
-    fs::write(filename, content)?;
-    println!("✅ 导出成功: {filename}");
-    Ok(())
+    export_to_single_file_with_content(&content, &filename)
 }
 
 fn sanitize_filename(name: &str) -> String {
@@ -428,4 +455,192 @@ fn sanitize_filename(name: &str) -> String {
         .collect::<String>()
         .trim()
         .replace(' ', "_")
+}
+
+fn export_to_files_with_dir(
+    conversations: &[&ConversationExport],
+    output_dir: &Path,
+) -> Result<()> {
+    if !output_dir.exists() {
+        fs::create_dir_all(output_dir)?;
+    }
+
+    for (i, conversation) in conversations.iter().enumerate() {
+        let filename = format!(
+            "{:02}_{}.md",
+            i + 1,
+            sanitize_filename(&conversation.get_title())
+        );
+        let file_path = output_dir.join(&filename);
+        fs::write(&file_path, conversation.to_markdown())?;
+        println!(
+            "{}",
+            t!(
+                "cursor.export.export_success_file",
+                path = file_path.display()
+            )
+        );
+    }
+    Ok(())
+}
+
+fn export_to_single_file_at(conversations: &[&ConversationExport], filename: &str) -> Result<()> {
+    let mut content = String::new();
+    content.push_str(&format!("# {}\n\n", t!("cursor.export.single_file_title")));
+    content.push_str(&format!(
+        "**{}**: {}\n",
+        t!("cursor.export.export_time_label"),
+        Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+    ));
+    content.push_str(&format!(
+        "**{}**: {}\n\n",
+        t!("cursor.export.conversation_count_label"),
+        conversations.len()
+    ));
+    content.push_str("---\n\n");
+
+    for conversation in conversations {
+        content.push_str(&conversation.to_markdown());
+        content.push_str("\n\n---\n\n");
+    }
+
+    export_to_single_file_with_content(&content, filename)
+}
+
+fn export_to_single_file_with_content(content: &str, filename: &str) -> Result<()> {
+    fs::write(filename, content)?;
+    println!(
+        "{}",
+        t!("cursor.export.export_success_single", filename = filename)
+    );
+    Ok(())
+}
+
+fn resolve_output_dir(output_dir: Option<&str>) -> Result<PathBuf> {
+    let output_dir = output_dir.unwrap_or("./cursor_exports");
+    validate_path_str(output_dir).map_err(|e| {
+        anyhow!(t!(
+            "cursor.export.invalid_output_dir",
+            path = output_dir,
+            error = e
+        ))
+    })?;
+    Ok(PathBuf::from(output_dir))
+}
+
+fn resolve_database(args: &ExportArgs) -> Result<CursorDatabase> {
+    if let Some(db_path) = args.db_path.as_deref() {
+        let db_path_str = db_path
+            .to_str()
+            .ok_or_else(|| anyhow!(t!("cursor.export.invalid_db_path")))?;
+        return Ok(CursorDatabase::new(Some(db_path_str))?);
+    }
+
+    if let Some(workspace_dir) = args.workspace_dir.as_deref() {
+        let db_path = resolve_workspace_db_path(workspace_dir)?;
+        let db_path_str = db_path
+            .to_str()
+            .ok_or_else(|| anyhow!(t!("cursor.export.invalid_workspace_db_path")))?;
+        return Ok(CursorDatabase::new(Some(db_path_str))?);
+    }
+
+    Ok(CursorDatabase::new(None)?)
+}
+
+fn resolve_workspace_db_path(workspace_dir: &Path) -> Result<PathBuf> {
+    if !workspace_dir.exists() {
+        return Err(anyhow!(t!(
+            "cursor.export.workspace_dir_not_exist",
+            path = workspace_dir.display()
+        )));
+    }
+    let workspaces = CursorDatabase::find_all_workspaces()?;
+    find_workspace_db_path(workspace_dir, &workspaces).ok_or_else(|| {
+        anyhow!(t!(
+            "cursor.export.workspace_not_found",
+            path = workspace_dir.display()
+        ))
+    })
+}
+
+fn find_workspace_db_path(
+    workspace_dir: &Path,
+    workspaces: &[crate::x::cursor::models::WorkspaceInfo],
+) -> Option<PathBuf> {
+    let target = normalize_path(workspace_dir);
+    for workspace in workspaces {
+        let project_path = workspace.project_path.as_ref()?;
+        if normalize_path(project_path) == target {
+            return Some(workspace.db_path.clone());
+        }
+    }
+    None
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn display_option_path(path: &Option<PathBuf>) -> String {
+    path.as_ref()
+        .map(|value| value.display().to_string())
+        .unwrap_or_else(|| t!("cursor.export.none").to_string())
+}
+
+fn display_option_string(value: &Option<String>) -> String {
+    value
+        .as_ref()
+        .cloned()
+        .unwrap_or_else(|| t!("cursor.export.none").to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{find_workspace_db_path, resolve_output_dir};
+    use crate::x::cursor::models::WorkspaceInfo;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_find_workspace_db_path_matches_project_path() {
+        let temp = TempDir::new().unwrap();
+        let project_dir = temp.path().join("project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let db_path = temp.path().join("state.vscdb");
+
+        let workspaces = vec![WorkspaceInfo {
+            db_path: db_path.clone(),
+            project_path: Some(project_dir.clone()),
+            project_name: "project".to_string(),
+            has_chat_data: false,
+        }];
+
+        let resolved = find_workspace_db_path(&project_dir, &workspaces).unwrap();
+        assert_eq!(resolved, db_path);
+    }
+
+    #[test]
+    fn test_find_workspace_db_path_missing_returns_none() {
+        let temp = TempDir::new().unwrap();
+        let project_dir = temp.path().join("project");
+        let other_dir = temp.path().join("other");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::create_dir_all(&other_dir).unwrap();
+        let db_path = temp.path().join("state.vscdb");
+
+        let workspaces = vec![WorkspaceInfo {
+            db_path,
+            project_path: Some(project_dir),
+            project_name: "project".to_string(),
+            has_chat_data: false,
+        }];
+
+        let resolved = find_workspace_db_path(&other_dir, &workspaces);
+        assert!(resolved.is_none());
+    }
+
+    #[test]
+    fn test_resolve_output_dir_defaults() {
+        let resolved = resolve_output_dir(None).unwrap();
+        assert_eq!(resolved, std::path::PathBuf::from("./cursor_exports"));
+    }
 }

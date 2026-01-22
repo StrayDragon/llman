@@ -7,7 +7,7 @@ use std::path::Path;
 use std::process::Command;
 
 pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
-    println!("Clean useless comments command");
+    println!("{}", t!("tool.clean_comments.start"));
 
     // Load configuration with local-first priority
     let config = Config::load_with_priority_or_default(args.config.as_deref())?;
@@ -19,39 +19,59 @@ pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
     if args.verbose {
         // Show which config was loaded
         if let Some(ref config_path) = args.config {
-            println!("Using explicit config: {}", config_path.display());
+            println!(
+                "{}",
+                t!(
+                    "tool.clean_comments.config_explicit",
+                    path = config_path.display()
+                )
+            );
         } else {
             let local_config = std::env::current_dir()?.join(".llman/config.yaml");
             if local_config.exists() {
-                println!("Using local config: .llman/config.yaml");
+                println!(
+                    "{}",
+                    t!(
+                        "tool.clean_comments.config_local",
+                        path = local_config.display()
+                    )
+                );
             } else {
-                println!("Using global config");
+                println!("{}", t!("tool.clean_comments.config_global"));
             }
         }
 
         if let Some(clean_config) = config.get_clean_comments_config() {
-            println!("Scope includes: {:?}", clean_config.scope.include);
-            println!("Scope excludes: {:?}", clean_config.scope.exclude);
+            let include = clean_config.scope.include.join(", ");
+            let exclude = clean_config.scope.exclude.join(", ");
+            println!(
+                "{}",
+                t!("tool.clean_comments.scope_includes", patterns = include)
+            );
+            println!(
+                "{}",
+                t!("tool.clean_comments.scope_excludes", patterns = exclude)
+            );
         }
     }
 
     if effective_dry_run {
-        println!("Dry run mode enabled - no files will be modified");
+        println!("{}", t!("tool.clean_comments.dry_run_enabled"));
         if !args.yes {
-            println!("Use -y to apply changes.");
+            println!("{}", t!("tool.clean_comments.dry_run_hint"));
         }
     }
 
     if args.interactive {
-        println!("Interactive mode enabled");
+        println!("{}", t!("tool.clean_comments.interactive_enabled"));
     }
 
     warn_if_not_git_repo(args)?;
 
     if let Some(safety) = safety {
         if safety.dry_run_first.unwrap_or(false) && !effective_dry_run && !args.force {
-            println!("Safety: dry-run-first is enabled; running in dry-run mode only.");
-            println!("Re-run with -y --force to apply changes.");
+            println!("{}", t!("tool.clean_comments.safety_dry_run_first"));
+            println!("{}", t!("tool.clean_comments.safety_dry_run_first_hint"));
 
             let mut dry_args = args.clone();
             dry_args.dry_run = true;
@@ -68,14 +88,10 @@ pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
             match is_git_repo_clean()? {
                 Some(true) => {}
                 Some(false) => {
-                    return Err(anyhow!(
-                        "Working tree has uncommitted changes; commit before running or use --force"
-                    ));
+                    return Err(anyhow!(t!("tool.clean_comments.git_dirty")));
                 }
                 None => {
-                    eprintln!(
-                        "Warning: require-git-commit enabled but no git repository detected."
-                    );
+                    eprintln!("{}", t!("tool.clean_comments.require_git_commit_no_repo"));
                 }
             }
         }
@@ -85,7 +101,7 @@ pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
     if !args.force && !effective_dry_run && args.interactive {
         let should_proceed = ask_for_confirmation(args)?;
         if !should_proceed {
-            println!("Operation cancelled by user.");
+            println!("{}", t!("tool.clean_comments.cancel"));
             return Ok(());
         }
     }
@@ -101,13 +117,28 @@ pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
 }
 
 fn print_processing_results(result: &crate::tool::processor::ProcessingResult) {
-    println!("\n=== Processing Complete ===");
-    println!("Files changed: {}", result.files_changed.len());
-    println!("Comments removed: {}", result.comments_removed);
-    println!("Errors: {}", result.errors);
+    println!("\n{}", t!("tool.clean_comments.summary_title"));
+    println!(
+        "{}",
+        t!(
+            "tool.clean_comments.summary_files_changed",
+            count = result.files_changed.len()
+        )
+    );
+    println!(
+        "{}",
+        t!(
+            "tool.clean_comments.summary_comments_removed",
+            count = result.comments_removed
+        )
+    );
+    println!(
+        "{}",
+        t!("tool.clean_comments.summary_errors", count = result.errors)
+    );
 
     if !result.files_changed.is_empty() {
-        println!("\nModified files:");
+        println!("\n{}", t!("tool.clean_comments.summary_modified_files"));
         for file in &result.files_changed {
             println!("  - {}", file.display());
         }
@@ -117,29 +148,35 @@ fn print_processing_results(result: &crate::tool::processor::ProcessingResult) {
 fn ask_for_confirmation(args: &CleanUselessCommentsArgs) -> Result<bool> {
     use inquire::Confirm;
 
-    println!("\n=== Clean Useless Comments ===");
-    println!("This operation will remove comments from your source code files.");
+    println!("\n{}", t!("tool.clean_comments.confirm_title"));
+    println!("{}", t!("tool.clean_comments.confirm_intro"));
 
     if let Some(config_path) = &args.config {
-        println!("Using configuration: {}", config_path.display());
+        println!(
+            "{}",
+            t!(
+                "tool.clean_comments.confirm_config",
+                path = config_path.display()
+            )
+        );
     }
 
     if !args.files.is_empty() {
-        println!("Files to process:");
+        println!("{}", t!("tool.clean_comments.confirm_files"));
         for file in &args.files {
             println!("  - {}", file.display());
         }
     }
 
     if effective_dry_run(args) {
-        println!("Mode: Dry run (no files will be modified)");
+        println!("{}", t!("tool.clean_comments.confirm_mode_dry"));
     } else {
-        println!("Mode: Live (files will be modified)");
+        println!("{}", t!("tool.clean_comments.confirm_mode_live"));
     }
 
-    let answer = Confirm::new("Do you want to continue?")
+    let answer = Confirm::new(&t!("tool.clean_comments.confirm_prompt"))
         .with_default(false)
-        .with_help_message("This will start the comment cleaning process")
+        .with_help_message(&t!("tool.clean_comments.confirm_help"))
         .prompt()?;
 
     Ok(answer)
@@ -209,7 +246,7 @@ fn warn_if_not_git_repo(args: &CleanUselessCommentsArgs) -> Result<()> {
     }
 
     if !missing.is_empty() {
-        eprintln!("Warning: target path is not inside a git repository:");
+        eprintln!("{}", t!("tool.clean_comments.warn_not_git_repo"));
         for path in missing {
             eprintln!("  - {}", path.display());
         }

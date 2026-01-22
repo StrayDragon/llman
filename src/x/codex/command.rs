@@ -109,9 +109,11 @@ fn handle_interactive_execution(args: &[String]) -> Result<()> {
     let groups = ConfigManager::get_group_names()?;
 
     if groups.is_empty() {
-        println!("{}", t!("codex.account.no_groups"));
-        println!("{}", t!("codex.account.create_hint"));
-        return Ok(());
+        bail!(
+            "{}\n{}",
+            t!("codex.account.no_groups"),
+            t!("codex.account.create_hint")
+        );
     }
 
     // Select group
@@ -145,9 +147,11 @@ fn handle_account_list() -> Result<()> {
 
     for name in groups {
         let is_current = metadata.current_group.as_ref() == Some(&name);
-        let marker = if is_current { " *" } else { "" };
-
-        println!("  {}{}", name, marker);
+        if is_current {
+            println!("  {}{}", name, t!("codex.account.current_marker"));
+        } else {
+            println!("  {}", name);
+        }
     }
 
     println!();
@@ -210,10 +214,10 @@ fn handle_account_edit(name: &str) -> Result<()> {
     let status = Command::new(&editor)
         .arg(&group_path)
         .status()
-        .context("Failed to open editor")?;
+        .context(t!("codex.error.open_editor_failed", editor = editor))?;
 
     if !status.success() {
-        bail!("Editor exited with status: {}", status);
+        bail!("{}", t!("codex.error.editor_exit_status", status = status));
     }
 
     println!("{}", t!("codex.account.edited", name = name));
@@ -228,7 +232,10 @@ fn handle_account_import(name: &str, path: &Path) -> Result<()> {
     }
 
     if !path.exists() {
-        bail!("File not found: {}", path.display());
+        bail!(
+            "{}",
+            t!("codex.error.file_not_found", path = path.display())
+        );
     }
 
     ConfigManager::import_group(name, path)?;
@@ -279,10 +286,10 @@ fn execute_codex(args: &[String]) -> Result<()> {
     }
 
     // Execute
-    let status = cmd.status().context("Failed to execute codex")?;
+    let status = cmd.status().context(t!("codex.error.execute_failed"))?;
 
     if !status.success() {
-        bail!("Codex exited with status: {}", status);
+        bail!("{}", t!("codex.error.exit_status", status = status));
     }
 
     Ok(())

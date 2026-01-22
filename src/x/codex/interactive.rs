@@ -22,12 +22,12 @@ pub fn select_group(groups: &[String]) -> Result<String> {
 
     let selection = Select::new(&t!("codex.interactive.select_group"), options.clone())
         .prompt()
-        .context("Failed to select group")?;
+        .context(t!("codex.error.select_group_failed"))?;
 
     let index = options
         .iter()
         .position(|option| option == &selection)
-        .context("Failed to map selection to group")?;
+        .context(t!("codex.error.select_group_map_failed"))?;
 
     Ok(groups[index].clone())
 }
@@ -43,7 +43,7 @@ pub fn select_template() -> Result<&'static str> {
 
     let selection = Select::new(&t!("codex.interactive.select_template"), options)
         .prompt()
-        .context("Failed to select template")?;
+        .context(t!("codex.error.select_template_failed"))?;
 
     // Map selection back to template key
     let template = if selection.starts_with("OpenAI") {
@@ -70,5 +70,5 @@ pub fn confirm_delete(name: &str) -> Result<bool> {
     Confirm::new(&t!("codex.interactive.confirm_delete", name = name))
         .with_default(false)
         .prompt()
-        .context("Failed to confirm deletion")
+        .context(t!("codex.error.confirm_delete_failed"))
 }

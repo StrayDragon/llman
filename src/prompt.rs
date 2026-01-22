@@ -104,7 +104,7 @@ impl PromptCommand {
         } else {
             let apps = vec![CURSOR_APP];
             for app in apps {
-                println!("\n📁 {app}:");
+                println!("\n{}", t!("prompt.list.app_header", app = app));
                 self.list_app_rules(app)?;
             }
         }
@@ -241,7 +241,7 @@ impl PromptCommand {
             println!("  {}", t!("errors.no_rules_found"));
         } else {
             for rule in rules {
-                println!("  📄 {rule}");
+                println!("  {}", t!("prompt.list.rule_item", name = rule));
             }
         }
 

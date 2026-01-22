@@ -12,13 +12,19 @@ pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
     };
 
     if !target.exists() {
-        return Err(anyhow!("Target path does not exist: {}", target.display()));
+        return Err(anyhow!(t!(
+            "tool.rm_empty_dirs.error.target_not_exist",
+            path = target.display()
+        )));
     }
 
     if !target.is_dir() {
         return Err(anyhow!(
-            "Target path is not a directory: {}",
-            target.display()
+            "{}",
+            t!(
+                "tool.rm_empty_dirs.error.target_not_dir",
+                path = target.display()
+            )
         ));
     }
 
@@ -29,21 +35,30 @@ pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
         None => None,
     };
 
-    println!("Remove empty directories");
-    println!("Target: {}", target.display());
+    println!("{}", t!("tool.rm_empty_dirs.start_title"));
+    println!(
+        "{}",
+        t!("tool.rm_empty_dirs.target_label", path = target.display())
+    );
     if dry_run {
-        println!("Dry run mode enabled (use -y to delete).");
+        println!("{}", t!("tool.rm_empty_dirs.dry_run_enabled"));
     } else {
-        println!("Live mode enabled (empty directories will be removed).");
+        println!("{}", t!("tool.rm_empty_dirs.live_mode_enabled"));
     }
     if args.prune_ignored {
-        println!("Prune ignored entries enabled (ignored files/dirs may be deleted).");
+        println!("{}", t!("tool.rm_empty_dirs.prune_ignored_enabled"));
     }
     if args.verbose {
         if let Some(path) = gitignore_path.as_ref() {
-            println!("Using .gitignore: {}", path.display());
+            println!(
+                "{}",
+                t!(
+                    "tool.rm_empty_dirs.verbose_gitignore_using",
+                    path = path.display()
+                )
+            );
         } else {
-            println!("No .gitignore configured.");
+            println!("{}", t!("tool.rm_empty_dirs.verbose_gitignore_none"));
         }
     }
 
@@ -59,40 +74,76 @@ pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
 
     if root_empty {
         if dry_run {
-            println!(
-                "Note: target directory would be empty after removal; root directory is not removed."
-            );
+            println!("{}", t!("tool.rm_empty_dirs.note_root_would_be_empty"));
         } else {
-            println!("Note: target directory is empty; root directory is not removed.");
+            println!("{}", t!("tool.rm_empty_dirs.note_root_empty"));
         }
     }
 
-    println!("\n=== Summary ===");
-    println!("Empty directories found: {}", report.empty_dirs_found);
+    println!("\n{}", t!("tool.rm_empty_dirs.summary_title"));
+    println!(
+        "{}",
+        t!(
+            "tool.rm_empty_dirs.summary_empty_dirs_found",
+            count = report.empty_dirs_found
+        )
+    );
     if !dry_run {
-        println!("Empty directories removed: {}", report.targets.len());
+        println!(
+            "{}",
+            t!(
+                "tool.rm_empty_dirs.summary_empty_dirs_removed",
+                count = report.targets.len()
+            )
+        );
         if !report.failed.is_empty() {
-            println!("Empty directories failed: {}", report.failed.len());
+            println!(
+                "{}",
+                t!(
+                    "tool.rm_empty_dirs.summary_empty_dirs_failed",
+                    count = report.failed.len()
+                )
+            );
         }
     }
-    println!("Directories scanned: {}", report.dirs_scanned);
-    println!("Files scanned: {}", report.files_scanned);
+    println!(
+        "{}",
+        t!(
+            "tool.rm_empty_dirs.summary_dirs_scanned",
+            count = report.dirs_scanned
+        )
+    );
+    println!(
+        "{}",
+        t!(
+            "tool.rm_empty_dirs.summary_files_scanned",
+            count = report.files_scanned
+        )
+    );
     let ignored_entries = report.ignored_dirs + report.ignored_files;
     if ignored_entries == 0 {
-        println!("Ignored entries: 0");
+        println!("{}", t!("tool.rm_empty_dirs.summary_ignored_entries_zero"));
     } else {
         println!(
-            "Ignored entries: {} (dirs: {}, files: {})",
-            ignored_entries, report.ignored_dirs, report.ignored_files
+            "{}",
+            t!(
+                "tool.rm_empty_dirs.summary_ignored_entries",
+                total = ignored_entries,
+                dirs = report.ignored_dirs,
+                files = report.ignored_files
+            )
         );
     }
-    println!("Errors: {}", report.errors);
+    println!(
+        "{}",
+        t!("tool.rm_empty_dirs.summary_errors", count = report.errors)
+    );
 
     if !report.targets.is_empty() {
         let label = if dry_run {
-            "Directories to remove"
+            t!("tool.rm_empty_dirs.list_to_remove")
         } else {
-            "Directories removed"
+            t!("tool.rm_empty_dirs.list_removed")
         };
         println!("\n{}:", label);
         for dir in &report.targets {
@@ -101,7 +152,7 @@ pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
     }
 
     if !report.failed.is_empty() {
-        println!("\nDirectories failed to remove:");
+        println!("\n{}:", t!("tool.rm_empty_dirs.list_failed_title"));
         for dir in &report.failed {
             println!("  - {}", dir.display());
         }
@@ -141,9 +192,12 @@ fn process_dir(
         Err(err) => {
             report.errors += 1;
             eprintln!(
-                "Warning: failed to read directory {}: {}",
-                dir.display(),
-                err
+                "{}",
+                t!(
+                    "tool.rm_empty_dirs.error.read_dir_failed",
+                    path = dir.display(),
+                    error = err
+                )
             );
             return Ok(false);
         }
@@ -158,9 +212,12 @@ fn process_dir(
             Err(err) => {
                 report.errors += 1;
                 eprintln!(
-                    "Warning: failed to read entry in {}: {}",
-                    dir.display(),
-                    err
+                    "{}",
+                    t!(
+                        "tool.rm_empty_dirs.error.read_entry_failed",
+                        path = dir.display(),
+                        error = err
+                    )
                 );
                 is_empty = false;
                 continue;
@@ -173,9 +230,12 @@ fn process_dir(
             Err(err) => {
                 report.errors += 1;
                 eprintln!(
-                    "Warning: failed to read file type for {}: {}",
-                    path.display(),
-                    err
+                    "{}",
+                    t!(
+                        "tool.rm_empty_dirs.error.read_file_type_failed",
+                        path = path.display(),
+                        error = err
+                    )
                 );
                 is_empty = false;
                 continue;
@@ -202,7 +262,13 @@ fn process_dir(
             }
             if !options.prune_ignored {
                 if options.verbose {
-                    println!("Skipping ignored path: {}", path.display());
+                    println!(
+                        "{}",
+                        t!(
+                            "tool.rm_empty_dirs.skipping_ignored_path",
+                            path = path.display()
+                        )
+                    );
                 }
                 is_empty = false;
                 continue;
@@ -251,9 +317,15 @@ fn process_dir(
 fn try_remove_dir(path: &Path, options: &Options, report: &mut RemovalReport) -> bool {
     if options.verbose {
         if options.dry_run {
-            println!("Would remove: {}", path.display());
+            println!(
+                "{}",
+                t!("tool.rm_empty_dirs.would_remove_dir", path = path.display())
+            );
         } else {
-            println!("Removing: {}", path.display());
+            println!(
+                "{}",
+                t!("tool.rm_empty_dirs.removing_dir", path = path.display())
+            );
         }
     }
 
@@ -266,7 +338,14 @@ fn try_remove_dir(path: &Path, options: &Options, report: &mut RemovalReport) ->
         Err(err) => {
             report.errors += 1;
             report.failed.push(path.to_path_buf());
-            eprintln!("Warning: failed to remove {}: {}", path.display(), err);
+            eprintln!(
+                "{}",
+                t!(
+                    "tool.rm_empty_dirs.error.remove_dir_failed",
+                    path = path.display(),
+                    error = err
+                )
+            );
             false
         }
     }
@@ -275,9 +354,21 @@ fn try_remove_dir(path: &Path, options: &Options, report: &mut RemovalReport) ->
 fn try_remove_ignored_file(path: &Path, options: &Options, report: &mut RemovalReport) -> bool {
     if options.verbose {
         if options.dry_run {
-            println!("Would remove ignored file: {}", path.display());
+            println!(
+                "{}",
+                t!(
+                    "tool.rm_empty_dirs.would_remove_ignored_file",
+                    path = path.display()
+                )
+            );
         } else {
-            println!("Removing ignored file: {}", path.display());
+            println!(
+                "{}",
+                t!(
+                    "tool.rm_empty_dirs.removing_ignored_file",
+                    path = path.display()
+                )
+            );
         }
     }
 
@@ -290,9 +381,12 @@ fn try_remove_ignored_file(path: &Path, options: &Options, report: &mut RemovalR
         Err(err) => {
             report.errors += 1;
             eprintln!(
-                "Warning: failed to remove ignored file {}: {}",
-                path.display(),
-                err
+                "{}",
+                t!(
+                    "tool.rm_empty_dirs.error.remove_ignored_file_failed",
+                    path = path.display(),
+                    error = err
+                )
             );
             false
         }
@@ -303,12 +397,21 @@ fn resolve_gitignore_path(args: &RmEmptyDirsArgs) -> Result<Option<PathBuf>> {
     if let Some(path) = &args.gitignore {
         if !path.exists() {
             return Err(anyhow!(
-                ".gitignore path does not exist: {}",
-                path.display()
+                "{}",
+                t!(
+                    "tool.rm_empty_dirs.error.gitignore_not_exist",
+                    path = path.display()
+                )
             ));
         }
         if !path.is_file() {
-            return Err(anyhow!(".gitignore path is not a file: {}", path.display()));
+            return Err(anyhow!(
+                "{}",
+                t!(
+                    "tool.rm_empty_dirs.error.gitignore_not_file",
+                    path = path.display()
+                )
+            ));
         }
         return Ok(Some(path.clone()));
     }
@@ -324,7 +427,14 @@ fn resolve_gitignore_path(args: &RmEmptyDirsArgs) -> Result<Option<PathBuf>> {
 fn load_gitignore(path: &Path) -> Result<Gitignore> {
     let (gitignore, err) = Gitignore::new(path);
     if let Some(err) = err {
-        eprintln!("Warning: failed to fully parse {}: {}", path.display(), err);
+        eprintln!(
+            "{}",
+            t!(
+                "tool.rm_empty_dirs.error.gitignore_parse_warning",
+                path = path.display(),
+                error = err
+            )
+        );
     }
     Ok(gitignore)
 }

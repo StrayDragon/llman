@@ -20,7 +20,13 @@ impl CommentProcessor {
         let tree_sitter_processor = match TreeSitterProcessor::new() {
             Ok(processor) => Some(processor),
             Err(e) => {
-                eprintln!("Warning: Failed to initialize TreeSitter processor: {e}");
+                eprintln!(
+                    "{}",
+                    t!(
+                        "tool.clean_comments.processor.init_tree_sitter_failed",
+                        error = e
+                    )
+                );
                 None
             }
         };
@@ -36,9 +42,9 @@ impl CommentProcessor {
         let clean_config = self
             .config
             .get_clean_comments_config()
-            .ok_or_else(|| anyhow!("No clean useless comments configuration found"))?;
+            .ok_or_else(|| anyhow!(t!("tool.clean_comments.processor.config_missing")))?;
 
-        println!("Processing files...");
+        println!("{}", t!("tool.clean_comments.processor.processing_files"));
         let effective_dry_run = self.effective_dry_run();
 
         // Clone the clean_config to avoid borrow issues
@@ -65,7 +71,13 @@ impl CommentProcessor {
 
         for file_path in files_to_process {
             if self.args.verbose {
-                println!("Processing: {}", file_path.display());
+                println!(
+                    "{}",
+                    t!(
+                        "tool.clean_comments.processor.processing_file",
+                        path = file_path.display()
+                    )
+                );
             }
 
             match self.process_file(&file_path, &clean_config_clone) {
@@ -76,15 +88,25 @@ impl CommentProcessor {
 
                         if self.args.verbose || !effective_dry_run {
                             println!(
-                                "File: {} - Removed {} comments",
-                                file_path.display(),
-                                file_result.comments_removed
+                                "{}",
+                                t!(
+                                    "tool.clean_comments.processor.file_removed_comments",
+                                    path = file_path.display(),
+                                    count = file_result.comments_removed
+                                )
                             );
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error processing {}: {e}", file_path.display());
+                    eprintln!(
+                        "{}",
+                        t!(
+                            "tool.clean_comments.processor.error_processing",
+                            path = file_path.display(),
+                            error = e
+                        )
+                    );
                     results.errors += 1;
                 }
             }
@@ -103,7 +125,7 @@ impl CommentProcessor {
         let mut files = Vec::new();
 
         if git_only && tracked_files.is_none() {
-            eprintln!("Warning: git-only enabled but no git repository detected.");
+            eprintln!("{}", t!("tool.clean_comments.processor.git_only_no_repo"));
             return Ok(files);
         }
 
@@ -118,10 +140,22 @@ impl CommentProcessor {
                     {
                         files.push(file.clone());
                     } else {
-                        eprintln!("Warning: File not tracked by git: {}", file.display());
+                        eprintln!(
+                            "{}",
+                            t!(
+                                "tool.clean_comments.processor.file_not_tracked",
+                                path = file.display()
+                            )
+                        );
                     }
                 } else {
-                    eprintln!("Warning: File not found: {}", file.display());
+                    eprintln!(
+                        "{}",
+                        t!(
+                            "tool.clean_comments.processor.file_not_found",
+                            path = file.display()
+                        )
+                    );
                 }
             }
             return Ok(files);
@@ -147,7 +181,10 @@ impl CommentProcessor {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error walking directory: {e}");
+                    eprintln!(
+                        "{}",
+                        t!("tool.clean_comments.processor.walk_error", error = e)
+                    );
                 }
             }
         }
@@ -310,6 +347,7 @@ impl CommentProcessor {
         }
     }
 
+    #[allow(dead_code)]
     fn remove_comments(
         &self,
         content: &str,
@@ -330,6 +368,7 @@ impl CommentProcessor {
         Ok(result)
     }
 
+    #[allow(dead_code)]
     fn remove_single_line_comments(
         &self,
         content: &str,
@@ -343,7 +382,13 @@ impl CommentProcessor {
             .collect();
 
         if self.args.verbose {
-            println!("Found {} preserve patterns", preserve_regexes.len());
+            println!(
+                "{}",
+                t!(
+                    "tool.clean_comments.processor.preserve_patterns_found",
+                    count = preserve_regexes.len()
+                )
+            );
         }
 
         let lines: Vec<&str> = content.lines().collect();
@@ -372,16 +417,40 @@ impl CommentProcessor {
                 should_remove = !should_preserve && comment_too_short;
 
                 if self.args.verbose {
-                    println!("Processing line: '{line}'");
-                    println!("  - comment: '{}'", comment.trim());
-                    println!("  - should_preserve: {should_preserve}");
                     println!(
-                        "  - comment_too_short: {} (len: {}, min: {})",
-                        comment_too_short,
-                        comment.trim().len(),
-                        min_length
+                        "{}",
+                        t!("tool.clean_comments.processor.debug_line", line = line)
                     );
-                    println!("  - would remove: {should_remove}");
+                    println!(
+                        "{}",
+                        t!(
+                            "tool.clean_comments.processor.debug_comment",
+                            comment = comment.trim()
+                        )
+                    );
+                    println!(
+                        "{}",
+                        t!(
+                            "tool.clean_comments.processor.debug_should_preserve",
+                            preserve = should_preserve
+                        )
+                    );
+                    println!(
+                        "{}",
+                        t!(
+                            "tool.clean_comments.processor.debug_comment_too_short",
+                            too_short = comment_too_short,
+                            len = comment.trim().len(),
+                            min = min_length
+                        )
+                    );
+                    println!(
+                        "{}",
+                        t!(
+                            "tool.clean_comments.processor.debug_would_remove",
+                            remove = should_remove
+                        )
+                    );
                 }
             }
 
@@ -398,6 +467,7 @@ impl CommentProcessor {
         Ok(result.join("\n"))
     }
 
+    #[allow(dead_code)]
     fn remove_multi_line_comments(
         &self,
         content: &str,
@@ -408,7 +478,12 @@ impl CommentProcessor {
         let mut result = content.to_string();
 
         // Remove C-style multi-line comments /* ... */
-        let re = Regex::new(r"/\*.*?\*/").map_err(|e| anyhow!("Failed to build regex: {}", e))?;
+        let re = Regex::new(r"/\*.*?\*/").map_err(|e| {
+            anyhow!(t!(
+                "tool.clean_comments.processor.regex_build_failed",
+                error = e
+            ))
+        })?;
         result = re.replace_all(&result, "").to_string();
 
         Ok(result)
@@ -420,42 +495,27 @@ impl CommentProcessor {
         file_path: &Path,
         rules: &crate::tool::config::LanguageSpecificRules,
     ) -> Result<(String, u32)> {
-        if let Some(ref mut tree_sitter_processor) = self.tree_sitter_processor {
-            match tree_sitter_processor.remove_comments_from_content(content, file_path, rules) {
-                Ok((new_content, removed_comments)) => {
-                    let comments_removed = removed_comments.len() as u32;
-                    Ok((new_content, comments_removed))
-                }
-                Err(e) => {
-                    if self.args.verbose {
-                        eprintln!(
-                            "Tree-sitter processing failed for {}: {}, falling back to regex",
-                            file_path.display(),
-                            e
-                        );
-                    }
-                    // Fallback to regex-based processing
-                    let new_content = self.remove_comments(content, rules)?;
-                    let comments_removed = if new_content != content {
-                        self.count_removed_comments(content, &new_content)
-                    } else {
-                        0
-                    };
-                    Ok((new_content, comments_removed))
-                }
+        let tree_sitter_processor = self.tree_sitter_processor.as_mut().ok_or_else(|| {
+            anyhow!(t!(
+                "tool.clean_comments.processor.tree_sitter_unavailable",
+                path = file_path.display()
+            ))
+        })?;
+
+        match tree_sitter_processor.remove_comments_from_content(content, file_path, rules) {
+            Ok((new_content, removed_comments)) => {
+                let comments_removed = removed_comments.len() as u32;
+                Ok((new_content, comments_removed))
             }
-        } else {
-            // No tree-sitter processor available, use regex fallback
-            let new_content = self.remove_comments(content, rules)?;
-            let comments_removed = if new_content != content {
-                self.count_removed_comments(content, &new_content)
-            } else {
-                0
-            };
-            Ok((new_content, comments_removed))
+            Err(e) => Err(anyhow!(t!(
+                "tool.clean_comments.processor.tree_sitter_failed",
+                path = file_path.display(),
+                error = e
+            ))),
         }
     }
 
+    #[allow(dead_code)]
     fn count_removed_comments(&self, original: &str, modified: &str) -> u32 {
         // Simple heuristic: count lines that were removed
         let original_lines = original.lines().count();
@@ -485,5 +545,74 @@ pub struct FileProcessingResult {
 impl FileProcessingResult {
     pub fn has_changes(&self) -> bool {
         self.has_changes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CommentProcessor;
+    use crate::tool::command::CleanUselessCommentsArgs;
+    use crate::tool::config::{
+        CleanUselessCommentsConfig, Config, LanguageRules, LanguageSpecificRules, ScopeConfig,
+        ToolsConfig,
+    };
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_tree_sitter_unavailable_does_not_modify_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let work_dir = temp_dir.path();
+        let file_path = work_dir.join("test.py");
+        let original = "# short\n\ndef test():\n    pass\n";
+        std::fs::write(&file_path, original).unwrap();
+
+        let config = Config {
+            version: "0.1".to_string(),
+            tools: ToolsConfig {
+                clean_useless_comments: Some(CleanUselessCommentsConfig {
+                    scope: ScopeConfig {
+                        include: vec!["**/*.py".to_string()],
+                        exclude: Vec::new(),
+                    },
+                    lang_rules: LanguageRules {
+                        python: Some(LanguageSpecificRules {
+                            single_line_comments: Some(true),
+                            min_comment_length: Some(100),
+                            ..Default::default()
+                        }),
+                        javascript: None,
+                        typescript: None,
+                        rust: None,
+                        go: None,
+                    },
+                    global_rules: None,
+                    safety: None,
+                    output: None,
+                }),
+            },
+        };
+
+        let args = CleanUselessCommentsArgs {
+            config: None,
+            dry_run: false,
+            yes: true,
+            interactive: false,
+            force: true,
+            verbose: false,
+            git_only: false,
+            files: vec![file_path.clone()],
+        };
+
+        let mut processor = CommentProcessor {
+            config,
+            args,
+            tree_sitter_processor: None,
+        };
+        let result = processor.process().unwrap();
+        assert_eq!(result.errors, 1);
+        assert!(result.files_changed.is_empty());
+
+        let actual = std::fs::read_to_string(&file_path).unwrap();
+        assert_eq!(actual, original);
     }
 }

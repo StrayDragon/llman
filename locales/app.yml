@@ -1,911 +1,1410 @@
 _version: 2
 
-# CLI 帮助信息
+# NOTE: i18n strings are placeholders; English-only unless explicitly requested.
+# CLI help
 cli:
   description:
     en: "A tool for managing LLM application rules(prompts) ..."
-    zh-CN: "用于管理 LLM 应用规则（提示）的工具..."
 
   config_dir_help:
     en: "Specify configuration directory path"
-    zh-CN: "指定配置目录路径"
 
   log_level_help:
     en: "Set log level"
-    zh-CN: "设置日志级别"
 
   verbose_help:
     en: "Verbose output"
-    zh-CN: "详细输出"
 
-# Prompt 子命令
+# Prompt subcommands
 prompt:
   about:
     en: "Manage prompt rule files (alias: rule)"
-    zh-CN: "管理提示规则文件 (别名: rule)"
 
   gen:
     about:
       en: "Generate rule file"
-      zh-CN: "生成规则文件"
 
     interactive_help:
       en: "Use interactive mode"
-      zh-CN: "使用交互式模式"
 
     app_help:
       en: "Target application name (e.g.: cursor)"
-      zh-CN: "目标应用名称 (如: cursor)"
 
     template_help:
       en: "Template name"
-      zh-CN: "模板名称"
 
     name_help:
       en: "Rule name (optional, defaults to template name)"
-      zh-CN: "规则名称（可选，默认使用模板名称）"
 
     force_help:
       en: "Force generation, skip repository detection"
-      zh-CN: "强制生成，跳过仓库检测"
 
   list:
     about:
       en: "List rule files"
-      zh-CN: "列出规则文件"
 
     app_help:
       en: "Specify application name"
-      zh-CN: "指定应用名称"
+
+    app_header:
+      en: "📁 %{app}:"
+
+    rule_item:
+      en: "📄 %{name}"
 
   upsert:
     about:
       en: "Update or insert rule file"
-      zh-CN: "更新或插入规则文件"
 
     app_help:
       en: "Application name"
-      zh-CN: "应用名称"
 
     name_help:
       en: "Rule name"
-      zh-CN: "规则名称"
 
     content_help:
       en: "Rule content"
-      zh-CN: "规则内容"
 
     file_help:
       en: "File path containing rule content"
-      zh-CN: "包含规则内容的文件路径"
 
   rm:
     about:
       en: "Remove rule file"
-      zh-CN: "删除规则文件"
 
     app_help:
       en: "Application name"
-      zh-CN: "应用名称"
 
     name_help:
       en: "Rule name"
-      zh-CN: "规则名称"
 
-# 交互式提示
+# Interactive prompts
 interactive:
   title:
     en: "🚀 Interactive rule file generation"
-    zh-CN: "🚀 交互式生成规则文件"
 
   select_app:
     en: "Select target application:"
-    zh-CN: "选择目标应用:"
 
   select_template:
     en: "Select template:"
-    zh-CN: "选择模板:"
 
   input_name:
     en: "Enter rule name:"
-    zh-CN: "输入规则名称:"
 
   name_help:
     en: "Rule name will be used as filename"
-    zh-CN: "规则名称将用作文件名"
 
   input_target_dir:
     en: "Target output directory:"
-    zh-CN: "目标输出目录:"
 
   target_dir_help:
     en: "Where to write generated rule files"
-    zh-CN: "生成规则文件的输出目录"
 
   no_templates:
     en: "⚠️  No templates available, nothing to generate"
-    zh-CN: "⚠️  没有可用的模板，无法生成规则文件"
 
   no_templates_hint:
     en: "Hint: add a template with `llman prompt upsert --app cursor --name <name> --content <content>`"
-    zh-CN: "提示：可用 `llman prompt upsert --app cursor --name <name> --content <content>` 新增模板"
 
-# 消息提示
+# Messages
 messages:
   error:
     en: "Error: %{error}"
-    zh-CN: "错误: %{error}"
 
   log_level_set:
     en: "Log level set to: %{level}"
-    zh-CN: "日志级别设置为: %{level}"
 
   verbose_level:
     en: "Verbose level: %{level}"
-    zh-CN: "详细级别: %{level}"
 
   file_exists_overwrite:
     en: "File %{path} already exists, overwrite?"
-    zh-CN: "文件 %{path} 已存在，是否覆盖?"
 
   operation_cancelled:
     en: "Operation cancelled"
-    zh-CN: "操作已取消"
 
   rule_generated:
     en: "✅ Rule file generated: %{path}"
-    zh-CN: "✅ 规则文件已生成: %{path}"
 
   rule_generation_success:
     en: "✅ Rule file generated successfully!"
-    zh-CN: "✅ 规则文件生成成功!"
 
   rule_saved:
     en: "✅ Rule saved: %{path}"
-    zh-CN: "✅ 规则已保存: %{path}"
 
   confirm_delete:
     en: "Are you sure you want to delete rule '%{name}'?"
-    zh-CN: "确定要删除规则 '%{name}' 吗?"
 
   rule_deleted:
     en: "✅ Rule deleted: %{name}"
-    zh-CN: "✅ 规则已删除: %{name}"
 
   content_or_file_required:
     en: "Must provide content or file path"
-    zh-CN: "必须提供内容或文件路径"
 
-# 错误信息
+# Errors
 errors:
   unknown_subcommand:
     en: "Unknown subcommand"
-    zh-CN: "未知的子命令"
 
   subcommand_required:
     en: "Subcommand is required"
-    zh-CN: "子命令是必需的"
 
   unknown_prompt_subcommand:
     en: "Unknown prompt subcommand"
-    zh-CN: "未知的 prompt 子命令"
 
   not_find_config_dir:
     en: "Cannot find config directory"
-    zh-CN: "无法找到配置目录"
+
+  dev_project_config_required:
+    en: "🚨 Error: Running within llman development project\n💡 You must specify --config-dir to avoid conflicts with user configurations\n   Example: --config-dir ./artifacts/llman_dev_config\n   Example: --config-dir ./artifacts/test_config\n   Alternatively, set %{env_var} environment variable"
+
+  invalid_config_dir:
+    en: "Invalid config directory: %{error}"
+
+  invalid_config_dir_env:
+    en: "Invalid config directory in environment variable: %{error}"
 
   io_error:
     en: "IO Error: %{error}"
-    zh-CN: "IO 错误: %{error}"
+
+  inquire_error:
+    en: "Inquire Error: %{error}"
+
+  database_error:
+    en: "Database Error: %{error}"
+
+  connection_error:
+    en: "Connection Error: %{error}"
+
+  json_error:
+    en: "JSON Parse Error: %{error}"
+
+  glob_error:
+    en: "Glob Pattern Error: %{error}"
+
+  glob_pattern_error:
+    en: "Glob Pattern Match Error: %{error}"
 
   config_error:
     en: "Configuration Error: %{message}"
-    zh-CN: "配置错误: %{message}"
+
+  custom_error:
+    en: "Custom Error: %{message}"
 
   invalid_app:
     en: "Invalid application type: %{app}"
-    zh-CN: "无效的应用类型: %{app}"
 
   not_project_directory:
     en: "Current directory is not a valid project directory"
-    zh-CN: "当前目录不是有效的项目目录"
 
   home_directory_not_allowed:
     en: "Home directory access not allowed"
-    zh-CN: "不允许访问主目录"
 
   rule_not_found:
     en: "Rule not found: %{name}"
-    zh-CN: "规则未找到: %{name}"
 
   interactive_prompt_error:
     en: "Interactive prompt error: %{error}"
-    zh-CN: "交互式提示错误: %{error}"
 
   no_rules_found:
     en: "No rules found"
-    zh-CN: "未找到任何规则"
 
   not_find_user_cursor_dir:
     en: "Cannot find user cursor main directory"
-    zh-CN: "无法获取用户cursor主目录"
 
-# Cursor 功能
+# Cursor features
 cursor:
   about:
     en: "Cursor-related features"
-    zh-CN: "Cursor相关功能"
 
   database:
     using_db:
       en: "Using database"
-      zh-CN: "使用数据库"
+
+    using_global_db:
+      en: "Using global database"
 
     workspace_path_not_exist:
       en: "Cursor workspace storage path does not exist: %{path}"
-      zh-CN: "Cursor工作区存储路径不存在: %{path}"
 
     no_workspace_db_found:
       en: "No Cursor workspace database files found"
-      zh-CN: "未找到任何Cursor工作区数据库文件"
 
     home_dir_error:
       en: "Cannot find home directory"
-      zh-CN: "无法找到用户主目录"
 
     cursor_dir_not_found:
       en: "Cursor directory not found: %{path}"
-      zh-CN: "未找到Cursor目录: %{path}"
 
   workspace:
     scanning_workspaces:
       en: "🔍 Scanning available workspaces..."
-      zh-CN: "🔍 正在扫描可用的工作区..."
 
     found_workspaces:
       en: "✅ Found %{count} workspaces"
-      zh-CN: "✅ 找到 %{count} 个工作区"
 
     auto_select:
       en: "Auto selected"
-      zh-CN: "自动选择"
 
     select_workspace:
       en: "📁 Please select workspace to export conversations"
-      zh-CN: "📁 请选择要导出对话的工作区"
+
+    selected_not_found:
+      en: "Selected workspace not found"
 
     no_workspaces:
       en: "❌ No Cursor workspaces found"
-      zh-CN: "❌ 未找到任何Cursor工作区"
 
     workspace_mapping_failed:
       en: "⚠️ Unable to map workspace: %{id}"
-      zh-CN: "⚠️ Unable to map workspace: %{id}"
 
     unknown_path:
       en: "Unknown path"
-      zh-CN: "未知路径"
+
+    unknown_name:
+      en: "Unknown"
 
     current_dir:
       en: "Current directory"
-      zh-CN: "当前目录"
 
   export:
     about:
       en: "Export Cursor AI conversations to local files"
-      zh-CN: "导出Cursor AI对话记录到本地文件"
 
     interactive_help:
       en: "Use interactive mode to select and export conversations"
-      zh-CN: "使用交互式模式选择和导出对话"
 
     db_path_help:
       en: "Specify Cursor database file path"
-      zh-CN: "指定Cursor数据库文件路径"
 
     workspace_dir_help:
       en: "Specify workspace directory to avoid interactive selection"
-      zh-CN: "指定工作区目录，避免交互式选择"
 
     output_mode_help:
       en: "Output mode: console, file, single-file"
-      zh-CN: "输出模式: console, file, single-file"
 
     output_file_help:
       en: "Output filename (used when output-mode is file or single-file)"
-      zh-CN: "输出文件名（当output-mode为file或single-file时使用）"
 
     composer_id_help:
       en: "Directly specify composer ID for export"
-      zh-CN: "直接指定composer ID进行导出"
 
     debug_help:
       en: "Enable debug mode, show detailed processing information"
-      zh-CN: "开启调试模式，显示详细的处理信息"
+
+    debug_non_interactive:
+      en: "[DEBUG] Non-interactive export mode"
+
+    debug_workspace_dir:
+      en: "[DEBUG] workspace_dir: %{path}"
+
+    debug_composer_id:
+      en: "[DEBUG] composer_id: %{id}"
+
+    debug_output_mode:
+      en: "[DEBUG] output_mode: %{mode}"
+
+    debug_output_file:
+      en: "[DEBUG] output_file: %{file}"
+
+    debug_exporting_composer:
+      en: "[DEBUG] Exporting composer: %{id}"
+
+    debug_exporting_file:
+      en: "[DEBUG] Exporting to file: %{filename}"
+
+    none:
+      en: "none"
 
     title:
       en: "🎯 Cursor Conversation Export Tool"
-      zh-CN: "🎯 Cursor对话导出工具"
 
     scanning:
       en: "🔍 Scanning Cursor conversation records..."
-      zh-CN: "🔍 正在扫描Cursor对话记录..."
 
     found_conversations:
       en: "✅ Found %{count} conversations"
-      zh-CN: "✅ 找到 %{count} 个对话"
 
     no_conversations:
       en: "❌ No conversation records found"
-      zh-CN: "❌ 没有找到对话记录"
 
     no_selection:
       en: "❌ No conversations selected"
-      zh-CN: "❌ 未选择任何对话"
+
+    composer_not_found:
+      en: "Composer ID not found: %{id}"
+
+    unsupported_output_mode:
+      en: "Unsupported output mode: %{mode}"
+
+    invalid_output_dir:
+      en: "Invalid output directory: %{path} (%{error})"
+
+    invalid_db_path:
+      en: "Invalid db_path"
+
+    invalid_workspace_db_path:
+      en: "Invalid workspace db path"
+
+    workspace_dir_not_exist:
+      en: "Workspace directory does not exist: %{path}"
+
+    workspace_not_found:
+      en: "Workspace not found for path: %{path}"
 
     select_conversations:
       en: "📝 Please select conversations to export"
-      zh-CN: "📝 请选择要导出的对话"
 
     select_help:
       en: "Use space to select/deselect, Enter to confirm"
-      zh-CN: "使用空格键选择/取消选择，回车键确认"
 
     search_more:
       en: "🔍 Search more conversations..."
-      zh-CN: "🔍 搜索更多对话..."
 
     search_keyword:
       en: "🔍 Please enter search keyword"
-      zh-CN: "🔍 请输入搜索关键词"
 
     search_help:
       en: "Enter title, content or any relevant keywords to search"
-      zh-CN: "输入标题、内容或任何相关关键词进行搜索"
 
     search_no_results:
       en: "❌ No matching conversations found"
-      zh-CN: "❌ 未找到匹配的对话"
 
     search_found:
       en: "✅ Found %{count} matching conversations"
-      zh-CN: "✅ 搜索到 %{count} 个对话"
 
     select_search_results:
       en: "📋 Please select search results"
-      zh-CN: "📋 请选择搜索结果"
 
     select_export_method:
       en: "📤 Please select export method"
-      zh-CN: "📤 请选择导出方式"
 
     export_to_console:
       en: "🖥️ Export to console"
-      zh-CN: "🖥️ 导出到控制台"
 
     export_to_files:
       en: "📁 Export as multiple files"
-      zh-CN: "📁 导出为多个文件"
 
     export_to_single_file:
       en: "📄 Export as single file"
-      zh-CN: "📄 导出为单个文件"
 
     exported_content_title:
       en: "📋 Exported conversation content"
-      zh-CN: "📋 导出的对话内容"
+
+    console_separator_char:
+      en: "="
+
+    console_item_separator_char:
+      en: "-"
 
     input_output_dir:
       en: "📁 Please enter output directory path"
-      zh-CN: "📁 请输入输出目录路径"
 
     output_dir_created:
       en: "✅ Output directory created: %{path}"
-      zh-CN: "✅ 输出目录已创建: %{path}"
 
     export_success_file:
       en: "✅ Export successful: %{path}"
-      zh-CN: "✅ 导出成功: %{path}"
 
     export_success_summary:
       en: "🎉 Successfully exported %{count} conversations to: %{path}"
-      zh-CN: "🎉 成功导出 %{count} 个对话到: %{path}"
 
     input_filename:
       en: "📄 Please enter filename"
-      zh-CN: "📄 请输入文件名"
+
+    export_time_label:
+      en: "Export time"
+
+    conversation_count_label:
+      en: "Conversation count"
 
     single_file_title:
       en: "# Cursor Conversation Export\n\n"
-      zh-CN: "# Cursor对话导出\n\n"
 
     export_time:
       en: "**Export time:** %{time}\n"
-      zh-CN: "**导出时间:** %{time}\n"
 
     conversation_count:
       en: "**Conversation count:** %{count}\n\n"
-      zh-CN: "**对话数量:** %{count}\n\n"
 
     export_success_single:
       en: "✅ Export successful: %{filename}"
-      zh-CN: "✅ 导出成功: %{filename}"
 
     untitled_conversation:
       en: "Untitled Conversation"
-      zh-CN: "未命名对话"
 
     user_message:
       en: "User"
-      zh-CN: "用户"
 
     ai_message:
       en: "AI Assistant"
-      zh-CN: "AI助手"
 
     message_number:
       en: "Message %{number}"
-      zh-CN: "消息%{number}"
 
     message_count:
       en: "%{count} messages"
-      zh-CN: "%{count} 条消息"
 
     composer_chat:
       en: "Composer conversation"
-      zh-CN: "Composer对话"
+
+    conversation_type_chat:
+      en: "(chat)"
+
+    conversation_type_composer:
+      en: "(Composer)"
 
     last_updated:
       en: "**Last updated:** %{time}\n\n"
-      zh-CN: "**最后更新:** %{time}\n\n"
 
     terminal_output:
       en: "**Terminal output:**"
-      zh-CN: "**终端输出:**"
 
     raw_text:
       en: "**Raw text:**"
-      zh-CN: "**原始文本:**"
 
     selected_file:
       en: "**Selected file:** %{path}"
-      zh-CN: "**选中文件:** %{path}"
 
     message_with_id:
       en: "*%{type} message (ID: %{id})*"
-      zh-CN: "*%{type} message (ID: %{id})*"
 
     unknown_id:
       en: "Unknown"
-      zh-CN: "未知"
 
     mixed_conversations:
       en: "Contains %{traditional} traditional conversations and %{composer} Composer conversations"
-      zh-CN: "包含 %{traditional} 个传统对话和 %{composer} 个Composer对话"
 
     composer_mode_chat:
       en: "Chat"
-      zh-CN: "聊天"
 
     composer_mode_agent:
       en: "Agent"
-      zh-CN: "代理"
 
     composer_mode_edit:
       en: "Edit"
-      zh-CN: "编辑"
 
     composer_mode_label:
       en: "Mode"
-      zh-CN: "模式"
 
     composer_content_note:
       en: "Note: Specific content of Composer conversations is not yet supported for export."
-      zh-CN: "注意：Composer对话的具体内容暂不支持导出。"
 
     type_traditional:
       en: "Traditional Chat"
-      zh-CN: "传统聊天"
 
     type_composer_chat:
       en: "Composer Chat"
-      zh-CN: "Composer聊天"
 
     type_composer_agent:
       en: "Composer Agent"
-      zh-CN: "Composer代理"
 
     type_composer_edit:
       en: "Composer Edit"
-      zh-CN: "Composer编辑"
 
-# 扩展功能
+# Tooling utilities
+tool:
+  clean_comments:
+    start:
+      en: "Clean useless comments command"
+
+    config_explicit:
+      en: "Using explicit config: %{path}"
+
+    config_local:
+      en: "Using local config: %{path}"
+
+    config_global:
+      en: "Using global config"
+
+    scope_includes:
+      en: "Scope includes: %{patterns}"
+
+    scope_excludes:
+      en: "Scope excludes: %{patterns}"
+
+    dry_run_enabled:
+      en: "Dry run mode enabled - no files will be modified"
+
+    dry_run_hint:
+      en: "Use -y to apply changes."
+
+    interactive_enabled:
+      en: "Interactive mode enabled"
+
+    safety_dry_run_first:
+      en: "Safety: dry-run-first is enabled; running in dry-run mode only."
+
+    safety_dry_run_first_hint:
+      en: "Re-run with -y --force to apply changes."
+
+    git_dirty:
+      en: "Working tree has uncommitted changes; commit before running or use --force"
+
+    require_git_commit_no_repo:
+      en: "Warning: require-git-commit enabled but no git repository detected."
+
+    cancel:
+      en: "Operation cancelled by user."
+
+    summary_title:
+      en: "=== Processing Complete ==="
+
+    summary_files_changed:
+      en: "Files changed: %{count}"
+
+    summary_comments_removed:
+      en: "Comments removed: %{count}"
+
+    summary_errors:
+      en: "Errors: %{count}"
+
+    summary_modified_files:
+      en: "Modified files:"
+
+    confirm_title:
+      en: "=== Clean Useless Comments ==="
+
+    confirm_intro:
+      en: "This operation will remove comments from your source code files."
+
+    confirm_config:
+      en: "Using configuration: %{path}"
+
+    confirm_files:
+      en: "Files to process:"
+
+    confirm_mode_dry:
+      en: "Mode: Dry run (no files will be modified)"
+
+    confirm_mode_live:
+      en: "Mode: Live (files will be modified)"
+
+    confirm_prompt:
+      en: "Do you want to continue?"
+
+    confirm_help:
+      en: "This will start the comment cleaning process"
+
+    warn_not_git_repo:
+      en: "Warning: target path is not inside a git repository:"
+
+    processor:
+      init_tree_sitter_failed:
+        en: "Warning: Failed to initialize TreeSitter processor: %{error}"
+
+      config_missing:
+        en: "No clean useless comments configuration found"
+
+      processing_files:
+        en: "Processing files..."
+
+      processing_file:
+        en: "Processing: %{path}"
+
+      file_removed_comments:
+        en: "File: %{path} - Removed %{count} comments"
+
+      error_processing:
+        en: "Error processing %{path}: %{error}"
+
+      git_only_no_repo:
+        en: "Warning: git-only enabled but no git repository detected."
+
+      file_not_tracked:
+        en: "Warning: File not tracked by git: %{path}"
+
+      file_not_found:
+        en: "Warning: File not found: %{path}"
+
+      walk_error:
+        en: "Error walking directory: %{error}"
+
+      preserve_patterns_found:
+        en: "Found %{count} preserve patterns"
+
+      debug_line:
+        en: "Processing line: '%{line}'"
+
+      debug_comment:
+        en: "  - comment: '%{comment}'"
+
+      debug_should_preserve:
+        en: "  - should_preserve: %{preserve}"
+
+      debug_comment_too_short:
+        en: "  - comment_too_short: %{too_short} (len: %{len}, min: %{min})"
+
+      debug_would_remove:
+        en: "  - would remove: %{remove}"
+
+      regex_build_failed:
+        en: "Failed to build regex: %{error}"
+
+      tree_sitter_unavailable:
+        en: "Tree-sitter unavailable for %{path}"
+
+      tree_sitter_failed:
+        en: "Tree-sitter processing failed for %{path}: %{error}"
+
+  config:
+    not_found:
+      en: "Configuration file not found: %{path}"
+
+    parse_failed:
+      en: "Failed to parse configuration: %{error}"
+
+    not_found_with_priority:
+      en: "No configuration file found. Tried local: %{local} and global config"
+
+    schema_generate_failed:
+      en: "Failed to generate JSON schema: %{error}"
+
+  tree_sitter:
+    set_language_failed:
+      en: "Failed to set language: %{error}"
+
+    parse_content_failed:
+      en: "Failed to parse content"
+
+  rm_empty_dirs:
+    start_title:
+      en: "Remove empty directories"
+
+    target_label:
+      en: "Target: %{path}"
+
+    dry_run_enabled:
+      en: "Dry run mode enabled (use -y to delete)."
+
+    live_mode_enabled:
+      en: "Live mode enabled (empty directories will be removed)."
+
+    prune_ignored_enabled:
+      en: "Prune ignored entries enabled (ignored files/dirs may be deleted)."
+
+    verbose_gitignore_using:
+      en: "Using .gitignore: %{path}"
+
+    verbose_gitignore_none:
+      en: "No .gitignore configured."
+
+    note_root_would_be_empty:
+      en: "Note: target directory would be empty after removal; root directory is not removed."
+
+    note_root_empty:
+      en: "Note: target directory is empty; root directory is not removed."
+
+    summary_title:
+      en: "=== Summary ==="
+
+    summary_empty_dirs_found:
+      en: "Empty directories found: %{count}"
+
+    summary_empty_dirs_removed:
+      en: "Empty directories removed: %{count}"
+
+    summary_empty_dirs_failed:
+      en: "Empty directories failed: %{count}"
+
+    summary_dirs_scanned:
+      en: "Directories scanned: %{count}"
+
+    summary_files_scanned:
+      en: "Files scanned: %{count}"
+
+    summary_ignored_entries_zero:
+      en: "Ignored entries: 0"
+
+    summary_ignored_entries:
+      en: "Ignored entries: %{total} (dirs: %{dirs}, files: %{files})"
+
+    summary_errors:
+      en: "Errors: %{count}"
+
+    list_to_remove:
+      en: "Directories to remove"
+
+    list_removed:
+      en: "Directories removed"
+
+    list_failed_title:
+      en: "Directories failed to remove"
+
+    skipping_ignored_path:
+      en: "Skipping ignored path: %{path}"
+
+    would_remove_dir:
+      en: "Would remove: %{path}"
+
+    removing_dir:
+      en: "Removing: %{path}"
+
+    would_remove_ignored_file:
+      en: "Would remove ignored file: %{path}"
+
+    removing_ignored_file:
+      en: "Removing ignored file: %{path}"
+
+    error:
+      target_not_exist:
+        en: "Target path does not exist: %{path}"
+
+      target_not_dir:
+        en: "Target path is not a directory: %{path}"
+
+      read_dir_failed:
+        en: "Warning: failed to read directory %{path}: %{error}"
+
+      read_entry_failed:
+        en: "Warning: failed to read entry in %{path}: %{error}"
+
+      read_file_type_failed:
+        en: "Warning: failed to read file type for %{path}: %{error}"
+
+      remove_dir_failed:
+        en: "Warning: failed to remove %{path}: %{error}"
+
+      remove_ignored_file_failed:
+        en: "Warning: failed to remove ignored file %{path}: %{error}"
+
+      gitignore_not_exist:
+        en: ".gitignore path does not exist: %{path}"
+
+      gitignore_not_file:
+        en: ".gitignore path is not a file: %{path}"
+
+      gitignore_parse_warning:
+        en: "Warning: failed to fully parse %{path}: %{error}"
+
+# Extensions
 x:
   about:
     en: "Extended features"
-    zh-CN: "扩展功能"
 
-# Composer 相关
+# Composer
 composer:
   untitled_chat:
     en: "Untitled Chat"
-    zh-CN: "未命名聊天"
 
   untitled_agent:
     en: "Untitled Agent"
-    zh-CN: "未命名代理"
 
   untitled_edit:
     en: "Untitled Edit"
-    zh-CN: "未命名编辑"
 
-# Claude Code 配置管理
+# Claude Code configuration
 claude_code:
   interactive:
     select_config_group:
       en: "Select a configuration group to activate:"
-      zh-CN: "选择要激活的配置组："
 
     import_title:
       en: "Import configuration group from JSON"
-      zh-CN: "从 JSON 导入配置组"
 
     config_group_name:
       en: "Configuration group name:"
-      zh-CN: "配置组名称："
 
     multi_line_json:
       en: "Multi-line JSON Input"
-      zh-CN: "多行 JSON 输入"
 
     you_can_now_paste:
       en: "You can now paste multi-line JSON!"
-      zh-CN: "现在可以粘贴多行 JSON！"
 
     supported_formats:
       en: "Supported formats"
-      zh-CN: "支持的格式"
+
+    format_1:
+      en: "Format 1: {\"env\": {...}}"
+
+    format_2:
+      en: "Format 2: {\"KEY\": \"value\", ...}"
 
     how_to_use_editor:
       en: "How to use the editor"
-      zh-CN: "编辑器使用方法"
 
     paste_json:
       en: "Paste your JSON"
-      zh-CN: "粘贴您的 JSON"
 
     supports_multiple_lines:
       en: "supports multiple lines"
-      zh-CN: "支持多行"
 
     navigate:
       en: "Use arrow keys to navigate"
-      zh-CN: "使用箭头键导航"
 
     use_arrow_keys:
       en: "use arrow keys"
-      zh-CN: "使用箭头键"
 
     finish:
       en: "Press Enter on empty line or Ctrl+D to finish"
-      zh-CN: "在空行按 Enter 或 Ctrl+D 完成"
 
     ctrl_d_or_enter:
       en: "Ctrl+D or Enter on empty line"
-      zh-CN: "Ctrl+D 或空行 Enter"
 
     cancel:
       en: "Press Esc to cancel"
-      zh-CN: "按 Esc 取消"
 
     esc:
       en: "Esc"
-      zh-CN: "Esc"
 
     example:
       en: "Example"
-      zh-CN: "示例"
+
+    json_example:
+      en: "{\n  \"env\": {\n    \"ANTHROPIC_BASE_URL\": \"https://api.anthropic.com\",\n    \"ANTHROPIC_AUTH_TOKEN\": \"your-api-key\",\n    \"ANTHROPIC_MODEL\": \"claude-3-5-sonnet-20241022\"\n  }\n}"
 
     json_configuration:
       en: "JSON configuration:"
-      zh-CN: "JSON 配置："
 
     editor_help:
       en: "Paste the complete JSON configuration here (multi-line supported). Press Ctrl+D or Enter on empty line to finish."
-      zh-CN: "在此粘贴完整的 JSON 配置（支持多行）。按 Ctrl+D 或在空行按 Enter 完成。"
+
+    editor_empty:
+      en: "<empty>"
+
+    editor_summary:
+      en: "%{lines} lines, %{chars} chars"
 
     warning_empty_config:
       en: "Warning: No environment variables found in the JSON configuration."
-      zh-CN: "警告：在 JSON 配置中未找到环境变量。"
 
     confirm_empty_import:
       en: "Continue importing empty configuration?"
-      zh-CN: "继续导入空配置？"
 
     parsed_env_vars:
       en: "Parsed environment variables:"
-      zh-CN: "解析的环境变量："
 
     confirm_import:
       en: "Import configuration group \"%{name}\"?"
-      zh-CN: "导入配置组 \"%{name}\"？"
 
     import_cancelled:
       en: "Import cancelled."
-      zh-CN: "导入已取消。"
 
     check_format_retry:
       en: "Please check your JSON format and try again."
-      zh-CN: "请检查您的 JSON 格式并重试。"
 
     no_config_groups:
       en: "No configuration groups found."
-      zh-CN: "未找到配置组。"
 
     use_import_command:
       en: "Use 'llman x claude-code account import' to import a new configuration."
-      zh-CN: "使用 'llman x claude-code account import' 导入新配置。"
 
     config_file_location:
       en: "Create a configuration file at"
-      zh-CN: "在以下位置创建配置文件"
+
+    unknown_path:
+      en: "unknown"
 
     example_configuration:
       en: "Example configuration"
-      zh-CN: "示例配置"
+
+    toml_example:
+      en: "[groups]\n\n[groups.my-group]\nANTHROPIC_BASE_URL = \"https://api.anthropic.com\"\nANTHROPIC_AUTH_TOKEN = \"your-api-key-here\"\nANTHROPIC_MODEL = \"claude-3-5-sonnet-20241022\""
 
     no_env_vars:
       en: "no environment variables set"
-      zh-CN: "未设置环境变量"
 
     configuration_groups:
       en: "Configuration groups"
-      zh-CN: "配置组"
 
     see_examples:
       en: "See examples"
-      zh-CN: "查看示例"
 
     import_from_klaudes:
       en: "Found existing klaudes configuration. Would you like to import it?"
-      zh-CN: "发现现有 klaudes 配置。您想要导入它吗？"
+
+  config:
+    read_failed:
+      en: "Failed to read config file: %{path}"
+
+    parse_all_failed:
+      en: "Failed to parse TOML config file (both old and new formats)"
+
+    parse_new_failed:
+      en: "Failed to parse new format config"
+
+    parse_old_failed:
+      en: "Failed to parse old format config"
+
+    project_dir_not_found:
+      en: "Could not find project directory"
+
+    create_dir_failed:
+      en: "Failed to create config directory: %{path}"
+
+    serialize_failed:
+      en: "Failed to serialize config to TOML"
+
+    write_failed:
+      en: "Failed to write config file: %{path}"
+
+    metadata_failed:
+      en: "Failed to get file metadata"
+
+    permissions_failed:
+      en: "Failed to set file permissions"
+
+    json_repairing:
+      en: "⚠️  JSON format appears to be malformed, attempting to repair..."
+
+    json_repaired:
+      en: "✅ Successfully repaired JSON format"
+
+    json_repair_failed:
+      en: "Failed to parse JSON string even after repair attempts: %{error}"
+
+    json_env_invalid:
+      en: "env field must be an object"
+
+    json_must_object:
+      en: "JSON must be an object"
 
   validation:
     name_required:
       en: "Group name is required"
-      zh-CN: "配置组名称是必需的"
 
     no_spaces:
       en: "Group name cannot contain spaces"
-      zh-CN: "配置组名称不能包含空格"
 
   main:
     no_configs_found:
       en: "No configuration groups found."
-      zh-CN: "未找到配置组。"
 
     suggestion_import:
       en: "Suggestions:"
-      zh-CN: "建议："
 
     command_import:
       en: "• Import a configuration: llman x claude-code account import"
-      zh-CN: "• 导入配置：llman x claude-code account import"
 
     alternative_config:
       en: "Or create a configuration file manually at:"
-      zh-CN: "或者手动在以下位置创建配置文件："
+
+    unknown_path:
+      en: "unknown"
 
   account:
     group_exists:
       en: "Configuration group \"%{name}\" already exists."
-      zh-CN: "配置组 \"%{name}\" 已存在。"
 
     use_different_name_or_force:
       en: "Use a different name, edit the configuration manually, or use --force to overwrite."
-      zh-CN: "使用不同的名称、手动编辑配置，或使用 --force 强制覆盖。"
 
     overwriting_group:
       en: "Overwriting existing configuration group: \"%{name}\""
-      zh-CN: "正在覆盖现有配置组：\"%{name}\""
 
     import_success:
       en: "✓ Successfully imported configuration group: \"%{name}\""
-      zh-CN: "✓ 成功导入配置组：\"%{name}\""
 
     group_not_found:
       en: "Configuration group \"%{name}\" not found."
-      zh-CN: "未找到配置组 \"%{name}\"。"
 
     use_list_command:
       en: "Use 'llman x claude-code account list' to see available configuration groups."
-      zh-CN: "使用 'llman x claude-code account list' 查看可用的配置组。"
 
   migrate:
     import_failed:
       en: "Failed to import from klaudes"
-      zh-CN: "从 klaudes 导入失败"
 
     check_klaudes_installation:
       en: "Please check if klaudes is installed and has configuration."
-      zh-CN: "请检查 klaudes 是否已安装并包含配置。"
 
     import_success:
       en: "✅ Successfully imported configuration from klaudes"
-      zh-CN: "✅ 成功从 klaudes 导入配置"
 
     cancelled:
       en: "Migration cancelled."
-      zh-CN: "迁移已取消。"
 
   run:
     interactive:
       prompt_args:
         en: "Do you want to pass arguments to claude?"
-        zh-CN: "是否要传递参数给 claude？"
       enter_args:
         en: "Enter arguments for claude command:"
-        zh-CN: "输入 claude 命令的参数："
       args_help:
         en: "e.g., --version --help project create"
-        zh-CN: "例如：--version --help project create"
     using_config:
       en: "Using configuration: %{name}"
-      zh-CN: "使用配置: %{name}"
     error:
       group_required_non_interactive:
         en: "Error: In non-interactive mode, --group is required"
-        zh-CN: "错误：非交互模式下必须指定 --group 参数"
       use_i_or_group:
         en: "Use -i for interactive mode or specify --group <name>"
-        zh-CN: "请使用 -i 进入交互模式，或指定 --group <名称>"
 
   error:
     parsing_json:
       en: "Error parsing JSON configuration"
-      zh-CN: "解析 JSON 配置时出错"
 
     failed_claude_command:
       en: "Failed to run claude command"
-      zh-CN: "运行 claude 命令失败"
 
-# OpenAI Codex 配置管理 - 基于软链接和 groups
+    load_config_failed:
+      en: "Failed to load configuration"
+
+    execute_failed:
+      en: "Failed to execute claude command"
+
+    save_after_import_failed:
+      en: "Failed to save configuration after import"
+
+    no_configuration_selected:
+      en: "No configuration selected"
+
+    prompt_args_failed:
+      en: "Failed to prompt for arguments"
+
+    args_input_failed:
+      en: "Failed to get claude arguments"
+
+    select_config_failed:
+      en: "Failed to select configuration group"
+
+    input_group_name_failed:
+      en: "Failed to input group name"
+
+    input_json_failed:
+      en: "Failed to input JSON configuration"
+
+    confirm_import_failed:
+      en: "Failed to confirm import"
+
+  security:
+    parse_error:
+      en: "Error parsing settings file %{path}: %{error}"
+
+    read_settings_failed:
+      en: "Failed to read settings file: %{path}"
+
+    parse_json_failed:
+      en: "Failed to parse JSON even after repair: %{error}"
+
+    reason_pattern_detected:
+      en: "Dangerous command pattern detected: %{pattern}"
+
+    warning_header:
+      en: "%{count} Security Warnings Detected:"
+
+    warning_separator_char:
+      en: "═"
+
+    warning_item_title:
+      en: "Dangerous Permission Detected"
+
+    label_location:
+      en: "Location:"
+
+    label_setting:
+      en: "Setting:"
+
+    label_pattern:
+      en: "Pattern:"
+
+    label_description:
+      en: "Description:"
+
+    label_recommendation:
+      en: "Recommendation:"
+
+    footer_line1:
+      en: "These permissions are defined in your Claude Code settings but conflict with"
+
+    footer_line2:
+      en: "security rules in <llman config>/claude-code.toml"
+
+    severity:
+      critical:
+        en: "CRITICAL"
+      high:
+        en: "HIGH"
+      medium:
+        en: "MEDIUM"
+      low:
+        en: "LOW"
+
+    pattern:
+      rm_rf:
+        description:
+          en: "Force deletion of files and directories without confirmation"
+        recommendation:
+          en: "This can cause irreversible data loss. Consider using more specific permissions or add confirmation prompts."
+
+      sudo_rm:
+        description:
+          en: "Deletion of files with root privileges"
+        recommendation:
+          en: "Extremely dangerous as it can delete system files. Always avoid in automated tools."
+
+      dd_if:
+        description:
+          en: "Raw disk writing that can destroy filesystems"
+        recommendation:
+          en: "This can wipe entire disks or partitions. Use with extreme caution."
+
+      mkfs_or_format:
+        description:
+          en: "Filesystem formatting that destroys all data"
+        recommendation:
+          en: "This will erase all data on the target filesystem. Double-check targets."
+
+      chmod_777:
+        description:
+          en: "Setting world-writable permissions on files"
+        recommendation:
+          en: "This creates serious security vulnerabilities. Use more specific permissions."
+
+      chown_root:
+        description:
+          en: "Changing file ownership to root"
+        recommendation:
+          en: "Can lead to privilege escalation vulnerabilities. Verify ownership changes carefully."
+
+      curl_or_wget_sh:
+        description:
+          en: "Downloading and executing scripts from the internet"
+        recommendation:
+          en: "This can execute malicious code. Download first, review contents, then execute manually."
+
+      eval_or_exec:
+        description:
+          en: "Dynamic command execution that can be exploited"
+        recommendation:
+          en: "This can lead to command injection attacks. Use safer alternatives."
+
+      system_call:
+        description:
+          en: "Executing system commands through various programming languages"
+        recommendation:
+          en: "This bypasses shell safeguards. Validate all inputs thoroughly."
+
+      crontab:
+        description:
+          en: "Modifying scheduled tasks that can persist malicious activities"
+        recommendation:
+          en: "Cron jobs can hide persistent malware. Review scheduled changes carefully."
+
+      system_service:
+        description:
+          en: "Managing system services that can enable persistence"
+        recommendation:
+          en: "Service modifications can create backdoors. Verify service configurations."
+
+      firewall:
+        description:
+          en: "Modifying firewall rules that can expose systems to attack"
+        recommendation:
+          en: "Firewall changes can open attack vectors. Document and review all rule changes."
+
+      registry:
+        description:
+          en: "Modifying Windows Registry which controls system behavior"
+        recommendation:
+          en: "Registry changes can cause system instability or security issues. Backup first."
+
+      net_user:
+        description:
+          en: "Managing user accounts that can grant unauthorized access"
+        recommendation:
+          en: "User account changes can create backdoors. Use principle of least privilege."
+
+      shell_exec:
+        description:
+          en: "Executing command interpreters that can run arbitrary commands"
+        recommendation:
+          en: "Shell execution can bypass security controls. Validate and sanitize inputs."
+
+      python_system:
+        description:
+          en: "Python system command execution that can run shell commands"
+        recommendation:
+          en: "This can execute arbitrary shell commands. Use safer subprocess alternatives."
+
+      default:
+        description:
+          en: "Pattern detected in command execution permissions"
+        recommendation:
+          en: "Review this command pattern for potential security implications."
+
+# OpenAI Codex configuration - symlink + groups
 codex:
-  # 账户管理
+  # Account management
   account:
     no_groups:
       en: "No configuration groups found"
-      zh-CN: "未找到配置组"
     create_hint:
       en: "Use 'llman x codex account create <name>' to create a new group"
-      zh-CN: "使用 'llman x codex account create <name>' 创建新配置组"
     list_header:
       en: "Available codex configuration groups:"
-      zh-CN: "可用的 codex 配置组："
     current_group:
       en: "Current group: %{name}"
-      zh-CN: "当前配置组: %{name}"
     current_indicator:
       en: "(current)"
-      zh-CN: "(当前)"
+    current_marker:
+      en: " *"
     switched:
       en: "✓ Switched to group: %{name}"
-      zh-CN: "✓ 已切换到配置组: %{name}"
     created:
       en: "✓ Group '%{name}' created successfully"
-      zh-CN: "✓ 配置组 '%{name}' 创建成功"
     edit_hint:
       en: "Edit with: llman x codex account edit %{name}"
-      zh-CN: "编辑命令: llman x codex account edit %{name}"
     edited:
       en: "✓ Group '%{name}' edited successfully"
-      zh-CN: "✓ 配置组 '%{name}' 编辑成功"
     imported:
       en: "✓ Group '%{name}' imported successfully"
-      zh-CN: "✓ 配置组 '%{name}' 导入成功"
     deleted:
       en: "✓ Group '%{name}' deleted successfully"
-      zh-CN: "✓ 配置组 '%{name}' 删除成功"
     delete_cancelled:
       en: "Deletion cancelled"
-      zh-CN: "删除已取消"
 
-  # 交互式功能
+  # Interactive flow
   interactive:
     select_group:
       en: "Select a codex configuration group:"
-      zh-CN: "选择 codex 配置组："
     select_template:
       en: "Select a template:"
-      zh-CN: "选择模板："
     delete_warning:
       en: "You are about to delete group '%{name}'. This action cannot be undone."
-      zh-CN: "您即将删除配置组 '%{name}'。此操作无法撤销。"
     confirm_delete:
       en: "Are you sure you want to delete group '%{name}'?"
-      zh-CN: "确定要删除配置组 '%{name}' 吗？"
 
-  # 错误信息
+  # Errors
   error:
     group_not_found:
       en: "Group '%{name}' not found"
-      zh-CN: "未找到配置组 '%{name}'"
     group_exists:
       en: "Group '%{name}' already exists"
-      zh-CN: "配置组 '%{name}' 已存在"
     codex_not_found:
       en: "Codex CLI not found. Please install it first: npm install -g @openai/codex"
-      zh-CN: "未找到 Codex CLI。请先安装：npm install -g @openai/codex"
     unknown_template:
       en: "Unknown template: %{template}"
-      zh-CN: "未知模板: %{template}"
     failed_codex_command:
       en: "Failed to run codex command"
-      zh-CN: "运行 codex 命令失败"
     profile_not_found:
       en: "Profile '%{name}' not found"
-      zh-CN: "未找到配置 '%{name}'"
     no_last_used:
       en: "No profile specified and no last used profile found"
-      zh-CN: "未指定配置且未找到上次使用的配置"
 
-  # 配置导入/迁移
+    file_not_found:
+      en: "File not found: %{path}"
+
+    open_editor_failed:
+      en: "Failed to open editor: %{editor}"
+
+    editor_exit_status:
+      en: "Editor exited with status: %{status}"
+
+    execute_failed:
+      en: "Failed to execute codex"
+
+    exit_status:
+      en: "Codex exited with status: %{status}"
+
+    select_group_failed:
+      en: "Failed to select group"
+
+    select_group_map_failed:
+      en: "Failed to map selection to group"
+
+    select_template_failed:
+      en: "Failed to select template"
+
+    confirm_delete_failed:
+      en: "Failed to confirm deletion"
+
+    metadata_read_failed:
+      en: "Failed to read metadata file: %{path}"
+
+    metadata_parse_failed:
+      en: "Failed to parse metadata file: %{path}"
+
+    metadata_create_dir_failed:
+      en: "Failed to create codex directory: %{path}"
+
+    metadata_serialize_failed:
+      en: "Failed to serialize metadata"
+
+    metadata_write_failed:
+      en: "Failed to write metadata file: %{path}"
+
+    create_group_dir_failed:
+      en: "Failed to create group directory: %{path}"
+
+    create_group_write_failed:
+      en: "Failed to write group file: %{path}"
+
+    import_group_dir_failed:
+      en: "Failed to create import directory: %{path}"
+
+    import_group_copy_failed:
+      en: "Failed to copy group file: %{source} -> %{target}"
+
+    delete_group_failed:
+      en: "Failed to delete group file: %{path}"
+
+    read_group_failed:
+      en: "Failed to read group configuration: %{path}"
+
+    backup_failed:
+      en: "Failed to back up existing config: %{path}"
+
+    remove_existing_config_failed:
+      en: "Failed to remove existing config: %{path}"
+
+    create_codex_config_dir_failed:
+      en: "Failed to create codex config directory: %{path}"
+
+    home_dir_failed:
+      en: "Failed to get home directory"
+
+    symlink_failed:
+      en: "Failed to create symlink: %{source} -> %{target}"
+
+    copy_failed:
+      en: "Failed to copy config file: %{source} -> %{target}"
+
+  # Config import/migration
   config:
+    backup_notice:
+      en: "Backed up existing config to: %{path}"
+
     import:
       found_existing:
         en: "Found existing OpenAI Codex configuration, importing..."
-        zh-CN: "发现现有 OpenAI Codex 配置，正在导入..."
       imported_as_default:
         en: "Existing configuration imported as 'default'"
-        zh-CN: "现有配置已导入为 'default'"
       default_location:
         en: "Default configuration location: %{path}"
-        zh-CN: "默认配置位置: %{path}"
     setup:
       creating_default:
         en: "First time use, creating default configuration..."
-        zh-CN: "首次使用，创建默认配置..."
       default_created:
         en: "Default configuration created"
-        zh-CN: "默认配置已创建"
     migrate:
       detected_regular_file:
         en: "Detected regular configuration file, migrating to symlink system..."
-        zh-CN: "检测到常规配置文件，正在迁移到软链接系统..."
       migrated_success:
         en: "Configuration migrated to symlink system successfully"
-        zh-CN: "配置已成功迁移到软链接系统"
       backup_location:
         en: "Original configuration backed up to: %{path}"
-        zh-CN: "原始配置已备份到: %{path}"
 
-  # 验证规则
+  # Validation rules
   validation:
     name_required:
       en: "Configuration name is required"
-      zh-CN: "配置名称是必需的"
     invalid_chars:
       en: "Name can only contain letters, numbers, hyphens, and underscores"
-      zh-CN: "名称只能包含字母、数字、连字符和下划线"
     name_too_short:
       en: "Name must be at least 2 characters long"
-      zh-CN: "名称至少需要2个字符"
     name_too_long:
       en: "Name must be less than 50 characters"
-      zh-CN: "名称必须少于50个字符"
 
 
-  # 安全警告
+  # Security warnings
   security:
     warning:
       en: "Configuration path: <{config_path}> Configuration item: {config_item} is prohibited in <llman config>/claude-code.toml"
-      zh-CN: "配置路径: <{config_path}> 配置项: {config_item} 被禁止在 <llman config>/claude-code.toml 中"
     disabled:
       en: "Security checks are disabled"
-      zh-CN: "已禁用安全检查"
     no_settings:
       en: "No Claude Code settings files found"
-      zh-CN: "未找到 Claude Code 设置文件"
     parse_error:
       en: "Error parsing settings file {path}: {error}"
-      zh-CN: "解析设置文件 {path} 时出错: {error}"
