@@ -48,6 +48,19 @@ impl SecurityWarningSeverity {
             SecurityWarningSeverity::Low => "LOW",
         }
     }
+
+    pub fn display_name_localized(&self) -> String {
+        match self {
+            SecurityWarningSeverity::Critical => {
+                t!("claude_code.security.severity.critical").to_string()
+            }
+            SecurityWarningSeverity::High => t!("claude_code.security.severity.high").to_string(),
+            SecurityWarningSeverity::Medium => {
+                t!("claude_code.security.severity.medium").to_string()
+            }
+            SecurityWarningSeverity::Low => t!("claude_code.security.severity.low").to_string(),
+        }
+    }
 }
 
 /// Security checker for Claude Code settings
@@ -115,8 +128,12 @@ impl SecurityChecker {
             return Ok(vec![]);
         }
 
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read settings file: {}", path.display()))?;
+        let content = fs::read_to_string(path).with_context(|| {
+            t!(
+                "claude_code.security.read_settings_failed",
+                path = path.display()
+            )
+        })?;
 
         // Try to parse JSON with repair capability
         let settings = match serde_json::from_str::<Value>(&content) {
@@ -126,7 +143,10 @@ impl SecurityChecker {
                 match loads(&content, &RepairOptions::default()) {
                     Ok(repaired_value) => repaired_value,
                     Err(e) => {
-                        anyhow::bail!("Failed to parse JSON even after repair: {}", e);
+                        anyhow::bail!(
+                            "{}",
+                            t!("claude_code.security.parse_json_failed", error = e)
+                        );
                     }
                 }
             }
@@ -155,11 +175,15 @@ impl SecurityChecker {
                     warnings.push(SecurityWarning {
                         config_path: config_path.to_string(),
                         config_item: format!("permissions.allow[{}] = \"{}\"", index, permission),
-                        reason: format!("Dangerous command pattern detected: {}", permission),
+                        reason: t!(
+                            "claude_code.security.reason_pattern_detected",
+                            pattern = permission
+                        )
+                        .to_string(),
                         severity,
                         matched_pattern,
-                        description: description.to_string(),
-                        recommendation: recommendation.to_string(),
+                        description,
+                        recommendation,
                     });
                 }
             }
@@ -172,7 +196,7 @@ impl SecurityChecker {
     fn get_dangerous_pattern_info(
         &self,
         permission: &str,
-    ) -> Option<(String, (SecurityWarningSeverity, &str, &str))> {
+    ) -> Option<(String, (SecurityWarningSeverity, String, String))> {
         let permission_lower = permission.to_lowercase();
 
         for pattern in &self.dangerous_patterns {
@@ -254,117 +278,117 @@ impl SecurityChecker {
     }
 
     /// Get severity, description and recommendation for a dangerous pattern
-    fn get_pattern_details(&self, pattern: &str) -> (SecurityWarningSeverity, &str, &str) {
+    fn get_pattern_details(&self, pattern: &str) -> (SecurityWarningSeverity, String, String) {
         match pattern {
             // File system destruction - CRITICAL
             p if p.contains("rm -rf") => (
                 SecurityWarningSeverity::Critical,
-                "Force deletion of files and directories without confirmation",
-                "This can cause irreversible data loss. Consider using more specific permissions or add confirmation prompts.",
+                t!("claude_code.security.pattern.rm_rf.description").to_string(),
+                t!("claude_code.security.pattern.rm_rf.recommendation").to_string(),
             ),
 
             p if p.contains("sudo rm") => (
                 SecurityWarningSeverity::Critical,
-                "Deletion of files with root privileges",
-                "Extremely dangerous as it can delete system files. Always avoid in automated tools.",
+                t!("claude_code.security.pattern.sudo_rm.description").to_string(),
+                t!("claude_code.security.pattern.sudo_rm.recommendation").to_string(),
             ),
 
             p if p.contains("dd if=") => (
                 SecurityWarningSeverity::Critical,
-                "Raw disk writing that can destroy filesystems",
-                "This can wipe entire disks or partitions. Use with extreme caution.",
+                t!("claude_code.security.pattern.dd_if.description").to_string(),
+                t!("claude_code.security.pattern.dd_if.recommendation").to_string(),
             ),
 
             p if p.contains("mkfs") || p.contains("format") => (
                 SecurityWarningSeverity::Critical,
-                "Filesystem formatting that destroys all data",
-                "This will erase all data on the target filesystem. Double-check targets.",
+                t!("claude_code.security.pattern.mkfs_or_format.description").to_string(),
+                t!("claude_code.security.pattern.mkfs_or_format.recommendation").to_string(),
             ),
 
             // Privilege escalation - HIGH
             p if p.contains("chmod 777") => (
                 SecurityWarningSeverity::High,
-                "Setting world-writable permissions on files",
-                "This creates serious security vulnerabilities. Use more specific permissions.",
+                t!("claude_code.security.pattern.chmod_777.description").to_string(),
+                t!("claude_code.security.pattern.chmod_777.recommendation").to_string(),
             ),
 
             p if p.contains("chown root") => (
                 SecurityWarningSeverity::High,
-                "Changing file ownership to root",
-                "Can lead to privilege escalation vulnerabilities. Verify ownership changes carefully.",
+                t!("claude_code.security.pattern.chown_root.description").to_string(),
+                t!("claude_code.security.pattern.chown_root.recommendation").to_string(),
             ),
 
             // Remote code execution - HIGH
             p if p.contains("curl | sh") || p.contains("wget | sh") => (
                 SecurityWarningSeverity::High,
-                "Downloading and executing scripts from the internet",
-                "This can execute malicious code. Download first, review contents, then execute manually.",
+                t!("claude_code.security.pattern.curl_or_wget_sh.description").to_string(),
+                t!("claude_code.security.pattern.curl_or_wget_sh.recommendation").to_string(),
             ),
 
             p if p.contains("eval $(") || p.contains("exec $(") => (
                 SecurityWarningSeverity::High,
-                "Dynamic command execution that can be exploited",
-                "This can lead to command injection attacks. Use safer alternatives.",
+                t!("claude_code.security.pattern.eval_or_exec.description").to_string(),
+                t!("claude_code.security.pattern.eval_or_exec.recommendation").to_string(),
             ),
 
             // System configuration - MEDIUM
             p if p.contains("system(") => (
                 SecurityWarningSeverity::Medium,
-                "Executing system commands through various programming languages",
-                "This bypasses shell safeguards. Validate all inputs thoroughly.",
+                t!("claude_code.security.pattern.system_call.description").to_string(),
+                t!("claude_code.security.pattern.system_call.recommendation").to_string(),
             ),
 
             p if p.contains("crontab") => (
                 SecurityWarningSeverity::Medium,
-                "Modifying scheduled tasks that can persist malicious activities",
-                "Cron jobs can hide persistent malware. Review scheduled changes carefully.",
+                t!("claude_code.security.pattern.crontab.description").to_string(),
+                t!("claude_code.security.pattern.crontab.recommendation").to_string(),
             ),
 
             p if p.contains("systemctl") || p.contains("service") => (
                 SecurityWarningSeverity::Medium,
-                "Managing system services that can enable persistence",
-                "Service modifications can create backdoors. Verify service configurations.",
+                t!("claude_code.security.pattern.system_service.description").to_string(),
+                t!("claude_code.security.pattern.system_service.recommendation").to_string(),
             ),
 
             // Network security - MEDIUM
             p if p.contains("iptables") || p.contains("ufw") || p.contains("firewall") => (
                 SecurityWarningSeverity::Medium,
-                "Modifying firewall rules that can expose systems to attack",
-                "Firewall changes can open attack vectors. Document and review all rule changes.",
+                t!("claude_code.security.pattern.firewall.description").to_string(),
+                t!("claude_code.security.pattern.firewall.recommendation").to_string(),
             ),
 
             // Registry/Windows commands - HIGH
             p if p.contains("registry") || p.contains("reg add") => (
                 SecurityWarningSeverity::High,
-                "Modifying Windows Registry which controls system behavior",
-                "Registry changes can cause system instability or security issues. Backup first.",
+                t!("claude_code.security.pattern.registry.description").to_string(),
+                t!("claude_code.security.pattern.registry.recommendation").to_string(),
             ),
 
             p if p.contains("net user") => (
                 SecurityWarningSeverity::High,
-                "Managing user accounts that can grant unauthorized access",
-                "User account changes can create backdoors. Use principle of least privilege.",
+                t!("claude_code.security.pattern.net_user.description").to_string(),
+                t!("claude_code.security.pattern.net_user.recommendation").to_string(),
             ),
 
             // Command interpreters - MEDIUM
             p if p.contains("powershell -c") || p.contains("cmd /c") => (
                 SecurityWarningSeverity::Medium,
-                "Executing command interpreters that can run arbitrary commands",
-                "Shell execution can bypass security controls. Validate and sanitize inputs.",
+                t!("claude_code.security.pattern.shell_exec.description").to_string(),
+                t!("claude_code.security.pattern.shell_exec.recommendation").to_string(),
             ),
 
             // Python specific - MEDIUM
             p if p.contains("__import__('os').system") || p.contains("subprocess.call") => (
                 SecurityWarningSeverity::Medium,
-                "Python system command execution that can run shell commands",
-                "This can execute arbitrary shell commands. Use safer subprocess alternatives.",
+                t!("claude_code.security.pattern.python_system.description").to_string(),
+                t!("claude_code.security.pattern.python_system.recommendation").to_string(),
             ),
 
             // Default for unknown patterns
             _ => (
                 SecurityWarningSeverity::Medium,
-                "Pattern detected in command execution permissions",
-                "Review this command pattern for potential security implications.",
+                t!("claude_code.security.pattern.default.description").to_string(),
+                t!("claude_code.security.pattern.default.recommendation").to_string(),
             ),
         }
     }

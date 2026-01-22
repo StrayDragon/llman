@@ -1,8 +1,6 @@
 use anyhow::{Result, anyhow};
-use directories::ProjectDirs;
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -142,13 +140,8 @@ impl Default for ScopeConfig {
 
 /// Get the global configuration file path
 fn get_global_config_path() -> Result<PathBuf> {
-    if let Ok(config_dir) = env::var("LLMAN_CONFIG_DIR") {
-        Ok(PathBuf::from(config_dir).join("config.yaml"))
-    } else {
-        let project_dirs = ProjectDirs::from("", "", "llman")
-            .ok_or_else(|| anyhow!("Could not determine global config directory"))?;
-        Ok(project_dirs.config_dir().join("config.yaml"))
-    }
+    let config_dir = crate::config::resolve_config_dir(None)?;
+    Ok(config_dir.join("config.yaml"))
 }
 
 impl Config {
@@ -156,12 +149,12 @@ impl Config {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         if !path.exists() {
-            return Err(anyhow!("Configuration file not found: {}", path.display()));
+            return Err(anyhow!(t!("tool.config.not_found", path = path.display())));
         }
 
         let content = fs::read_to_string(path)?;
         let config: Config = serde_yaml::from_str(&content)
-            .map_err(|e| anyhow!("Failed to parse configuration: {}", e))?;
+            .map_err(|e| anyhow!(t!("tool.config.parse_failed", error = e)))?;
 
         Ok(config)
     }
@@ -189,9 +182,10 @@ impl Config {
         }
 
         // No config found, return error
-        Err(anyhow!(
-            "No configuration file found. Tried local: .llman/config.yaml and global config"
-        ))
+        Err(anyhow!(t!(
+            "tool.config.not_found_with_priority",
+            local = ".llman/config.yaml"
+        )))
     }
 
     /// Load configuration or return default if not found
@@ -219,7 +213,7 @@ impl Config {
     pub fn generate_schema() -> Result<String> {
         let schema = schema_for!(Config);
         serde_json::to_string_pretty(&schema)
-            .map_err(|e| anyhow!("Failed to generate JSON schema: {}", e))
+            .map_err(|e| anyhow!(t!("tool.config.schema_generate_failed", error = e)))
     }
 }
 

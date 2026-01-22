@@ -15,7 +15,7 @@ pub fn select_config_group(config: &Config) -> Result<Option<String>> {
         group_names,
     )
     .prompt()
-    .context("Failed to select configuration group")?;
+    .context(t!("claude_code.error.select_config_failed"))?;
 
     Ok(Some(selection))
 }
@@ -38,7 +38,7 @@ pub fn prompt_import_config() -> Result<Option<(String, ConfigGroup)>> {
             }
         })
         .prompt()
-        .context("Failed to input group name")?;
+        .context(t!("claude_code.error.input_group_name_failed"))?;
 
     println!();
     println!(
@@ -48,8 +48,8 @@ pub fn prompt_import_config() -> Result<Option<(String, ConfigGroup)>> {
     );
     println!();
     println!("{}:", t!("claude_code.interactive.supported_formats"));
-    println!("  Format 1: {{\"env\": {{...}}}}");
-    println!("  Format 2: {{\"KEY\": \"value\", ...}}");
+    println!("  {}", t!("claude_code.interactive.format_1"));
+    println!("  {}", t!("claude_code.interactive.format_2"));
     println!();
     println!("{}:", t!("claude_code.interactive.how_to_use_editor"));
     println!(
@@ -74,13 +74,7 @@ pub fn prompt_import_config() -> Result<Option<(String, ConfigGroup)>> {
     );
     println!();
     println!("{}:", t!("claude_code.interactive.example"));
-    println!("{{");
-    println!("  \"env\": {{");
-    println!("    \"ANTHROPIC_BASE_URL\": \"https://api.anthropic.com\",");
-    println!("    \"ANTHROPIC_AUTH_TOKEN\": \"your-api-key\",");
-    println!("    \"ANTHROPIC_MODEL\": \"claude-3-5-sonnet-20241022\"");
-    println!("  }}");
-    println!("}}");
+    println!("{}", t!("claude_code.interactive.json_example"));
     println!();
 
     let json_input = Editor::new(&t!("claude_code.interactive.json_configuration"))
@@ -89,13 +83,18 @@ pub fn prompt_import_config() -> Result<Option<(String, ConfigGroup)>> {
             let lines = submission.lines().count();
             let chars = submission.chars().count();
             if lines == 0 {
-                String::from("<empty>")
+                t!("claude_code.interactive.editor_empty").to_string()
             } else {
-                format!("{} lines, {} chars", lines, chars)
+                t!(
+                    "claude_code.interactive.editor_summary",
+                    lines = lines,
+                    chars = chars
+                )
+                .to_string()
             }
         })
         .prompt()
-        .context("Failed to input JSON configuration")?;
+        .context(t!("claude_code.error.input_json_failed"))?;
 
     match parse_json_config(&json_input) {
         Ok(config_group) => {
@@ -104,7 +103,7 @@ pub fn prompt_import_config() -> Result<Option<(String, ConfigGroup)>> {
                 if !Confirm::new(&t!("claude_code.interactive.confirm_empty_import"))
                     .with_default(false)
                     .prompt()
-                    .context("Failed to confirm import")?
+                    .context(t!("claude_code.error.confirm_import_failed"))?
                 {
                     println!("{}", t!("claude_code.interactive.import_cancelled"));
                     return Ok(None);
@@ -122,7 +121,7 @@ pub fn prompt_import_config() -> Result<Option<(String, ConfigGroup)>> {
             if Confirm::new(&t!("claude_code.interactive.confirm_import", name = name))
                 .with_default(true)
                 .prompt()
-                .context("Failed to confirm import")?
+                .context(t!("claude_code.error.confirm_import_failed"))?
             {
                 Ok(Some((name, config_group)))
             } else {
@@ -147,16 +146,11 @@ pub fn display_config_list(config: &Config) {
             t!("claude_code.interactive.config_file_location"),
             crate::x::claude_code::config::Config::config_file_path()
                 .map(|p| p.display().to_string())
-                .unwrap_or_else(|_| "unknown".to_string())
+                .unwrap_or_else(|_| t!("claude_code.interactive.unknown_path").to_string())
         );
         println!();
         println!("{}:", t!("claude_code.interactive.example_configuration"));
-        println!("[groups]");
-        println!();
-        println!("[groups.my-group]");
-        println!("ANTHROPIC_BASE_URL = \"https://api.anthropic.com\"");
-        println!("ANTHROPIC_AUTH_TOKEN = \"your-api-key-here\"");
-        println!("ANTHROPIC_MODEL = \"claude-3-5-sonnet-20241022\"");
+        println!("{}", t!("claude_code.interactive.toml_example"));
         println!();
         println!(
             "{}: claude-code.toml",

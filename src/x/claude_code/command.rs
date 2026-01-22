@@ -1,7 +1,7 @@
 use crate::x::claude_code::config::{Config, ConfigGroup};
 use crate::x::claude_code::interactive;
 use crate::x::claude_code::security::{SecurityChecker, SecurityWarning};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
 use std::process::Command;
@@ -116,27 +116,21 @@ pub fn run(args: &ClaudeCodeArgs) -> Result<()> {
 }
 
 fn handle_main_command() -> Result<()> {
-    let config = Config::load().context("Failed to load configuration")?;
+    let config = Config::load().context(t!("claude_code.error.load_config_failed"))?;
 
     if config.is_empty() {
-        println!("{}", t!("claude_code.main.no_configs_found"));
-        println!();
-        println!("{}", t!("claude_code.main.suggestion_import"));
-        println!("  {}", t!("claude_code.main.command_import"));
-        println!();
-        println!("{}:", t!("claude_code.main.alternative_config"));
-        println!(
-            "  {}",
-            Config::config_file_path()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|_| "unknown".to_string())
-        );
-        return Ok(());
+        bail!(no_configs_message());
     }
 
-    if let Some(selected_group) = interactive::select_config_group(&config)?
-        && let Some(group) = config.get_group(&selected_group)
-    {
+    if let Some(selected_group) = interactive::select_config_group(&config)? {
+        let group = config.get_group(&selected_group).ok_or_else(|| {
+            anyhow::anyhow!(format!(
+                "{}\n{}",
+                t!("claude_code.account.group_not_found", name = selected_group),
+                t!("claude_code.account.use_list_command")
+            ))
+        })?;
+
         // Perform security check before executing claude
         let security_checker = SecurityChecker::from_config(&config)?;
         if let Ok(warnings) = security_checker.check_claude_settings() {
@@ -147,10 +141,12 @@ fn handle_main_command() -> Result<()> {
         let mut cmd = Command::new("claude");
         inject_env_vars(&mut cmd, group);
 
-        let status = cmd.status().context("Failed to execute claude command")?;
+        let status = cmd
+            .status()
+            .context(t!("claude_code.error.execute_failed"))?;
 
         if !status.success() {
-            eprintln!("{}", t!("claude_code.error.failed_claude_command"));
+            bail!(t!("claude_code.error.failed_claude_command"));
         }
     }
 
@@ -158,7 +154,7 @@ fn handle_main_command() -> Result<()> {
 }
 
 fn handle_account_command(action: Option<&AccountAction>) -> Result<()> {
-    let mut config = Config::load().context("Failed to load configuration")?;
+    let mut config = Config::load().context(t!("claude_code.error.load_config_failed"))?;
 
     match action {
         Some(cli_action) => execute_account_action(&mut config, cli_action)?,
@@ -182,9 +178,11 @@ fn handle_import_group(config: &mut Config, force: bool) -> Result<()> {
         // Check if group already exists
         if config.groups.contains_key(&name) {
             if !force {
-                println!("{}", t!("claude_code.account.group_exists", name = name));
-                println!("{}", t!("claude_code.account.use_different_name_or_force"));
-                return Ok(());
+                bail!(
+                    "{}\n{}",
+                    t!("claude_code.account.group_exists", name = name),
+                    t!("claude_code.account.use_different_name_or_force")
+                );
             } else {
                 println!(
                     "{}",
@@ -196,7 +194,7 @@ fn handle_import_group(config: &mut Config, force: bool) -> Result<()> {
         config.add_group(name.clone(), group);
         config
             .save()
-            .with_context(|| "Failed to save configuration after import")?;
+            .with_context(|| t!("claude_code.error.save_after_import_failed"))?;
         println!("{}", t!("claude_code.account.import_success", name = name));
     } else {
         println!("{}", t!("claude_code.interactive.import_cancelled"));
@@ -226,14 +224,19 @@ fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()
             cmd.arg(arg);
         }
 
-        let status = cmd.status().context("Failed to execute claude command")?;
+        let status = cmd
+            .status()
+            .context(t!("claude_code.error.execute_failed"))?;
 
         if !status.success() {
-            eprintln!("{}", t!("claude_code.error.failed_claude_command"));
+            bail!(t!("claude_code.error.failed_claude_command"));
         }
     } else {
-        println!("{}", t!("claude_code.account.group_not_found", name = name));
-        println!("{}", t!("claude_code.account.use_list_command"));
+        bail!(
+            "{}\n{}",
+            t!("claude_code.account.group_not_found", name = name),
+            t!("claude_code.account.use_list_command")
+        );
     }
     Ok(())
 }
@@ -243,32 +246,19 @@ fn handle_run_command(
     group_name: Option<&str>,
     args: Vec<String>,
 ) -> Result<()> {
-    let config = Config::load().context("Failed to load configuration")?;
+    let config = Config::load().context(t!("claude_code.error.load_config_failed"))?;
 
     if config.is_empty() {
-        println!("{}", t!("claude_code.main.no_configs_found"));
-        println!();
-        println!("{}", t!("claude_code.main.suggestion_import"));
-        println!("  {}", t!("claude_code.main.command_import"));
-        println!();
-        println!("{}:", t!("claude_code.main.alternative_config"));
-        println!(
-            "  {}",
-            Config::config_file_path()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|_| "unknown".to_string())
-        );
-        return Ok(());
+        bail!(no_configs_message());
     }
 
     // 验证参数组合
     if !interactive && group_name.is_none() {
-        eprintln!(
-            "{}",
-            t!("claude_code.run.error.group_required_non_interactive")
+        bail!(
+            "{}\n{}",
+            t!("claude_code.run.error.group_required_non_interactive"),
+            t!("claude_code.run.error.use_i_or_group")
         );
-        eprintln!("{}", t!("claude_code.run.error.use_i_or_group"));
-        return Ok(());
     }
 
     let (selected_group, claude_args) = if interactive {
@@ -301,39 +291,56 @@ fn handle_run_command(
             cmd.arg(arg);
         }
 
-        let status = cmd.status().context("Failed to execute claude command")?;
+        let status = cmd
+            .status()
+            .context(t!("claude_code.error.execute_failed"))?;
 
         if !status.success() {
-            eprintln!("{}", t!("claude_code.error.failed_claude_command"));
+            bail!(t!("claude_code.error.failed_claude_command"));
         }
     } else {
-        println!(
-            "{}",
-            t!("claude_code.account.group_not_found", name = selected_group)
+        bail!(
+            "{}\n{}",
+            t!("claude_code.account.group_not_found", name = selected_group),
+            t!("claude_code.account.use_list_command")
         );
-        println!("{}", t!("claude_code.account.use_list_command"));
     }
 
     Ok(())
+}
+
+fn no_configs_message() -> String {
+    let config_path = Config::config_file_path()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| t!("claude_code.main.unknown_path").to_string());
+
+    format!(
+        "{}\n\n{}\n  {}\n\n{}:\n  {}",
+        t!("claude_code.main.no_configs_found"),
+        t!("claude_code.main.suggestion_import"),
+        t!("claude_code.main.command_import"),
+        t!("claude_code.main.alternative_config"),
+        config_path
+    )
 }
 
 /// 处理交互模式：选择配置和输入参数
 fn handle_interactive_mode(config: &Config) -> Result<(String, Vec<String>)> {
     // 选择配置组
     let selected_group = interactive::select_config_group(config)?
-        .ok_or_else(|| anyhow::anyhow!("No configuration selected"))?;
+        .ok_or_else(|| anyhow::anyhow!(t!("claude_code.error.no_configuration_selected")))?;
 
     // 询问是否需要传递参数给 claude
     let use_args = inquire::Confirm::new(&t!("claude_code.run.interactive.prompt_args"))
         .with_default(false)
         .prompt()
-        .context("Failed to prompt for arguments")?;
+        .context(t!("claude_code.error.prompt_args_failed"))?;
 
     let claude_args = if use_args {
         let args_text = inquire::Text::new(&t!("claude_code.run.interactive.enter_args"))
             .with_help_message(&t!("claude_code.run.interactive.args_help"))
             .prompt()
-            .context("Failed to get claude arguments")?;
+            .context(t!("claude_code.error.args_input_failed"))?;
 
         // 简单的参数分割（可以用更复杂的方式处理引号等）
         args_text
@@ -353,24 +360,54 @@ fn print_security_warnings(warnings: &[SecurityWarning]) {
         return;
     }
 
-    eprintln!("\n🔒 {} Security Warnings Detected:", warnings.len());
-    eprintln!("{}", "═".repeat(60));
+    eprintln!(
+        "\n🔒 {}",
+        t!(
+            "claude_code.security.warning_header",
+            count = warnings.len()
+        )
+    );
+    eprintln!(
+        "{}",
+        t!("claude_code.security.warning_separator_char").repeat(60)
+    );
 
     for warning in warnings {
         eprintln!(
-            "\n{} [{}] Dangerous Permission Detected",
+            "\n{} [{}] {}",
             warning.severity.display_symbol(),
-            warning.severity.display_name()
+            warning.severity.display_name_localized(),
+            t!("claude_code.security.warning_item_title")
         );
-        eprintln!("  📍 Location: {}", warning.config_path);
-        eprintln!("  ⚙️  Setting: {}", warning.config_item);
-        eprintln!("  🎯 Pattern: {}", warning.matched_pattern);
-        eprintln!("  📝 Description: {}", warning.description);
-        eprintln!("  💡 Recommendation: {}", warning.recommendation);
+        eprintln!(
+            "  📍 {} {}",
+            t!("claude_code.security.label_location"),
+            warning.config_path
+        );
+        eprintln!(
+            "  ⚙️  {} {}",
+            t!("claude_code.security.label_setting"),
+            warning.config_item
+        );
+        eprintln!(
+            "  🎯 {} {}",
+            t!("claude_code.security.label_pattern"),
+            warning.matched_pattern
+        );
+        eprintln!(
+            "  📝 {} {}",
+            t!("claude_code.security.label_description"),
+            warning.description
+        );
+        eprintln!(
+            "  💡 {} {}",
+            t!("claude_code.security.label_recommendation"),
+            warning.recommendation
+        );
     }
 
-    eprintln!("\n⚠️ These permissions are defined in your Claude Code settings but conflict with");
-    eprintln!("  security rules in <llman config>/claude-code.toml");
+    eprintln!("\n⚠️ {}", t!("claude_code.security.footer_line1"));
+    eprintln!("  {}", t!("claude_code.security.footer_line2"));
     eprintln!();
 }
 

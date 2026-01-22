@@ -125,12 +125,12 @@ impl TreeSitterProcessor {
 
         self.parser
             .set_language(&language)
-            .map_err(|e| anyhow!("Failed to set language: {}", e))?;
+            .map_err(|e| anyhow!(t!("tool.tree_sitter.set_language_failed", error = e)))?;
 
         let tree = self
             .parser
             .parse(content, None)
-            .ok_or_else(|| anyhow!("Failed to parse content"))?;
+            .ok_or_else(|| anyhow!(t!("tool.tree_sitter.parse_content_failed")))?;
 
         let mut comments = Vec::new();
 

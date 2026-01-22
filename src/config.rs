@@ -14,6 +14,24 @@ pub const DEFAULT_EXTENSION: &str = "txt";
 pub const PROMPT_DIR: &str = "prompt";
 pub const TARGET_CURSOR_RULES_DIR: &str = ".cursor/rules";
 
+pub fn resolve_config_dir(cli_override: Option<&Path>) -> Result<PathBuf> {
+    if let Some(path) = cli_override {
+        validate_path_str(&path.to_string_lossy())
+            .map_err(|e| anyhow!(t!("errors.invalid_config_dir", error = e)))?;
+        return Ok(path.to_path_buf());
+    }
+
+    if let Ok(env_config_dir) = env::var(ENV_CONFIG_DIR) {
+        validate_path_str(&env_config_dir)
+            .map_err(|e| anyhow!(t!("errors.invalid_config_dir_env", error = e)))?;
+        return Ok(PathBuf::from(env_config_dir));
+    }
+
+    let project_dirs = ProjectDirs::from("", "", APP_NAME)
+        .ok_or_else(|| anyhow!(t!("errors.not_find_config_dir")))?;
+    Ok(project_dirs.config_dir().to_path_buf())
+}
+
 pub struct Config {
     config_dir: PathBuf,
     prompt_dir: PathBuf,
@@ -26,19 +44,7 @@ impl Config {
     }
 
     pub fn with_config_dir(config_dir_override: Option<&str>) -> Result<Self> {
-        let config_dir = if let Some(custom_dir) = config_dir_override {
-            validate_path_str(custom_dir)
-                .map_err(|e| anyhow!("Invalid config directory: {}", e))?;
-            PathBuf::from(custom_dir)
-        } else if let Ok(custom_dir) = env::var(ENV_CONFIG_DIR) {
-            validate_path_str(&custom_dir)
-                .map_err(|e| anyhow!("Invalid config directory in environment variable: {}", e))?;
-            PathBuf::from(custom_dir)
-        } else {
-            let project_dirs = ProjectDirs::from("", "", APP_NAME)
-                .ok_or_else(|| anyhow!(t!("errors.not_find_config_dir")))?;
-            project_dirs.config_dir().to_path_buf()
-        };
+        let config_dir = resolve_config_dir(config_dir_override.map(Path::new))?;
 
         let prompt_dir = config_dir.join(PROMPT_DIR);
 
@@ -126,6 +132,57 @@ mod tests {
         unsafe {
             env::remove_var(ENV_CONFIG_DIR);
         }
+    }
+
+    #[test]
+    fn test_resolve_config_dir_cli_overrides_env() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let env_dir = env::temp_dir().join("llman_env_dir_resolve");
+        let cli_dir = env::temp_dir().join("llman_cli_dir_resolve");
+
+        unsafe {
+            env::set_var(ENV_CONFIG_DIR, &env_dir);
+        }
+
+        let resolved = resolve_config_dir(Some(cli_dir.as_path())).unwrap();
+        assert_eq!(resolved, cli_dir);
+
+        unsafe {
+            env::remove_var(ENV_CONFIG_DIR);
+        }
+    }
+
+    #[test]
+    fn test_resolve_config_dir_env_overrides_default() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let env_dir = env::temp_dir().join("llman_env_dir_default");
+
+        unsafe {
+            env::set_var(ENV_CONFIG_DIR, &env_dir);
+        }
+
+        let resolved = resolve_config_dir(None).unwrap();
+        assert_eq!(resolved, env_dir);
+
+        unsafe {
+            env::remove_var(ENV_CONFIG_DIR);
+        }
+    }
+
+    #[test]
+    fn test_resolve_config_dir_default_path() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            env::remove_var(ENV_CONFIG_DIR);
+        }
+
+        let resolved = resolve_config_dir(None).unwrap();
+        let expected = ProjectDirs::from("", "", APP_NAME)
+            .unwrap()
+            .config_dir()
+            .to_path_buf();
+
+        assert_eq!(resolved, expected);
     }
 
     #[test]

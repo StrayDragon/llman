@@ -18,7 +18,7 @@ fn test_config_default_values() {
     assert!(config.tools.clean_useless_comments.is_some());
 
     let clean_config = config.tools.clean_useless_comments.unwrap();
-    assert!(clean_config.scope.include.is_empty() || clean_config.scope.include.len() > 0);
+    assert!(!clean_config.scope.include.is_empty());
 }
 
 #[test]
@@ -385,7 +385,7 @@ tools:
 
     let schema = schema_result.unwrap();
     // Schema is a string, not an object with properties
-    assert!(schema.len() > 0, "Schema should have content");
+    assert!(!schema.is_empty(), "Schema should have content");
 }
 
 #[test]

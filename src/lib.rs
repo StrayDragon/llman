@@ -14,14 +14,6 @@ pub mod x;
 #[cfg(test)]
 pub mod test_utils;
 
-use std::env;
-
-use config::ENV_LANG;
-
 pub fn init_locale() {
-    let locale = match env::var(ENV_LANG) {
-        Ok(lang) if lang == "zh-CN" || lang == "zh" => "zh-CN",
-        _ => "en",
-    };
-    rust_i18n::set_locale(locale);
+    rust_i18n::set_locale("en");
 }
