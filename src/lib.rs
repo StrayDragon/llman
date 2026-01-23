@@ -8,6 +8,8 @@ pub mod config;
 pub mod error;
 pub mod path_utils;
 pub mod prompt;
+pub mod sdd;
+pub mod skills;
 pub mod tool;
 pub mod x;
 

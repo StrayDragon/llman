@@ -1408,3 +1408,284 @@ codex:
       en: "No Claude Code settings files found"
     parse_error:
       en: "Error parsing settings file {path}: {error}"
+
+# SDD workflow
+sdd:
+  list:
+    no_changes_dir:
+      en: "No llmanspec changes directory found. Run 'llman sdd init' first."
+    no_active_changes:
+      en: "No active changes found."
+    changes_header:
+      en: "Active changes:"
+    no_specs:
+      en: "No specs found."
+    specs_header:
+      en: "Available specs:"
+    no_tasks_status:
+      en: "no tasks"
+    complete_status:
+      en: "complete"
+    just_now:
+      en: "just now"
+
+  show:
+    option_change:
+      en: "Change"
+    option_spec:
+      en: "Spec"
+    select_type:
+      en: "What would you like to show?"
+    no_changes_found:
+      en: "No changes found."
+    pick_change:
+      en: "Pick a change"
+    no_specs_found:
+      en: "No specs found."
+    pick_spec:
+      en: "Pick a spec"
+    non_interactive:
+      line1:
+        en: "Nothing to show. Try one of:"
+      line2:
+        en: "  llman sdd show <item>"
+      line3:
+        en: "  llman sdd show --type change"
+      line4:
+        en: "  llman sdd show --type spec"
+      line5:
+        en: "Or run in an interactive terminal."
+    unknown_item:
+      en: "Unknown item '%{item}'"
+    did_you_mean:
+      en: "Did you mean: %{items}?"
+    ambiguous_item:
+      en: "Ambiguous item '%{item}' matches both a change and a spec."
+    ambiguous_hint:
+      en: "Pass --type change|spec."
+    change_not_found:
+      en: "Change '%{id}' not found."
+    spec_not_found:
+      en: "Spec '%{id}' not found."
+    requirements_only_deprecated:
+      en: "Flag --requirements-only is deprecated; use --deltas-only instead."
+    requirements_conflict:
+      en: "Options --requirements and --requirement cannot be used together."
+    requirement_not_found:
+      en: "Requirement %{id} not found (1-%{count})."
+    ignore_flags:
+      en: "Warning: Ignoring flags not applicable to %{item_type}: %{flags}"
+
+  validate:
+    option_change:
+      en: "Change"
+    option_spec:
+      en: "Spec"
+    select_scope:
+      en: "What would you like to validate?"
+    option_all:
+      en: "All (changes + specs)"
+    option_changes:
+      en: "All changes"
+    option_specs:
+      en: "All specs"
+    option_pick_one:
+      en: "Pick a specific change or spec"
+    pick_item:
+      en: "Pick an item"
+    no_items:
+      en: "No items found to validate."
+    invalid_pick:
+      en: "Invalid selection."
+    unknown_item:
+      en: "Unknown item '%{item}'"
+    did_you_mean:
+      en: "Did you mean: %{items}?"
+    ambiguous_item:
+      en: "Ambiguous item '%{item}' matches both a change and a spec."
+    ambiguous_hint:
+      en: "Pass --type change|spec."
+    item_valid:
+      en: "%{item} '%{id}' is valid"
+    item_invalid:
+      en: "%{item} '%{id}' has issues"
+    issue_line:
+      en: "[%{label}] %{path}: %{message}"
+    spec_read_failed:
+      en: "Failed to read spec file: %{error}"
+    frontmatter_missing:
+      en: "Spec frontmatter is required."
+    frontmatter_unterminated:
+      en: "Spec frontmatter is missing the closing '---'."
+    frontmatter_parse_error:
+      en: "Spec frontmatter YAML parse error: %{error}"
+    frontmatter_key_missing:
+      en: "Spec frontmatter is missing required key: %{key}"
+    frontmatter_value_empty:
+      en: "Spec frontmatter key %{key} must not be empty"
+    frontmatter_value_invalid:
+      en: "Spec frontmatter key %{key} must be a string or list of strings"
+    next_steps:
+      en: "Next steps:"
+    change_step_1:
+      en: "- Ensure change has deltas in specs/: use headers ## ADDED/MODIFIED/REMOVED/RENAMED Requirements"
+    change_step_2:
+      en: "- Each requirement MUST include at least one #### Scenario: block"
+    change_step_3:
+      en: "- Debug parsed deltas: llman sdd show <id> --json --deltas-only"
+    spec_step_1:
+      en: "- Ensure spec includes ## Purpose and ## Requirements sections"
+    spec_step_2:
+      en: "- Each requirement MUST include at least one #### Scenario: block"
+    spec_step_3:
+      en: "- Re-run with --json to see structured report"
+    bulk_ok:
+      en: "OK %{item}"
+    bulk_fail:
+      en: "FAIL %{item}"
+    bulk_summary:
+      en: "Totals: %{passed} passed, %{failed} failed (%{items} items)"
+    staleness_status:
+      en: "Staleness: %{status}"
+    staleness_touched:
+      en: "Touched scope paths: %{paths}"
+    staleness_spec_updated:
+      en: "Spec file updated since base."
+    staleness_dirty:
+      en: "Working tree is dirty; results may be unreliable."
+    staleness_note:
+      en: "Note: %{note}"
+    staleness_scope_missing:
+      en: "Spec validation scope is missing."
+    staleness_base_missing:
+      en: "Unable to resolve base ref for staleness check."
+    staleness_stale:
+      en: "Spec may be stale; scope changed without spec update."
+    staleness_git_failed:
+      en: "Git command failed during staleness evaluation."
+    non_interactive:
+      line1:
+        en: "Nothing to validate. Try one of:"
+      line2:
+        en: "  llman sdd validate --all"
+      line3:
+        en: "  llman sdd validate --changes"
+      line4:
+        en: "  llman sdd validate --specs"
+      line5:
+        en: "  llman sdd validate <item-name>"
+      line6:
+        en: "Or run in an interactive terminal."
+
+  archive:
+    change_required:
+      en: "Change id is required."
+    change_not_found:
+      en: "Change '%{id}' not found."
+    archive_exists:
+      en: "Archive '%{name}' already exists."
+    archived:
+      en: "Change '%{change}' archived as '%{archive}'."
+    rebuilt_invalid:
+      en: "Validation errors in rebuilt spec for %{spec}: %{errors}"
+    no_deltas:
+      en: "Delta parsing found no operations for %{spec}. Provide ADDED/MODIFIED/REMOVED/RENAMED sections."
+    new_spec_only_added:
+      en: "%{spec}: target spec does not exist; only ADDED requirements are allowed for new specs."
+    rename_missing:
+      en: "%{spec} RENAMED failed for header \"### Requirement: %{name}\" - source not found"
+    rename_exists:
+      en: "%{spec} RENAMED failed for header \"### Requirement: %{name}\" - target already exists"
+    remove_missing:
+      en: "%{spec} REMOVED failed for header \"### Requirement: %{name}\" - not found"
+    modify_missing:
+      en: "%{spec} MODIFIED failed for header \"### Requirement: %{name}\" - not found"
+    modify_header_mismatch:
+      en: "%{spec} MODIFIED failed for header \"### Requirement: %{name}\" - header mismatch in content"
+    add_exists:
+      en: "%{spec} ADDED failed for header \"### Requirement: %{name}\" - already exists"
+    requirements_missing:
+      en: "Spec must include a ## Requirements section."
+    invalid_target:
+      en: "Invalid target path for spec."
+    totals:
+      en: "Totals: + %{added}, ~ %{modified}, - %{removed}, -> %{renamed}"
+    dry_run_apply:
+      en: "Would apply changes to %{path}:"
+    apply:
+      en: "Applying changes to %{path}:"
+    count_added:
+      en: "  + %{count} added"
+    count_modified:
+      en: "  ~ %{count} modified"
+    count_removed:
+      en: "  - %{count} removed"
+    count_renamed:
+      en: "  -> %{count} renamed"
+    dry_run_move:
+      en: "Would move %{from} -> %{to}"
+
+skills:
+  not_implemented:
+    en: "Skills manager is not implemented yet."
+  non_repo_confirm:
+    en: "Current directory is not a git repo. Scan global/user sources anyway?"
+  non_repo_cancelled:
+    en: "Cancelled."
+  non_repo_non_interactive:
+    en: "Current directory is not a git repo. Run in an interactive terminal to continue."
+  non_repo_prompt_failed:
+    en: "Failed to confirm non-repo scan: %{error}"
+  source_missing:
+    en: "Source path not found: %{path}"
+  link_failed:
+    en: "Failed to link %{path}: %{error}"
+  conflict:
+    prompt:
+      en: "Multiple versions found for %{skill}. Select the version to activate."
+    prompt_failed:
+      en: "Failed to select version: %{error}"
+    auto_selected:
+      en: "No interactive terminal; using default version for %{skill}."
+    no_options:
+      en: "No conflict options available for %{skill}."
+  hash:
+    strip_prefix_failed:
+      en: "Failed to compute relative path:"
+  copy:
+    strip_prefix_failed:
+      en: "Failed to copy file; unable to resolve relative path:"
+  target:
+    not_directory:
+      en: "Target path is not a directory: %{path}"
+    not_symlink:
+      en: "Target entry exists and is not a symlink: %{path}"
+  manager:
+    no_skills:
+      en: "No skills found to manage."
+    select_skill:
+      en: "Select a skill to manage"
+    select_target:
+      en: "Select a target to toggle"
+    prompt_failed:
+      en: "Failed to read selection: %{error}"
+    exit:
+      en: "Exit"
+    back:
+      en: "Back"
+  config:
+    read_failed:
+      en: "Failed to read skills config: %{error}"
+    parse_failed:
+      en: "Failed to parse skills config: %{error}"
+    unsupported_version:
+      en: "Unsupported skills config version %{version}."
+    home_missing:
+      en: "Unable to resolve home directory for path expansion."
+  registry:
+    read_failed:
+      en: "Failed to read skills registry: %{error}"
+    parse_failed:
+      en: "Failed to parse skills registry: %{error}"
+    write_failed:
+      en: "Failed to write skills registry: %{error}"
