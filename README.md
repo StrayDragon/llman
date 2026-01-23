@@ -79,6 +79,49 @@ llman prompt list --app cursor
 llman x cursor export -i # --interactive
 ```
 
+### Spec-driven 开发 (SDD)
+
+```bash
+# 初始化 llmanspec 目录与模板
+llman sdd init
+
+# 更新 llmanspec 指令与模板
+llman sdd update
+
+# 列出变更或 specs
+llman sdd list
+llman sdd list --specs
+
+# 查看变更或 spec（支持 --json）
+llman sdd show <id>
+llman sdd show <id> --type change
+llman sdd show <id> --type spec
+
+# 校验变更或 spec（支持 --json / --strict）
+llman sdd validate --all
+llman sdd validate <id>
+
+# 归档变更并合并 specs（支持 --skip-specs / --dry-run）
+llman sdd archive <id>
+```
+
+Spec 文件需要 YAML frontmatter，示例：
+
+```markdown
+---
+llman_spec_valid_scope:
+  - src/
+  - tests/
+llman_spec_valid_commands:
+  - cargo test
+llman_spec_evidence:
+  - "CI run #12345"
+---
+
+## Purpose
+...
+```
+
 
 ## 🛠️ 开发与贡献
 

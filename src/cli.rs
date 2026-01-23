@@ -1,5 +1,7 @@
 use crate::config::{ENV_CONFIG_DIR, resolve_config_dir};
 use crate::prompt::PromptCommand;
+use crate::sdd::command::SddArgs;
+use crate::skills::command::SkillsArgs;
 use crate::tool::command::{ToolArgs, ToolCommands};
 use crate::x::claude_code::command::ClaudeCodeArgs;
 use crate::x::codex::command::CodexArgs;
@@ -28,6 +30,10 @@ pub enum Commands {
     /// Manage prompts and rules
     #[command(alias = "rule")]
     Prompt(PromptArgs),
+    /// Manage skills
+    Skills(SkillsArgs),
+    /// Spec-driven development workflow
+    Sdd(SddArgs),
     /// Experimental commands
     X(XArgs),
     /// Developer tools
@@ -118,6 +124,8 @@ pub fn run() -> Result<()> {
 
     match &cli.command {
         Commands::Prompt(args) => handle_prompt_command(args),
+        Commands::Skills(args) => crate::skills::command::run(args),
+        Commands::Sdd(args) => crate::sdd::command::run(args),
         Commands::X(args) => handle_x_command(args),
         Commands::Tool(args) => handle_tool_command(args),
     }
