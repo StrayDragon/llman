@@ -1,19 +1,22 @@
 # errors-exit Specification
 
 ## Purpose
-TBD - created by archiving change update-cli-quality-specs. Update Purpose after archive.
+Define llman CLI error rendering and exit behavior.
 ## Requirements
-### Requirement: Centralized error output and exit codes
-The CLI entrypoint MUST render a single user-facing error message to stderr and exit with code 1 when any command returns an error.
+### Requirement: Entrypoint error rendering
+The CLI entrypoint MUST render a single user-facing error message to stderr and exit with code 1 when a command returns an error. `LlmanError` values MUST be localized before being wrapped by `messages.error`; other errors use `to_string()`.
 
 #### Scenario: Command failure
 - **WHEN** a subcommand returns an error
 - **THEN** the CLI prints one localized error line to stderr and exits with code 1
 
-### Requirement: Error propagation from command handlers
-Command handlers MUST return `Err` on failure instead of printing errors and returning success.
+### Requirement: Subcommand error handling
+Command handlers MUST return `Err` on fatal failures. Interactive flows MAY print their own error messages and exit directly, and recoverable issues MAY be logged to stderr without failing the command.
 
-#### Scenario: Subcommand failure path
-- **WHEN** a command encounters an operational error
-- **THEN** it propagates the error to `main()` without printing success output
+#### Scenario: Non-interactive show without item
+- **WHEN** `llman sdd show` runs without an item in a non-interactive terminal
+- **THEN** it prints the non-interactive hint to stderr and exits with code 1
 
+#### Scenario: Recoverable warning
+- **WHEN** a configured skills source path does not exist
+- **THEN** a warning is printed to stderr and the sync continues
