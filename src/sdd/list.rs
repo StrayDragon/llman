@@ -4,7 +4,7 @@ use crate::sdd::parser::parse_spec;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use std::cmp::max;
+use std::cmp::{Reverse, max};
 use std::fs;
 use std::path::Path;
 
@@ -79,7 +79,7 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
     if sort_by_name {
         changes.sort_by(|a, b| a.name.cmp(&b.name));
     } else {
-        changes.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+        changes.sort_by_key(|change| Reverse(change.last_modified));
     }
 
     if args.json {

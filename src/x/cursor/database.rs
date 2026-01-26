@@ -5,6 +5,7 @@ use diesel::sql_query;
 use diesel::sqlite::SqliteConnection;
 use dirs;
 use glob::glob;
+use std::cmp::Reverse;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -132,7 +133,7 @@ impl CursorDatabase {
         }
 
         // 按时间排序，最新的在前面
-        summaries.sort_by(|a, b| b.last_message_time.cmp(&a.last_message_time));
+        summaries.sort_by_key(|summary| Reverse(summary.last_message_time));
 
         Ok(summaries)
     }
@@ -313,7 +314,7 @@ impl CursorDatabase {
             })
             .collect();
 
-        db_files_with_metadata.sort_by(|a, b| b.1.cmp(&a.1));
+        db_files_with_metadata.sort_by_key(|entry| Reverse(entry.1));
 
         let chat_db = db_files_with_metadata
             .iter()
