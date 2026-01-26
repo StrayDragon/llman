@@ -1,5 +1,6 @@
 use crate::tool::config::LanguageSpecificRules;
 use anyhow::{Result, anyhow};
+use std::cmp::Reverse;
 use std::path::Path;
 use tree_sitter::{Language, Node, Parser, Query, QueryCursor, StreamingIterator};
 use tree_sitter_highlight::HighlightConfiguration;
@@ -293,7 +294,7 @@ impl TreeSitterProcessor {
             .collect();
 
         // Sort by start position (descending)
-        comments_to_remove.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
+        comments_to_remove.sort_by_key(|comment| Reverse(comment.start_byte));
 
         for comment in comments_to_remove {
             removed_comments.push(comment.clone());
