@@ -1,7 +1,7 @@
 # tests-ci Specification
 
 ## Purpose
-TBD - created by archiving change update-cli-quality-specs. Update Purpose after archive.
+Describe CI quality gates and required checks for llman.
 ## Requirements
 ### Requirement: CI runs fmt and clippy with warnings denied
 CI MUST run format checks and clippy with `-D warnings` as part of the standard check pipeline.
@@ -10,10 +10,16 @@ CI MUST run format checks and clippy with `-D warnings` as part of the standard 
 - **WHEN** CI runs on main branch
 - **THEN** the job executes `just check` (fmt-check + clippy + tests)
 
+### Requirement: CI runs a release build check
+CI MUST run a release build to ensure the project builds with the nightly toolchain.
+
+#### Scenario: CI build job
+- **WHEN** CI runs on main branch
+- **THEN** the job executes `just build-release`
+
 ### Requirement: Clippy warnings are addressed in tests
 Test code MUST avoid clippy warnings that would fail `-D warnings` (e.g., prefer `is_empty()` over `len() > 0`).
 
 #### Scenario: Clippy run
-- **WHEN** `cargo +nightly clippy --all-targets --all-features -- -D warnings` runs
+- **WHEN** `cargo +nightly clippy -- -D warnings` runs
 - **THEN** test code does not emit len_zero or similar warnings
-

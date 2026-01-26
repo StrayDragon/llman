@@ -1,7 +1,7 @@
 # sdd-workflow Specification
 
 ## Purpose
-TBD - created by archiving change add-sdd-command. Update Purpose after archive.
+Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmanspec/`.
 ## Requirements
 ### Requirement: SDD 初始化脚手架
 `llman sdd init [path]` 命令 MUST 在目标路径创建 `llmanspec/` 目录结构，包括 `llmanspec/AGENTS.md`、`llmanspec/project.md`、`llmanspec/specs/`、`llmanspec/changes/` 与 `llmanspec/changes/archive/`，以及 `llmanspec/templates/spec-driven/` 下的 `proposal.md`、`spec.md`、`design.md`、`tasks.md`。当 `llmanspec/` 已存在时，命令 MUST 报错并且不修改任何文件。生成的 `llmanspec/AGENTS.md` MUST 包含 LLMANSPEC 受管提示块。
@@ -37,6 +37,10 @@ TBD - created by archiving change add-sdd-command. Update Purpose after archive.
 - **WHEN** 用户执行 `llman sdd update <path>`
 - **THEN** 仅更新 `<path>/llmanspec/` 下的指令与模板文件
 
+#### Scenario: 未初始化时更新
+- **WHEN** 目标路径下不存在 `llmanspec/`
+- **THEN** 命令返回错误并提示先执行 `llman sdd init`
+
 #### Scenario: 保留用户自定义内容
 - **WHEN** `llmanspec/AGENTS.md` 含有用户自定义内容且包含 LLMANSPEC 受管块
 - **THEN** update 仅替换受管块并保留其他内容
@@ -54,7 +58,7 @@ TBD - created by archiving change add-sdd-command. Update Purpose after archive.
 - **AND** 不包含 `change`、`spec`、`view`、`completion`、`config`
 
 ### Requirement: SDD 列表与查看
-`llman sdd list` 默认 MUST 列出 `llmanspec/changes/` 下除 `archive` 外的变更 ID，提供 `--specs` 时 MUST 列出 `llmanspec/specs/` 下的 spec ID，提供 `--changes` 时 MUST 显式列出变更。`llman sdd list` MUST 支持 `--sort`（默认 `recent`，可选 `name`）。`llman sdd show` MUST 输出指定 change/spec 的原始 markdown，并遵循 OpenSpec 的自动识别与 `--type change|spec` 覆盖规则。`list` 与 `show` MUST 支持 `--json` 机器可读输出，且 JSON 结构与 OpenSpec CLI 对齐。
+`llman sdd list` 默认 MUST 列出 `llmanspec/changes/` 下除 `archive` 外的变更 ID，提供 `--specs` 时 MUST 列出 `llmanspec/specs/` 下的 spec ID，提供 `--changes` 时 MUST 显式列出变更。`llman sdd list` MUST 支持 `--sort`（默认 `recent`，可选 `name`）。`llman sdd show` MUST 输出指定 change/spec 的原始 markdown（非 JSON 模式），并遵循 OpenSpec 的自动识别与 `--type change|spec` 覆盖规则。`list` 与 `show` MUST 支持 `--json` 机器可读输出：change JSON 输出 `id/title/deltaCount/deltas`，spec JSON 输出 `id/title/overview/requirementCount/requirements/metadata`。spec JSON MUST 支持 `--requirements`、`--no-scenarios` 与 `--requirement` 过滤（`--requirements` 与 `--requirement` 冲突时报错）。`--requirements-only` 作为 `--deltas-only` 的弃用别名，仅提示警告且不改变输出。
 
 #### Scenario: 默认列出变更
 - **WHEN** 用户执行 `llman sdd list`
@@ -90,7 +94,15 @@ TBD - created by archiving change add-sdd-command. Update Purpose after archive.
 
 #### Scenario: JSON 输出（show）
 - **WHEN** 用户执行 `llman sdd show <id> --json`
-- **THEN** 输出 OpenSpec 对齐的 JSON（change: `id/title/deltaCount/deltas...`；spec: `id/title/overview/requirementCount/requirements...`）
+- **THEN** 输出 OpenSpec 对齐的 JSON（change: `id/title/deltaCount/deltas...`；spec: `id/title/overview/requirementCount/requirements/metadata...`）
+
+#### Scenario: JSON 输出（spec 过滤）
+- **WHEN** 用户执行 `llman sdd show <spec-id> --json --requirement 1 --no-scenarios`
+- **THEN** 仅返回指定序号的 requirement 且不包含 scenarios
+
+#### Scenario: JSON 输出（参数冲突）
+- **WHEN** 用户执行 `llman sdd show <spec-id> --json --requirements --requirement 1`
+- **THEN** 命令返回错误并提示参数冲突
 
 ### Requirement: SDD 交互提示与非交互提示
 `llman sdd show` 与 `llman sdd validate` MUST 按 OpenSpec 的交互体验实现：在可交互环境下提供选择式流程；在不可交互或显式禁用交互时输出一致的提示语并退出非零。
@@ -127,10 +139,22 @@ TBD - created by archiving change add-sdd-command. Update Purpose after archive.
   - `Or run in an interactive terminal.`
 
 ### Requirement: SDD 校验
-`llman sdd validate` MUST 校验 spec 与 delta 的格式（含 `## ADDED|MODIFIED|REMOVED|RENAMED Requirements` 与 `#### Scenario:` 标题），并 MUST 支持 `--all --changes --specs --type change|spec --strict --no-interactive --json`。`--json` 输出 MUST 采用 OpenSpec 顶层 validate 结构（`items`/`summary`/`version`），单项校验亦使用同一结构。
+`llman sdd validate` MUST 校验 spec 与 delta 的格式：spec 必须包含 `## Purpose` 与 `## Requirements`，每个 requirement 文本必须包含 `SHALL` 或 `MUST`，且至少包含一个 `#### Scenario:`；delta 必须使用 `## ADDED|MODIFIED|REMOVED|RENAMED Requirements`，每个 requirement 块必须包含文本与场景，同一 requirement 不得出现在多个 section，`RENAMED` section 若存在必须包含 `FROM/TO` 对。命令 MUST 支持 `--all --changes --specs --type change|spec --strict --no-interactive --json`。`--json` 输出 MUST 采用 OpenSpec 顶层 validate 结构（`items`/`summary`/`version`），单项校验亦使用同一结构。
 
 #### Scenario: 非法场景标题
 - **WHEN** 某个 requirement 使用了不合法的场景标题（非 `#### Scenario:`）
+- **THEN** 校验失败并报告具体文件
+
+#### Scenario: 缺少 Purpose 或 Requirements
+- **WHEN** spec 缺少 `## Purpose` 或 `## Requirements` 章节
+- **THEN** 校验失败并报告具体文件
+
+#### Scenario: Requirement 缺少 SHALL/MUST
+- **WHEN** requirement 文本未包含 `SHALL` 或 `MUST`
+- **THEN** 校验失败并报告具体 requirement
+
+#### Scenario: RENAMED 缺少配对
+- **WHEN** delta 包含 `## RENAMED Requirements` 但未提供 FROM/TO 配对
 - **THEN** 校验失败并报告具体文件
 
 #### Scenario: 合法变更
@@ -170,6 +194,7 @@ TBD - created by archiving change add-sdd-command. Update Purpose after archive.
 - 若 Git 无法解析 base（如无 remote / 无 merge-base），则 MUST 记录 `WARN` 并跳过 staleness 评估；`--strict` MUST 将 `WARN` 升级为 `ERROR`。
 - 若工作区存在未提交变更（`git status --porcelain` 非空），则 MUST 记录 `WARN`；`--strict` MUST 将其升级为 `ERROR`。
 - 子模块指针变更若路径匹配范围 MUST 视为触及范围。
+- staleness 状态 MUST 为 `OK|STALE|INFO|WARN|NOT_APPLICABLE`；非 spec 项（change 校验）使用 `NOT_APPLICABLE`。
 
 `llman sdd validate --json` MUST 在每个 `items[]` 中新增 `staleness` 字段，包含 `status`、`baseRef`、`scope`、`touchedPaths`、`specUpdated`、`dirty` 与 `notes`。文本输出 MUST 在每个 spec 的校验结果中提示 staleness 状态。
 
@@ -186,11 +211,19 @@ TBD - created by archiving change add-sdd-command. Update Purpose after archive.
 - **THEN** staleness 记录为 `WARN`，`--strict` 时视为错误
 
 ### Requirement: SDD 归档流程
-`llman sdd archive` MUST 将 delta 合并到 `llmanspec/specs` 并将变更目录移动到 `llmanspec/changes/archive/YYYY-MM-DD-<change-id>`。命令 MUST 支持 `--skip-specs` 以在不更新 specs 的情况下归档；当 MODIFIED/REMOVED/RENAMED 引用不存在的 requirement 时 MUST 报错并中止。
+`llman sdd archive` MUST 将 delta 合并到 `llmanspec/specs` 并将变更目录移动到 `llmanspec/changes/archive/YYYY-MM-DD-<change-id>`。当目标 spec 不存在时 MUST 创建包含默认 frontmatter 与 Purpose 占位的 skeleton，且仅允许 `ADDED` requirements。命令 MUST 支持 `--skip-specs` 以在不更新 specs 的情况下归档；当 MODIFIED/REMOVED/RENAMED 引用不存在的 requirement 时 MUST 报错并中止。
 
 #### Scenario: 归档并更新 specs
 - **WHEN** 用户执行 `llman sdd archive <change-id>`
 - **THEN** specs 被 delta 更新且变更目录被移动到 archive
+
+#### Scenario: 新 spec 创建
+- **WHEN** 归档的 delta 指向不存在的 spec 且仅包含 `ADDED` requirements
+- **THEN** 归档创建包含默认 frontmatter 与 Purpose 占位文本的 spec skeleton
+
+#### Scenario: 新 spec 含非 ADDED
+- **WHEN** 归档的 delta 指向不存在的 spec 且包含 `MODIFIED`/`REMOVED`/`RENAMED`
+- **THEN** 归档失败并输出错误提示
 
 #### Scenario: 仅归档目录
 - **WHEN** 用户执行 `llman sdd archive <change-id> --skip-specs`

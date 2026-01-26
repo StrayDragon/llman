@@ -1,7 +1,7 @@
 # tool-clean-comments Specification
 
 ## Purpose
-TBD - created by archiving change update-cli-quality-specs. Update Purpose after archive.
+Define clean-comments safety behavior and the tree-sitter-only removal path.
 ## Requirements
 ### Requirement: Safe failure on tree-sitter unavailability
 When tree-sitter is unavailable or fails for a file, the clean-comments processor MUST skip modification for that file and record an error while continuing other files.
@@ -20,4 +20,3 @@ Regex-based comment removal MUST NOT run by default; it may remain available onl
 #### Scenario: Default run
 - **WHEN** clean-comments runs without any explicit opt-in
 - **THEN** regex-based removal is not used
-
