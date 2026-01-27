@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 # {{projectName}} 项目上下文
 
 ## 目标

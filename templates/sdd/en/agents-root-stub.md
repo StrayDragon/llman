@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 # LLMAN Spec-Driven Development
 
 This repository uses llman SDD. The full methodology lives in `llmanspec/AGENTS.md`.

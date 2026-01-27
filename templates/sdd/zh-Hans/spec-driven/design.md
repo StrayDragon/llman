@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 ## Context
 
 <!-- 背景与当前状态 -->

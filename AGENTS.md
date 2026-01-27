@@ -36,7 +36,8 @@ This project targets Rust edition 2024 and uses the nightly toolchain.
 - `just run-prod -- <args>`: run with production config.
 - `just test`: run the full test suite.
 - `just check`: format check, lint, and tests.
-- `just check-all`: check plus docs and release build.
+- `just check-all`: check plus docs, release build, and SDD template checks.
+- `just check-sdd-templates`: verify SDD template version headers and locale parity.
 - `just fmt` / `just lint`: rustfmt and clippy.
 
 Cargo equivalents use `cargo +nightly ...`.
@@ -50,6 +51,7 @@ Cargo equivalents use `cargo +nightly ...`.
 - Add unit tests near the code when possible, and integration tests under `tests/`.
 - Name new integration test files `*_tests.rs` and keep test names descriptive.
 - Use `LLMAN_CONFIG_DIR=./artifacts/testing_config_home` to avoid touching real user config.
+- When editing `templates/sdd/**`, run `just check-sdd-templates` (also in `just check-all`).
 
 ## Commit and Pull Request Guidelines
 - Commit messages use a short type prefix such as `feat:`, `fix:`, `refactor:`, `doc:`, or `bump:` with an optional scope, for example `fix(security): ...`.

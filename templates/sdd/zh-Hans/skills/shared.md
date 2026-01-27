@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 <!-- region: sdd-commands -->
 常用命令：
 - `llman sdd list`（列出变更）

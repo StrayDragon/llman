@@ -64,8 +64,8 @@ doc-check:
 # 核心检查（格式化检查 + lint + 测试）
 check: fmt-check lint test
 
-# 完整检查（核心检查 + 文档 + release构建）
-check-all: check doc-check build-release
+# 完整检查（核心检查 + 文档 + release构建 + SDD模板检查）
+check-all: check doc-check build-release check-sdd-templates
 
 # =============================================================================
 # 工具命令
@@ -79,3 +79,7 @@ create-dev-template name content:
 # 检查 i18n 状态
 check-i18n:
     ./scripts/check-i18n.sh
+
+# 检查 SDD 模板版本与本地化一致性
+check-sdd-templates:
+    ./scripts/check-sdd-templates.py

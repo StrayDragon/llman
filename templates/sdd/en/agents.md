@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 # LLMAN Spec-Driven Development (SDD)
 
 These instructions are for AI assistants working in this repository.

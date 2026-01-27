@@ -1,4 +1,5 @@
 ---
+llman-template-version: 1
 name: "LLMAN SDD Archive"
 description: "Archive a change and merge deltas into specs."
 ---

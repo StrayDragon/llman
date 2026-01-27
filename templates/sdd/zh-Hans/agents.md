@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 # LLMAN 规范驱动开发 (SDD)
 
 这些说明适用于在此仓库中工作的 AI 助手。

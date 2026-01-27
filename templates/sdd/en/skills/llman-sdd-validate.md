@@ -1,4 +1,5 @@
 ---
+llman-template-version: 1
 name: "LLMAN SDD Validate"
 description: "Validate llmanspec changes and specs with actionable fixes."
 ---

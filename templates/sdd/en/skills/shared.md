@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 <!-- region: sdd-commands -->
 Common commands:
 - `llman sdd list` (list changes)
