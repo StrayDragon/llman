@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 ## 1. <!-- Task Group Name -->
 
 - [ ] 1.1 <!-- Task description -->

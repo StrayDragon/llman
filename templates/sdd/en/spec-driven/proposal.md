@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 ## Why
 
 <!-- Explain the motivation for this change. What problem does this solve? Why now? -->

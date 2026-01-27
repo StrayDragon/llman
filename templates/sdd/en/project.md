@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 # {{projectName}} Context
 
 ## Purpose

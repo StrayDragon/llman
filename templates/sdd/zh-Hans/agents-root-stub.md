@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 # LLMAN 规范驱动开发
 
 本仓库使用 llman SDD，完整方法论在 `llmanspec/AGENTS.md`。

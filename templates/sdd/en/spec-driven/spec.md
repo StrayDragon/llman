@@ -1,3 +1,4 @@
+<!-- llman-template-version: 1 -->
 ## ADDED Requirements
 
 ### Requirement: <!-- requirement name -->

@@ -1,4 +1,5 @@
 ---
+llman-template-version: 1
 name: "LLMAN SDD Onboard"
 description: "Onboard to the llman spec-driven workflow."
 ---

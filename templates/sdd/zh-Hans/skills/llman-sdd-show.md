@@ -1,4 +1,5 @@
 ---
+llman-template-version: 1
 name: "LLMAN SDD Show"
 description: "Inspect llmanspec changes and specs quickly."
 ---
