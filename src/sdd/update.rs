@@ -1,6 +1,9 @@
+use crate::sdd::config::{SddConfig, load_or_create_config};
 use crate::sdd::constants::{LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS, SPEC_DRIVEN_TEMPLATE_DIR};
 use crate::sdd::fs_utils::update_file_with_markers;
-use crate::sdd::templates::{default_agents_file, managed_block_content, spec_driven_templates};
+use crate::sdd::templates::{
+    default_agents_file, managed_block_content, root_stub_content, spec_driven_templates,
+};
 use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::Path;
@@ -13,34 +16,52 @@ pub fn run(target: &Path) -> Result<()> {
         ));
     }
 
-    update_agents_file(&llmanspec_path)?;
-    write_spec_driven_templates(&llmanspec_path)?;
+    let config = load_or_create_config(&llmanspec_path)?;
+    update_agents_file(&llmanspec_path, target, &config)?;
+    write_root_agents_file(target, &config)?;
+    write_spec_driven_templates(&llmanspec_path, target, &config)?;
 
     Ok(())
 }
 
-fn update_agents_file(llmanspec_path: &Path) -> Result<()> {
+fn update_agents_file(llmanspec_path: &Path, target: &Path, config: &SddConfig) -> Result<()> {
     let agents_path = llmanspec_path.join("AGENTS.md");
     if agents_path.exists() {
         update_file_with_markers(
             &agents_path,
-            &managed_block_content(),
+            &managed_block_content(config, target)?,
             LLMANSPEC_MARKERS.start,
             LLMANSPEC_MARKERS.end,
         )?;
         return Ok(());
     }
 
-    fs::write(&agents_path, default_agents_file())?;
+    fs::write(&agents_path, default_agents_file(config, target)?)?;
     Ok(())
 }
 
-fn write_spec_driven_templates(llmanspec_path: &Path) -> Result<()> {
+fn write_spec_driven_templates(
+    llmanspec_path: &Path,
+    target: &Path,
+    config: &SddConfig,
+) -> Result<()> {
     let template_dir = llmanspec_path.join(SPEC_DRIVEN_TEMPLATE_DIR);
     fs::create_dir_all(&template_dir)?;
-    for template in spec_driven_templates() {
+    for template in spec_driven_templates(config, target)? {
         let path = template_dir.join(template.name);
         fs::write(path, template.content)?;
     }
+    Ok(())
+}
+
+fn write_root_agents_file(target: &Path, config: &SddConfig) -> Result<()> {
+    let agents_path = target.join("AGENTS.md");
+    let content = root_stub_content(config, target)?;
+    update_file_with_markers(
+        &agents_path,
+        &content,
+        LLMANSPEC_MARKERS.start,
+        LLMANSPEC_MARKERS.end,
+    )?;
     Ok(())
 }

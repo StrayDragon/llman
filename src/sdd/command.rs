@@ -1,4 +1,4 @@
-use crate::sdd::{archive, init, list, show, update, validate};
+use crate::sdd::{archive, init, list, show, update, update_skills, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use std::path::PathBuf;
@@ -15,11 +15,29 @@ pub enum SddCommands {
     Init {
         /// Target path (default: current directory)
         path: Option<PathBuf>,
+        /// Locale for templates (default: en)
+        #[arg(long)]
+        lang: Option<String>,
     },
     /// Update llmanspec instruction files
     Update {
         /// Target path (default: current directory)
         path: Option<PathBuf>,
+    },
+    /// Generate or update llman sdd skills
+    UpdateSkills {
+        /// Generate skills for all tools
+        #[arg(long)]
+        all: bool,
+        /// Tool to generate skills for: claude,codex (repeatable)
+        #[arg(long, value_delimiter = ',')]
+        tool: Vec<String>,
+        /// Override output path for generated skills
+        #[arg(long)]
+        path: Option<PathBuf>,
+        /// Disable interactive prompts
+        #[arg(long)]
+        no_interactive: bool,
     },
     /// List changes or specs
     List {
@@ -106,12 +124,24 @@ pub enum SddCommands {
 
 pub fn run(args: &SddArgs) -> Result<()> {
     match &args.command {
-        SddCommands::Init { path } => {
-            init::run(path.as_deref().unwrap_or_else(|| std::path::Path::new(".")))
-        }
+        SddCommands::Init { path, lang } => init::run(
+            path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
+            lang.as_deref(),
+        ),
         SddCommands::Update { path } => {
             update::run(path.as_deref().unwrap_or_else(|| std::path::Path::new(".")))
         }
+        SddCommands::UpdateSkills {
+            all,
+            tool,
+            path,
+            no_interactive,
+        } => update_skills::run(update_skills::UpdateSkillsArgs {
+            all: *all,
+            tool: tool.clone(),
+            path: path.clone(),
+            no_interactive: *no_interactive,
+        }),
         SddCommands::List {
             specs,
             changes,

@@ -80,10 +80,21 @@ pub fn validate_spec_content_with_frontmatter(
             }
         }
         Err(err) => {
+            let missing = missing_sections(&body);
+            let message = if missing.is_empty() {
+                err.to_string()
+            } else {
+                let sections = missing.join(", ");
+                format!(
+                    "{}\n{}",
+                    t!("sdd.validate.sections_missing", sections = sections),
+                    t!("sdd.validate.sections_example")
+                )
+            };
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
                 path: "file".to_string(),
-                message: err.to_string(),
+                message,
             });
             SpecValidation {
                 report: build_report(issues, strict),
@@ -308,7 +319,7 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
         issues.push(ValidationIssue {
             level: ValidationLevel::Error,
             path: "specs".to_string(),
-            message: "Change must have at least one delta".to_string(),
+            message: delta_missing_message(),
         });
         return build_report(issues, strict);
     }
@@ -368,7 +379,7 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
         issues.push(ValidationIssue {
             level: ValidationLevel::Error,
             path: "specs".to_string(),
-            message: "Change must have at least one delta".to_string(),
+            message: delta_missing_message(),
         });
     }
 
@@ -389,7 +400,7 @@ fn validate_requirements(requirements: &[Requirement], spec_name: &str) -> Vec<V
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
                 path: format!("{}/requirements[{}]", spec_name, idx),
-                message: "Requirement must include at least one scenario".to_string(),
+                message: scenario_missing_message(),
             });
         }
     }
@@ -486,8 +497,10 @@ fn validate_requirement_block(
             level: ValidationLevel::Error,
             path: path.to_string(),
             message: format!(
-                "{} \"{}\" must include at least one scenario",
-                section, block.name
+                "{} \"{}\": {}",
+                section,
+                block.name,
+                scenario_missing_message()
             ),
         });
     }
@@ -518,6 +531,40 @@ fn count_scenarios(raw: &str) -> usize {
 
 fn contains_shall_or_must(text: &str) -> bool {
     text.contains("SHALL") || text.contains("MUST")
+}
+
+fn missing_sections(content: &str) -> Vec<&'static str> {
+    let mut missing = Vec::new();
+    if !has_section(content, "Purpose") {
+        missing.push("## Purpose");
+    }
+    if !has_section(content, "Requirements") {
+        missing.push("## Requirements");
+    }
+    missing
+}
+
+fn has_section(content: &str, name: &str) -> bool {
+    let prefix = format!("## {}", name);
+    content
+        .lines()
+        .any(|line| line.trim_start().starts_with(&prefix))
+}
+
+fn scenario_missing_message() -> String {
+    format!(
+        "{}\n{}",
+        t!("sdd.validate.scenario_missing"),
+        t!("sdd.validate.scenario_example")
+    )
+}
+
+fn delta_missing_message() -> String {
+    format!(
+        "{}\n{}",
+        t!("sdd.validate.delta_missing"),
+        t!("sdd.validate.delta_example")
+    )
 }
 
 fn check_duplicates(path: &str, label: &str, names: &[String]) -> Vec<ValidationIssue> {
