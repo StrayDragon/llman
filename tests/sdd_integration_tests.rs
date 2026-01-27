@@ -199,3 +199,17 @@ System MUST support the added behavior.
     assert!(updated_spec.contains("Requirement: Existing behavior"));
     assert!(updated_spec.contains("Requirement: Added behavior"));
 }
+
+#[test]
+fn test_sdd_archive_help_hides_force() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let help_output = run_llman(&["sdd", "archive", "--help"], work_dir, work_dir);
+    assert_success(&help_output);
+
+    let stdout = String::from_utf8_lossy(&help_output.stdout);
+    let stderr = String::from_utf8_lossy(&help_output.stderr);
+    assert!(!stdout.contains("--force"));
+    assert!(!stderr.contains("--force"));
+}

@@ -1,7 +1,8 @@
 ---
-llman-template-version: 1
-name: "LLMAN SDD Archive"
-description: "Archive a change and merge deltas into specs."
+name: "llman-sdd-archive"
+description: "归档变更并合并增量到 specs。"
+metadata:
+  llman-template-version: 1
 ---
 
 # LLMAN SDD 归档

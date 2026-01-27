@@ -1,7 +1,8 @@
 ---
-llman-template-version: 1
-name: "LLMAN SDD Show"
-description: "Inspect llmanspec changes and specs quickly."
+name: "llman-sdd-show"
+description: "快速查看 llmanspec 变更与 specs。"
+metadata:
+  llman-template-version: 1
 ---
 
 # LLMAN SDD 查看

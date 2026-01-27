@@ -1,7 +1,8 @@
 ---
-llman-template-version: 1
-name: "LLMAN SDD Onboard"
-description: "Onboard to the llman spec-driven workflow."
+name: "llman-sdd-onboard"
+description: "Onboard to the llman SDD workflow in a repository."
+metadata:
+  llman-template-version: 1
 ---
 
 # LLMAN SDD Onboard
