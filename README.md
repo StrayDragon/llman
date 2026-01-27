@@ -88,6 +88,9 @@ llman sdd init
 # 更新 llmanspec 指令与模板
 llman sdd update
 
+# 生成/更新 llman sdd skills（Claude Code / Codex）
+llman sdd update-skills --all
+
 # 列出变更或 specs
 llman sdd list
 llman sdd list --specs
@@ -121,6 +124,8 @@ llman_spec_evidence:
 ## Purpose
 ...
 ```
+
+llmanspec 项目配置位于 `llmanspec/config.yaml`，用于设置 locale 与 skills 输出路径。
 
 
 ## 🛠️ 开发与贡献

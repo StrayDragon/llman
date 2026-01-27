@@ -1,5 +1,6 @@
 mod archive;
 pub mod command;
+mod config;
 mod constants;
 mod delta;
 mod discovery;
@@ -9,11 +10,13 @@ mod interactive;
 mod list;
 mod match_utils;
 mod parser;
+mod regions;
 mod show;
 mod staleness;
 mod templates;
 mod update;
+mod update_skills;
 mod validate;
 mod validation;
 
-pub use constants::{LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS};
+pub use constants::{LLMANSPEC_CONFIG_FILE, LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS};

@@ -1411,6 +1411,44 @@ codex:
 
 # SDD workflow
 sdd:
+  config:
+    read_failed:
+      en: "Failed to read llmanspec config: %{error}"
+    parse_failed:
+      en: "Failed to parse llmanspec config: %{error}"
+    unsupported_version:
+      en: "Unsupported llmanspec config version: %{version}"
+    serialize_failed:
+      en: "Failed to serialize llmanspec config: %{error}"
+    write_failed:
+      en: "Failed to write llmanspec config: %{error}"
+
+  templates:
+    read_failed:
+      en: "Failed to read template %{path}: %{error}"
+    not_found:
+      en: "Template not found: %{path}"
+    region_missing:
+      en: "Region '%{name}' not found in %{path}"
+    region_duplicate:
+      en: "Region '%{name}' is duplicated in %{path}"
+    region_unterminated:
+      en: "Region '%{name}' is not terminated in %{path}"
+
+  update_skills:
+    no_llmanspec:
+      en: "No llmanspec directory found. Run '%{cmd}' first."
+    tools_required:
+      en: "Specify --all or --tool in non-interactive mode."
+    select_tools:
+      en: "Select tools to generate skills for:"
+    no_tools_selected:
+      en: "No tools selected."
+    invalid_tool:
+      en: "Invalid tool: %{tool}"
+    prompt_path:
+      en: "Output path for %{tool} skills:"
+
   list:
     no_changes_dir:
       en: "No llmanspec changes directory found. Run 'llman sdd init' first."
@@ -1525,6 +1563,49 @@ sdd:
       en: "Spec frontmatter key %{key} must not be empty"
     frontmatter_value_invalid:
       en: "Spec frontmatter key %{key} must be a string or list of strings"
+    sections_missing:
+      en: "Spec is missing required sections: %{sections}."
+    sections_example:
+      en: |
+        Example:
+        ```markdown
+        ## Purpose
+        <State the goal in one sentence>
+
+        ## Requirements
+        ### Requirement: <name>
+        The system MUST ...
+
+        #### Scenario: <happy path>
+        - **WHEN** ...
+        - **THEN** ...
+        ```
+
+    scenario_missing:
+      en: "Requirement must include at least one `#### Scenario:` block."
+    scenario_example:
+      en: |
+        Example:
+        ```markdown
+        #### Scenario: <name>
+        - **WHEN** ...
+        - **THEN** ...
+        ```
+
+    delta_missing:
+      en: "Change must include at least one delta spec under llmanspec/changes/<change-id>/specs/."
+    delta_example:
+      en: |
+        Example:
+        ```markdown
+        ## ADDED Requirements
+        ### Requirement: <name>
+        The system MUST ...
+
+        #### Scenario: <name>
+        - **WHEN** ...
+        - **THEN** ...
+        ```
     next_steps:
       en: "Next steps:"
     change_step_1:
