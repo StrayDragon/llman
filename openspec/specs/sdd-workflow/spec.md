@@ -4,7 +4,7 @@
 Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmanspec/`.
 ## Requirements
 ### Requirement: SDD 初始化脚手架
-`llman sdd init [path]` 命令 MUST 在目标路径创建 `llmanspec/` 目录结构，包括 `llmanspec/AGENTS.md`、`llmanspec/project.md`、`llmanspec/specs/`、`llmanspec/changes/` 与 `llmanspec/changes/archive/`，以及 `llmanspec/templates/spec-driven/` 下的 `proposal.md`、`spec.md`、`design.md`、`tasks.md`。命令 MUST 生成 `llmanspec/config.yaml` 并写入 locale 配置。命令 MUST 创建或刷新 repo 根目录 `AGENTS.md` 的 LLMANSPEC 受管块并指向 `llmanspec/AGENTS.md`。当 `llmanspec/` 已存在时，命令 MUST 报错并且不修改任何文件。生成的 `llmanspec/AGENTS.md` MUST 包含完整 llman sdd 方法论说明且包含 LLMANSPEC 受管提示块。
+`llman sdd init [path]` 命令 MUST 在目标路径创建 `llmanspec/` 目录结构，包括 `llmanspec/AGENTS.md`、`llmanspec/project.md`、`llmanspec/specs/`、`llmanspec/changes/` 与 `llmanspec/changes/archive/`，以及 `llmanspec/templates/spec-driven/` 下的 `proposal.md`、`spec.md`、`design.md`、`tasks.md`。命令 MUST 生成 `llmanspec/config.yaml` 并写入 locale 配置。命令 MUST 创建或刷新 repo 根目录下的 `AGENTS.md` 受管块以指向 `llmanspec/AGENTS.md`。当 `llmanspec/` 已存在时，命令 MUST 报错并且不修改任何文件。生成的 `llmanspec/AGENTS.md` MUST 包含 LLMANSPEC 受管提示块且包含完整 llman sdd 方法论说明。
 
 #### Scenario: 初始化新项目
 - **WHEN** 用户在不存在 `llmanspec/` 的目录执行 `llman sdd init`
@@ -64,6 +64,10 @@ Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmansp
 ### Requirement: SDD 本地化配置与模板加载
 `llman sdd` MUST 使用项目级配置 `llmanspec/config.yaml` 解析 locale，并基于 `templates/sdd/<locale>/` 加载 `llmanspec/AGENTS.md`、`llmanspec/templates/**` 与 sdd skills 内容。locale 仅影响模板与 skills 输出，不影响 CLI 文本。
 
+#### Scenario: 初始化写入 locale 配置
+- **WHEN** 用户执行 `llman sdd init --lang zh-Hans`
+- **THEN** `llmanspec/config.yaml` 写入 `locale: zh-Hans` 且包含版本字段
+
 #### Scenario: locale 回退链
 - **WHEN** 配置 locale 为 `zh-Hans` 但缺少 `templates/sdd/zh-Hans/...`
 - **THEN** 按 `zh-Hans` → `zh` → `en` 顺序回退
@@ -93,7 +97,7 @@ Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmansp
 - **THEN** `SKILL.md` 被托管内容刷新
 
 ### Requirement: SDD 模板区域复用
-SDD 模板与 skills MUST 支持 `{{region: <path>#<name>}}` 引用，系统 MUST 使用源文件中与文件类型匹配的 `region` 块替换占位符内容。文件类型匹配规则：Markdown/HTML 使用 `<!-- region: name -->` / `<!-- endregion -->`；YAML/TOML/INI/Shell 使用 `# region: name` / `# endregion`；Rust/JS/TS 使用 `// region: name` / `// endregion`。若 region 缺失或重复，命令 MUST 报错并中止。
+SDD 模板与 skills MUST 支持 `{{region: <path>#<name>}}` 引用，系统 MUST 使用源文件中与文件类型匹配的 `region` 块替换占位符内容。若 region 缺失或重复，命令 MUST 报错并中止。
 
 #### Scenario: 引用 Markdown region
 - **WHEN** 模板包含 `{{region: docs/sdd.md#overview}}` 且目标文件存在 `<!-- region: overview -->` 块
@@ -316,3 +320,4 @@ SDD locale 模板 MUST 包含 `llman-template-version` 元信息。对于带 YAM
 - **WHEN** 维护者运行 `just check-sdd-templates`
 - **THEN** 命令在缺失元信息、缺少 locale 模板或版本不一致时退出非零
 - **AND** 在所有模板一致时退出零
+
