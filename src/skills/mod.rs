@@ -15,4 +15,5 @@ pub use sync::{
 };
 pub use types::{
     ConfigEntry, ConflictOption, SkillCandidate, SkillsConfig, SkillsPaths, SyncSummary,
+    TargetConflictStrategy, TargetMode,
 };

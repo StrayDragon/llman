@@ -1,5 +1,5 @@
 use llman::skills::{
-    ConfigEntry, ConflictOption, ConflictResolver, Registry, SkillsConfig, SkillsPaths,
+    ConfigEntry, ConflictOption, ConflictResolver, Registry, SkillsConfig, SkillsPaths, TargetMode,
     sync_sources,
 };
 use std::fs;
@@ -23,7 +23,7 @@ impl ConflictResolver for DefaultResolver {
 
 #[cfg(unix)]
 #[test]
-fn test_sync_imports_and_links_source() {
+fn test_sync_imports_and_keeps_source() {
     let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -55,6 +55,7 @@ fn test_sync_imports_and_links_source() {
             scope: "user".to_string(),
             path: source_root.clone(),
             enabled: true,
+            mode: TargetMode::Link,
         }],
         targets: Vec::new(),
         repo_root: None,
@@ -77,13 +78,8 @@ fn test_sync_imports_and_links_source() {
     assert!(version_dir.exists());
 
     let source_link = source_root.join("example");
-    let meta = fs::symlink_metadata(&source_link).expect("symlink metadata");
-    assert!(meta.file_type().is_symlink());
-    let target = fs::read_link(&source_link).expect("read link");
-    assert_eq!(
-        target,
-        paths.store_dir.join("example-skill").join("current")
-    );
+    let meta = fs::symlink_metadata(&source_link).expect("metadata");
+    assert!(!meta.file_type().is_symlink());
 
     unsafe {
         std::env::remove_var("LLMAN_CONFIG_DIR");

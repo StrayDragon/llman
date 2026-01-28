@@ -1,10 +1,14 @@
+use crate::skills::hash::hash_skill_dir_filtered;
 use crate::skills::registry::Registry;
 use crate::skills::scan::discover_skills;
 use crate::skills::types::{
     ConfigEntry, ConflictOption, SkillCandidate, SkillsConfig, SkillsPaths, SyncSummary,
+    TargetConflictStrategy, TargetMode,
 };
 use anyhow::{Result, anyhow};
+use chrono::Utc;
 use inquire::Select;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
@@ -131,21 +135,6 @@ pub fn sync_sources(
         entry.current_hash = Some(selected.clone());
         ensure_target_defaults(entry, &config.targets);
         ensure_current_link(&paths.store_dir, &skill_id, &selected)?;
-
-        for candidate in &candidates {
-            if let Err(e) = link_source_dir(&candidate.skill_dir, &paths.store_dir, &skill_id) {
-                eprintln!(
-                    "{}",
-                    t!(
-                        "skills.link_failed",
-                        path = candidate.skill_dir.display(),
-                        error = e
-                    )
-                );
-            } else {
-                summary.linked_sources += 1;
-            }
-        }
     }
 
     for (skill_id, entry) in registry.skills.iter_mut() {
@@ -165,6 +154,8 @@ pub fn apply_target_links(
     config: &SkillsConfig,
     paths: &SkillsPaths,
     registry: &mut Registry,
+    interactive: bool,
+    target_conflict: Option<TargetConflictStrategy>,
 ) -> Result<()> {
     for (skill_id, entry) in registry.skills.iter() {
         let Some(hash) = entry.current_hash.as_ref() else {
@@ -172,7 +163,14 @@ pub fn apply_target_links(
         };
         ensure_current_link(&paths.store_dir, skill_id, hash)?;
         for target in &config.targets {
-            apply_target_link(skill_id, &paths.store_dir, target, entry)?;
+            apply_target_link(
+                skill_id,
+                &paths.store_dir,
+                target,
+                entry,
+                interactive,
+                target_conflict,
+            )?;
         }
     }
     Ok(())
@@ -183,18 +181,41 @@ pub fn apply_target_link(
     store_root: &Path,
     target: &ConfigEntry,
     entry: &crate::skills::registry::SkillEntry,
+    interactive: bool,
+    target_conflict: Option<TargetConflictStrategy>,
 ) -> Result<()> {
     let enabled = entry
         .targets
         .get(&target.id)
         .copied()
         .unwrap_or(target.enabled);
-    if enabled {
-        ensure_target_link(skill_id, store_root, target)?;
-    } else {
-        remove_target_link(skill_id, target)?;
+
+    match target.mode {
+        TargetMode::Skip => Ok(()),
+        TargetMode::Link => {
+            if enabled {
+                ensure_target_link(skill_id, store_root, target)?;
+            } else {
+                remove_target_link(skill_id, target)?;
+            }
+            Ok(())
+        }
+        TargetMode::Copy => {
+            if enabled {
+                ensure_target_copy(
+                    skill_id,
+                    store_root,
+                    target,
+                    entry,
+                    interactive,
+                    target_conflict,
+                )?;
+            } else {
+                remove_target_copy(skill_id, target)?;
+            }
+            Ok(())
+        }
     }
-    Ok(())
 }
 
 fn unique_options(candidates: &[SkillCandidate]) -> Vec<ConflictOption> {
@@ -322,26 +343,6 @@ fn ensure_current_link(store_root: &Path, skill_id: &str, hash: &str) -> Result<
     Ok(())
 }
 
-fn link_source_dir(source_dir: &Path, store_root: &Path, skill_id: &str) -> Result<()> {
-    let target = store_root.join(skill_id).join("current");
-    if source_dir.exists() {
-        if fs::symlink_metadata(source_dir)
-            .map(|meta| meta.file_type().is_symlink())
-            .unwrap_or(false)
-        {
-            let existing = fs::read_link(source_dir).ok();
-            if existing.as_ref() == Some(&target) {
-                return Ok(());
-            }
-            remove_path(source_dir)?;
-        } else {
-            remove_path(source_dir)?;
-        }
-    }
-    create_symlink(&target, source_dir)?;
-    Ok(())
-}
-
 fn ensure_target_defaults(
     entry: &mut crate::skills::registry::SkillEntry,
     targets: &[ConfigEntry],
@@ -404,6 +405,159 @@ fn remove_target_link(skill_id: &str, target: &ConfigEntry) -> Result<()> {
             t!("skills.target.not_symlink", path = link_path.display())
         );
     }
+    Ok(())
+}
+
+const TARGET_METADATA_FILE: &str = ".llman-skill.json";
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ManagedSkillMeta {
+    skill_id: String,
+    hash: String,
+    updated_at: String,
+    last_written_hash: String,
+    managed_by: String,
+}
+
+fn ensure_target_copy(
+    skill_id: &str,
+    store_root: &Path,
+    target: &ConfigEntry,
+    entry: &crate::skills::registry::SkillEntry,
+    interactive: bool,
+    target_conflict: Option<TargetConflictStrategy>,
+) -> Result<()> {
+    let Some(hash) = entry.current_hash.as_ref() else {
+        return Ok(());
+    };
+    if !target.path.exists() {
+        fs::create_dir_all(&target.path)?;
+    } else if !target.path.is_dir() {
+        eprintln!(
+            "{}",
+            t!("skills.target.not_directory", path = target.path.display())
+        );
+        return Ok(());
+    }
+
+    let dest_dir = target.path.join(skill_id);
+    let source_dir = store_root.join(skill_id).join("versions").join(hash);
+
+    if !dest_dir.exists() {
+        fs::create_dir_all(&dest_dir)?;
+        copy_dir_filtered(&source_dir, &dest_dir)?;
+        write_target_metadata(skill_id, hash, &dest_dir)?;
+        return Ok(());
+    }
+
+    let meta = read_target_metadata(&dest_dir)?;
+    if let Some(meta) = meta {
+        let current_hash = hash_skill_dir_filtered(&dest_dir, &[TARGET_METADATA_FILE])?;
+        if current_hash != meta.last_written_hash {
+            let decision = resolve_target_conflict(skill_id, target, interactive, target_conflict)?;
+            if decision == TargetConflictStrategy::Skip {
+                return Ok(());
+            }
+        } else if meta.hash == *hash {
+            return Ok(());
+        }
+    } else {
+        let decision = resolve_target_conflict(skill_id, target, interactive, target_conflict)?;
+        if decision == TargetConflictStrategy::Skip {
+            return Ok(());
+        }
+    }
+
+    remove_path(&dest_dir)?;
+    fs::create_dir_all(&dest_dir)?;
+    copy_dir_filtered(&source_dir, &dest_dir)?;
+    write_target_metadata(skill_id, hash, &dest_dir)?;
+
+    Ok(())
+}
+
+fn remove_target_copy(skill_id: &str, target: &ConfigEntry) -> Result<()> {
+    let dest_dir = target.path.join(skill_id);
+    if !dest_dir.exists() {
+        return Ok(());
+    }
+    if read_target_metadata(&dest_dir)?.is_some() {
+        remove_path(&dest_dir)?;
+    } else {
+        eprintln!(
+            "{}",
+            t!("skills.target.not_managed", path = dest_dir.display())
+        );
+    }
+    Ok(())
+}
+
+fn resolve_target_conflict(
+    skill_id: &str,
+    target: &ConfigEntry,
+    interactive: bool,
+    target_conflict: Option<TargetConflictStrategy>,
+) -> Result<TargetConflictStrategy> {
+    if let Some(conflict) = target_conflict {
+        return Ok(conflict);
+    }
+    if !interactive {
+        return Err(anyhow!(t!(
+            "skills.target_conflict.requires_flag",
+            skill = skill_id,
+            target = target.id
+        )));
+    }
+    let prompt = t!(
+        "skills.target_conflict.prompt",
+        skill = skill_id,
+        target = target.id
+    );
+    let overwrite_label = t!("skills.target_conflict.option_overwrite").to_string();
+    let skip_label = t!("skills.target_conflict.option_skip").to_string();
+    let selection = Select::new(&prompt, vec![overwrite_label.clone(), skip_label.clone()])
+        .prompt()
+        .map_err(|e| anyhow!(t!("skills.target_conflict.prompt_failed", error = e)))?;
+    if selection == overwrite_label {
+        Ok(TargetConflictStrategy::Overwrite)
+    } else {
+        Ok(TargetConflictStrategy::Skip)
+    }
+}
+
+fn read_target_metadata(target_dir: &Path) -> Result<Option<ManagedSkillMeta>> {
+    let path = target_dir.join(TARGET_METADATA_FILE);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(&path)?;
+    match serde_json::from_str::<ManagedSkillMeta>(&content) {
+        Ok(meta) => Ok(Some(meta)),
+        Err(err) => {
+            eprintln!(
+                "{}",
+                t!(
+                    "skills.target.metadata_invalid",
+                    path = path.display(),
+                    error = err
+                )
+            );
+            Ok(None)
+        }
+    }
+}
+
+fn write_target_metadata(skill_id: &str, hash: &str, target_dir: &Path) -> Result<()> {
+    let meta = ManagedSkillMeta {
+        skill_id: skill_id.to_string(),
+        hash: hash.to_string(),
+        updated_at: Utc::now().to_rfc3339(),
+        last_written_hash: hash.to_string(),
+        managed_by: "llman".to_string(),
+    };
+    let path = target_dir.join(TARGET_METADATA_FILE);
+    let content = serde_json::to_string_pretty(&meta)?;
+    fs::write(path, content)?;
     Ok(())
 }
 
@@ -486,6 +640,7 @@ mod tests {
                 scope: "user".to_string(),
                 path: source_a,
                 enabled: true,
+                mode: TargetMode::Link,
             },
             ConfigEntry {
                 id: "b".to_string(),
@@ -493,6 +648,7 @@ mod tests {
                 scope: "user".to_string(),
                 path: source_b,
                 enabled: true,
+                mode: TargetMode::Link,
             },
         ];
 
