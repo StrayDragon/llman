@@ -126,6 +126,7 @@ pub fn slugify(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::skills::types::TargetMode;
     use crate::test_utils::ENV_MUTEX;
     use std::env;
     use tempfile::TempDir;
@@ -176,6 +177,7 @@ mod tests {
             scope: "user".to_string(),
             path: source_root,
             enabled: true,
+            mode: TargetMode::Link,
         };
         let discovered = discover_skills(&source).expect("discover skills");
         assert_eq!(discovered.len(), 1);
@@ -213,6 +215,7 @@ mod tests {
             scope: "user".to_string(),
             path: source_root,
             enabled: true,
+            mode: TargetMode::Link,
         };
         let discovered = discover_skills(&source).expect("discover skills");
         assert_eq!(discovered.len(), 1);

@@ -5,6 +5,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub fn hash_skill_dir(root: &Path) -> Result<String> {
+    hash_skill_dir_filtered(root, &[])
+}
+
+pub fn hash_skill_dir_filtered(root: &Path, exclude_names: &[&str]) -> Result<String> {
     let mut files: Vec<PathBuf> = Vec::new();
     let walker = WalkBuilder::new(root)
         .hidden(false)
@@ -25,6 +29,11 @@ pub fn hash_skill_dir(root: &Path) -> Result<String> {
             continue;
         }
         if path.is_file() {
+            if let Some(name) = path.file_name().and_then(|name| name.to_str())
+                && exclude_names.contains(&name)
+            {
+                continue;
+            }
             files.push(path.to_path_buf());
         }
     }

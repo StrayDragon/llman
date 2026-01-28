@@ -1,5 +1,5 @@
 use crate::config::resolve_config_dir;
-use crate::skills::types::{ConfigEntry, SkillsConfig, SkillsPaths};
+use crate::skills::types::{ConfigEntry, SkillsConfig, SkillsPaths, TargetMode};
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use serde::Deserialize;
@@ -27,6 +27,7 @@ struct TomlEntry {
     agent: String,
     scope: String,
     path: String,
+    mode: Option<String>,
     #[serde(default = "default_true")]
     enabled: bool,
 }
@@ -67,8 +68,8 @@ pub fn load_config(paths: &SkillsPaths, repo_root: Option<PathBuf>) -> Result<Sk
                 version = version
             )));
         }
-        let sources = resolve_entries(parsed.source)?;
-        let targets = resolve_entries(parsed.target)?;
+        let sources = resolve_source_entries(parsed.source)?;
+        let targets = resolve_target_entries(parsed.target)?;
         SkillsConfig {
             sources,
             targets,
@@ -85,7 +86,7 @@ pub fn load_config(paths: &SkillsPaths, repo_root: Option<PathBuf>) -> Result<Sk
     Ok(merge_repo_scope(base, repo_root))
 }
 
-fn resolve_entries(entries: Vec<TomlEntry>) -> Result<Vec<ConfigEntry>> {
+fn resolve_source_entries(entries: Vec<TomlEntry>) -> Result<Vec<ConfigEntry>> {
     let mut resolved = Vec::new();
     for entry in entries {
         let path = expand_path(&entry.path)?;
@@ -95,9 +96,39 @@ fn resolve_entries(entries: Vec<TomlEntry>) -> Result<Vec<ConfigEntry>> {
             scope: entry.scope,
             path,
             enabled: entry.enabled,
+            mode: TargetMode::Link,
         });
     }
     Ok(resolved)
+}
+
+fn resolve_target_entries(entries: Vec<TomlEntry>) -> Result<Vec<ConfigEntry>> {
+    let mut resolved = Vec::new();
+    for entry in entries {
+        let path = expand_path(&entry.path)?;
+        let mode = parse_target_mode(entry.mode.as_deref())?;
+        resolved.push(ConfigEntry {
+            id: entry.id,
+            agent: entry.agent,
+            scope: entry.scope,
+            path,
+            enabled: entry.enabled,
+            mode,
+        });
+    }
+    Ok(resolved)
+}
+
+fn parse_target_mode(raw: Option<&str>) -> Result<TargetMode> {
+    match raw.unwrap_or("link") {
+        "link" => Ok(TargetMode::Link),
+        "copy" => Ok(TargetMode::Copy),
+        "skip" => Ok(TargetMode::Skip),
+        other => Err(anyhow!(t!(
+            "skills.config.invalid_target_mode",
+            mode = other
+        ))),
+    }
 }
 
 fn default_sources() -> Result<Vec<ConfigEntry>> {
@@ -108,6 +139,7 @@ fn default_sources() -> Result<Vec<ConfigEntry>> {
             scope: "user".to_string(),
             path: default_claude_user_dir()?,
             enabled: true,
+            mode: TargetMode::Link,
         },
         ConfigEntry {
             id: "codex_user".to_string(),
@@ -115,6 +147,7 @@ fn default_sources() -> Result<Vec<ConfigEntry>> {
             scope: "user".to_string(),
             path: default_codex_user_dir()?,
             enabled: true,
+            mode: TargetMode::Link,
         },
         ConfigEntry {
             id: "agent_global".to_string(),
@@ -122,6 +155,7 @@ fn default_sources() -> Result<Vec<ConfigEntry>> {
             scope: "global".to_string(),
             path: default_agent_global_dir()?,
             enabled: true,
+            mode: TargetMode::Link,
         },
     ])
 }
@@ -134,6 +168,7 @@ fn default_targets() -> Result<Vec<ConfigEntry>> {
             scope: "user".to_string(),
             path: default_claude_user_dir()?,
             enabled: true,
+            mode: TargetMode::Link,
         },
         ConfigEntry {
             id: "codex_user".to_string(),
@@ -141,6 +176,7 @@ fn default_targets() -> Result<Vec<ConfigEntry>> {
             scope: "user".to_string(),
             path: default_codex_user_dir()?,
             enabled: true,
+            mode: TargetMode::Link,
         },
         ConfigEntry {
             id: "agent_global".to_string(),
@@ -148,6 +184,7 @@ fn default_targets() -> Result<Vec<ConfigEntry>> {
             scope: "global".to_string(),
             path: default_agent_global_dir()?,
             enabled: true,
+            mode: TargetMode::Link,
         },
     ])
 }
@@ -171,6 +208,7 @@ fn repo_entries(root: &Path) -> Vec<ConfigEntry> {
             scope: "repo".to_string(),
             path: root.join(".claude").join("skills"),
             enabled: true,
+            mode: TargetMode::Link,
         },
         ConfigEntry {
             id: "codex_repo".to_string(),
@@ -178,6 +216,7 @@ fn repo_entries(root: &Path) -> Vec<ConfigEntry> {
             scope: "repo".to_string(),
             path: root.join(".codex").join("skills"),
             enabled: true,
+            mode: TargetMode::Link,
         },
     ]
 }

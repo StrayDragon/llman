@@ -1719,22 +1719,8 @@ skills:
     en: "Failed to confirm non-repo scan: %{error}"
   source_missing:
     en: "Source path not found: %{path}"
-  link_failed:
-    en: "Failed to link %{path}: %{error}"
-  relink_skipped:
-    en: "Relink not enabled; exiting without changes. Use --relink-sources to continue."
-  relink_required_non_interactive:
-    en: "Non-interactive mode requires --relink-sources to proceed."
-  relink_yes_requires_flag:
-    en: "--yes requires --relink-sources."
-  relink_confirm:
-    en: "Relink source skill directories to the managed store? This will replace them with symlinks."
-  relink_prompt_failed:
-    en: "Failed to confirm relink: %{error}"
-  relink_cancelled:
-    en: "Cancelled."
-  relink_non_interactive:
-    en: "Relink confirmation requires an interactive terminal."
+  relink_removed:
+    en: "--relink-sources was removed. Run `llman skills` without it."
   conflict:
     prompt:
       en: "Multiple versions found for %{skill}. Select the version to activate."
@@ -1755,6 +1741,21 @@ skills:
       en: "Target path is not a directory: %{path}"
     not_symlink:
       en: "Target entry exists and is not a symlink: %{path}"
+    not_managed:
+      en: "Target entry is not managed by llman; skipping removal: %{path}"
+    metadata_invalid:
+      en: "Target metadata is invalid; treating as conflict: %{path} (%{error})"
+  target_conflict:
+    prompt:
+      en: "Target %{target} for %{skill} has local changes. Choose a conflict action."
+    prompt_failed:
+      en: "Failed to resolve target conflict: %{error}"
+    requires_flag:
+      en: "Non-interactive mode requires --target-conflict=overwrite|skip for %{skill} in %{target}."
+    option_overwrite:
+      en: "overwrite"
+    option_skip:
+      en: "skip"
   manager:
     no_skills:
       en: "No skills found to manage."
@@ -1768,6 +1769,14 @@ skills:
       en: "Exit"
     back:
       en: "Back"
+    state_on:
+      en: "on"
+    state_off:
+      en: "off"
+    state_skip:
+      en: "skip (read-only)"
+    read_only:
+      en: "Target is read-only and cannot be toggled."
   config:
     read_failed:
       en: "Failed to read skills config: %{error}"
@@ -1775,6 +1784,8 @@ skills:
       en: "Failed to parse skills config: %{error}"
     unsupported_version:
       en: "Unsupported skills config version %{version}."
+    invalid_target_mode:
+      en: "Unsupported target mode %{mode}. Expected link, copy, or skip."
     home_missing:
       en: "Unable to resolve home directory for path expansion."
   registry:

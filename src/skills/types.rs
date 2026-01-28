@@ -7,6 +7,20 @@ pub struct ConfigEntry {
     pub scope: String,
     pub path: PathBuf,
     pub enabled: bool,
+    pub mode: TargetMode,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TargetMode {
+    Link,
+    Copy,
+    Skip,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TargetConflictStrategy {
+    Overwrite,
+    Skip,
 }
 
 #[derive(Clone, Debug)]

@@ -1,44 +1,39 @@
 use crate::skills::config::load_config;
 use crate::skills::git::find_git_root;
-use crate::skills::interactive::{confirm_non_repo, confirm_relink_sources, is_interactive};
+use crate::skills::interactive::{confirm_non_repo, is_interactive};
 use crate::skills::registry::Registry;
 use crate::skills::sync::{
     InteractiveResolver, apply_target_link, apply_target_links, sync_sources,
 };
-use crate::skills::types::SkillsPaths;
+use crate::skills::types::{SkillsPaths, TargetConflictStrategy, TargetMode};
 use anyhow::Result;
-use clap::Args;
+use clap::{Args, ValueEnum};
 use inquire::Select;
 use std::env;
 
 #[derive(Args)]
 #[command(about = "Manage skills", long_about = "Interactive skills manager")]
 pub struct SkillsArgs {
-    /// Relink source skill directories to the managed store (required to modify sources)
-    #[arg(long = "relink-sources")]
-    pub relink_sources: bool,
+    /// Removed: relink sources is no longer supported
+    #[arg(long = "relink-sources", hide = true)]
+    pub relink_sources_removed: bool,
 
-    /// Skip confirmation prompts (requires --relink-sources)
-    #[arg(long, short = 'y')]
-    pub yes: bool,
+    /// Conflict policy for copy-mode targets (overwrite or skip)
+    #[arg(long = "target-conflict", value_enum)]
+    pub target_conflict: Option<TargetConflictArg>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RelinkGate {
-    Proceed,
+#[derive(ValueEnum, Debug, Clone, Copy)]
+pub enum TargetConflictArg {
+    Overwrite,
     Skip,
 }
 
 pub fn run(args: &SkillsArgs) -> Result<()> {
-    let interactive = is_interactive();
-
-    match gate_relink_sources(args, interactive)? {
-        RelinkGate::Skip => {
-            println!("{}", t!("skills.relink_skipped"));
-            return Ok(());
-        }
-        RelinkGate::Proceed => {}
+    if args.relink_sources_removed {
+        return Err(anyhow::anyhow!(t!("skills.relink_removed")));
     }
+    let interactive = is_interactive();
 
     let cwd = env::current_dir()?;
     let repo_root = find_git_root(&cwd);
@@ -46,14 +41,6 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
         let confirmed = confirm_non_repo(interactive)?;
         if !confirmed {
             println!("{}", t!("skills.non_repo_cancelled"));
-            return Ok(());
-        }
-    }
-
-    if interactive && !args.yes {
-        let confirmed = confirm_relink_sources(interactive)?;
-        if !confirmed {
-            println!("{}", t!("skills.relink_cancelled"));
             return Ok(());
         }
     }
@@ -66,80 +53,22 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
     let _summary = sync_sources(&config, &paths, &mut registry, &mut resolver)?;
     registry.save(&paths.registry_path)?;
 
-    apply_target_links(&config, &paths, &mut registry)?;
+    let target_conflict = args.target_conflict.map(TargetConflictStrategy::from);
+    apply_target_links(&config, &paths, &mut registry, interactive, target_conflict)?;
     registry.save(&paths.registry_path)?;
 
     if interactive {
-        manage_targets(&config, &paths, &mut registry)?;
+        manage_targets(&config, &paths, &mut registry, target_conflict)?;
         registry.save(&paths.registry_path)?;
     }
     Ok(())
-}
-
-fn gate_relink_sources(args: &SkillsArgs, interactive: bool) -> Result<RelinkGate> {
-    if args.yes && !args.relink_sources {
-        return Err(anyhow::anyhow!(t!("skills.relink_yes_requires_flag")));
-    }
-    if !args.relink_sources {
-        if interactive {
-            return Ok(RelinkGate::Skip);
-        }
-        return Err(anyhow::anyhow!(t!(
-            "skills.relink_required_non_interactive"
-        )));
-    }
-    Ok(RelinkGate::Proceed)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_gate_relink_sources_interactive_skip() {
-        let args = SkillsArgs {
-            relink_sources: false,
-            yes: false,
-        };
-        let result = gate_relink_sources(&args, true).expect("gate relink");
-        assert_eq!(result, RelinkGate::Skip);
-    }
-
-    #[test]
-    fn test_gate_relink_sources_non_interactive_requires_flag() {
-        let args = SkillsArgs {
-            relink_sources: false,
-            yes: false,
-        };
-        let result = gate_relink_sources(&args, false);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_gate_relink_sources_requires_flag_for_yes() {
-        let args = SkillsArgs {
-            relink_sources: false,
-            yes: true,
-        };
-        let result = gate_relink_sources(&args, true);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_gate_relink_sources_proceed() {
-        let args = SkillsArgs {
-            relink_sources: true,
-            yes: false,
-        };
-        let result = gate_relink_sources(&args, false).expect("gate relink");
-        assert_eq!(result, RelinkGate::Proceed);
-    }
 }
 
 fn manage_targets(
     config: &crate::skills::types::SkillsConfig,
     paths: &SkillsPaths,
     registry: &mut Registry,
+    target_conflict: Option<TargetConflictStrategy>,
 ) -> Result<()> {
     if registry.skills.is_empty() {
         println!("{}", t!("skills.manager.no_skills"));
@@ -159,7 +88,7 @@ fn manage_targets(
             break;
         }
 
-        manage_targets_for_skill(&selection, config, paths, registry)?;
+        manage_targets_for_skill(&selection, config, paths, registry, target_conflict)?;
     }
     Ok(())
 }
@@ -169,6 +98,7 @@ fn manage_targets_for_skill(
     config: &crate::skills::types::SkillsConfig,
     paths: &SkillsPaths,
     registry: &mut Registry,
+    target_conflict: Option<TargetConflictStrategy>,
 ) -> Result<()> {
     loop {
         let entry = match registry.skills.get(skill_id) {
@@ -178,40 +108,71 @@ fn manage_targets_for_skill(
         let mut labels = Vec::new();
         let mut target_ids = Vec::new();
         for target in &config.targets {
+            if target.mode == TargetMode::Skip {
+                labels.push(format!(
+                    "{} - {}",
+                    t!("skills.manager.state_skip"),
+                    target.id
+                ));
+                target_ids.push(target.id.clone());
+                continue;
+            }
             let enabled = entry
                 .targets
                 .get(&target.id)
                 .copied()
                 .unwrap_or(target.enabled);
-            let marker = if enabled { "on" } else { "off" };
+            let marker = if enabled {
+                t!("skills.manager.state_on")
+            } else {
+                t!("skills.manager.state_off")
+            };
             labels.push(format!("{} - {}", marker, target.id));
             target_ids.push(target.id.clone());
         }
         let back_label = t!("skills.manager.back").to_string();
         labels.push(back_label.clone());
 
-        let selection = Select::new(&t!("skills.manager.select_target"), labels)
+        let selection = Select::new(&t!("skills.manager.select_target"), labels.clone())
             .prompt()
             .map_err(|e| anyhow::anyhow!(t!("skills.manager.prompt_failed", error = e)))?;
         if selection == back_label {
             break;
         }
-        let selected_index = selection
-            .split(" - ")
-            .nth(1)
-            .and_then(|id| target_ids.iter().position(|tid| tid == id));
-        let Some(idx) = selected_index else {
+        let Some(idx) = labels.iter().position(|label| label == &selection) else {
             continue;
         };
         let target_id = &target_ids[idx];
         let Some(entry) = registry.skills.get_mut(skill_id) else {
             return Ok(());
         };
+        if let Some(target) = config.targets.iter().find(|t| t.id == *target_id)
+            && target.mode == TargetMode::Skip
+        {
+            println!("{}", t!("skills.manager.read_only"));
+            continue;
+        }
         let current = entry.targets.get(target_id).copied().unwrap_or(false);
         entry.targets.insert(target_id.clone(), !current);
         if let Some(target) = config.targets.iter().find(|t| t.id == *target_id) {
-            apply_target_link(skill_id, &paths.store_dir, target, entry)?;
+            apply_target_link(
+                skill_id,
+                &paths.store_dir,
+                target,
+                entry,
+                true,
+                target_conflict,
+            )?;
         }
     }
     Ok(())
+}
+
+impl From<TargetConflictArg> for TargetConflictStrategy {
+    fn from(value: TargetConflictArg) -> Self {
+        match value {
+            TargetConflictArg::Overwrite => TargetConflictStrategy::Overwrite,
+            TargetConflictArg::Skip => TargetConflictStrategy::Skip,
+        }
+    }
 }
