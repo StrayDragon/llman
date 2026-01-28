@@ -28,9 +28,10 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Manage prompts and rules
-    #[command(alias = "rule")]
+    #[command(name = "prompts", aliases = ["prompt", "rule"])]
     Prompt(PromptArgs),
     /// Manage skills
+    #[command(alias = "skill")]
     Skills(SkillsArgs),
     /// Spec-driven development workflow
     Sdd(SddArgs),

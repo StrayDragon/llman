@@ -54,22 +54,22 @@ cargo install --git https://github.com/StrayDragon/llman.git
 
 ```bash
 # 更新(增加)prompt规则
-llman prompt upsert --app cursor --name rust --content "This is example rules of rust"
+llman prompts upsert --app cursor --name rust --content "This is example rules of rust"
 
 # 生成新的prompt规则
-llman prompt gen --app cursor --template rust
+llman prompts gen --app cursor --template rust
 
 # 交互式生成(快捷)
-llman prompt
+llman prompts
 
 # 交互式生成
-llman prompt gen -i # --interactive
+llman prompts gen -i # --interactive
 
 # 列出所有规则
-llman prompt list
+llman prompts list
 
 # 列出特定应用的规则
-llman prompt list --app cursor
+llman prompts list --app cursor
 ```
 
 ### Cursor对话导出
