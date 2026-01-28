@@ -1,6 +1,6 @@
 use crate::skills::config::load_config;
 use crate::skills::git::find_git_root;
-use crate::skills::interactive::{confirm_non_repo, is_interactive};
+use crate::skills::interactive::{confirm_non_repo, confirm_relink_sources, is_interactive};
 use crate::skills::registry::Registry;
 use crate::skills::sync::{
     InteractiveResolver, apply_target_link, apply_target_links, sync_sources,
@@ -13,16 +13,47 @@ use std::env;
 
 #[derive(Args)]
 #[command(about = "Manage skills", long_about = "Interactive skills manager")]
-pub struct SkillsArgs {}
+pub struct SkillsArgs {
+    /// Relink source skill directories to the managed store (required to modify sources)
+    #[arg(long = "relink-sources")]
+    pub relink_sources: bool,
 
-pub fn run(_args: &SkillsArgs) -> Result<()> {
+    /// Skip confirmation prompts (requires --relink-sources)
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RelinkGate {
+    Proceed,
+    Skip,
+}
+
+pub fn run(args: &SkillsArgs) -> Result<()> {
     let interactive = is_interactive();
+
+    match gate_relink_sources(args, interactive)? {
+        RelinkGate::Skip => {
+            println!("{}", t!("skills.relink_skipped"));
+            return Ok(());
+        }
+        RelinkGate::Proceed => {}
+    }
+
     let cwd = env::current_dir()?;
     let repo_root = find_git_root(&cwd);
     if repo_root.is_none() {
         let confirmed = confirm_non_repo(interactive)?;
         if !confirmed {
             println!("{}", t!("skills.non_repo_cancelled"));
+            return Ok(());
+        }
+    }
+
+    if interactive && !args.yes {
+        let confirmed = confirm_relink_sources(interactive)?;
+        if !confirmed {
+            println!("{}", t!("skills.relink_cancelled"));
             return Ok(());
         }
     }
@@ -43,6 +74,66 @@ pub fn run(_args: &SkillsArgs) -> Result<()> {
         registry.save(&paths.registry_path)?;
     }
     Ok(())
+}
+
+fn gate_relink_sources(args: &SkillsArgs, interactive: bool) -> Result<RelinkGate> {
+    if args.yes && !args.relink_sources {
+        return Err(anyhow::anyhow!(t!("skills.relink_yes_requires_flag")));
+    }
+    if !args.relink_sources {
+        if interactive {
+            return Ok(RelinkGate::Skip);
+        }
+        return Err(anyhow::anyhow!(t!(
+            "skills.relink_required_non_interactive"
+        )));
+    }
+    Ok(RelinkGate::Proceed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gate_relink_sources_interactive_skip() {
+        let args = SkillsArgs {
+            relink_sources: false,
+            yes: false,
+        };
+        let result = gate_relink_sources(&args, true).expect("gate relink");
+        assert_eq!(result, RelinkGate::Skip);
+    }
+
+    #[test]
+    fn test_gate_relink_sources_non_interactive_requires_flag() {
+        let args = SkillsArgs {
+            relink_sources: false,
+            yes: false,
+        };
+        let result = gate_relink_sources(&args, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_gate_relink_sources_requires_flag_for_yes() {
+        let args = SkillsArgs {
+            relink_sources: false,
+            yes: true,
+        };
+        let result = gate_relink_sources(&args, true);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_gate_relink_sources_proceed() {
+        let args = SkillsArgs {
+            relink_sources: true,
+            yes: false,
+        };
+        let result = gate_relink_sources(&args, false).expect("gate relink");
+        assert_eq!(result, RelinkGate::Proceed);
+    }
 }
 
 fn manage_targets(

@@ -1721,6 +1721,20 @@ skills:
     en: "Source path not found: %{path}"
   link_failed:
     en: "Failed to link %{path}: %{error}"
+  relink_skipped:
+    en: "Relink not enabled; exiting without changes. Use --relink-sources to continue."
+  relink_required_non_interactive:
+    en: "Non-interactive mode requires --relink-sources to proceed."
+  relink_yes_requires_flag:
+    en: "--yes requires --relink-sources."
+  relink_confirm:
+    en: "Relink source skill directories to the managed store? This will replace them with symlinks."
+  relink_prompt_failed:
+    en: "Failed to confirm relink: %{error}"
+  relink_cancelled:
+    en: "Cancelled."
+  relink_non_interactive:
+    en: "Relink confirmation requires an interactive terminal."
   conflict:
     prompt:
       en: "Multiple versions found for %{skill}. Select the version to activate."
