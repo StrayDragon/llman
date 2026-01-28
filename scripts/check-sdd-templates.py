@@ -10,6 +10,47 @@ HTML_VERSION_RE = re.compile(
 FRONTMATTER_VERSION_RE = re.compile(
     r"^\s*llman-template-version:\s*([0-9]+)\s*$"
 )
+SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def extract_frontmatter_version(
+    path: Path, lines: List[str], errors: List[str]
+) -> Optional[str]:
+    end_idx = None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            end_idx = i
+            break
+    if end_idx is None:
+        errors.append(f"{path}: unterminated frontmatter")
+        return None
+
+    metadata_indent = None
+    in_metadata = False
+    for line in lines[1:end_idx]:
+        if not line.strip():
+            continue
+        leading = len(line) - len(line.lstrip(" "))
+        stripped = line.strip()
+        if not line.startswith(" "):
+            # top-level key
+            if stripped == "metadata:":
+                metadata_indent = leading
+                in_metadata = True
+            else:
+                in_metadata = False
+            continue
+        if not in_metadata or metadata_indent is None:
+            continue
+        if leading <= metadata_indent:
+            in_metadata = False
+            continue
+        match = FRONTMATTER_VERSION_RE.match(stripped)
+        if match:
+            return match.group(1)
+
+    errors.append(f"{path}: missing llman-template-version in metadata")
+    return None
 
 
 def extract_version(path: Path, lines: List[str], errors: List[str]) -> Optional[str]:
@@ -18,20 +59,7 @@ def extract_version(path: Path, lines: List[str], errors: List[str]) -> Optional
         return None
 
     if lines[0].strip() == "---":
-        end_idx = None
-        for i in range(1, len(lines)):
-            if lines[i].strip() == "---":
-                end_idx = i
-                break
-        if end_idx is None:
-            errors.append(f"{path}: unterminated frontmatter")
-            return None
-        for line in lines[1:end_idx]:
-            match = FRONTMATTER_VERSION_RE.match(line)
-            if match:
-                return match.group(1)
-        errors.append(f"{path}: missing llman-template-version in frontmatter")
-        return None
+        return extract_frontmatter_version(path, lines, errors)
 
     match = HTML_VERSION_RE.match(lines[0])
     if not match:
@@ -42,11 +70,71 @@ def extract_version(path: Path, lines: List[str], errors: List[str]) -> Optional
     return match.group(1)
 
 
+def is_skill_template(path: Path) -> bool:
+    return path.parent.name == "skills" and path.name.startswith("llman-sdd-")
+
+
+def parse_frontmatter(
+    path: Path, lines: List[str], errors: List[str]
+) -> Optional[Dict[str, str]]:
+    if not lines or lines[0].strip() != "---":
+        return None
+
+    end_idx = None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            end_idx = i
+            break
+    if end_idx is None:
+        errors.append(f"{path}: unterminated frontmatter")
+        return None
+
+    data: Dict[str, str] = {}
+    for line in lines[1:end_idx]:
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+        value = value.strip('"').strip("'")
+        data[key] = value
+    return data
+
+
+def validate_skill_frontmatter(path: Path, lines: List[str], errors: List[str]) -> None:
+    if not is_skill_template(path):
+        return
+
+    frontmatter = parse_frontmatter(path, lines, errors)
+    if frontmatter is None:
+        errors.append(f"{path}: skill template missing YAML frontmatter")
+        return
+
+    name = frontmatter.get("name", "").strip()
+    description = frontmatter.get("description", "").strip()
+    if not name:
+        errors.append(f"{path}: frontmatter missing name")
+    else:
+        if len(name) > 64:
+            errors.append(f"{path}: name exceeds 64 characters")
+        if not SKILL_NAME_RE.match(name):
+            errors.append(f"{path}: name must be lowercase alphanumeric with hyphens")
+        if name != path.stem:
+            errors.append(f"{path}: name must match file stem '{path.stem}'")
+    if not description:
+        errors.append(f"{path}: frontmatter missing description")
+    elif len(description) > 1024:
+        errors.append(f"{path}: description exceeds 1024 characters")
+
+
 def collect_versions(locale_dir: Path, errors: List[str]) -> Dict[str, str]:
     versions: Dict[str, str] = {}
     for path in sorted(locale_dir.rglob("*.md")):
         rel = path.relative_to(locale_dir).as_posix()
         lines = path.read_text(encoding="utf-8").splitlines()
+        validate_skill_frontmatter(path, lines, errors)
         version = extract_version(path, lines, errors)
         if version is None:
             continue

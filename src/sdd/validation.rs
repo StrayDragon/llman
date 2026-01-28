@@ -50,11 +50,6 @@ pub struct SpecValidation {
     pub frontmatter: Option<SpecFrontmatter>,
 }
 
-pub fn validate_spec_content(path: &Path, content: &str, strict: bool) -> ValidationReport {
-    let validation = validate_spec_content_with_frontmatter(path, content, strict);
-    validation.report
-}
-
 pub fn validate_spec_content_with_frontmatter(
     path: &Path,
     content: &str,

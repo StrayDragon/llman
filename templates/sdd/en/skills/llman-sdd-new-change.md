@@ -1,7 +1,8 @@
 ---
-llman-template-version: 1
-name: "LLMAN SDD New Change"
+name: "llman-sdd-new-change"
 description: "Create a new change proposal and delta specs."
+metadata:
+  llman-template-version: 1
 ---
 
 # LLMAN SDD New Change

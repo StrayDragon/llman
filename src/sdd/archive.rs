@@ -1,6 +1,9 @@
 use crate::sdd::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::delta::{RequirementBlock, normalize_requirement_name, parse_delta_spec};
-use crate::sdd::validation::validate_spec_content;
+use crate::sdd::staleness::evaluate_staleness_with_override;
+use crate::sdd::validation::{
+    ValidationIssue, ValidationLevel, validate_spec_content_with_frontmatter,
+};
 use anyhow::{Result, anyhow};
 use chrono::Utc;
 use regex::Regex;
@@ -13,6 +16,7 @@ pub struct ArchiveArgs {
     pub change: Option<String>,
     pub skip_specs: bool,
     pub dry_run: bool,
+    pub force: bool,
 }
 
 #[derive(Default)]
@@ -55,9 +59,10 @@ pub fn run(args: ArchiveArgs) -> Result<()> {
     }
 
     if !args.skip_specs {
+        let validate_specs = !args.force;
         let updates = find_spec_updates(&change_dir, root)?;
         if !updates.is_empty() {
-            let prepared = prepare_updates(&updates, change_name)?;
+            let prepared = prepare_updates(&updates, change_name, root, validate_specs)?;
             if args.dry_run {
                 print_dry_run_specs(&prepared);
             } else {
@@ -133,27 +138,65 @@ fn find_spec_updates(change_dir: &Path, root: &Path) -> Result<Vec<SpecUpdate>> 
 fn prepare_updates(
     updates: &[SpecUpdate],
     change_name: &str,
+    root: &Path,
+    validate_specs: bool,
 ) -> Result<Vec<(SpecUpdate, String, ApplyCounts)>> {
     let mut prepared = Vec::new();
     for update in updates {
         let built = build_updated_spec(update, change_name)?;
-        let report = validate_spec_content(&update.target, &built.0, false);
-        if !report.valid {
-            let details = report
-                .issues
-                .iter()
-                .map(|issue| format!("{}: {}", issue.path, issue.message))
-                .collect::<Vec<_>>()
-                .join("; ");
-            return Err(anyhow!(t!(
-                "sdd.archive.rebuilt_invalid",
-                spec = update.capability,
-                errors = details
-            )));
+        if validate_specs {
+            validate_rebuilt_spec(update, &built.0, root)?;
         }
         prepared.push((clone_update(update), built.0, built.1));
     }
     Ok(prepared)
+}
+
+fn validate_rebuilt_spec(update: &SpecUpdate, content: &str, root: &Path) -> Result<()> {
+    let validation = validate_spec_content_with_frontmatter(&update.target, content, true);
+    let mut issues = validation.report.issues;
+
+    if let Some(frontmatter) = validation.frontmatter.as_ref() {
+        let staleness = evaluate_staleness_with_override(
+            root,
+            &update.capability,
+            &update.target,
+            Some(frontmatter),
+            Some(true),
+        );
+        issues.extend(apply_strict_levels(staleness.issues));
+    }
+
+    if issues
+        .iter()
+        .any(|issue| issue.level == ValidationLevel::Error)
+    {
+        let details = format_issues(&issues);
+        return Err(anyhow!(t!(
+            "sdd.archive.rebuilt_invalid",
+            spec = update.capability,
+            errors = details
+        )));
+    }
+
+    Ok(())
+}
+
+fn apply_strict_levels(mut issues: Vec<ValidationIssue>) -> Vec<ValidationIssue> {
+    for issue in &mut issues {
+        if issue.level == ValidationLevel::Warning {
+            issue.level = ValidationLevel::Error;
+        }
+    }
+    issues
+}
+
+fn format_issues(issues: &[ValidationIssue]) -> String {
+    issues
+        .iter()
+        .map(|issue| format!("{}: {}", issue.path, issue.message))
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 fn build_updated_spec(update: &SpecUpdate, change_name: &str) -> Result<(String, ApplyCounts)> {

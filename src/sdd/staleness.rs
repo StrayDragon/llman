@@ -66,6 +66,16 @@ pub fn evaluate_staleness(
     spec_path: &Path,
     frontmatter: Option<&SpecFrontmatter>,
 ) -> StalenessResult {
+    evaluate_staleness_with_override(root, spec_id, spec_path, frontmatter, None)
+}
+
+pub fn evaluate_staleness_with_override(
+    root: &Path,
+    spec_id: &str,
+    spec_path: &Path,
+    frontmatter: Option<&SpecFrontmatter>,
+    spec_updated_override: Option<bool>,
+) -> StalenessResult {
     let mut issues = Vec::new();
     let mut notes = Vec::new();
     let mut status = StalenessStatus::Ok;
@@ -126,17 +136,23 @@ pub fn evaluate_staleness(
                         .collect();
                 }
 
-                if !touched_paths.is_empty() && !spec_updated {
+                let mut spec_updated_effective = spec_updated;
+                if let Some(value) = spec_updated_override {
+                    spec_updated_effective = value;
+                }
+
+                if !touched_paths.is_empty() && !spec_updated_effective {
                     status = StalenessStatus::Stale;
                     issues.push(ValidationIssue {
                         level: ValidationLevel::Warning,
                         path: format!("{spec_id}/staleness"),
                         message: t!("sdd.validate.staleness_stale").to_string(),
                     });
-                } else if spec_updated && touched_paths.is_empty() {
+                } else if spec_updated_effective && touched_paths.is_empty() {
                     status = StalenessStatus::Info;
                     notes.push(t!("sdd.validate.staleness_spec_updated").to_string());
                 }
+                spec_updated = spec_updated_effective;
             }
             Err(err) => {
                 status = StalenessStatus::Warn;
@@ -147,6 +163,14 @@ pub fn evaluate_staleness(
                     message: err,
                 });
             }
+        }
+    }
+
+    if let Some(value) = spec_updated_override {
+        spec_updated = value;
+        if value && status == StalenessStatus::Ok && touched_paths.is_empty() {
+            status = StalenessStatus::Info;
+            notes.push(t!("sdd.validate.staleness_spec_updated").to_string());
         }
     }
 

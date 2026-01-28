@@ -119,6 +119,9 @@ pub enum SddCommands {
         /// Dry run mode
         #[arg(long)]
         dry_run: bool,
+        /// Force archive even if validation fails
+        #[arg(long, hide = true)]
+        force: bool,
     },
 }
 
@@ -197,10 +200,12 @@ pub fn run(args: &SddArgs) -> Result<()> {
             change,
             skip_specs,
             dry_run,
+            force,
         } => archive::run(archive::ArchiveArgs {
             change: change.clone(),
             skip_specs: *skip_specs,
             dry_run: *dry_run,
+            force: *force,
         }),
     }
 }
