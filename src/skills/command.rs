@@ -21,6 +21,10 @@ pub struct SkillsArgs {
     /// Conflict policy for copy-mode targets (overwrite or skip)
     #[arg(long = "target-conflict", value_enum)]
     pub target_conflict: Option<TargetConflictArg>,
+
+    /// Override skills root directory (env: LLMAN_SKILLS_DIR)
+    #[arg(long = "skills-dir")]
+    pub skills_dir: Option<std::path::PathBuf>,
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy)]
@@ -45,7 +49,7 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
         }
     }
 
-    let paths = SkillsPaths::resolve()?;
+    let paths = SkillsPaths::resolve_with_override(args.skills_dir.as_deref())?;
     let config = load_config(&paths, repo_root)?;
     let mut registry = Registry::load(&paths.registry_path)?;
     let mut resolver = InteractiveResolver::new(interactive);

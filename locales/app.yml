@@ -1782,10 +1782,20 @@ skills:
       en: "Failed to read skills config: %{error}"
     parse_failed:
       en: "Failed to parse skills config: %{error}"
+    llman_read_failed:
+      en: "Failed to read llman config: %{error}"
+    llman_parse_failed:
+      en: "Failed to parse llman config: %{error}"
     unsupported_version:
       en: "Unsupported skills config version %{version}."
     invalid_target_mode:
       en: "Unsupported target mode %{mode}. Expected link, copy, or skip."
+    skills_dir_invalid_cli:
+      en: "Invalid skills directory: %{error}"
+    skills_dir_invalid_env:
+      en: "Invalid skills directory in LLMAN_SKILLS_DIR: %{error}"
+    skills_dir_invalid_config:
+      en: "Invalid skills directory in config.yaml: %{error}"
     home_missing:
       en: "Unable to resolve home directory for path expansion."
   registry:
