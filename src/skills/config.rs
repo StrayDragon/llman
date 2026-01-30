@@ -1,4 +1,5 @@
 use crate::config::resolve_config_dir;
+use crate::path_utils::validate_path_str;
 use crate::skills::types::{ConfigEntry, SkillsConfig, SkillsPaths, TargetMode};
 use anyhow::{Result, anyhow};
 use regex::Regex;
@@ -7,6 +8,8 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+const ENV_SKILLS_DIR: &str = "LLMAN_SKILLS_DIR";
+const LLMAN_CONFIG_FILE: &str = "config.yaml";
 const SKILLS_DIR: &str = "skills";
 const CONFIG_FILE: &str = "config.toml";
 const REGISTRY_FILE: &str = "registry.json";
@@ -32,14 +35,27 @@ struct TomlEntry {
     enabled: bool,
 }
 
+#[derive(Deserialize, Debug)]
+struct LlmanConfig {
+    skills: Option<LlmanSkillsConfig>,
+}
+
+#[derive(Deserialize, Debug)]
+struct LlmanSkillsConfig {
+    dir: Option<String>,
+}
+
 fn default_true() -> bool {
     true
 }
 
 impl SkillsPaths {
     pub fn resolve() -> Result<Self> {
-        let config_dir = resolve_config_dir(None)?;
-        let root = config_dir.join(SKILLS_DIR);
+        Self::resolve_with_override(None)
+    }
+
+    pub fn resolve_with_override(cli_override: Option<&Path>) -> Result<Self> {
+        let root = resolve_skills_root(cli_override)?;
         Ok(Self {
             root: root.clone(),
             store_dir: root.join(STORE_DIR),
@@ -53,6 +69,70 @@ impl SkillsPaths {
         fs::create_dir_all(&self.store_dir)?;
         Ok(())
     }
+}
+
+fn resolve_skills_root(cli_override: Option<&Path>) -> Result<PathBuf> {
+    if let Some(path) = cli_override {
+        return resolve_skills_root_from_cli(path);
+    }
+
+    if let Ok(env_skills_dir) = env::var(ENV_SKILLS_DIR) {
+        return resolve_skills_root_from_env(&env_skills_dir);
+    }
+
+    if let Some(config_dir) = load_skills_root_from_llman_config()? {
+        return Ok(config_dir);
+    }
+
+    let config_dir = resolve_config_dir(None)?;
+    Ok(config_dir.join(SKILLS_DIR))
+}
+
+fn resolve_skills_root_from_cli(path: &Path) -> Result<PathBuf> {
+    let raw = path.to_string_lossy();
+    validate_path_str(&raw)
+        .map_err(|e| anyhow!(t!("skills.config.skills_dir_invalid_cli", error = e)))?;
+    expand_path(&raw)
+}
+
+fn resolve_skills_root_from_env(raw: &str) -> Result<PathBuf> {
+    validate_path_str(raw)
+        .map_err(|e| anyhow!(t!("skills.config.skills_dir_invalid_env", error = e)))?;
+    expand_path(raw)
+}
+
+fn resolve_skills_root_from_config(raw: &str) -> Result<PathBuf> {
+    validate_path_str(raw)
+        .map_err(|e| anyhow!(t!("skills.config.skills_dir_invalid_config", error = e)))?;
+    expand_path(raw)
+}
+
+fn load_skills_root_from_llman_config() -> Result<Option<PathBuf>> {
+    let local_config = env::current_dir()?.join(".llman").join(LLMAN_CONFIG_FILE);
+    if let Some(dir) = load_skills_root_from_config_path(&local_config)? {
+        return Ok(Some(dir));
+    }
+
+    let global_config = resolve_config_dir(None)?.join(LLMAN_CONFIG_FILE);
+    load_skills_root_from_config_path(&global_config)
+}
+
+fn load_skills_root_from_config_path(path: &Path) -> Result<Option<PathBuf>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let content = fs::read_to_string(path)
+        .map_err(|e| anyhow!(t!("skills.config.llman_read_failed", error = e)))?;
+    let parsed: LlmanConfig = serde_yaml::from_str(&content)
+        .map_err(|e| anyhow!(t!("skills.config.llman_parse_failed", error = e)))?;
+    if let Some(skills) = parsed.skills
+        && let Some(dir) = skills.dir
+    {
+        return Ok(Some(resolve_skills_root_from_config(&dir)?));
+    }
+
+    Ok(None)
 }
 
 pub fn load_config(paths: &SkillsPaths, repo_root: Option<PathBuf>) -> Result<SkillsConfig> {
@@ -281,6 +361,24 @@ mod tests {
     use crate::test_utils::ENV_MUTEX;
     use tempfile::TempDir;
 
+    struct CwdGuard {
+        original: PathBuf,
+    }
+
+    impl CwdGuard {
+        fn new() -> Self {
+            Self {
+                original: env::current_dir().expect("current dir"),
+            }
+        }
+    }
+
+    impl Drop for CwdGuard {
+        fn drop(&mut self) {
+            let _ = env::set_current_dir(&self.original);
+        }
+    }
+
     #[test]
     fn test_expand_env_vars() {
         let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
@@ -309,6 +407,7 @@ mod tests {
             env::set_var("CODEX_HOME", home_root.join("codex"));
         }
         let paths = SkillsPaths::resolve().expect("paths");
+        assert_eq!(paths.root, config_dir.join("skills"));
         let config = load_config(&paths, None).expect("config");
         assert!(!config.sources.is_empty());
         assert!(!config.targets.is_empty());
@@ -317,6 +416,116 @@ mod tests {
             env::remove_var("HOME");
             env::remove_var("CLAUDE_HOME");
             env::remove_var("CODEX_HOME");
+        }
+    }
+
+    #[test]
+    fn test_resolve_skills_root_cli_overrides_env_and_config() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("temp dir");
+        let cli_root = temp.path().join("cli-root");
+        let env_root = temp.path().join("env-root");
+        unsafe {
+            env::set_var(ENV_SKILLS_DIR, &env_root);
+        }
+
+        let paths = SkillsPaths::resolve_with_override(Some(cli_root.as_path())).expect("paths");
+        assert_eq!(paths.root, cli_root);
+
+        unsafe {
+            env::remove_var(ENV_SKILLS_DIR);
+        }
+    }
+
+    #[test]
+    fn test_resolve_skills_root_env_overrides_config() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("temp dir");
+        let env_root = temp.path().join("env-root");
+        let local_root = temp.path().join("local-root");
+
+        let _cwd_guard = CwdGuard::new();
+        env::set_current_dir(temp.path()).expect("set cwd");
+        fs::create_dir_all(temp.path().join(".llman")).expect("create .llman");
+        fs::write(
+            temp.path().join(".llman").join("config.yaml"),
+            format!("skills:\n  dir: {}\n", local_root.display()),
+        )
+        .expect("write local config");
+
+        unsafe {
+            env::set_var(ENV_SKILLS_DIR, &env_root);
+        }
+
+        let paths = SkillsPaths::resolve().expect("paths");
+        assert_eq!(paths.root, env_root);
+
+        unsafe {
+            env::remove_var(ENV_SKILLS_DIR);
+        }
+    }
+
+    #[test]
+    fn test_resolve_skills_root_local_config_precedence() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("temp dir");
+        let local_root = temp.path().join("local-root");
+        let global_root = temp.path().join("global-root");
+        let config_dir = temp.path().join("config");
+        fs::create_dir_all(&config_dir).expect("create config dir");
+
+        let _cwd_guard = CwdGuard::new();
+        env::set_current_dir(temp.path()).expect("set cwd");
+        fs::create_dir_all(temp.path().join(".llman")).expect("create .llman");
+        fs::write(
+            temp.path().join(".llman").join("config.yaml"),
+            format!("skills:\n  dir: {}\n", local_root.display()),
+        )
+        .expect("write local config");
+
+        fs::write(
+            config_dir.join("config.yaml"),
+            format!("skills:\n  dir: {}\n", global_root.display()),
+        )
+        .expect("write global config");
+
+        unsafe {
+            env::set_var("LLMAN_CONFIG_DIR", &config_dir);
+        }
+
+        let paths = SkillsPaths::resolve().expect("paths");
+        assert_eq!(paths.root, local_root);
+
+        unsafe {
+            env::remove_var("LLMAN_CONFIG_DIR");
+        }
+    }
+
+    #[test]
+    fn test_resolve_skills_root_global_config_fallback() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("temp dir");
+        let global_root = temp.path().join("global-root");
+        let config_dir = temp.path().join("config");
+        fs::create_dir_all(&config_dir).expect("create config dir");
+
+        let _cwd_guard = CwdGuard::new();
+        env::set_current_dir(temp.path()).expect("set cwd");
+        fs::write(
+            config_dir.join("config.yaml"),
+            format!("skills:\n  dir: {}\n", global_root.display()),
+        )
+        .expect("write global config");
+
+        unsafe {
+            env::set_var("LLMAN_CONFIG_DIR", &config_dir);
+        }
+
+        let paths = SkillsPaths::resolve().expect("paths");
+        assert_eq!(paths.root, global_root);
+
+        unsafe {
+            env::remove_var("LLMAN_CONFIG_DIR");
         }
     }
 
