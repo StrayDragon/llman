@@ -65,7 +65,7 @@ doc-check:
 check: fmt-check lint test
 
 # 完整检查（核心检查 + 文档 + release构建 + SDD模板检查）
-check-all: check doc-check build-release check-sdd-templates
+check-all: check doc-check build-release check-sdd-templates check-schemas
 
 # =============================================================================
 # 工具命令
@@ -83,3 +83,7 @@ check-i18n:
 # 检查 SDD 模板版本与本地化一致性
 check-sdd-templates:
     ./scripts/check-sdd-templates.py
+
+# 检查配置 schema
+check-schemas:
+    LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo +nightly run -- self schema check

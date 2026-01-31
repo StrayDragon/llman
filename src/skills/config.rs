@@ -1,4 +1,5 @@
 use crate::config::resolve_config_dir;
+use crate::config_schema::{ConfigSchemaKind, validate_yaml_value};
 use crate::path_utils::validate_path_str;
 use crate::skills::types::{ConfigEntry, SkillsConfig, SkillsPaths, TargetMode};
 use anyhow::{Result, anyhow};
@@ -108,11 +109,6 @@ fn resolve_skills_root_from_config(raw: &str) -> Result<PathBuf> {
 }
 
 fn load_skills_root_from_llman_config() -> Result<Option<PathBuf>> {
-    let local_config = env::current_dir()?.join(".llman").join(LLMAN_CONFIG_FILE);
-    if let Some(dir) = load_skills_root_from_config_path(&local_config)? {
-        return Ok(Some(dir));
-    }
-
     let global_config = resolve_config_dir(None)?.join(LLMAN_CONFIG_FILE);
     load_skills_root_from_config_path(&global_config)
 }
@@ -124,7 +120,16 @@ fn load_skills_root_from_config_path(path: &Path) -> Result<Option<PathBuf>> {
 
     let content = fs::read_to_string(path)
         .map_err(|e| anyhow!(t!("skills.config.llman_read_failed", error = e)))?;
-    let parsed: LlmanConfig = serde_yaml::from_str(&content)
+    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
+        .map_err(|e| anyhow!(t!("skills.config.llman_parse_failed", error = e)))?;
+    if let Err(error) = validate_yaml_value(ConfigSchemaKind::Global, &yaml_value) {
+        return Err(anyhow!(t!(
+            "skills.config.llman_schema_invalid",
+            path = path.display(),
+            error = error
+        )));
+    }
+    let parsed: LlmanConfig = serde_yaml::from_value(yaml_value)
         .map_err(|e| anyhow!(t!("skills.config.llman_parse_failed", error = e)))?;
     if let Some(skills) = parsed.skills
         && let Some(dir) = skills.dir
@@ -442,16 +447,22 @@ mod tests {
         let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
         let env_root = temp.path().join("env-root");
-        let local_root = temp.path().join("local-root");
+        let global_root = temp.path().join("global-root");
+        let config_dir = temp.path().join("config");
+        fs::create_dir_all(&config_dir).expect("create config dir");
 
-        let _cwd_guard = CwdGuard::new();
-        env::set_current_dir(temp.path()).expect("set cwd");
-        fs::create_dir_all(temp.path().join(".llman")).expect("create .llman");
         fs::write(
-            temp.path().join(".llman").join("config.yaml"),
-            format!("skills:\n  dir: {}\n", local_root.display()),
+            config_dir.join("config.yaml"),
+            format!(
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  dir: {}\n",
+                global_root.display()
+            ),
         )
-        .expect("write local config");
+        .expect("write global config");
+
+        unsafe {
+            env::set_var("LLMAN_CONFIG_DIR", &config_dir);
+        }
 
         unsafe {
             env::set_var(ENV_SKILLS_DIR, &env_root);
@@ -462,11 +473,12 @@ mod tests {
 
         unsafe {
             env::remove_var(ENV_SKILLS_DIR);
+            env::remove_var("LLMAN_CONFIG_DIR");
         }
     }
 
     #[test]
-    fn test_resolve_skills_root_local_config_precedence() {
+    fn test_resolve_skills_root_local_config_ignored() {
         let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
         let local_root = temp.path().join("local-root");
@@ -479,13 +491,19 @@ mod tests {
         fs::create_dir_all(temp.path().join(".llman")).expect("create .llman");
         fs::write(
             temp.path().join(".llman").join("config.yaml"),
-            format!("skills:\n  dir: {}\n", local_root.display()),
+            format!(
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  dir: {}\n",
+                local_root.display()
+            ),
         )
         .expect("write local config");
 
         fs::write(
             config_dir.join("config.yaml"),
-            format!("skills:\n  dir: {}\n", global_root.display()),
+            format!(
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  dir: {}\n",
+                global_root.display()
+            ),
         )
         .expect("write global config");
 
@@ -494,7 +512,7 @@ mod tests {
         }
 
         let paths = SkillsPaths::resolve().expect("paths");
-        assert_eq!(paths.root, local_root);
+        assert_eq!(paths.root, global_root);
 
         unsafe {
             env::remove_var("LLMAN_CONFIG_DIR");
@@ -513,7 +531,10 @@ mod tests {
         env::set_current_dir(temp.path()).expect("set cwd");
         fs::write(
             config_dir.join("config.yaml"),
-            format!("skills:\n  dir: {}\n", global_root.display()),
+            format!(
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  dir: {}\n",
+                global_root.display()
+            ),
         )
         .expect("write global config");
 

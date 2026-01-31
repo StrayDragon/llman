@@ -18,8 +18,10 @@
 技能管理器 MUST 解析 skills 根目录，优先级如下：
 1) CLI `--skills-dir`
 2) 环境变量 `LLMAN_SKILLS_DIR`
-3) llman 配置文件 `config.yaml` 的 `skills.dir`（本地 `.llman/config.yaml` 优先于 `LLMAN_CONFIG_DIR/config.yaml`）
+3) llman 全局配置文件 `LLMAN_CONFIG_DIR/config.yaml` 的 `skills.dir`
 4) 默认值 `LLMAN_CONFIG_DIR/skills`
+
+本地 `.llman/config.yaml` 中的 `skills.dir` MUST 被忽略，不得覆盖全局配置。
 
 技能管理器 MUST 从 `<skills_root>/config.toml` 加载 version=1 的 source/target 配置；若配置缺失，则使用默认来源与目标。repo scope MUST 由运行时基于 git 根目录自动发现。配置路径 MUST 支持 `~` 与环境变量展开。target 配置 MAY 指定 `mode`（`link`、`copy`、`skip`），缺省为 `link`；`skip` 目标必须被跳过且在交互式管理器中以只读状态展示。
 
@@ -31,13 +33,13 @@
 - **WHEN** 未传入 CLI 覆盖且设置 `LLMAN_SKILLS_DIR`
 - **THEN** 管理器使用该环境变量作为 skills 根目录
 
-#### Scenario: 配置文件提供 skills 根目录
-- **WHEN** 未传入 CLI/ENV 覆盖且 `config.yaml` 设置 `skills.dir`
-- **THEN** 管理器使用 `skills.dir` 作为 skills 根目录
+#### Scenario: 全局配置文件提供 skills 根目录
+- **WHEN** 未传入 CLI/ENV 覆盖且全局 `LLMAN_CONFIG_DIR/config.yaml` 设置 `skills.dir`
+- **THEN** 管理器使用该 `skills.dir` 作为 skills 根目录
 
-#### Scenario: 本地配置优先于全局配置
-- **WHEN** 当前目录存在 `.llman/config.yaml` 且其中设置 `skills.dir`，同时全局 `LLMAN_CONFIG_DIR/config.yaml` 也设置 `skills.dir`
-- **THEN** 管理器使用本地 `.llman/config.yaml` 的 `skills.dir`
+#### Scenario: 本地配置被忽略
+- **WHEN** 当前目录存在 `.llman/config.yaml` 且其中设置 `skills.dir`
+- **THEN** 管理器忽略本地配置并继续使用全局配置或默认值
 
 #### Scenario: 缺省回退到默认路径
 - **WHEN** CLI/ENV/config 均未提供 skills 根目录
@@ -146,3 +148,4 @@
 #### Scenario: 非交互冲突无策略
 - **WHEN** 非交互模式下目标存在且被视为冲突且未传入 `--target-conflict`
 - **THEN** 命令返回错误并提示使用 `--target-conflict=overwrite|skip`
+

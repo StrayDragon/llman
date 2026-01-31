@@ -1,5 +1,9 @@
+use crate::config_schema::{
+    ConfigSchemaKind, LLMANSPEC_SCHEMA_URL, prepend_schema_header, validate_yaml_value,
+};
 use crate::sdd::constants::LLMANSPEC_CONFIG_FILE;
 use anyhow::{Result, anyhow};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -7,11 +11,16 @@ use std::path::{Path, PathBuf};
 
 const CONFIG_VERSION: u32 = 1;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(description = "Skills output paths used by llman SDD.")]
 pub struct SkillsConfig {
     #[serde(default = "default_claude_path")]
+    #[schemars(
+        description = "Path for generated Claude Code skills (relative to llmanspec root)."
+    )]
     pub claude_path: String,
     #[serde(default = "default_codex_path")]
+    #[schemars(description = "Path for generated Codex skills (relative to llmanspec root).")]
     pub codex_path: String,
 }
 
@@ -24,13 +33,17 @@ impl Default for SkillsConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(description = "SDD project configuration for llmanspec.")]
 pub struct SddConfig {
     #[serde(default = "default_version")]
+    #[schemars(description = "Configuration schema version.")]
     pub version: u32,
     #[serde(default = "default_locale")]
+    #[schemars(description = "Locale used for SDD templates and skills.")]
     pub locale: String,
     #[serde(default)]
+    #[schemars(description = "SDD skills output configuration.")]
     pub skills: SkillsConfig,
 }
 
@@ -79,7 +92,16 @@ pub fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
     }
     let content = fs::read_to_string(&path)
         .map_err(|err| anyhow!(t!("sdd.config.read_failed", error = err)))?;
-    let config: SddConfig = serde_yaml::from_str(&content)
+    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
+        .map_err(|err| anyhow!(t!("sdd.config.parse_failed", error = err)))?;
+    if let Err(error) = validate_yaml_value(ConfigSchemaKind::Llmanspec, &yaml_value) {
+        return Err(anyhow!(t!(
+            "sdd.config.schema_invalid",
+            path = path.display(),
+            error = error
+        )));
+    }
+    let config: SddConfig = serde_yaml::from_value(yaml_value)
         .map_err(|err| anyhow!(t!("sdd.config.parse_failed", error = err)))?;
     if config.version != CONFIG_VERSION {
         return Err(anyhow!(t!(
@@ -109,6 +131,7 @@ pub fn write_config(llmanspec_dir: &Path, config: &SddConfig) -> Result<()> {
     let path = config_path(llmanspec_dir);
     let content = serde_yaml::to_string(config)
         .map_err(|err| anyhow!(t!("sdd.config.serialize_failed", error = err)))?;
+    let content = prepend_schema_header(&content, LLMANSPEC_SCHEMA_URL);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
