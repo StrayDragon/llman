@@ -1,50 +1,76 @@
+use crate::config_schema::{ConfigSchemaKind, validate_yaml_value};
 use anyhow::{Result, anyhow};
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[schemars(
+    title = "llman Tool Config",
+    description = "Tool configuration section for llman."
+)]
 pub struct Config {
+    #[schemars(description = "Configuration version for tool settings.")]
     pub version: String,
+    #[schemars(description = "Tool-specific configuration.")]
     pub tools: ToolsConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[schemars(description = "Configuration for individual tools.")]
 pub struct ToolsConfig {
     #[serde(rename = "clean-useless-comments")]
+    #[schemars(description = "Settings for the clean-useless-comments tool.")]
     pub clean_useless_comments: Option<CleanUselessCommentsConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[schemars(description = "Settings for cleaning unnecessary comments.")]
 pub struct CleanUselessCommentsConfig {
+    #[schemars(description = "File scope configuration.")]
     pub scope: ScopeConfig,
     #[serde(rename = "lang-rules")]
+    #[schemars(description = "Language-specific rules.")]
     pub lang_rules: LanguageRules,
     #[serde(rename = "global-rules")]
+    #[schemars(description = "Global rules applied across languages.")]
     pub global_rules: Option<GlobalRules>,
+    #[schemars(description = "Safety controls for running the tool.")]
     pub safety: Option<SafetyConfig>,
+    #[schemars(description = "Output reporting configuration.")]
     pub output: Option<OutputConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[schemars(description = "File include/exclude patterns for tool scope.")]
 pub struct ScopeConfig {
     #[serde(default = "default_include")]
+    #[schemars(description = "Glob patterns to include.")]
     pub include: Vec<String>,
     #[serde(default = "default_exclude")]
+    #[schemars(description = "Glob patterns to exclude.")]
     pub exclude: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[schemars(description = "Language-specific rule sets.")]
 pub struct LanguageRules {
+    #[schemars(description = "Python rule overrides.")]
     pub python: Option<LanguageSpecificRules>,
+    #[schemars(description = "JavaScript rule overrides.")]
     pub javascript: Option<LanguageSpecificRules>,
+    #[schemars(description = "TypeScript rule overrides.")]
     pub typescript: Option<LanguageSpecificRules>,
+    #[schemars(description = "Rust rule overrides.")]
     pub rust: Option<LanguageSpecificRules>,
+    #[schemars(description = "Go rule overrides.")]
     pub go: Option<LanguageSpecificRules>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Default)]
+#[schemars(description = "Rules for a specific language.")]
 pub struct LanguageSpecificRules {
     #[serde(rename = "single-line-comments")]
     pub single_line_comments: Option<bool>,
@@ -69,6 +95,7 @@ pub struct LanguageSpecificRules {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[schemars(description = "Global rules applied across all languages.")]
 pub struct GlobalRules {
     #[serde(rename = "preserve-empty-lines")]
     pub preserve_empty_lines: Option<bool>,
@@ -85,6 +112,7 @@ pub struct GlobalRules {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[schemars(description = "Safety guardrails for running the tool.")]
 pub struct SafetyConfig {
     #[serde(rename = "dry-run-first")]
     pub dry_run_first: Option<bool>,
@@ -95,6 +123,7 @@ pub struct SafetyConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[schemars(description = "Output and reporting configuration.")]
 pub struct OutputConfig {
     #[serde(rename = "show-changed-files")]
     pub show_changed_files: Option<bool>,
@@ -144,6 +173,23 @@ fn get_global_config_path() -> Result<PathBuf> {
     Ok(config_dir.join("config.yaml"))
 }
 
+fn is_project_config_path(path: &Path) -> bool {
+    path.file_name() == Some(OsStr::new("config.yaml"))
+        && path.parent().and_then(|parent| parent.file_name()) == Some(OsStr::new(".llman"))
+}
+
+fn schema_kind_for_path(path: &Path) -> ConfigSchemaKind {
+    if is_project_config_path(path) {
+        return ConfigSchemaKind::Project;
+    }
+    if let Ok(global) = get_global_config_path()
+        && path == global
+    {
+        return ConfigSchemaKind::Global;
+    }
+    ConfigSchemaKind::Global
+}
+
 impl Config {
     /// Load configuration from the specified path
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -153,7 +199,17 @@ impl Config {
         }
 
         let content = fs::read_to_string(path)?;
-        let config: Config = serde_yaml::from_str(&content)
+        let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
+            .map_err(|e| anyhow!(t!("tool.config.parse_failed", error = e)))?;
+        let schema_kind = schema_kind_for_path(path);
+        if let Err(error) = validate_yaml_value(schema_kind, &yaml_value) {
+            return Err(anyhow!(t!(
+                "tool.config.schema_invalid",
+                path = path.display(),
+                error = error
+            )));
+        }
+        let config: Config = serde_yaml::from_value(yaml_value)
             .map_err(|e| anyhow!(t!("tool.config.parse_failed", error = e)))?;
 
         Ok(config)
@@ -200,10 +256,24 @@ impl Config {
 
     /// Load configuration with local-first priority, returning default if none found
     pub fn load_with_priority_or_default(explicit_path: Option<&Path>) -> Result<Self> {
-        match Self::load_with_priority(explicit_path) {
-            Ok(config) => Ok(config),
-            Err(_) => Ok(Self::default()),
+        if let Some(path) = explicit_path {
+            if path.exists() {
+                return Self::load(path);
+            }
+            return Ok(Self::default());
         }
+
+        let local_config = std::env::current_dir()?.join(".llman/config.yaml");
+        if local_config.exists() {
+            return Self::load(local_config);
+        }
+
+        let global_config = get_global_config_path()?;
+        if global_config.exists() {
+            return Self::load(global_config);
+        }
+
+        Ok(Self::default())
     }
 
     pub fn get_clean_comments_config(&self) -> Option<&CleanUselessCommentsConfig> {

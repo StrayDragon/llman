@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llman-config.schema.json
+version: '0.1'
+skills:
+  dir: $LLMAN_CONFIG_DIR/skills
+tools:
+  clean-useless-comments:
+    scope:
+      include:
+      - '**/*.py'
+      - '**/*.js'
+      - '**/*.ts'
+      - '**/*.rs'
+      - '**/*.go'
+      exclude:
+      - '**/node_modules/**'
+      - '**/target/**'
+      - '**/.git/**'
+      - '**/dist/**'
+      - '**/build/**'
+    lang-rules:
+      python:
+        single-line-comments: false
+        multi-line-comments: false
+        docstrings: false
+        jsdoc: null
+        doc-comments: null
+        godoc: null
+        preserve-patterns:
+        - ^\s*#\s*(TODO|FIXME|NOTE|HACK):\s*.*
+        - ^\s*#\s*(type|param|return|raises):\s*.*
+        - ^\s*#\s*(Copyright|License):\s*.*
+        min-comment-length: 10
+        min-code-complexity: 3
+        remove-duplicate-comments: true
+      javascript:
+        single-line-comments: false
+        multi-line-comments: false
+        docstrings: null
+        jsdoc: false
+        doc-comments: null
+        godoc: null
+        preserve-patterns:
+        - ^\s*//\s*(TODO|FIXME|NOTE|HACK):\s*.*
+        - ^\s*/\*\*.*\*/
+        - ^\s*//\s*(type|param|return):\s*.*
+        min-comment-length: 10
+        min-code-complexity: 3
+        remove-duplicate-comments: true
+      typescript: null
+      rust:
+        single-line-comments: false
+        multi-line-comments: false
+        docstrings: null
+        jsdoc: null
+        doc-comments: false
+        godoc: null
+        preserve-patterns:
+        - ^\s*///\s*(TODO|FIXME|NOTE|HACK):\s*.*
+        - ^\s*//!\s*(TODO|FIXME|NOTE|HACK):\s*.*
+        - ^\s*///\s*(Examples|Safety|Panics):\s*.*
+        min-comment-length: 8
+        min-code-complexity: 2
+        remove-duplicate-comments: true
+      go:
+        single-line-comments: false
+        multi-line-comments: false
+        docstrings: null
+        jsdoc: null
+        doc-comments: null
+        godoc: false
+        preserve-patterns:
+        - ^\s*//\s*(TODO|FIXME|NOTE|HACK):\s*.*
+        - ^\s*//\s*(Package|Function|Return|Parameters):\s*.*
+        min-comment-length: 10
+        min-code-complexity: 3
+        remove-duplicate-comments: true
+    global-rules:
+      preserve-empty-lines: true
+      remove-consecutive-empty-lines: true
+      remove-duplicate-comments: true
+      max-comment-density: 0.3
+      min-comment-length: 8
+      min-code-complexity: 2
+    safety:
+      dry-run-first: true
+      git-aware: true
+      require-git-commit: true
+    output:
+      show-changed-files: true
+      show-removed-comments: true
+      show-statistics: true
+      generate-report: true
+      report-format: markdown

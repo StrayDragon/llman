@@ -1,6 +1,8 @@
 use crate::config::{ENV_CONFIG_DIR, resolve_config_dir};
+use crate::config_schema::ensure_global_sample_config;
 use crate::prompt::PromptCommand;
 use crate::sdd::command::SddArgs;
+use crate::self_command::SelfArgs;
 use crate::skills::command::SkillsArgs;
 use crate::tool::command::{ToolArgs, ToolCommands};
 use crate::x::claude_code::command::ClaudeCodeArgs;
@@ -39,6 +41,9 @@ pub enum Commands {
     X(XArgs),
     /// Developer tools
     Tool(ToolArgs),
+    /// Self-management commands
+    #[command(name = "self")]
+    SelfCommand(SelfArgs),
 }
 
 #[derive(Parser)]
@@ -122,6 +127,7 @@ pub fn run() -> Result<()> {
     unsafe {
         env::set_var(ENV_CONFIG_DIR, &config_dir);
     }
+    ensure_global_sample_config(&config_dir)?;
 
     match &cli.command {
         Commands::Prompt(args) => handle_prompt_command(args),
@@ -129,6 +135,7 @@ pub fn run() -> Result<()> {
         Commands::Sdd(args) => crate::sdd::command::run(args),
         Commands::X(args) => handle_x_command(args),
         Commands::Tool(args) => handle_tool_command(args),
+        Commands::SelfCommand(args) => crate::self_command::run(args),
     }
 }
 

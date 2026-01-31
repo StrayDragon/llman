@@ -655,6 +655,9 @@ tool:
     parse_failed:
       en: "Failed to parse configuration: %{error}"
 
+    schema_invalid:
+      en: "Configuration does not match schema: %{path} (%{error})"
+
     not_found_with_priority:
       en: "No configuration file found. Tried local: %{local} and global config"
 
@@ -1416,6 +1419,8 @@ sdd:
       en: "Failed to read llmanspec config: %{error}"
     parse_failed:
       en: "Failed to parse llmanspec config: %{error}"
+    schema_invalid:
+      en: "llmanspec config does not match schema: %{path} (%{error})"
     unsupported_version:
       en: "Unsupported llmanspec config version: %{version}"
     serialize_failed:
@@ -1786,6 +1791,8 @@ skills:
       en: "Failed to read llman config: %{error}"
     llman_parse_failed:
       en: "Failed to parse llman config: %{error}"
+    llman_schema_invalid:
+      en: "llman config does not match schema: %{path} (%{error})"
     unsupported_version:
       en: "Unsupported skills config version %{version}."
     invalid_target_mode:
@@ -1805,3 +1812,34 @@ skills:
       en: "Failed to parse skills registry: %{error}"
     write_failed:
       en: "Failed to write skills registry: %{error}"
+
+self:
+  schema:
+    generate_start:
+      en: "Generating config schemas..."
+    generate_written:
+      en: "Wrote schema: %{path}"
+    generate_failed:
+      en: "Failed to generate schema: %{error}"
+    apply_start:
+      en: "Applying schema headers..."
+    apply_updated:
+      en: "Updated schema header: %{path}"
+    apply_unchanged:
+      en: "Schema header already present: %{path}"
+    apply_skipped:
+      en: "Skipped missing config: %{path}"
+    check_start:
+      en: "Checking config schemas..."
+    check_ok:
+      en: "Schema check passed."
+    check_missing:
+      en: "Schema file missing: %{path}"
+    check_invalid:
+      en: "Invalid schema at %{path}: %{error}"
+    check_failed:
+      en: "Schema validation failed for %{name}: %{error}"
+    read_failed:
+      en: "Failed to read file: %{path} (%{error})"
+    write_failed:
+      en: "Failed to write file: %{path} (%{error})"

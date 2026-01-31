@@ -127,6 +127,28 @@ llman_spec_evidence:
 
 llmanspec 项目配置位于 `llmanspec/config.yaml`，用于设置 locale 与 skills 输出路径。
 
+### YAML schema（LSP）
+
+llman 提供配置文件 JSON schema，用于 YAML LSP 补全与校验。schema 文件位于：
+
+```
+artifacts/schema/configs/en/
+  llman-config.schema.json
+  llman-project-config.schema.json
+  llmanspec-config.schema.json
+```
+
+使用 `llman self schema generate` 生成 schema，`llman self schema check` 校验，`llman self schema apply` 写入 `yaml-language-server` 头注释：
+- 全局配置：`~/.config/llman/config.yaml`（或 `LLMAN_CONFIG_DIR/config.yaml`）
+- 项目配置：`.llman/config.yaml`
+- llmanspec 配置：`llmanspec/config.yaml`
+
+示例（raw URL）：
+
+```
+# yaml-language-server: $schema=https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llman-config.schema.json
+```
+
 
 ## 🛠️ 开发与贡献
 

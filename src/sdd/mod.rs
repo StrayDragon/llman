@@ -19,4 +19,5 @@ mod update_skills;
 mod validate;
 mod validation;
 
+pub use config::SddConfig;
 pub use constants::{LLMANSPEC_CONFIG_FILE, LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS};

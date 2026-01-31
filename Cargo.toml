@@ -52,6 +52,7 @@ tree-sitter-go = "0.25.0"
 
 # Configuration and validation
 schemars = { version = "1.2.0", features = ["derive"] }
+jsonschema = "0.17.1"
 
 # JSON parsing and repair
 llm_json = "1.0.2"

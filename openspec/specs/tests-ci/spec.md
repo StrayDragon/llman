@@ -23,3 +23,11 @@ Test code MUST avoid clippy warnings that would fail `-D warnings` (e.g., prefer
 #### Scenario: Clippy run
 - **WHEN** `cargo +nightly clippy -- -D warnings` runs
 - **THEN** test code does not emit len_zero or similar warnings
+
+### Requirement: check-all 包含 schema 校验
+`just check-all` MUST 包含 schema 校验步骤，确保生成的 JSON schema 与样例配置有效且可用。
+
+#### Scenario: 运行 check-all
+- **WHEN** 开发者运行 `just check-all`
+- **THEN** `just check-schemas` 会被执行
+

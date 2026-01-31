@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SddConfig",
+  "description": "SDD project configuration for llmanspec.",
+  "type": "object",
+  "properties": {
+    "locale": {
+      "description": "Locale used for SDD templates and skills.",
+      "type": "string",
+      "default": "en"
+    },
+    "skills": {
+      "description": "SDD skills output configuration.",
+      "type": "object",
+      "properties": {
+        "claude_path": {
+          "description": "Path for generated Claude Code skills (relative to llmanspec root).",
+          "type": "string",
+          "default": ".claude/skills"
+        },
+        "codex_path": {
+          "description": "Path for generated Codex skills (relative to llmanspec root).",
+          "type": "string",
+          "default": ".codex/skills"
+        }
+      },
+      "default": {
+        "claude_path": ".claude/skills",
+        "codex_path": ".codex/skills"
+      }
+    },
+    "version": {
+      "description": "Configuration schema version.",
+      "type": "integer",
+      "format": "uint32",
+      "default": 1,
+      "minimum": 0
+    }
+  }
+}
