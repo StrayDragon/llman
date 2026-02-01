@@ -1,6 +1,10 @@
 use llman::prompt::PromptCommand;
+use std::env;
+use std::sync::Mutex;
 mod common;
 use common::*;
+
+static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
 /// Tests PromptCommand creation with default configuration
 #[test]
@@ -248,7 +252,17 @@ fn test_prompt_command_resource_usage() {
 /// Tests PromptCommand with various edge case inputs
 #[test]
 fn test_prompt_command_edge_case_inputs() {
-    let _env = TestEnvironment::new();
+    let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+    let test_env = TestEnvironment::new();
+    let work_dir = test_env.path().join("edge-case-workdir");
+    std::fs::create_dir_all(&work_dir).unwrap();
+    let original_dir = env::current_dir().unwrap();
+    env::set_current_dir(&work_dir).unwrap();
+
+    let temp_config_dir = test_env.path().join("edge-case-config");
+    unsafe {
+        env::set_var("LLMAN_CONFIG_DIR", &temp_config_dir);
+    }
 
     // Test with various unusual but valid inputs
     let edge_cases = vec![
@@ -274,4 +288,9 @@ fn test_prompt_command_edge_case_inputs() {
             }
         }
     }
+
+    unsafe {
+        env::remove_var("LLMAN_CONFIG_DIR");
+    }
+    env::set_current_dir(original_dir).unwrap();
 }
