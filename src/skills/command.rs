@@ -1,15 +1,14 @@
 use crate::skills::config::load_config;
-use crate::skills::git::find_git_root;
-use crate::skills::interactive::{confirm_non_repo, is_interactive};
+use crate::skills::interactive::is_interactive;
 use crate::skills::registry::Registry;
-use crate::skills::sync::{
-    InteractiveResolver, apply_target_link, apply_target_links, sync_sources,
-};
-use crate::skills::types::{SkillsPaths, TargetConflictStrategy, TargetMode};
+use crate::skills::scan::discover_skills;
+use crate::skills::sync::apply_target_links;
+use crate::skills::types::{SkillCandidate, SkillsPaths, TargetConflictStrategy, TargetMode};
 use anyhow::Result;
+use chrono::Utc;
 use clap::{Args, ValueEnum};
-use inquire::Select;
-use std::env;
+use inquire::{MultiSelect, Select};
+use std::collections::HashSet;
 
 #[derive(Args)]
 #[command(about = "Manage skills", long_about = "Interactive skills manager")]
@@ -18,7 +17,7 @@ pub struct SkillsArgs {
     #[arg(long = "relink-sources", hide = true)]
     pub relink_sources_removed: bool,
 
-    /// Conflict policy for copy-mode targets (overwrite or skip)
+    /// Conflict policy for link targets (overwrite or skip)
     #[arg(long = "target-conflict", value_enum)]
     pub target_conflict: Option<TargetConflictArg>,
 
@@ -39,73 +38,68 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
     }
     let interactive = is_interactive();
 
-    let cwd = env::current_dir()?;
-    let repo_root = find_git_root(&cwd);
-    if repo_root.is_none() {
-        let confirmed = confirm_non_repo(interactive)?;
-        if !confirmed {
-            println!("{}", t!("skills.non_repo_cancelled"));
-            return Ok(());
-        }
-    }
-
     let paths = SkillsPaths::resolve_with_override(args.skills_dir.as_deref())?;
-    let config = load_config(&paths, repo_root)?;
+    paths.ensure_dirs()?;
+    let config = load_config(&paths)?;
     let mut registry = Registry::load(&paths.registry_path)?;
-    let mut resolver = InteractiveResolver::new(interactive);
-
-    let _summary = sync_sources(&config, &paths, &mut registry, &mut resolver)?;
-    registry.save(&paths.registry_path)?;
-
     let target_conflict = args.target_conflict.map(TargetConflictStrategy::from);
-    apply_target_links(&config, &paths, &mut registry, interactive, target_conflict)?;
-    registry.save(&paths.registry_path)?;
+    let skills = discover_skills(&paths.root)?;
 
-    if interactive {
-        manage_targets(&config, &paths, &mut registry, target_conflict)?;
-        registry.save(&paths.registry_path)?;
+    for skill in &skills {
+        let entry = registry.ensure_skill(&skill.skill_id);
+        ensure_target_defaults(entry, &config.targets);
     }
-    Ok(())
-}
 
-fn manage_targets(
-    config: &crate::skills::types::SkillsConfig,
-    paths: &SkillsPaths,
-    registry: &mut Registry,
-    target_conflict: Option<TargetConflictStrategy>,
-) -> Result<()> {
-    if registry.skills.is_empty() {
+    if skills.is_empty() {
         println!("{}", t!("skills.manager.no_skills"));
         return Ok(());
     }
 
-    loop {
-        let mut skill_ids: Vec<String> = registry.skills.keys().cloned().collect();
-        skill_ids.sort();
-        let exit_label = t!("skills.manager.exit").to_string();
-        skill_ids.push(exit_label.clone());
-
-        let selection = Select::new(&t!("skills.manager.select_skill"), skill_ids)
-            .prompt()
-            .map_err(|e| anyhow::anyhow!(t!("skills.manager.prompt_failed", error = e)))?;
-        if selection == exit_label {
-            break;
+    if interactive {
+        let selected = select_skills(&skills)?;
+        if selected.is_empty() {
+            registry.save(&paths.registry_path)?;
+            return Ok(());
         }
-
-        manage_targets_for_skill(&selection, config, paths, registry, target_conflict)?;
+        for skill in &skills {
+            if !selected.contains(&skill.skill_id) {
+                continue;
+            }
+            manage_targets_for_skill(skill, &config, &mut registry, target_conflict)?;
+        }
+    } else {
+        for skill in &skills {
+            let entry = match registry.skills.get(&skill.skill_id) {
+                Some(entry) => entry,
+                None => continue,
+            };
+            apply_target_links(skill, &config, entry, false, target_conflict)?;
+            if let Some(entry) = registry.skills.get_mut(&skill.skill_id) {
+                entry.updated_at = Some(Utc::now().to_rfc3339());
+            }
+        }
     }
+    registry.save(&paths.registry_path)?;
     Ok(())
 }
 
+fn select_skills(skills: &[SkillCandidate]) -> Result<HashSet<String>> {
+    let mut skill_ids: Vec<String> = skills.iter().map(|skill| skill.skill_id.clone()).collect();
+    skill_ids.sort();
+    let selections = MultiSelect::new(&t!("skills.manager.select_skills"), skill_ids)
+        .prompt()
+        .map_err(|e| anyhow::anyhow!(t!("skills.manager.prompt_failed", error = e)))?;
+    Ok(selections.into_iter().collect())
+}
+
 fn manage_targets_for_skill(
-    skill_id: &str,
+    skill: &SkillCandidate,
     config: &crate::skills::types::SkillsConfig,
-    paths: &SkillsPaths,
     registry: &mut Registry,
     target_conflict: Option<TargetConflictStrategy>,
 ) -> Result<()> {
     loop {
-        let entry = match registry.skills.get(skill_id) {
+        let entry = match registry.skills.get(&skill.skill_id) {
             Some(entry) => entry,
             None => return Ok(()),
         };
@@ -147,7 +141,7 @@ fn manage_targets_for_skill(
             continue;
         };
         let target_id = &target_ids[idx];
-        let Some(entry) = registry.skills.get_mut(skill_id) else {
+        let Some(entry) = registry.skills.get_mut(&skill.skill_id) else {
             return Ok(());
         };
         if let Some(target) = config.targets.iter().find(|t| t.id == *target_id)
@@ -158,16 +152,12 @@ fn manage_targets_for_skill(
         }
         let current = entry.targets.get(target_id).copied().unwrap_or(false);
         entry.targets.insert(target_id.clone(), !current);
-        if let Some(target) = config.targets.iter().find(|t| t.id == *target_id) {
-            apply_target_link(
-                skill_id,
-                &paths.store_dir,
-                target,
-                entry,
-                true,
-                target_conflict,
-            )?;
-        }
+    }
+    if let Some(entry) = registry.skills.get(&skill.skill_id) {
+        apply_target_links(skill, config, entry, true, target_conflict)?;
+    }
+    if let Some(entry) = registry.skills.get_mut(&skill.skill_id) {
+        entry.updated_at = Some(Utc::now().to_rfc3339());
     }
     Ok(())
 }
@@ -178,5 +168,17 @@ impl From<TargetConflictArg> for TargetConflictStrategy {
             TargetConflictArg::Overwrite => TargetConflictStrategy::Overwrite,
             TargetConflictArg::Skip => TargetConflictStrategy::Skip,
         }
+    }
+}
+
+fn ensure_target_defaults(
+    entry: &mut crate::skills::registry::SkillEntry,
+    targets: &[crate::skills::types::ConfigEntry],
+) {
+    for target in targets {
+        entry
+            .targets
+            .entry(target.id.clone())
+            .or_insert(target.enabled);
     }
 }

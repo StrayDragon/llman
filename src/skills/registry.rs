@@ -1,5 +1,4 @@
 use anyhow::{Result, anyhow};
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -12,16 +11,10 @@ pub struct Registry {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct SkillEntry {
-    pub current_hash: Option<String>,
-    #[serde(default)]
-    pub versions: HashMap<String, VersionEntry>,
     #[serde(default)]
     pub targets: HashMap<String, bool>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Default)]
-pub struct VersionEntry {
-    pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
 impl Registry {
@@ -48,15 +41,5 @@ impl Registry {
 
     pub fn ensure_skill(&mut self, skill_id: &str) -> &mut SkillEntry {
         self.skills.entry(skill_id.to_string()).or_default()
-    }
-
-    pub fn ensure_version(&mut self, skill_id: &str, hash: &str) {
-        let entry = self.ensure_skill(skill_id);
-        entry
-            .versions
-            .entry(hash.to_string())
-            .or_insert_with(|| VersionEntry {
-                created_at: Some(Utc::now().to_rfc3339()),
-            });
     }
 }
