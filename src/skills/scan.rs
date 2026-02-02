@@ -1,5 +1,4 @@
-use crate::skills::hash::hash_skill_dir;
-use crate::skills::types::{ConfigEntry, SkillCandidate};
+use crate::skills::types::SkillCandidate;
 use anyhow::Result;
 use ignore::WalkBuilder;
 use serde_yaml::Value;
@@ -7,14 +6,14 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub fn discover_skills(source: &ConfigEntry) -> Result<Vec<SkillCandidate>> {
+pub fn discover_skills(root: &Path) -> Result<Vec<SkillCandidate>> {
     let mut candidates = Vec::new();
-    if !source.path.exists() {
+    if !root.exists() {
         return Ok(candidates);
     }
 
     let mut seen_dirs: HashSet<PathBuf> = HashSet::new();
-    let walker = WalkBuilder::new(&source.path)
+    let walker = WalkBuilder::new(root)
         .hidden(false)
         .follow_links(false)
         .git_ignore(true)
@@ -26,38 +25,47 @@ pub fn discover_skills(source: &ConfigEntry) -> Result<Vec<SkillCandidate>> {
     for entry in walker {
         let entry = entry?;
         let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
         if path.file_name().is_some_and(|name| name == "SKILL.md") {
-            if entry
-                .file_type()
-                .is_some_and(|file_type| file_type.is_symlink())
-            {
+            if !skill_file_exists(path) {
                 continue;
             }
             let Some(skill_dir) = path.parent() else {
                 continue;
             };
-            if is_symlink_dir(skill_dir) {
-                continue;
-            }
-            if !seen_dirs.insert(skill_dir.to_path_buf()) {
-                continue;
-            }
-            let skill_id = resolve_skill_id(skill_dir, path);
-            let hash = hash_skill_dir(skill_dir)?;
-            candidates.push(SkillCandidate {
-                skill_id,
-                hash,
-                source_id: source.id.clone(),
-                source_path: source.path.clone(),
-                skill_dir: skill_dir.to_path_buf(),
-            });
+            record_skill_dir(skill_dir, path, &mut seen_dirs, &mut candidates);
+            continue;
+        }
+        if entry
+            .file_type()
+            .is_some_and(|file_type| file_type.is_symlink())
+            && is_symlink_dir(path)
+            && let Some(skill_file) = resolve_symlink_skill_file(path)
+        {
+            record_skill_dir(path, &skill_file, &mut seen_dirs, &mut candidates);
         }
     }
 
     Ok(candidates)
+}
+
+fn record_skill_dir(
+    skill_dir: &Path,
+    skill_file: &Path,
+    seen_dirs: &mut HashSet<PathBuf>,
+    candidates: &mut Vec<SkillCandidate>,
+) {
+    let canonical = match fs::canonicalize(skill_dir) {
+        Ok(path) => path,
+        Err(_) => return,
+    };
+    if !seen_dirs.insert(canonical) {
+        return;
+    }
+    let skill_id = resolve_skill_id(skill_dir, skill_file);
+    candidates.push(SkillCandidate {
+        skill_id,
+        skill_dir: skill_dir.to_path_buf(),
+    });
 }
 
 fn resolve_skill_id(skill_dir: &Path, skill_file: &Path) -> String {
@@ -103,6 +111,29 @@ fn is_symlink_dir(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn resolve_symlink_skill_file(path: &Path) -> Option<PathBuf> {
+    let meta = fs::metadata(path).ok()?;
+    if !meta.is_dir() {
+        return None;
+    }
+    let skill_file = path.join("SKILL.md");
+    if skill_file_exists(&skill_file) {
+        Some(skill_file)
+    } else {
+        None
+    }
+}
+
+fn skill_file_exists(path: &Path) -> bool {
+    if let Ok(meta) = fs::symlink_metadata(path) {
+        if meta.file_type().is_symlink() {
+            return fs::metadata(path).map(|m| m.is_file()).unwrap_or(false);
+        }
+        return meta.is_file();
+    }
+    false
+}
+
 pub fn slugify(input: &str) -> String {
     let mut out = String::new();
     let mut prev_dash = false;
@@ -126,7 +157,6 @@ pub fn slugify(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::skills::types::TargetMode;
     use crate::test_utils::ENV_MUTEX;
     use std::env;
     use tempfile::TempDir;
@@ -150,38 +180,42 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn test_discover_skips_ignored_and_symlink() {
+    fn test_discover_respects_ignore_and_symlink_skill() {
         use std::os::unix::fs as unix_fs;
 
         let temp = TempDir::new().expect("temp dir");
-        let source_root = temp.path().join("source");
-        fs::create_dir_all(&source_root).expect("create source");
-        fs::write(source_root.join(".gitignore"), "ignored-skill/\n").expect("write gitignore");
+        let root = temp.path().join("source");
+        fs::create_dir_all(&root).expect("create source");
+        fs::write(root.join(".gitignore"), "ignored-skill/\n").expect("write gitignore");
 
-        let ignored = source_root.join("ignored-skill");
+        let ignored = root.join("ignored-skill");
         fs::create_dir_all(&ignored).expect("create ignored skill");
         fs::write(ignored.join("SKILL.md"), "# ignored").expect("write skill");
 
-        let kept = source_root.join("kept-skill");
+        let kept = root.join("kept-skill");
         fs::create_dir_all(&kept).expect("create kept skill");
         fs::write(kept.join("SKILL.md"), "---\nname: Keep Me\n---\n").expect("write skill");
 
-        let symlinked = source_root.join("symlink-skill");
-        fs::create_dir_all(&symlinked).expect("create symlink skill");
-        unix_fs::symlink(kept.join("SKILL.md"), symlinked.join("SKILL.md"))
-            .expect("create symlink");
+        let linked = root.join("linked-skill");
+        fs::create_dir_all(&linked).expect("create linked skill");
+        fs::write(linked.join("SKILL.md"), "---\nname: Linked Skill\n---\n").expect("write skill");
 
-        let source = ConfigEntry {
-            id: "test".to_string(),
-            agent: "agent".to_string(),
-            scope: "user".to_string(),
-            path: source_root,
-            enabled: true,
-            mode: TargetMode::Link,
-        };
-        let discovered = discover_skills(&source).expect("discover skills");
-        assert_eq!(discovered.len(), 1);
-        assert_eq!(discovered[0].skill_id, "keep-me");
+        let symlinked = root.join("symlink-skill");
+        unix_fs::symlink(&linked, &symlinked).expect("create symlink dir");
+
+        let template = root.join("template-skill.md");
+        fs::write(&template, "---\nname: File Linked\n---\n").expect("write template");
+        let symlink_file_dir = root.join("symlink-file-skill");
+        fs::create_dir_all(&symlink_file_dir).expect("create symlink file dir");
+        unix_fs::symlink(&template, symlink_file_dir.join("SKILL.md"))
+            .expect("create symlink file");
+
+        let mut discovered = discover_skills(&root).expect("discover skills");
+        discovered.sort_by(|a, b| a.skill_id.cmp(&b.skill_id));
+        assert_eq!(discovered.len(), 3);
+        assert_eq!(discovered[0].skill_id, "file-linked");
+        assert_eq!(discovered[1].skill_id, "keep-me");
+        assert_eq!(discovered[2].skill_id, "linked-skill");
     }
 
     #[test]
@@ -199,25 +233,17 @@ mod tests {
             env::set_var("GIT_CONFIG_NOSYSTEM", "1");
         }
 
-        let source_root = temp.path().join("source");
-        fs::create_dir_all(&source_root).expect("create source");
-        let ignored = source_root.join("global-skill");
+        let root = temp.path().join("source");
+        fs::create_dir_all(&root).expect("create source");
+        let ignored = root.join("global-skill");
         fs::create_dir_all(&ignored).expect("create ignored skill");
         fs::write(ignored.join("SKILL.md"), "# ignored").expect("write skill");
 
-        let kept = source_root.join("kept-skill");
+        let kept = root.join("kept-skill");
         fs::create_dir_all(&kept).expect("create kept skill");
         fs::write(kept.join("SKILL.md"), "# kept").expect("write skill");
 
-        let source = ConfigEntry {
-            id: "test".to_string(),
-            agent: "agent".to_string(),
-            scope: "user".to_string(),
-            path: source_root,
-            enabled: true,
-            mode: TargetMode::Link,
-        };
-        let discovered = discover_skills(&source).expect("discover skills");
+        let discovered = discover_skills(&root).expect("discover skills");
         assert_eq!(discovered.len(), 1);
         assert_eq!(discovered[0].skill_id, "kept-skill");
 

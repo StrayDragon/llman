@@ -1783,7 +1783,7 @@ skills:
       en: "Target metadata is invalid; treating as conflict: %{path} (%{error})"
   target_conflict:
     prompt:
-      en: "Target %{target} for %{skill} has local changes. Choose a conflict action."
+      en: "Target %{target} for %{skill} already exists. Choose a conflict action."
     prompt_failed:
       en: "Failed to resolve target conflict: %{error}"
     requires_flag:
@@ -1795,6 +1795,8 @@ skills:
   manager:
     no_skills:
       en: "No skills found to manage."
+    select_skills:
+      en: "Select skills to manage"
     select_skill:
       en: "Select a skill to manage"
     select_target:
@@ -1827,7 +1829,9 @@ skills:
     unsupported_version:
       en: "Unsupported skills config version %{version}."
     invalid_target_mode:
-      en: "Unsupported target mode %{mode}. Expected link, copy, or skip."
+      en: "Unsupported target mode %{mode}. Expected link or skip."
+    sources_removed:
+      en: "Skills config v2 does not support [[source]] entries. Use targets-only config under <skills_root>."
     skills_dir_invalid_cli:
       en: "Invalid skills directory: %{error}"
     skills_dir_invalid_env:
