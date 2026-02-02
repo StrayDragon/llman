@@ -24,6 +24,9 @@ pub struct ToolsConfig {
     #[serde(rename = "clean-useless-comments")]
     #[schemars(description = "Settings for the clean-useless-comments tool.")]
     pub clean_useless_comments: Option<CleanUselessCommentsConfig>,
+    #[serde(rename = "rm-useless-dirs")]
+    #[schemars(description = "Settings for the rm-useless-dirs tool.")]
+    pub rm_useless_dirs: Option<RmUselessDirsConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -137,6 +140,35 @@ pub struct OutputConfig {
     pub report_format: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+#[schemars(description = "List mode for directory names.")]
+pub enum ListMode {
+    #[default]
+    Extend,
+    Override,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[schemars(description = "Directory list configuration.")]
+pub struct DirListConfig {
+    #[serde(default)]
+    #[schemars(description = "List mode: extend or override.")]
+    pub mode: ListMode,
+    #[serde(default)]
+    #[schemars(description = "Directory names to apply for the selected mode.")]
+    pub names: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[schemars(description = "Settings for the rm-useless-dirs tool.")]
+pub struct RmUselessDirsConfig {
+    #[schemars(description = "Protected directory configuration.")]
+    pub protected: Option<DirListConfig>,
+    #[schemars(description = "Useless directory configuration.")]
+    pub useless: Option<DirListConfig>,
+}
+
 // Default implementations
 fn default_include() -> Vec<String> {
     vec![
@@ -190,6 +222,29 @@ fn schema_kind_for_path(path: &Path) -> ConfigSchemaKind {
     ConfigSchemaKind::Global
 }
 
+fn reject_legacy_rm_empty_dirs(value: &serde_yaml::Value) -> Result<()> {
+    let tools = match value.get("tools") {
+        Some(value) => value,
+        None => return Ok(()),
+    };
+    let tools_map = match tools.as_mapping() {
+        Some(map) => map,
+        None => return Ok(()),
+    };
+
+    for key in tools_map.keys() {
+        if key.as_str() == Some("rm-empty-dirs") {
+            return Err(anyhow!(t!(
+                "tool.config.legacy_key_unsupported",
+                key = "tools.rm-empty-dirs",
+                replacement = "tools.rm-useless-dirs"
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 impl Config {
     /// Load configuration from the specified path
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -201,6 +256,7 @@ impl Config {
         let content = fs::read_to_string(path)?;
         let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
             .map_err(|e| anyhow!(t!("tool.config.parse_failed", error = e)))?;
+        reject_legacy_rm_empty_dirs(&yaml_value)?;
         let schema_kind = schema_kind_for_path(path);
         if let Err(error) = validate_yaml_value(schema_kind, &yaml_value) {
             return Err(anyhow!(t!(
@@ -280,6 +336,10 @@ impl Config {
         self.tools.clean_useless_comments.as_ref()
     }
 
+    pub fn get_rm_useless_dirs_config(&self) -> Option<&RmUselessDirsConfig> {
+        self.tools.rm_useless_dirs.as_ref()
+    }
+
     pub fn generate_schema() -> Result<String> {
         let schema = schema_for!(Config);
         serde_json::to_string_pretty(&schema)
@@ -292,6 +352,7 @@ impl Default for Config {
         Self {
             version: "0.1".to_string(),
             tools: ToolsConfig {
+                rm_useless_dirs: None,
                 clean_useless_comments: Some(CleanUselessCommentsConfig {
                     scope: ScopeConfig::default(),
                     lang_rules: LanguageRules {
