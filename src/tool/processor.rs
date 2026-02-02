@@ -569,6 +569,7 @@ mod tests {
         let config = Config {
             version: "0.1".to_string(),
             tools: ToolsConfig {
+                rm_useless_dirs: None,
                 clean_useless_comments: Some(CleanUselessCommentsConfig {
                     scope: ScopeConfig {
                         include: vec!["**/*.py".to_string()],

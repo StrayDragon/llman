@@ -12,8 +12,11 @@ pub enum ToolCommands {
     /// Clean useless comments from source code
     #[command(alias = "cuc")]
     CleanUselessComments(CleanUselessCommentsArgs),
-    /// Remove empty directories recursively
-    RmEmptyDirs(RmEmptyDirsArgs),
+    /// Remove useless directories recursively
+    RmUselessDirs(RmUselessDirsArgs),
+    /// Deprecated: use rm-useless-dirs instead
+    #[command(hide = true)]
+    RmEmptyDirs(RmUselessDirsArgs),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -51,7 +54,11 @@ pub struct CleanUselessCommentsArgs {
 }
 
 #[derive(Parser, Debug, Clone)]
-pub struct RmEmptyDirsArgs {
+pub struct RmUselessDirsArgs {
+    /// Configuration file path (default: .llman/config.yaml)
+    #[arg(long, short = 'c')]
+    pub config: Option<PathBuf>,
+
     /// Directory to scan (default: current directory)
     pub path: Option<PathBuf>,
 

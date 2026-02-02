@@ -686,6 +686,9 @@ tool:
     schema_generate_failed:
       en: "Failed to generate JSON schema: %{error}"
 
+    legacy_key_unsupported:
+      en: "Legacy config key is not supported: %{key} (use %{replacement})"
+
   tree_sitter:
     set_language_failed:
       en: "Failed to set language: %{error}"
@@ -695,7 +698,7 @@ tool:
 
   rm_empty_dirs:
     start_title:
-      en: "Remove empty directories"
+      en: "Remove useless directories"
 
     target_label:
       en: "Target: %{path}"
@@ -704,7 +707,7 @@ tool:
       en: "Dry run mode enabled (use -y to delete)."
 
     live_mode_enabled:
-      en: "Live mode enabled (empty directories will be removed)."
+      en: "Live mode enabled (useless directories will be removed)."
 
     prune_ignored_enabled:
       en: "Prune ignored entries enabled (ignored files/dirs may be deleted)."
@@ -725,13 +728,13 @@ tool:
       en: "=== Summary ==="
 
     summary_empty_dirs_found:
-      en: "Empty directories found: %{count}"
+      en: "Useless directories found: %{count}"
 
     summary_empty_dirs_removed:
-      en: "Empty directories removed: %{count}"
+      en: "Useless directories removed: %{count}"
 
     summary_empty_dirs_failed:
-      en: "Empty directories failed: %{count}"
+      en: "Useless directories failed: %{count}"
 
     summary_dirs_scanned:
       en: "Directories scanned: %{count}"
@@ -753,6 +756,12 @@ tool:
 
     list_removed:
       en: "Directories removed"
+
+    deprecated_alias_warning:
+      en: "Command rm-empty-dirs is deprecated; use rm-useless-dirs instead."
+
+    skipping_protected_path:
+      en: "Skipping protected path: %{path}"
 
     list_failed_title:
       en: "Directories failed to remove"

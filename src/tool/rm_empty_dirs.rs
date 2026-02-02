@@ -1,11 +1,13 @@
-use crate::tool::command::RmEmptyDirsArgs;
+use crate::tool::command::RmUselessDirsArgs;
+use crate::tool::config::{Config, DirListConfig, ListMode};
 use anyhow::{Result, anyhow};
 use ignore::Match;
 use ignore::gitignore::Gitignore;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
+pub fn run(args: &RmUselessDirsArgs) -> Result<()> {
     let target = match &args.path {
         Some(path) => path.clone(),
         None => std::env::current_dir()?,
@@ -28,12 +30,34 @@ pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
         ));
     }
 
+    let config = Config::load_with_priority_or_default(args.config.as_deref())?;
+    let rm_config = config.get_rm_useless_dirs_config();
+    let protected_dirs = resolve_dir_names(
+        DEFAULT_PROTECTED_DIRS,
+        rm_config.and_then(|cfg| cfg.protected.as_ref()),
+    );
+    let useless_dirs = resolve_dir_names(
+        DEFAULT_USELESS_DIRS,
+        rm_config.and_then(|cfg| cfg.useless.as_ref()),
+    );
+
     let dry_run = !args.yes;
     let gitignore_path = resolve_gitignore_path(args)?;
     let gitignore = match gitignore_path.as_ref() {
         Some(path) => Some(load_gitignore(path)?),
         None => None,
     };
+
+    if is_protected_target(&target, &protected_dirs) {
+        eprintln!(
+            "{}",
+            t!(
+                "tool.rm_empty_dirs.skipping_protected_path",
+                path = target.display()
+            )
+        );
+        return Ok(());
+    }
 
     println!("{}", t!("tool.rm_empty_dirs.start_title"));
     println!(
@@ -68,6 +92,8 @@ pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
         gitignore,
         prune_ignored: args.prune_ignored,
         verbose: args.verbose,
+        protected_dirs,
+        useless_dirs,
     };
 
     let root_empty = process_dir(&target, false, &options, &mut report)?;
@@ -85,7 +111,7 @@ pub fn run(args: &RmEmptyDirsArgs) -> Result<()> {
         "{}",
         t!(
             "tool.rm_empty_dirs.summary_empty_dirs_found",
-            count = report.empty_dirs_found
+            count = report.useless_dirs_found
         )
     );
     if !dry_run {
@@ -166,7 +192,7 @@ struct RemovalReport {
     targets: Vec<PathBuf>,
     failed: Vec<PathBuf>,
     errors: usize,
-    empty_dirs_found: usize,
+    useless_dirs_found: usize,
     dirs_scanned: usize,
     files_scanned: usize,
     ignored_dirs: usize,
@@ -178,6 +204,76 @@ struct Options {
     gitignore: Option<Gitignore>,
     prune_ignored: bool,
     verbose: bool,
+    protected_dirs: HashSet<String>,
+    useless_dirs: HashSet<String>,
+}
+
+const DEFAULT_PROTECTED_DIRS: &[&str] = &[
+    ".git",
+    ".hg",
+    ".svn",
+    ".bzr",
+    ".idea",
+    ".vscode",
+    "node_modules",
+    ".yarn",
+    ".pnpm-store",
+    ".pnpm",
+    ".npm",
+    ".cargo",
+    ".venv",
+    "venv",
+    ".tox",
+    ".nox",
+    "__pypackages__",
+    "target",
+    "vendor",
+];
+
+const DEFAULT_USELESS_DIRS: &[&str] = &[
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".basedpyright",
+    ".pytype",
+    ".pyre",
+    ".ty",
+    ".ty_cache",
+    ".ty-cache",
+];
+
+fn resolve_dir_names(defaults: &[&str], config: Option<&DirListConfig>) -> HashSet<String> {
+    let mode = config.map(|cfg| cfg.mode).unwrap_or(ListMode::Extend);
+    let mut names = HashSet::new();
+    match mode {
+        ListMode::Extend => {
+            for name in defaults {
+                names.insert((*name).to_string());
+            }
+            if let Some(cfg) = config {
+                for name in &cfg.names {
+                    names.insert(name.clone());
+                }
+            }
+        }
+        ListMode::Override => {
+            if let Some(cfg) = config {
+                for name in &cfg.names {
+                    names.insert(name.clone());
+                }
+            }
+        }
+    }
+    names
+}
+
+fn is_protected_target(target: &Path, protected_dirs: &HashSet<String>) -> bool {
+    target
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| protected_dirs.contains(name))
+        .unwrap_or(false)
 }
 
 fn process_dir(
@@ -243,6 +339,32 @@ fn process_dir(
         };
 
         let is_dir = file_type.is_dir();
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if is_dir && options.protected_dirs.contains(name_str.as_ref()) {
+            if options.verbose {
+                println!(
+                    "{}",
+                    t!(
+                        "tool.rm_empty_dirs.skipping_protected_path",
+                        path = path.display()
+                    )
+                );
+            }
+            is_empty = false;
+            continue;
+        }
+
+        if is_dir && options.useless_dirs.contains(name_str.as_ref()) {
+            report.useless_dirs_found += 1;
+            if try_remove_useless_dir(&path, options, report) {
+                report.targets.push(path.clone());
+            } else {
+                is_empty = false;
+            }
+            continue;
+        }
+
         let match_result = match options.gitignore.as_ref() {
             Some(gitignore) => gitignore.matched(&path, is_dir),
             None => Match::None,
@@ -288,7 +410,7 @@ fn process_dir(
             };
             let child_empty = process_dir(&path, child_parent_ignored, options, report)?;
             if child_empty {
-                report.empty_dirs_found += 1;
+                report.useless_dirs_found += 1;
                 if try_remove_dir(&path, options, report) {
                     report.targets.push(path.clone());
                 } else {
@@ -351,6 +473,119 @@ fn try_remove_dir(path: &Path, options: &Options, report: &mut RemovalReport) ->
     }
 }
 
+fn try_remove_useless_dir(path: &Path, options: &Options, report: &mut RemovalReport) -> bool {
+    if contains_protected_dir(path, options, report) {
+        return false;
+    }
+
+    if options.verbose {
+        if options.dry_run {
+            println!(
+                "{}",
+                t!("tool.rm_empty_dirs.would_remove_dir", path = path.display())
+            );
+        } else {
+            println!(
+                "{}",
+                t!("tool.rm_empty_dirs.removing_dir", path = path.display())
+            );
+        }
+    }
+
+    if options.dry_run {
+        return true;
+    }
+
+    match fs::remove_dir_all(path) {
+        Ok(()) => true,
+        Err(err) => {
+            report.errors += 1;
+            report.failed.push(path.to_path_buf());
+            eprintln!(
+                "{}",
+                t!(
+                    "tool.rm_empty_dirs.error.remove_dir_failed",
+                    path = path.display(),
+                    error = err
+                )
+            );
+            false
+        }
+    }
+}
+
+fn contains_protected_dir(path: &Path, options: &Options, report: &mut RemovalReport) -> bool {
+    if options.protected_dirs.is_empty() {
+        return false;
+    }
+
+    let entries = match fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(err) => {
+            report.errors += 1;
+            eprintln!(
+                "{}",
+                t!(
+                    "tool.rm_empty_dirs.error.read_dir_failed",
+                    path = path.display(),
+                    error = err
+                )
+            );
+            return true;
+        }
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => {
+                report.errors += 1;
+                eprintln!(
+                    "{}",
+                    t!(
+                        "tool.rm_empty_dirs.error.read_entry_failed",
+                        path = path.display(),
+                        error = err
+                    )
+                );
+                return true;
+            }
+        };
+
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(err) => {
+                report.errors += 1;
+                eprintln!(
+                    "{}",
+                    t!(
+                        "tool.rm_empty_dirs.error.read_file_type_failed",
+                        path = entry.path().display(),
+                        error = err
+                    )
+                );
+                return true;
+            }
+        };
+
+        if !file_type.is_dir() {
+            continue;
+        }
+
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if options.protected_dirs.contains(name_str.as_ref()) {
+            return true;
+        }
+
+        if contains_protected_dir(&entry.path(), options, report) {
+            return true;
+        }
+    }
+
+    false
+}
+
 fn try_remove_ignored_file(path: &Path, options: &Options, report: &mut RemovalReport) -> bool {
     if options.verbose {
         if options.dry_run {
@@ -393,7 +628,7 @@ fn try_remove_ignored_file(path: &Path, options: &Options, report: &mut RemovalR
     }
 }
 
-fn resolve_gitignore_path(args: &RmEmptyDirsArgs) -> Result<Option<PathBuf>> {
+fn resolve_gitignore_path(args: &RmUselessDirsArgs) -> Result<Option<PathBuf>> {
     if let Some(path) = &args.gitignore {
         if !path.exists() {
             return Err(anyhow!(
