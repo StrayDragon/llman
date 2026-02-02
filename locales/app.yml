@@ -1795,18 +1795,24 @@ skills:
   manager:
     no_skills:
       en: "No skills found to manage."
+    duplicate_skill_id:
+      en: "Duplicate skill id %{skill} found at %{path}; using %{chosen}."
     select_skills:
       en: "Select skills to manage"
+    select_skills_for_target:
+      en: "Select skills for %{target}"
     select_skill:
       en: "Select a skill to manage"
     select_target:
-      en: "Select a target to toggle"
+      en: "Select a target to manage"
     prompt_failed:
       en: "Failed to read selection: %{error}"
     exit:
       en: "Exit"
     back:
       en: "Back"
+    confirm_apply:
+      en: "Apply changes for %{target}?"
     state_on:
       en: "on"
     state_off:

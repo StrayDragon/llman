@@ -13,6 +13,7 @@ pub fn discover_skills(root: &Path) -> Result<Vec<SkillCandidate>> {
     }
 
     let mut seen_dirs: HashSet<PathBuf> = HashSet::new();
+    let store_dir = root.join("store");
     let walker = WalkBuilder::new(root)
         .hidden(false)
         .follow_links(false)
@@ -20,6 +21,7 @@ pub fn discover_skills(root: &Path) -> Result<Vec<SkillCandidate>> {
         .git_global(true)
         .git_exclude(true)
         .require_git(false)
+        .filter_entry(move |entry| entry.path() != store_dir)
         .build();
 
     for entry in walker {

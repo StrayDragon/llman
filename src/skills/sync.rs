@@ -3,6 +3,7 @@ use crate::skills::types::{
 };
 use anyhow::{Result, anyhow};
 use inquire::Select;
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -22,6 +23,57 @@ pub fn apply_target_links(
         apply_target_link(skill, target, enabled, interactive, target_conflict)?;
     }
     Ok(())
+}
+
+pub fn apply_target_diff(
+    skills: &[SkillCandidate],
+    target: &ConfigEntry,
+    desired: &HashSet<String>,
+    interactive: bool,
+    target_conflict: Option<TargetConflictStrategy>,
+) -> Result<()> {
+    if target.mode == TargetMode::Skip {
+        return Ok(());
+    }
+    for skill in skills {
+        let current = is_skill_linked(skill, target);
+        let wanted = desired.contains(&skill.skill_id);
+        if current == wanted {
+            continue;
+        }
+        apply_target_link(skill, target, wanted, interactive, target_conflict)?;
+    }
+    Ok(())
+}
+
+pub fn is_skill_linked(skill: &SkillCandidate, target: &ConfigEntry) -> bool {
+    let link_path = target.path.join(&skill.skill_id);
+    let meta = match fs::symlink_metadata(&link_path) {
+        Ok(meta) => meta,
+        Err(_) => return false,
+    };
+    if !meta.file_type().is_symlink() {
+        return false;
+    }
+    let existing = match fs::read_link(&link_path) {
+        Ok(path) => path,
+        Err(_) => return false,
+    };
+    if existing == skill.skill_dir {
+        return true;
+    }
+    let existing_abs = if existing.is_absolute() {
+        existing
+    } else {
+        link_path.parent().unwrap_or(&target.path).join(existing)
+    };
+    let Ok(existing_canon) = fs::canonicalize(existing_abs) else {
+        return false;
+    };
+    let Ok(desired_canon) = fs::canonicalize(&skill.skill_dir) else {
+        return false;
+    };
+    existing_canon == desired_canon
 }
 
 pub fn apply_target_link(
@@ -253,5 +305,87 @@ mod tests {
         assert!(meta.file_type().is_symlink());
         let target = fs::read_link(&link_path).expect("read link");
         assert_eq!(target, skill_dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_is_skill_linked_with_relative_symlink() {
+        use std::os::unix::fs as unix_fs;
+
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let skills_root = root.join("skills");
+        let skill_dir = skills_root.join("skill");
+        fs::create_dir_all(&skill_dir).expect("create skill dir");
+        fs::write(skill_dir.join("SKILL.md"), "# skill").expect("write skill");
+
+        let target_root = root.join("targets");
+        fs::create_dir_all(&target_root).expect("create target root");
+        let link_path = target_root.join("skill");
+        unix_fs::symlink("../skills/skill", &link_path).expect("create relative symlink");
+
+        let skill = SkillCandidate {
+            skill_id: "skill".to_string(),
+            skill_dir: skill_dir.clone(),
+        };
+        let target = ConfigEntry {
+            id: "claude_user".to_string(),
+            agent: "claude".to_string(),
+            scope: "user".to_string(),
+            path: target_root,
+            enabled: true,
+            mode: TargetMode::Link,
+        };
+
+        assert!(is_skill_linked(&skill, &target));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_apply_target_diff_respects_current_state() {
+        use std::os::unix::fs as unix_fs;
+
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let skills_root = root.join("skills");
+        let skill_dir = skills_root.join("skill");
+        let other_dir = skills_root.join("other");
+        fs::create_dir_all(&skill_dir).expect("create skill dir");
+        fs::create_dir_all(&other_dir).expect("create other dir");
+        fs::write(skill_dir.join("SKILL.md"), "# skill").expect("write skill");
+
+        let target_root = root.join("targets");
+        fs::create_dir_all(&target_root).expect("create target root");
+        let link_path = target_root.join("skill");
+        unix_fs::symlink(&other_dir, &link_path).expect("create conflicting symlink");
+
+        let skill = SkillCandidate {
+            skill_id: "skill".to_string(),
+            skill_dir: skill_dir.clone(),
+        };
+        let target = ConfigEntry {
+            id: "claude_user".to_string(),
+            agent: "claude".to_string(),
+            scope: "user".to_string(),
+            path: target_root.clone(),
+            enabled: true,
+            mode: TargetMode::Link,
+        };
+        let mut desired = HashSet::new();
+
+        apply_target_diff(&[skill.clone()], &target, &desired, true, None).expect("apply diff");
+        assert!(link_path.exists());
+
+        desired.insert("skill".to_string());
+        apply_target_diff(
+            &[skill],
+            &target,
+            &desired,
+            true,
+            Some(TargetConflictStrategy::Overwrite),
+        )
+        .expect("apply diff");
+        let target_path = fs::read_link(&link_path).expect("read link");
+        assert_eq!(target_path, skill_dir);
     }
 }
