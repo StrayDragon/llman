@@ -28,6 +28,7 @@ clap = { version = "4.5.53", features = [
     "cargo",
     "derive",
 ] }
+clap_complete = "4.5.53"
 directories = "6.0.0"
 inquire = { version = "0.9.1", features = ["editor"] }
 thiserror = "2.0.12"

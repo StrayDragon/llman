@@ -1865,3 +1865,16 @@ self:
       en: "Failed to read file: %{path} (%{error})"
     write_failed:
       en: "Failed to write file: %{path} (%{error})"
+  completion:
+    install_prompt:
+      en: "Install llman completion block into %{path}?"
+    install_help:
+      en: "This will add or update the marked llman completion block."
+    non_interactive:
+      en: "Non-interactive mode cannot modify %{path}; run in an interactive shell."
+    read_failed:
+      en: "Failed to read file: %{path} (%{error})"
+    write_failed:
+      en: "Failed to write file: %{path} (%{error})"
+    invalid_marker:
+      en: "Invalid completion marker state in %{path}."

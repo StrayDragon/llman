@@ -160,6 +160,15 @@ artifacts/schema/configs/en/
 # yaml-language-server: $schema=https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llman-config.schema.json
 ```
 
+### Shell completion
+
+生成或安装 shell 自动补全脚本：
+
+```
+llman self completion --shell bash
+llman self completion --shell bash --install
+```
+
 
 ## 🛠️ 开发与贡献
 
