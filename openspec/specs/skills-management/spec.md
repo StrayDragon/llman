@@ -4,15 +4,23 @@
 描述 llman 在不同来源中发现技能、进行托管快照、处理冲突并为目标路径建立链接的整体流程和约束。
 ## Requirements
 ### Requirement: 交互式技能管理入口
-`llman skills` MUST 在交互式终端扫描 `<skills_root>` 并进入交互式选择流程：先多选技能，再为所选技能选择目标；确认后仅同步选中项。命令 MUST NOT 创建或更新 `store/` 快照。
+`llman skills` MUST 在交互式终端扫描 `<skills_root>` 并进入交互式选择流程：先选择单个 target（`mode=skip` 目标必须展示为不可选），然后为该 target 展示技能多选列表；默认勾选来自该 target 目录内的实际软链接状态。用户确认后，管理器 MUST 对该 target 执行差异同步：新增项创建软链接、取消项移除软链接。命令 MUST NOT 创建或更新 `store/` 快照。
 
-#### Scenario: 交互式默认进入管理器
-- **WHEN** 用户在交互式终端运行 `llman skills` 且未传入任何 flags
-- **THEN** 命令进入技能与目标的交互式选择流程
+#### Scenario: 交互式先选目标再选技能
+- **WHEN** 用户在交互式终端运行 `llman skills`
+- **THEN** 管理器先要求选择一个 target，再展示技能多选列表
 
-#### Scenario: 交互式选择并同步
-- **WHEN** 用户选择若干技能并为其勾选目标后确认
-- **THEN** 管理器仅同步所选技能与目标
+#### Scenario: 默认勾选来自目标链接
+- **WHEN** 目标目录已有指向技能目录的 `<skill_id>` 软链接
+- **THEN** 该技能在列表中默认勾选
+
+#### Scenario: 确认后仅同步差异
+- **WHEN** 用户确认选择
+- **THEN** 管理器仅对该 target 增删变更项
+
+#### Scenario: 取消不产生变更
+- **WHEN** 用户在确认前退出或返回
+- **THEN** 不修改任何目标链接且不写入 registry
 
 ### Requirement: 尊重忽略规则并跳过软链接
 管理器 MUST 在扫描时遵循 `.gitignore` 与全局忽略规则；若技能目录或 `SKILL.md` 为软链接，管理器 MUST 解析其目标并在目标包含 `SKILL.md` 时将其视为可管理技能。
@@ -126,12 +134,20 @@
 - **THEN** 管理器将其作为可管理技能展示
 
 ### Requirement: 启用状态持久化
-管理器 MUST 在 `<skills_root>/registry.json` 记录每个技能在各 target 的启用状态，并在下一次运行时作为默认值；若 `registry.json` 缺失，则使用 `config.toml` 中的默认启用值。
+管理器 MUST 在 `<skills_root>/registry.json` 记录用户确认后的技能/目标启用状态。交互模式 MUST 使用目标目录中的链接状态作为默认选择来源，并且在用户确认之前不得写入或更新 registry。非交互模式下，若 `registry.json` 缺失则回退到 `config.toml` 里的 `enabled` 默认值。
 
-#### Scenario: registry 缺失时回退配置默认值
-- **WHEN** `<skills_root>/registry.json` 不存在
-- **THEN** 管理器使用 `config.toml` 中 target 的 `enabled` 作为默认值
+#### Scenario: 交互默认来自文件系统
+- **WHEN** 交互模式选择某 target，且 `registry.json` 存在不同状态
+- **THEN** 默认勾选仍以目标目录链接状态为准
 
-#### Scenario: registry 存在时使用已保存状态
-- **WHEN** `<skills_root>/registry.json` 存在且包含某技能的 target 状态
-- **THEN** 管理器以该状态作为默认启用值
+#### Scenario: 交互取消不写入 registry
+- **WHEN** 用户退出而未确认
+- **THEN** `registry.json` 不被创建或修改
+
+#### Scenario: 确认后持久化状态
+- **WHEN** 用户确认应用
+- **THEN** `registry.json` 更新为确认后的状态
+
+#### Scenario: 非交互缺省回退配置默认值
+- **WHEN** 非交互模式且 `registry.json` 不存在
+- **THEN** 使用 `config.toml` 的 `enabled` 默认值
