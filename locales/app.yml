@@ -36,8 +36,15 @@ prompt:
     name_help:
       en: "Rule name (optional, defaults to template name)"
 
+    scope_help:
+      en: "Injection scope (codex/claude-code only): user, project, or all"
+
     force_help:
       en: "Force generation, skip repository detection"
+
+  scope:
+    select:
+      en: "Select injection scope:"
 
   list:
     about:
@@ -105,7 +112,7 @@ interactive:
     en: "⚠️  No templates available, nothing to generate"
 
   no_templates_hint:
-    en: "Hint: add a template with `llman prompt upsert --app cursor --name <name> --content <content>`"
+    en: "Hint: add a template with `llman prompts upsert --app cursor --name <name> --content <content>`"
 
 # Messages
 messages:
@@ -135,6 +142,9 @@ messages:
 
   confirm_delete:
     en: "Are you sure you want to delete rule '%{name}'?"
+
+  file_exists_inject:
+    en: "File %{path} exists and is not managed by llman. Inject a managed block?"
 
   rule_deleted:
     en: "✅ Rule deleted: %{name}"
@@ -200,6 +210,18 @@ errors:
 
   home_directory_not_allowed:
     en: "Home directory access not allowed"
+
+  home_dir_missing:
+    en: "Cannot find home directory"
+
+  project_scope_requires_repo:
+    en: "Project scope requires a git repository (or use --force / --scope user)"
+
+  non_interactive_overwrite_requires_force:
+    en: "Non-interactive mode cannot overwrite %{path}; re-run with --force"
+
+  non_interactive_inject_requires_force:
+    en: "Non-interactive mode cannot modify existing %{path}; re-run with --force"
 
   rule_not_found:
     en: "Rule not found: %{name}"

@@ -9,7 +9,10 @@ pub const ENV_CONFIG_DIR: &str = "LLMAN_CONFIG_DIR";
 pub const ENV_LANG: &str = "LLMAN_LANG";
 pub const APP_NAME: &str = "llman";
 pub const CURSOR_APP: &str = "cursor";
+pub const CODEX_APP: &str = "codex";
+pub const CLAUDE_CODE_APP: &str = "claude-code";
 pub const CURSOR_EXTENSION: &str = "mdc";
+pub const CODEX_EXTENSION: &str = "md";
 pub const DEFAULT_EXTENSION: &str = "txt";
 pub const PROMPT_DIR: &str = "prompt";
 pub const TARGET_CURSOR_RULES_DIR: &str = ".cursor/rules";
@@ -80,6 +83,7 @@ impl Config {
     pub fn rule_file_path(&self, app: &str, name: &str) -> PathBuf {
         let extension = match app {
             CURSOR_APP => CURSOR_EXTENSION,
+            CODEX_APP => CODEX_EXTENSION,
             _ => DEFAULT_EXTENSION,
         };
         self.app_dir(app).join(format!("{name}.{extension}"))
@@ -217,6 +221,27 @@ mod tests {
         assert_eq!(
             rule_path,
             temp_dir.join("prompt").join("cursor").join("test-rule.mdc")
+        );
+
+        unsafe {
+            env::remove_var(ENV_CONFIG_DIR);
+        }
+    }
+
+    #[test]
+    fn test_rule_file_path_codex_uses_md() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        let temp_dir = env::temp_dir().join("llman_test_rule_codex");
+        unsafe {
+            env::set_var(ENV_CONFIG_DIR, &temp_dir);
+        }
+
+        let config = Config::new().unwrap();
+        let rule_path = config.rule_file_path(CODEX_APP, "draftpr");
+        assert_eq!(
+            rule_path,
+            temp_dir.join("prompt").join(CODEX_APP).join("draftpr.md")
         );
 
         unsafe {

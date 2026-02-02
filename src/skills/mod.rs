@@ -17,3 +17,6 @@ pub use types::{
     ConfigEntry, ConflictOption, SkillCandidate, SkillsConfig, SkillsPaths, SyncSummary,
     TargetConflictStrategy, TargetMode,
 };
+
+pub(crate) use git::find_git_root;
+pub(crate) use interactive::is_interactive;

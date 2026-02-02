@@ -21,3 +21,5 @@ mod validation;
 
 pub use config::SddConfig;
 pub use constants::{LLMANSPEC_CONFIG_FILE, LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS};
+
+pub(crate) use fs_utils::update_file_with_markers;
