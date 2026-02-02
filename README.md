@@ -70,6 +70,17 @@ llman prompts list
 
 # 列出特定应用的规则
 llman prompts list --app cursor
+
+# 兼容别名（等价于 llman prompts）
+llman prompt list
+
+# Codex / Claude Code 注入（先 upsert 存模板，再 gen 注入）
+llman prompts upsert --app codex --name draftpr --file draftpr.md
+llman prompts gen --app codex --scope project --template draftpr
+llman prompts gen --app codex --scope user --template draftpr
+
+llman prompts upsert --app claude-code --name project-rules --file claude_rules.md
+llman prompts gen --app claude-code --scope all --template project-rules
 ```
 
 ### Cursor对话导出

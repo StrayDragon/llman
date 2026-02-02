@@ -9,7 +9,7 @@ use crate::x::claude_code::command::ClaudeCodeArgs;
 use crate::x::codex::command::CodexArgs;
 use crate::x::cursor::command::CursorArgs;
 use anyhow::{Result, anyhow};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -63,6 +63,9 @@ pub enum PromptCommands {
         app: Option<String>,
         #[arg(long, required_unless_present = "interactive")]
         template: Option<String>,
+        /// Target scope for injection (codex/claude-code only)
+        #[arg(long, value_enum, default_value = "project")]
+        scope: PromptScopeArg,
         #[arg(long)]
         name: Option<String>,
         #[arg(long)]
@@ -115,6 +118,13 @@ pub enum XCommands {
     ClaudeCode(ClaudeCodeArgs),
     /// Commands for managing Codex configurations
     Codex(CodexArgs),
+}
+
+#[derive(ValueEnum, Debug, Clone, Copy)]
+pub enum PromptScopeArg {
+    User,
+    Project,
+    All,
 }
 
 pub fn run() -> Result<()> {
@@ -179,6 +189,8 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
             interactive,
             app,
             template,
+            scope,
+            name,
             force,
             ..
         }) => {
@@ -188,6 +200,8 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
                 prompt_cmd.generate_rules(
                     app.as_deref().unwrap(),
                     template.as_deref().unwrap(),
+                    name.as_deref(),
+                    (*scope).into(),
                     *force,
                 )?;
             }
@@ -211,6 +225,16 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
         }
     }
     Ok(())
+}
+
+impl From<PromptScopeArg> for crate::prompt::PromptScope {
+    fn from(value: PromptScopeArg) -> Self {
+        match value {
+            PromptScopeArg::User => Self::User,
+            PromptScopeArg::Project => Self::Project,
+            PromptScopeArg::All => Self::All,
+        }
+    }
 }
 
 fn handle_x_command(args: &XArgs) -> Result<()> {
