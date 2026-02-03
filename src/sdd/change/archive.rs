@@ -1,7 +1,7 @@
-use crate::sdd::constants::LLMANSPEC_DIR_NAME;
-use crate::sdd::delta::{RequirementBlock, normalize_requirement_name, parse_delta_spec};
-use crate::sdd::staleness::evaluate_staleness_with_override;
-use crate::sdd::validation::{
+use crate::sdd::change::delta::{RequirementBlock, normalize_requirement_name, parse_delta_spec};
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::spec::staleness::evaluate_staleness_with_override;
+use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, validate_spec_content_with_frontmatter,
 };
 use anyhow::{Result, anyhow};

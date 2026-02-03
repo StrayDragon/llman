@@ -1,8 +1,10 @@
-use crate::sdd::config::{SddConfig, config_with_locale, write_config};
-use crate::sdd::constants::{LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS, SPEC_DRIVEN_TEMPLATE_DIR};
-use crate::sdd::fs_utils::update_file_with_markers;
-use crate::sdd::templates::{
+use super::config::{SddConfig, config_with_locale, write_config};
+use super::fs_utils::update_file_with_markers;
+use super::templates::{
     default_agents_file, render_project_template, root_stub_content, spec_driven_templates,
+};
+use crate::sdd::shared::constants::{
+    LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS, SPEC_DRIVEN_TEMPLATE_DIR,
 };
 use anyhow::{Result, anyhow};
 use std::fs;

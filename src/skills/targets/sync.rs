@@ -1,4 +1,4 @@
-use crate::skills::types::{
+use crate::skills::catalog::types::{
     ConfigEntry, SkillCandidate, SkillsConfig, TargetConflictStrategy, TargetMode,
 };
 use anyhow::{Result, anyhow};
@@ -10,7 +10,7 @@ use std::path::Path;
 pub fn apply_target_links(
     skill: &SkillCandidate,
     config: &SkillsConfig,
-    entry: &crate::skills::registry::SkillEntry,
+    entry: &crate::skills::catalog::registry::SkillEntry,
     interactive: bool,
     target_conflict: Option<TargetConflictStrategy>,
 ) -> Result<()> {
@@ -215,7 +215,7 @@ fn create_symlink(target: &Path, link: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::skills::registry::SkillEntry;
+    use crate::skills::catalog::registry::SkillEntry;
     use std::collections::HashMap;
     use tempfile::TempDir;
 

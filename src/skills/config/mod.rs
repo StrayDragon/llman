@@ -1,7 +1,7 @@
 use crate::config::resolve_config_dir;
 use crate::config_schema::{ConfigSchemaKind, validate_yaml_value};
 use crate::path_utils::validate_path_str;
-use crate::skills::types::{ConfigEntry, SkillsConfig, SkillsPaths, TargetMode};
+use crate::skills::catalog::types::{ConfigEntry, SkillsConfig, SkillsPaths, TargetMode};
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use serde::Deserialize;

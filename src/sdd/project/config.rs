@@ -1,7 +1,7 @@
 use crate::config_schema::{
     ConfigSchemaKind, LLMANSPEC_SCHEMA_URL, prepend_schema_header, validate_yaml_value,
 };
-use crate::sdd::constants::LLMANSPEC_CONFIG_FILE;
+use crate::sdd::shared::constants::LLMANSPEC_CONFIG_FILE;
 use anyhow::{Result, anyhow};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

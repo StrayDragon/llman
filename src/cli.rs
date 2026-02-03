@@ -3,7 +3,7 @@ use crate::config_schema::ensure_global_sample_config;
 use crate::prompt::PromptCommand;
 use crate::sdd::command::SddArgs;
 use crate::self_command::SelfArgs;
-use crate::skills::command::SkillsArgs;
+use crate::skills::cli::command::SkillsArgs;
 use crate::tool::command::{ToolArgs, ToolCommands};
 use crate::x::claude_code::command::ClaudeCodeArgs;
 use crate::x::codex::command::CodexArgs;
@@ -141,7 +141,7 @@ pub fn run() -> Result<()> {
 
     match &cli.command {
         Commands::Prompt(args) => handle_prompt_command(args),
-        Commands::Skills(args) => crate::skills::command::run(args),
+        Commands::Skills(args) => crate::skills::cli::command::run(args),
         Commands::Sdd(args) => crate::sdd::command::run(args),
         Commands::X(args) => handle_x_command(args),
         Commands::Tool(args) => handle_tool_command(args),

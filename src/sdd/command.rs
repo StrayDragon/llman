@@ -1,4 +1,6 @@
-use crate::sdd::{archive, init, list, show, update, update_skills, validate};
+use crate::sdd::change::archive;
+use crate::sdd::project::{init, update, update_skills};
+use crate::sdd::shared::{list, show, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use std::path::PathBuf;

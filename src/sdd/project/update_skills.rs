@@ -1,7 +1,7 @@
-use crate::sdd::config::{SddConfig, load_or_create_config, resolve_skill_path};
-use crate::sdd::constants::LLMANSPEC_DIR_NAME;
-use crate::sdd::interactive::is_interactive;
-use crate::sdd::templates::skill_templates;
+use super::config::{SddConfig, load_or_create_config, resolve_skill_path};
+use super::templates::skill_templates;
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::interactive::is_interactive;
 use anyhow::{Result, anyhow};
 use inquire::{MultiSelect, Text};
 use std::collections::BTreeSet;
@@ -141,10 +141,7 @@ fn resolve_override_path(root: &Path, path: &Path) -> PathBuf {
     }
 }
 
-fn write_tool_skills(
-    base: &Path,
-    templates: &[crate::sdd::templates::SkillTemplate],
-) -> Result<()> {
+fn write_tool_skills(base: &Path, templates: &[super::templates::SkillTemplate]) -> Result<()> {
     fs::create_dir_all(base)?;
     for template in templates {
         let dir_name = template.name.trim_end_matches(".md");

@@ -1,9 +1,11 @@
+use crate::skills::catalog::registry::Registry;
+use crate::skills::catalog::scan::discover_skills;
+use crate::skills::catalog::types::{
+    SkillCandidate, SkillsPaths, TargetConflictStrategy, TargetMode,
+};
+use crate::skills::cli::interactive::is_interactive;
 use crate::skills::config::load_config;
-use crate::skills::interactive::is_interactive;
-use crate::skills::registry::Registry;
-use crate::skills::scan::discover_skills;
-use crate::skills::sync::{apply_target_diff, apply_target_links, is_skill_linked};
-use crate::skills::types::{SkillCandidate, SkillsPaths, TargetConflictStrategy, TargetMode};
+use crate::skills::targets::sync::{apply_target_diff, apply_target_links, is_skill_linked};
 use anyhow::Result;
 use chrono::Utc;
 use clap::{Args, ValueEnum};
@@ -86,8 +88,8 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
 }
 
 fn select_target(
-    config: &crate::skills::types::SkillsConfig,
-) -> Result<Option<crate::skills::types::ConfigEntry>> {
+    config: &crate::skills::catalog::types::SkillsConfig,
+) -> Result<Option<crate::skills::catalog::types::ConfigEntry>> {
     loop {
         let mut labels = Vec::new();
         let mut targets = Vec::new();
@@ -134,7 +136,7 @@ fn select_target(
 
 fn select_skills_for_target(
     skills: &[SkillCandidate],
-    target: &crate::skills::types::ConfigEntry,
+    target: &crate::skills::catalog::types::ConfigEntry,
 ) -> Result<Option<HashSet<String>>> {
     let skill_ids: Vec<String> = skills.iter().map(|skill| skill.skill_id.clone()).collect();
     let mut defaults = Vec::new();
@@ -165,7 +167,7 @@ fn select_skills_for_target(
     Ok(Some(selections.into_iter().collect()))
 }
 
-fn confirm_apply(target: &crate::skills::types::ConfigEntry) -> Result<bool> {
+fn confirm_apply(target: &crate::skills::catalog::types::ConfigEntry) -> Result<bool> {
     let prompt = t!("skills.manager.confirm_apply", target = target.id);
     let confirmation = match Confirm::new(&prompt).with_default(true).prompt() {
         Ok(confirmation) => confirmation,
@@ -185,7 +187,7 @@ fn confirm_apply(target: &crate::skills::types::ConfigEntry) -> Result<bool> {
 fn update_registry_for_target(
     registry: &mut Registry,
     skills: &[SkillCandidate],
-    target: &crate::skills::types::ConfigEntry,
+    target: &crate::skills::catalog::types::ConfigEntry,
     selected: &HashSet<String>,
 ) {
     let now = Utc::now().to_rfc3339();
@@ -252,8 +254,8 @@ impl From<TargetConflictArg> for TargetConflictStrategy {
 }
 
 fn ensure_target_defaults(
-    entry: &mut crate::skills::registry::SkillEntry,
-    targets: &[crate::skills::types::ConfigEntry],
+    entry: &mut crate::skills::catalog::registry::SkillEntry,
+    targets: &[crate::skills::catalog::types::ConfigEntry],
 ) {
     for target in targets {
         entry
@@ -266,7 +268,7 @@ fn ensure_target_defaults(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::skills::registry::Registry;
+    use crate::skills::catalog::registry::Registry;
     use std::path::PathBuf;
 
     #[test]
@@ -287,7 +289,7 @@ mod tests {
                 skill_dir: PathBuf::from("/tmp/beta"),
             },
         ];
-        let target = crate::skills::types::ConfigEntry {
+        let target = crate::skills::catalog::types::ConfigEntry {
             id: "claude_user".to_string(),
             agent: "claude".to_string(),
             scope: "user".to_string(),

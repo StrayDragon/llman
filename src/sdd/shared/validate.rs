@@ -1,9 +1,9 @@
-use crate::sdd::constants::LLMANSPEC_DIR_NAME;
-use crate::sdd::discovery::{list_changes, list_specs};
-use crate::sdd::interactive::is_interactive;
-use crate::sdd::match_utils::nearest_matches;
-use crate::sdd::staleness::{StalenessInfo, evaluate_staleness};
-use crate::sdd::validation::{
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::discovery::{list_changes, list_specs};
+use crate::sdd::shared::interactive::is_interactive;
+use crate::sdd::shared::match_utils::nearest_matches;
+use crate::sdd::spec::staleness::{StalenessInfo, evaluate_staleness};
+use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
     validate_change_delta_specs, validate_spec_content_with_frontmatter,
 };

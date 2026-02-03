@@ -67,6 +67,9 @@ check: fmt-check lint test
 # 完整检查（核心检查 + 文档 + release构建 + SDD模板检查）
 check-all: check doc-check build-release check-sdd-templates check-schemas
 
+# 别名：完整检查
+alias qa := check-all
+
 # =============================================================================
 # 工具命令
 # =============================================================================

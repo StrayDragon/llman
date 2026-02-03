@@ -1,6 +1,6 @@
-use crate::sdd::constants::LLMANSPEC_DIR_NAME;
-use crate::sdd::discovery::{list_changes, list_specs};
-use crate::sdd::parser::parse_spec;
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::discovery::{list_changes, list_specs};
+use crate::sdd::spec::parser::parse_spec;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
