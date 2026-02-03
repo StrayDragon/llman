@@ -3,9 +3,9 @@ use crate::config::{
     TARGET_CURSOR_RULES_DIR,
 };
 use crate::path_utils::{safe_parent_for_creation, validate_path_str};
-use crate::sdd::update_file_with_markers;
-use crate::skills::find_git_root;
-use crate::skills::is_interactive;
+use crate::sdd::project::fs_utils::update_file_with_markers;
+use crate::skills::cli::interactive::is_interactive;
+use crate::skills::shared::git::find_git_root;
 use anyhow::{Result, anyhow};
 use inquire::{Confirm, MultiSelect, Select, Text, validator::Validation};
 use std::env;

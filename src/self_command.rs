@@ -361,7 +361,7 @@ fn run_check() -> Result<()> {
     validate_schema(
         "llmanspec-config",
         &llmanspec_schema,
-        serde_json::to_value(crate::sdd::SddConfig::default())?,
+        serde_json::to_value(crate::sdd::project::config::SddConfig::default())?,
     )?;
 
     println!("{}", t!("self.schema.check_ok"));

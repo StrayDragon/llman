@@ -1,4 +1,4 @@
-use crate::skills::types::SkillCandidate;
+use crate::skills::catalog::types::SkillCandidate;
 use anyhow::Result;
 use ignore::WalkBuilder;
 use serde_yaml::Value;

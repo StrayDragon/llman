@@ -1,7 +1,7 @@
-use crate::sdd::delta::{
+use crate::sdd::change::delta::{
     DeltaPlan, RequirementBlock, normalize_requirement_name, parse_delta_spec,
 };
-use crate::sdd::parser::{Requirement, parse_spec};
+use crate::sdd::spec::parser::{Requirement, parse_spec};
 use regex::Regex;
 use serde::Serialize;
 use std::fs;

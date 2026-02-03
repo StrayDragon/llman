@@ -1,25 +1,5 @@
-mod archive;
+pub mod change;
 pub mod command;
-mod config;
-mod constants;
-mod delta;
-mod discovery;
-mod fs_utils;
-mod init;
-mod interactive;
-mod list;
-mod match_utils;
-mod parser;
-mod regions;
-mod show;
-mod staleness;
-mod templates;
-mod update;
-mod update_skills;
-mod validate;
-mod validation;
-
-pub use config::SddConfig;
-pub use constants::{LLMANSPEC_CONFIG_FILE, LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS};
-
-pub(crate) use fs_utils::update_file_with_markers;
+pub mod project;
+pub mod shared;
+pub mod spec;

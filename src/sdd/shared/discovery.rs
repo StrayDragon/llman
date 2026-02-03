@@ -1,4 +1,4 @@
-use crate::sdd::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use anyhow::Result;
 use std::fs;
 use std::path::Path;

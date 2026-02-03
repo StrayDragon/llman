@@ -1,4 +1,4 @@
-use crate::sdd::delta::{DeltaPlan, RequirementBlock, parse_delta_spec};
+use crate::sdd::change::delta::{DeltaPlan, RequirementBlock, parse_delta_spec};
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use serde::Serialize;

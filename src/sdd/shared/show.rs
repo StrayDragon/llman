@@ -1,8 +1,8 @@
-use crate::sdd::constants::LLMANSPEC_DIR_NAME;
-use crate::sdd::discovery::{list_changes, list_specs};
-use crate::sdd::interactive::is_interactive;
-use crate::sdd::match_utils::nearest_matches;
-use crate::sdd::parser::{Requirement, parse_change, parse_spec};
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::discovery::{list_changes, list_specs};
+use crate::sdd::shared::interactive::is_interactive;
+use crate::sdd::shared::match_utils::nearest_matches;
+use crate::sdd::spec::parser::{Requirement, parse_change, parse_spec};
 use anyhow::{Result, anyhow};
 use inquire::Select;
 use std::fmt;

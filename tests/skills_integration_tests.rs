@@ -1,8 +1,46 @@
-use llman::skills::{
-    ConfigEntry, Registry, SkillCandidate, SkillsConfig, TargetMode, apply_target_links,
-};
+#![cfg(unix)]
+
+use llman::skills::catalog::registry::Registry;
+use llman::skills::catalog::types::{ConfigEntry, SkillCandidate, SkillsConfig, TargetMode};
+use llman::skills::targets::sync::apply_target_links;
+use serde_json::Value;
 use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 use tempfile::TempDir;
+
+fn manifest_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")
+}
+
+fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path) -> Output {
+    Command::new("cargo")
+        .args([
+            "run",
+            "--quiet",
+            "--manifest-path",
+            manifest_path().to_str().expect("manifest path"),
+            "--",
+            "--config-dir",
+            config_dir.to_str().expect("config dir"),
+        ])
+        .args(args)
+        .current_dir(work_dir)
+        .output()
+        .expect("Failed to run llman command")
+}
+
+fn assert_success(output: &Output) {
+    if output.status.success() {
+        return;
+    }
+    panic!(
+        "Command failed: {}\nstdout:\n{}\nstderr:\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
 
 #[cfg(unix)]
 #[test]
@@ -45,4 +83,55 @@ fn test_link_target_points_to_skill_dir() {
     assert!(meta.file_type().is_symlink());
     let target = fs::read_link(&link_path).expect("read link");
     assert_eq!(target, skill_dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn test_skills_cli_non_interactive_links_and_registry() {
+    let temp = TempDir::new().expect("temp dir");
+    let work_dir = temp.path();
+    let skills_root = work_dir.join("skills-root");
+    let skill_dir = skills_root.join("example");
+    fs::create_dir_all(&skill_dir).expect("skill dir");
+    fs::write(skill_dir.join("SKILL.md"), "# example skill").expect("write SKILL.md");
+
+    let target_root = work_dir.join("targets");
+    fs::create_dir_all(&target_root).expect("target root");
+
+    fs::create_dir_all(&skills_root).expect("skills root");
+    let config = format!(
+        r#"version = 2
+
+[[target]]
+id = "claude_user"
+agent = "claude"
+scope = "user"
+path = "{}"
+mode = "link"
+enabled = true
+"#,
+        target_root.display()
+    );
+    fs::write(skills_root.join("config.toml"), config).expect("write config");
+
+    let output = run_llman(
+        &["skills", "--skills-dir", skills_root.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&output);
+
+    let link_path = target_root.join("example");
+    let meta = fs::symlink_metadata(&link_path).expect("metadata");
+    assert!(meta.file_type().is_symlink());
+    let target = fs::read_link(&link_path).expect("read link");
+    assert_eq!(target, skill_dir);
+
+    let registry_path = skills_root.join("registry.json");
+    let registry_content = fs::read_to_string(&registry_path).expect("read registry");
+    let registry_json: Value = serde_json::from_str(&registry_content).expect("parse registry");
+    assert_eq!(
+        registry_json["skills"]["example"]["targets"]["claude_user"].as_bool(),
+        Some(true)
+    );
 }

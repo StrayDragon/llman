@@ -1,4 +1,4 @@
-use crate::sdd::validation::{SpecFrontmatter, ValidationIssue, ValidationLevel};
+use crate::sdd::spec::validation::{SpecFrontmatter, ValidationIssue, ValidationLevel};
 use serde::Serialize;
 use std::collections::BTreeSet;
 use std::env;

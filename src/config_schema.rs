@@ -1,6 +1,6 @@
 use crate::config::resolve_config_dir;
-use crate::sdd::LLMANSPEC_DIR_NAME;
-use crate::sdd::SddConfig;
+use crate::sdd::project::config::SddConfig;
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::tool::config as tool_config;
 use anyhow::{Result, anyhow};
 use jsonschema::JSONSchema;
