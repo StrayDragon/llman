@@ -167,7 +167,7 @@ errors:
     en: "Cannot find config directory"
 
   dev_project_config_required:
-    en: "🚨 Error: Running within llman development project\n💡 You must specify --config-dir to avoid conflicts with user configurations\n   Example: --config-dir ./artifacts/llman_dev_config\n   Example: --config-dir ./artifacts/test_config\n   Alternatively, set %{env_var} environment variable"
+    en: "🚨 Error: Running within llman development project\n💡 You must specify --config-dir to avoid conflicts with user configurations\n   Example: --config-dir ./artifacts/testing_config_home\n   Alternatively, set %{env_var} environment variable"
 
   invalid_config_dir:
     en: "Invalid config directory: %{error}"
