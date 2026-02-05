@@ -52,7 +52,6 @@ impl Config {
         let prompt_dir = config_dir.join(PROMPT_DIR);
 
         fs::create_dir_all(&config_dir)?;
-        fs::create_dir_all(&prompt_dir)?;
 
         Ok(Self {
             config_dir,
