@@ -116,8 +116,15 @@ fn generate_completion(shell: CompletionShell) -> Result<()> {
 }
 
 fn install_completion(shell: CompletionShell, yes: bool) -> Result<()> {
+    install_completion_with(shell, yes, confirm_install)
+}
+
+fn install_completion_with<F>(shell: CompletionShell, yes: bool, confirm: F) -> Result<()>
+where
+    F: Fn(&Path, bool) -> Result<bool>,
+{
     let profile_path = shell_profile_path(shell)?;
-    if !confirm_install(&profile_path, yes)? {
+    if !confirm(&profile_path, yes)? {
         println!("{}", t!("messages.operation_cancelled"));
         return Ok(());
     }
@@ -128,23 +135,36 @@ fn install_completion(shell: CompletionShell, yes: bool) -> Result<()> {
 }
 
 fn confirm_install(path: &Path, yes: bool) -> Result<bool> {
+    confirm_install_with(path, yes, is_interactive_terminal, |prompt, help| {
+        Confirm::new(prompt)
+            .with_default(false)
+            .with_help_message(help)
+            .prompt()
+            .map_err(|e| anyhow!(t!("errors.inquire_error", error = e)))
+    })
+}
+
+fn confirm_install_with<I, P>(path: &Path, yes: bool, is_interactive: I, prompt: P) -> Result<bool>
+where
+    I: FnOnce() -> bool,
+    P: FnOnce(&str, &str) -> Result<bool>,
+{
     if yes {
         return Ok(true);
     }
-    if !io::stdin().is_terminal() {
+    if !is_interactive() {
         return Err(anyhow!(t!(
             "self.completion.non_interactive",
             path = path.display()
         )));
     }
-    let prompt = t!("self.completion.install_prompt", path = path.display());
+    let prompt_text = t!("self.completion.install_prompt", path = path.display());
     let help = t!("self.completion.install_help");
-    let confirmed = Confirm::new(&prompt)
-        .with_default(false)
-        .with_help_message(&help)
-        .prompt()
-        .map_err(|e| anyhow!(t!("errors.inquire_error", error = e)))?;
-    Ok(confirmed)
+    prompt(&prompt_text, &help)
+}
+
+fn is_interactive_terminal() -> bool {
+    io::stdin().is_terminal() && io::stdout().is_terminal()
 }
 
 fn completion_snippet(shell: CompletionShell) -> &'static str {
@@ -603,10 +623,39 @@ mod tests {
         let profile_path = temp_home.path().join(".bashrc");
         fs::write(&profile_path, "original\n").expect("write profile");
 
-        let err = install_completion(CompletionShell::Bash, false).expect_err("should error");
+        // Keep tests deterministic: never trigger real `inquire` interaction.
+        let err = install_completion_with(CompletionShell::Bash, false, |path, yes| {
+            confirm_install_with(
+                path,
+                yes,
+                || false,
+                |_prompt, _help| panic!("interactive prompt should not run during tests"),
+            )
+        })
+        .expect_err("should error");
         assert!(err.to_string().contains("--yes"));
 
         let content = fs::read_to_string(&profile_path).expect("read profile");
         assert_eq!(content, "original\n");
+    }
+
+    #[test]
+    fn confirm_install_non_interactive_skips_prompt() {
+        let path = Path::new("/tmp/fake-profile");
+        let mut prompted = false;
+
+        let err = confirm_install_with(
+            path,
+            false,
+            || false,
+            |_prompt, _help| {
+                prompted = true;
+                Ok(false)
+            },
+        )
+        .expect_err("should error");
+
+        assert!(err.to_string().contains("--yes"));
+        assert!(!prompted, "prompt callback should not be called");
     }
 }

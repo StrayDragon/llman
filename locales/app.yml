@@ -1826,13 +1826,17 @@ skills:
     duplicate_skill_id:
       en: "Duplicate skill id %{skill} found at %{path}; using %{chosen}."
     select_skills:
-      en: "Select skills to manage"
+      en: "Select skills:"
     select_skills_for_target:
       en: "Select skills for %{target}"
     select_skill:
       en: "Select a skill to manage"
     select_target:
       en: "Select a target to manage"
+    select_agent_tools:
+      en: "Select which agent tools to manage"
+    select_scope:
+      en: "Select scope to manage"
     prompt_failed:
       en: "Failed to read selection: %{error}"
     exit:
@@ -1849,6 +1853,8 @@ skills:
       en: "skip (read-only)"
     read_only:
       en: "Target is read-only and cannot be toggled."
+    hidden_user_scope_skills_hint:
+      en: "Hidden %{count} skills already managed in user scope."
   config:
     read_failed:
       en: "Failed to read skills config: %{error}"

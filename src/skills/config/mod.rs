@@ -2,6 +2,7 @@ use crate::config::resolve_config_dir;
 use crate::config_schema::{ConfigSchemaKind, validate_yaml_value};
 use crate::path_utils::validate_path_str;
 use crate::skills::catalog::types::{ConfigEntry, SkillsConfig, SkillsPaths, TargetMode};
+use crate::skills::shared::git::find_git_root;
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use serde::Deserialize;
@@ -191,6 +192,10 @@ fn parse_target_mode(raw: Option<&str>) -> Result<TargetMode> {
 }
 
 fn default_targets() -> Result<Vec<ConfigEntry>> {
+    let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let (claude_project_path, claude_project_mode) = default_repo_scope_dir(&cwd, ".claude/skills");
+    let (codex_repo_path, codex_repo_mode) = default_repo_scope_dir(&cwd, ".agents/skills");
+
     Ok(vec![
         ConfigEntry {
             id: "claude_user".to_string(),
@@ -201,12 +206,28 @@ fn default_targets() -> Result<Vec<ConfigEntry>> {
             mode: TargetMode::Link,
         },
         ConfigEntry {
+            id: "claude_project".to_string(),
+            agent: "claude".to_string(),
+            scope: "project".to_string(),
+            path: claude_project_path,
+            enabled: true,
+            mode: claude_project_mode,
+        },
+        ConfigEntry {
             id: "codex_user".to_string(),
             agent: "codex".to_string(),
             scope: "user".to_string(),
             path: default_codex_user_dir()?,
             enabled: true,
             mode: TargetMode::Link,
+        },
+        ConfigEntry {
+            id: "codex_repo".to_string(),
+            agent: "codex".to_string(),
+            scope: "repo".to_string(),
+            path: codex_repo_path,
+            enabled: true,
+            mode: codex_repo_mode,
         },
         ConfigEntry {
             id: "agent_global".to_string(),
@@ -228,13 +249,38 @@ fn default_claude_user_dir() -> Result<PathBuf> {
 
 fn default_codex_user_dir() -> Result<PathBuf> {
     if let Ok(home) = env::var("CODEX_HOME") {
-        return Ok(PathBuf::from(home).join("skills"));
+        let home = PathBuf::from(home);
+        let preferred = home.join(".agents").join("skills");
+        if preferred.exists() {
+            return Ok(preferred);
+        }
+        let legacy = home.join("skills");
+        if legacy.exists() {
+            return Ok(legacy);
+        }
+        return Ok(preferred);
     }
-    expand_path("~/.codex/skills")
+
+    let preferred = expand_path("~/.agents/skills")?;
+    if preferred.exists() {
+        return Ok(preferred);
+    }
+    let legacy = expand_path("~/.codex/skills")?;
+    if legacy.exists() {
+        return Ok(legacy);
+    }
+    Ok(preferred)
 }
 
 fn default_agent_global_dir() -> Result<PathBuf> {
     expand_path("~/.skills")
+}
+
+fn default_repo_scope_dir(cwd: &Path, relative: &str) -> (PathBuf, TargetMode) {
+    if let Some(repo_root) = find_git_root(cwd) {
+        return (repo_root.join(relative), TargetMode::Link);
+    }
+    (cwd.join(relative), TargetMode::Skip)
 }
 
 fn expand_path(raw: &str) -> Result<PathBuf> {
@@ -511,5 +557,124 @@ mod tests {
         };
         let err = load_config(&paths).expect_err("should reject copy mode");
         assert!(err.to_string().contains("Unsupported target mode"));
+    }
+
+    #[test]
+    fn test_default_targets_include_repo_scopes_inside_git_repo() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("temp dir");
+        let repo_root = temp.path().join("repo");
+        let nested = repo_root.join("nested");
+        fs::create_dir_all(repo_root.join(".git")).expect("create .git");
+        fs::create_dir_all(&nested).expect("create nested");
+
+        let _cwd_guard = CwdGuard::new();
+        env::set_current_dir(&nested).expect("set cwd");
+
+        let home_root = temp.path().join("home");
+        fs::create_dir_all(&home_root).expect("create home");
+        unsafe {
+            env::set_var("HOME", &home_root);
+            env::remove_var("CLAUDE_HOME");
+            env::remove_var("CODEX_HOME");
+        }
+
+        let targets = default_targets().expect("default targets");
+
+        let claude_project = targets
+            .iter()
+            .find(|target| target.id == "claude_project")
+            .expect("claude_project target");
+        assert_eq!(claude_project.mode, TargetMode::Link);
+        assert_eq!(claude_project.path, repo_root.join(".claude/skills"));
+
+        let codex_repo = targets
+            .iter()
+            .find(|target| target.id == "codex_repo")
+            .expect("codex_repo target");
+        assert_eq!(codex_repo.mode, TargetMode::Link);
+        assert_eq!(codex_repo.path, repo_root.join(".agents/skills"));
+
+        unsafe {
+            env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_default_targets_mark_repo_scopes_read_only_outside_git_repo() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("temp dir");
+        let cwd = temp.path().join("work");
+        fs::create_dir_all(&cwd).expect("create cwd");
+
+        let _cwd_guard = CwdGuard::new();
+        env::set_current_dir(&cwd).expect("set cwd");
+
+        let home_root = temp.path().join("home");
+        fs::create_dir_all(&home_root).expect("create home");
+        unsafe {
+            env::set_var("HOME", &home_root);
+            env::remove_var("CLAUDE_HOME");
+            env::remove_var("CODEX_HOME");
+        }
+
+        let targets = default_targets().expect("default targets");
+
+        let claude_project = targets
+            .iter()
+            .find(|target| target.id == "claude_project")
+            .expect("claude_project target");
+        assert_eq!(claude_project.mode, TargetMode::Skip);
+
+        let codex_repo = targets
+            .iter()
+            .find(|target| target.id == "codex_repo")
+            .expect("codex_repo target");
+        assert_eq!(codex_repo.mode, TargetMode::Skip);
+
+        unsafe {
+            env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_codex_user_prefers_agents_skills_path() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("temp dir");
+        let home_root = temp.path().join("home");
+        fs::create_dir_all(home_root.join(".agents/skills")).expect("create agents skills");
+        fs::create_dir_all(home_root.join(".codex/skills")).expect("create codex skills");
+
+        unsafe {
+            env::set_var("HOME", &home_root);
+            env::remove_var("CODEX_HOME");
+        }
+
+        let path = default_codex_user_dir().expect("codex user dir");
+        assert_eq!(path, home_root.join(".agents/skills"));
+
+        unsafe {
+            env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_codex_user_falls_back_to_codex_skills_when_agents_missing() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("temp dir");
+        let home_root = temp.path().join("home");
+        fs::create_dir_all(home_root.join(".codex/skills")).expect("create codex skills");
+
+        unsafe {
+            env::set_var("HOME", &home_root);
+            env::remove_var("CODEX_HOME");
+        }
+
+        let path = default_codex_user_dir().expect("codex user dir");
+        assert_eq!(path, home_root.join(".codex/skills"));
+
+        unsafe {
+            env::remove_var("HOME");
+        }
     }
 }
