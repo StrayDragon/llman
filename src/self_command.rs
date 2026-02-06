@@ -53,6 +53,9 @@ pub struct CompletionArgs {
     /// Install completion block into shell rc/profile
     #[arg(long)]
     pub install: bool,
+    /// Skip confirmation prompt (only applies to --install)
+    #[arg(long, short = 'y')]
+    pub yes: bool,
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy)]
@@ -98,7 +101,7 @@ fn run_schema(args: &SchemaArgs) -> Result<()> {
 
 fn run_completion(args: &CompletionArgs) -> Result<()> {
     if args.install {
-        install_completion(args.shell)
+        install_completion(args.shell, args.yes)
     } else {
         generate_completion(args.shell)
     }
@@ -112,9 +115,9 @@ fn generate_completion(shell: CompletionShell) -> Result<()> {
     Ok(())
 }
 
-fn install_completion(shell: CompletionShell) -> Result<()> {
+fn install_completion(shell: CompletionShell, yes: bool) -> Result<()> {
     let profile_path = shell_profile_path(shell)?;
-    if !confirm_install(&profile_path)? {
+    if !confirm_install(&profile_path, yes)? {
         println!("{}", t!("messages.operation_cancelled"));
         return Ok(());
     }
@@ -124,7 +127,10 @@ fn install_completion(shell: CompletionShell) -> Result<()> {
     Ok(())
 }
 
-fn confirm_install(path: &Path) -> Result<bool> {
+fn confirm_install(path: &Path, yes: bool) -> Result<bool> {
+    if yes {
+        return Ok(true);
+    }
     if !io::stdin().is_terminal() {
         return Err(anyhow!(t!(
             "self.completion.non_interactive",
@@ -348,20 +354,53 @@ fn run_check() -> Result<()> {
     let project_schema = load_schema(&paths.project)?;
     let llmanspec_schema = load_schema(&paths.llmanspec)?;
 
+    fn sample_from_yaml_or_default<F>(path: &Path, default: F) -> Result<Value>
+    where
+        F: FnOnce() -> Result<Value>,
+    {
+        if !path.exists() {
+            return default();
+        }
+
+        let content = fs::read_to_string(path).map_err(|e| {
+            anyhow!(t!(
+                "self.schema.read_failed",
+                path = path.display(),
+                error = e
+            ))
+        })?;
+        let yaml: serde_yaml::Value = serde_yaml::from_str(&content).map_err(|e| {
+            anyhow!(t!(
+                "self.schema.yaml_parse_failed",
+                path = path.display(),
+                error = e
+            ))
+        })?;
+        serde_json::to_value(yaml)
+            .map_err(|e| anyhow!(t!("errors.config_error", message = e.to_string())))
+    }
+
     validate_schema(
         "llman-config",
         &global_schema,
-        serde_json::to_value(crate::config_schema::GlobalConfig::default())?,
+        sample_from_yaml_or_default(&global_config_path()?, || {
+            serde_json::to_value(crate::config_schema::GlobalConfig::default()).map_err(Into::into)
+        })?,
     )?;
     validate_schema(
         "llman-project-config",
         &project_schema,
-        serde_json::to_value(crate::config_schema::ProjectConfig::default())?,
+        sample_from_yaml_or_default(&project_config_path()?, || {
+            serde_json::to_value(crate::config_schema::ProjectConfig::default()).map_err(Into::into)
+        })?,
     )?;
     validate_schema(
         "llmanspec-config",
         &llmanspec_schema,
-        serde_json::to_value(crate::sdd::project::config::SddConfig::default())?,
+        sample_from_yaml_or_default(&llmanspec_config_path()?, || {
+            serde_json::to_value(crate::sdd::project::config::SddConfig::default())
+                .map_err(Into::into)
+        })?,
     )?;
 
     println!("{}", t!("self.schema.check_ok"));
@@ -444,4 +483,130 @@ fn validate_schema(name: &str, schema: &Value, instance: Value) -> Result<()> {
         )));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ENV_CONFIG_DIR;
+    use crate::test_utils::ENV_MUTEX;
+    use std::env;
+    use tempfile::TempDir;
+
+    #[test]
+    fn schema_check_uses_real_yaml_when_present() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        let temp = TempDir::new().expect("temp dir");
+        unsafe {
+            env::set_var(ENV_CONFIG_DIR, temp.path());
+        }
+
+        crate::config_schema::ensure_global_sample_config(temp.path()).expect("sample config");
+        let config_path = temp.path().join("config.yaml");
+        let content = fs::read_to_string(&config_path).expect("read");
+        let mut yaml: serde_yaml::Value = serde_yaml::from_str(&content).expect("parse yaml");
+
+        // Make the sample config schema-invalid (version should be a string).
+        if let serde_yaml::Value::Mapping(map) = &mut yaml {
+            map.insert(
+                serde_yaml::Value::String("version".to_string()),
+                serde_yaml::Value::Bool(true),
+            );
+        } else {
+            panic!("expected mapping");
+        }
+
+        let mutated = serde_yaml::to_string(&yaml).expect("serialize");
+        fs::write(&config_path, mutated).expect("write");
+
+        let err = run_check().expect_err("schema check should fail");
+        assert!(err.to_string().contains("Schema validation failed"));
+
+        unsafe {
+            env::remove_var(ENV_CONFIG_DIR);
+        }
+    }
+
+    #[test]
+    fn schema_check_fails_on_invalid_yaml_when_file_exists() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        let temp = TempDir::new().expect("temp dir");
+        unsafe {
+            env::set_var(ENV_CONFIG_DIR, temp.path());
+        }
+
+        let config_path = temp.path().join("config.yaml");
+        fs::write(&config_path, "version: [\n").expect("write invalid yaml");
+
+        let err = run_check().expect_err("schema check should fail");
+        assert!(err.to_string().contains("Failed to parse YAML"));
+
+        unsafe {
+            env::remove_var(ENV_CONFIG_DIR);
+        }
+    }
+
+    struct EnvVarGuard {
+        key: &'static str,
+        previous: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: &str) -> Self {
+            let previous = env::var(key).ok();
+            unsafe {
+                env::set_var(key, value);
+            }
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(value) = self.previous.as_ref() {
+                unsafe {
+                    env::set_var(self.key, value);
+                }
+            } else {
+                unsafe {
+                    env::remove_var(self.key);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn completion_install_yes_allows_non_interactive_write() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        let temp_home = TempDir::new().expect("temp home");
+        let _home_guard = EnvVarGuard::set("HOME", &temp_home.path().to_string_lossy());
+
+        install_completion(CompletionShell::Bash, true).expect("install should succeed");
+
+        let profile_path = temp_home.path().join(".bashrc");
+        let content = fs::read_to_string(&profile_path).expect("read profile");
+        assert!(content.contains(COMPLETION_MARKER_START));
+        assert!(content.contains(COMPLETION_MARKER_END));
+        assert!(content.contains("llman self completion --shell bash"));
+    }
+
+    #[test]
+    fn completion_install_requires_yes_in_non_interactive() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        let temp_home = TempDir::new().expect("temp home");
+        let _home_guard = EnvVarGuard::set("HOME", &temp_home.path().to_string_lossy());
+
+        let profile_path = temp_home.path().join(".bashrc");
+        fs::write(&profile_path, "original\n").expect("write profile");
+
+        let err = install_completion(CompletionShell::Bash, false).expect_err("should error");
+        assert!(err.to_string().contains("--yes"));
+
+        let content = fs::read_to_string(&profile_path).expect("read profile");
+        assert_eq!(content, "original\n");
+    }
 }

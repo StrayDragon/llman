@@ -37,6 +37,9 @@ struct ChangeInfo {
 }
 
 pub fn run(args: ListArgs) -> Result<()> {
+    if args.specs && args.changes {
+        return Err(anyhow!(t!("sdd.list.conflicting_flags")));
+    }
     let root = Path::new(".");
     let _changes_requested = args.changes; // Explicit --changes mirrors the default behavior.
     let mode = if args.specs { "specs" } else { "changes" };
@@ -44,6 +47,22 @@ pub fn run(args: ListArgs) -> Result<()> {
         list_changes_mode(root, &args)
     } else {
         list_specs_mode(root, &args)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_conflicting_flags() {
+        let result = run(ListArgs {
+            specs: true,
+            changes: true,
+            sort: "recent".to_string(),
+            json: false,
+        });
+        assert!(result.is_err());
     }
 }
 

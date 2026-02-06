@@ -2,12 +2,49 @@ use crate::tool::command::CleanUselessCommentsArgs;
 use crate::tool::config::Config;
 use crate::tool::tree_sitter_processor::TreeSitterProcessor;
 use anyhow::{Result, anyhow};
+use glob::Pattern;
 use ignore::WalkBuilder;
 use regex::Regex;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+struct CompiledScopePatterns {
+    include: Vec<Pattern>,
+    exclude: Vec<Pattern>,
+}
+
+impl CompiledScopePatterns {
+    fn new(scope: &crate::tool::config::ScopeConfig) -> Self {
+        Self {
+            include: scope
+                .include
+                .iter()
+                .filter_map(|pattern| Pattern::new(pattern).ok())
+                .collect(),
+            exclude: scope
+                .exclude
+                .iter()
+                .filter_map(|pattern| Pattern::new(pattern).ok())
+                .collect(),
+        }
+    }
+
+    fn matches(&self, path: &Path) -> bool {
+        if self
+            .exclude
+            .iter()
+            .any(|pattern| pattern.matches_path(path))
+        {
+            return false;
+        }
+
+        self.include
+            .iter()
+            .any(|pattern| pattern.matches_path(path))
+    }
+}
 
 pub struct CommentProcessor {
     config: Config,
@@ -49,6 +86,7 @@ impl CommentProcessor {
 
         // Clone the clean_config to avoid borrow issues
         let clean_config_clone = clean_config.clone();
+        let compiled_scope = CompiledScopePatterns::new(&clean_config_clone.scope);
         let git_only = self.args.git_only
             || clean_config_clone
                 .safety
@@ -61,12 +99,8 @@ impl CommentProcessor {
             None
         };
         let cwd = std::env::current_dir()?;
-        let files_to_process = self.find_files(
-            &clean_config_clone.scope,
-            git_only,
-            tracked_files.as_ref(),
-            &cwd,
-        )?;
+        let files_to_process =
+            self.find_files(&compiled_scope, git_only, tracked_files.as_ref(), &cwd)?;
         let mut results = ProcessingResult::default();
 
         for file_path in files_to_process {
@@ -117,7 +151,7 @@ impl CommentProcessor {
 
     fn find_files(
         &self,
-        scope: &crate::tool::config::ScopeConfig,
+        scope: &CompiledScopePatterns,
         git_only: bool,
         tracked_files: Option<&HashSet<PathBuf>>,
         cwd: &Path,
@@ -133,17 +167,27 @@ impl CommentProcessor {
         if !self.args.files.is_empty() {
             for file in &self.args.files {
                 if file.exists() {
-                    if !git_only
-                        || tracked_files
-                            .map(|tracked| self.is_tracked(file, cwd, tracked))
-                            .unwrap_or(false)
-                    {
-                        files.push(file.clone());
+                    if file.is_file() {
+                        if !git_only
+                            || tracked_files
+                                .map(|tracked| self.is_tracked(file, cwd, tracked))
+                                .unwrap_or(false)
+                        {
+                            files.push(file.clone());
+                        } else {
+                            eprintln!(
+                                "{}",
+                                t!(
+                                    "tool.clean_comments.processor.file_not_tracked",
+                                    path = file.display()
+                                )
+                            );
+                        }
                     } else {
                         eprintln!(
                             "{}",
                             t!(
-                                "tool.clean_comments.processor.file_not_tracked",
+                                "tool.clean_comments.processor.path_skipped_not_file",
                                 path = file.display()
                             )
                         );
@@ -170,7 +214,7 @@ impl CommentProcessor {
                     let path = entry.path();
                     if path.is_file() {
                         // Check if file matches include patterns
-                        if self.matches_patterns(path, &scope.include, &scope.exclude)
+                        if scope.matches(path)
                             && (!git_only
                                 || tracked_files
                                     .map(|tracked| self.is_tracked(path, cwd, tracked))
@@ -190,32 +234,6 @@ impl CommentProcessor {
         }
 
         Ok(files)
-    }
-
-    fn matches_patterns(&self, path: &Path, include: &[String], exclude: &[String]) -> bool {
-        let _path_str = path.to_string_lossy();
-
-        // Check exclude patterns first
-        for pattern in exclude {
-            if glob::Pattern::new(pattern)
-                .map(|p| p.matches_path(path))
-                .unwrap_or(false)
-            {
-                return false;
-            }
-        }
-
-        // Check include patterns
-        for pattern in include {
-            if glob::Pattern::new(pattern)
-                .map(|p| p.matches_path(path))
-                .unwrap_or(false)
-            {
-                return true;
-            }
-        }
-
-        false
     }
 
     fn is_tracked(&self, path: &Path, cwd: &Path, tracked_files: &HashSet<PathBuf>) -> bool {

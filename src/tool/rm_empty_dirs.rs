@@ -42,7 +42,7 @@ pub fn run(args: &RmUselessDirsArgs) -> Result<()> {
     );
 
     let dry_run = !args.yes;
-    let gitignore_path = resolve_gitignore_path(args)?;
+    let gitignore_path = resolve_gitignore_path(&target, args)?;
     let gitignore = match gitignore_path.as_ref() {
         Some(path) => Some(load_gitignore(path)?),
         None => None,
@@ -269,11 +269,11 @@ fn resolve_dir_names(defaults: &[&str], config: Option<&DirListConfig>) -> HashS
 }
 
 fn is_protected_target(target: &Path, protected_dirs: &HashSet<String>) -> bool {
-    target
-        .file_name()
-        .and_then(|name| name.to_str())
-        .map(|name| protected_dirs.contains(name))
-        .unwrap_or(false)
+    target.iter().any(|component| {
+        component
+            .to_str()
+            .is_some_and(|name| protected_dirs.contains(name))
+    })
 }
 
 fn process_dir(
@@ -628,7 +628,7 @@ fn try_remove_ignored_file(path: &Path, options: &Options, report: &mut RemovalR
     }
 }
 
-fn resolve_gitignore_path(args: &RmUselessDirsArgs) -> Result<Option<PathBuf>> {
+fn resolve_gitignore_path(target: &Path, args: &RmUselessDirsArgs) -> Result<Option<PathBuf>> {
     if let Some(path) = &args.gitignore {
         if !path.exists() {
             return Err(anyhow!(
@@ -651,7 +651,7 @@ fn resolve_gitignore_path(args: &RmUselessDirsArgs) -> Result<Option<PathBuf>> {
         return Ok(Some(path.clone()));
     }
 
-    let default_path = std::env::current_dir()?.join(".gitignore");
+    let default_path = target.join(".gitignore");
     if default_path.is_file() {
         Ok(Some(default_path))
     } else {

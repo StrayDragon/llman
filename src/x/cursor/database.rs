@@ -6,6 +6,7 @@ use diesel::sqlite::SqliteConnection;
 use dirs;
 use glob::glob;
 use std::cmp::Reverse;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -109,6 +110,7 @@ impl CursorDatabase {
         if let Some(data) = chat_data {
             for tab in data.tabs {
                 summaries.push(ConversationSummary {
+                    key: tab.conversation_key(),
                     title: tab.get_title(),
                     last_message_time: tab.get_last_send_time(),
                     message_count: tab.bubbles.len(),
@@ -124,6 +126,7 @@ impl CursorDatabase {
                 let bubble_count = self.get_composer_bubble_count(&composer.composer_id)?;
 
                 summaries.push(ConversationSummary {
+                    key: composer.conversation_key(),
                     title: composer.get_title(),
                     last_message_time: composer.get_last_updated_time(),
                     message_count: bubble_count,
@@ -166,6 +169,92 @@ impl CursorDatabase {
         }
 
         Ok(conversations)
+    }
+
+    pub fn get_conversation_exports_by_keys(
+        &self,
+        keys: &[ConversationKey],
+    ) -> Result<Vec<ConversationExport>> {
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut composer_ids = HashSet::new();
+        let mut traditional_keys = HashSet::new();
+        for key in keys {
+            match key {
+                ConversationKey::Composer(id) => {
+                    composer_ids.insert(id.clone());
+                }
+                ConversationKey::Traditional(_) => {
+                    traditional_keys.insert(key.clone());
+                }
+            }
+        }
+
+        let mut tabs_by_key: HashMap<ConversationKey, ChatTab> = HashMap::new();
+        if !traditional_keys.is_empty()
+            && let Some(chat_data) = self.get_chat_data()?
+        {
+            for tab in chat_data.tabs {
+                let key = tab.conversation_key();
+                if traditional_keys.contains(&key) {
+                    tabs_by_key.insert(key, tab);
+                }
+            }
+        }
+
+        let mut composers_by_id: HashMap<String, ComposerItem> = HashMap::new();
+        if !composer_ids.is_empty()
+            && let Some(composer_data) = self.get_composer_data()?
+        {
+            for composer in composer_data.all_composers {
+                if composer_ids.contains(&composer.composer_id) {
+                    composers_by_id.insert(composer.composer_id.clone(), composer);
+                }
+            }
+        }
+
+        let mut exports = Vec::new();
+        let mut seen = HashSet::new();
+        for key in keys {
+            if !seen.insert(key.clone()) {
+                continue;
+            }
+
+            match key {
+                ConversationKey::Traditional(_) => {
+                    let tab = tabs_by_key.remove(key).ok_or_else(|| {
+                        crate::error::LlmanError::Custom(
+                            t!(
+                                "cursor.export.selected_conversation_not_found",
+                                id = key.short_id()
+                            )
+                            .to_string(),
+                        )
+                    })?;
+                    exports.push(ConversationExport::Traditional(tab));
+                }
+                ConversationKey::Composer(composer_id) => {
+                    let composer = composers_by_id.remove(composer_id).ok_or_else(|| {
+                        crate::error::LlmanError::Custom(
+                            t!(
+                                "cursor.export.selected_conversation_not_found",
+                                id = key.short_id()
+                            )
+                            .to_string(),
+                        )
+                    })?;
+                    let bubbles = self.get_composer_bubbles(&composer.composer_id)?;
+                    exports.push(ConversationExport::Composer(ComposerWithBubbles {
+                        composer_data: composer,
+                        bubbles,
+                    }));
+                }
+            }
+        }
+
+        Ok(exports)
     }
 
     /// 搜索对话（仅支持传统聊天对话）
@@ -583,5 +672,146 @@ impl CursorDatabase {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use diesel::Connection;
+    use diesel::RunQueryDsl;
+    use diesel::sqlite::SqliteConnection;
+    use tempfile::tempdir;
+
+    struct EnvVarGuard {
+        key: &'static str,
+        previous: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: &str) -> Self {
+            let previous = std::env::var(key).ok();
+            unsafe {
+                std::env::set_var(key, value);
+            }
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(value) = self.previous.as_ref() {
+                unsafe {
+                    std::env::set_var(self.key, value);
+                }
+            } else {
+                unsafe {
+                    std::env::remove_var(self.key);
+                }
+            }
+        }
+    }
+
+    fn write_item_table(db_path: &Path, chat_json: &str) {
+        let mut conn =
+            SqliteConnection::establish(&db_path.to_string_lossy()).expect("establish sqlite");
+        diesel::sql_query("CREATE TABLE ItemTable (key TEXT PRIMARY KEY NOT NULL, value BLOB);")
+            .execute(&mut conn)
+            .expect("create ItemTable");
+
+        diesel::sql_query("INSERT INTO ItemTable (key, value) VALUES (?1, ?2);")
+            .bind::<diesel::sql_types::Text, _>("workbench.panel.aichat.view.aichat.chatdata")
+            .bind::<diesel::sql_types::Binary, _>(chat_json.as_bytes().to_vec())
+            .execute(&mut conn)
+            .expect("insert chatdata");
+    }
+
+    #[test]
+    fn selected_keys_map_to_correct_export_even_if_summary_is_sorted() {
+        let _guard = crate::test_utils::ENV_MUTEX
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let dir = tempdir().expect("tempdir");
+        let home = dir.path().join("home");
+        std::fs::create_dir_all(&home).expect("home dir");
+        let _home_guard = EnvVarGuard::set("HOME", &home.to_string_lossy());
+
+        let db_path = dir.path().join("state.vscdb");
+        let chat_json = r#"{
+  "tabs": [
+    {
+      "tabId": "tab-old",
+      "chatTitle": "Old Chat",
+      "lastSendTime": 1700000000000,
+      "bubbles": [
+        {"type": "user", "id": "b1", "messageType": 1, "text": "hi", "createdAt": 1700000000000}
+      ]
+    },
+    {
+      "tabId": "tab-new",
+      "chatTitle": "New Chat",
+      "lastSendTime": 1800000000000,
+      "bubbles": []
+    }
+  ]
+}"#;
+        write_item_table(&db_path, chat_json);
+
+        let db_path_str = db_path.to_string_lossy().to_string();
+        let db = CursorDatabase::new(Some(&db_path_str)).expect("db");
+        let summaries = db.get_conversation_summaries().expect("summaries");
+        assert_eq!(summaries.len(), 2);
+        assert_eq!(summaries[0].title, "New Chat");
+
+        let selected = vec![summaries[0].key.clone()];
+        let exports = db
+            .get_conversation_exports_by_keys(&selected)
+            .expect("exports");
+        assert_eq!(exports.len(), 1);
+        assert_eq!(exports[0].get_title(), "New Chat");
+    }
+
+    #[test]
+    fn search_results_share_same_key_space_as_exports() {
+        let _guard = crate::test_utils::ENV_MUTEX
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let dir = tempdir().expect("tempdir");
+        let home = dir.path().join("home");
+        std::fs::create_dir_all(&home).expect("home dir");
+        let _home_guard = EnvVarGuard::set("HOME", &home.to_string_lossy());
+
+        let db_path = dir.path().join("state.vscdb");
+        let chat_json = r#"{
+  "tabs": [
+    {
+      "tabId": "tab-old",
+      "chatTitle": "Old Chat",
+      "lastSendTime": 1700000000000,
+      "bubbles": [
+        {"type": "user", "id": "b1", "messageType": 1, "text": "hi", "createdAt": 1700000000000}
+      ]
+    },
+    {
+      "tabId": "tab-new",
+      "chatTitle": "New Chat",
+      "lastSendTime": 1800000000000,
+      "bubbles": []
+    }
+  ]
+}"#;
+        write_item_table(&db_path, chat_json);
+
+        let db_path_str = db_path.to_string_lossy().to_string();
+        let db = CursorDatabase::new(Some(&db_path_str)).expect("db");
+        let results = db.search_conversations("old").expect("search");
+        assert_eq!(results.len(), 1);
+        let key = results[0].conversation_key();
+
+        let exports = db
+            .get_conversation_exports_by_keys(&[key])
+            .expect("exports");
+        assert_eq!(exports.len(), 1);
+        assert_eq!(exports[0].get_title(), "Old Chat");
     }
 }

@@ -4,6 +4,7 @@ use crate::prompt::PromptCommand;
 use crate::sdd::command::SddArgs;
 use crate::self_command::SelfArgs;
 use crate::skills::cli::command::SkillsArgs;
+use crate::skills::cli::interactive::is_interactive;
 use crate::tool::command::{ToolArgs, ToolCommands};
 use crate::x::claude_code::command::ClaudeCodeArgs;
 use crate::x::codex::command::CodexArgs;
@@ -91,6 +92,9 @@ pub enum PromptCommands {
         app: String,
         #[arg(long)]
         name: String,
+        /// Skip confirmation prompts (required for non-interactive deletes)
+        #[arg(long)]
+        yes: bool,
     },
 }
 
@@ -217,8 +221,8 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
                 content.file.as_deref().and_then(|p| p.to_str()),
             )?;
         }
-        Some(PromptCommands::Rm { app, name }) => {
-            prompt_cmd.remove_rule(app, name)?;
+        Some(PromptCommands::Rm { app, name, yes }) => {
+            prompt_cmd.remove_rule(app, name, *yes, is_interactive())?;
         }
         None => {
             prompt_cmd.generate_interactive()?;

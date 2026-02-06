@@ -138,42 +138,54 @@ pub fn prepend_schema_header(content: &str, schema_url: &str) -> String {
 
 pub fn apply_schema_header_to_content(content: &str, schema_url: &str) -> (String, bool) {
     let header = schema_header_line(schema_url);
+    if content.is_empty() {
+        return (format!("{header}\n"), true);
+    }
     let newline = if content.contains("\r\n") {
         "\r\n"
     } else {
         "\n"
     };
     let has_trailing = content.ends_with('\n') || content.ends_with("\r\n");
-    let mut lines: Vec<String> = Vec::new();
-    let mut header_count = 0;
-    let mut header_at_top = false;
+    let all_lines = content.lines().collect::<Vec<_>>();
 
-    for (index, line) in content.lines().enumerate() {
+    // Only normalize the leading header/comment region. Do not delete schema headers that
+    // appear later in the file.
+    let mut header_end = 0;
+    while header_end < all_lines.len() {
+        let line = all_lines[header_end];
+        if line.trim().is_empty() || line.trim_start().starts_with('#') {
+            header_end += 1;
+            continue;
+        }
+        break;
+    }
+
+    let mut normalized_header_lines = Vec::new();
+    for line in &all_lines[..header_end] {
         if line
             .trim_start()
             .starts_with("# yaml-language-server: $schema=")
         {
-            header_count += 1;
-            if index == 0 && line.trim() == header {
-                header_at_top = true;
-            }
             continue;
         }
-        lines.push(line.to_string());
+        normalized_header_lines.push((*line).to_string());
     }
 
-    if header_at_top && header_count == 1 {
-        return (content.to_string(), false);
-    }
-
-    let mut out_lines = Vec::with_capacity(lines.len() + 1);
+    let mut out_lines = Vec::with_capacity(all_lines.len() + 1);
     out_lines.push(header);
-    out_lines.extend(lines);
+    out_lines.extend(normalized_header_lines);
+    out_lines.extend(
+        all_lines[header_end..]
+            .iter()
+            .map(|line| (*line).to_string()),
+    );
     let mut updated = out_lines.join(newline);
     if has_trailing {
         updated.push_str(newline);
     }
-    (updated, true)
+    let changed = updated != content;
+    (updated, changed)
 }
 
 pub fn apply_schema_header(path: &Path, schema_url: &str) -> Result<ApplyResult> {
@@ -337,19 +349,49 @@ pub fn global_config_path() -> Result<PathBuf> {
     Ok(resolve_config_dir(None)?.join("config.yaml"))
 }
 
+fn find_config_root(start: &Path) -> Option<PathBuf> {
+    let mut current = start.to_path_buf();
+    loop {
+        if is_config_root(&current) {
+            return Some(current);
+        }
+        if !current.pop() {
+            break;
+        }
+    }
+    None
+}
+
+fn is_config_root(path: &Path) -> bool {
+    has_root_marker(path, ".git")
+        || has_root_marker(path, ".llman")
+        || has_root_marker(path, LLMANSPEC_DIR_NAME)
+}
+
+fn has_root_marker(root: &Path, name: &str) -> bool {
+    let candidate = root.join(name);
+    fs::symlink_metadata(&candidate)
+        .map(|meta| meta.is_dir() || meta.is_file())
+        .unwrap_or(false)
+}
+
 pub fn project_config_path() -> Result<PathBuf> {
-    Ok(env::current_dir()?.join(".llman").join("config.yaml"))
+    let cwd = env::current_dir()?;
+    let root = find_config_root(&cwd).unwrap_or(cwd);
+    Ok(root.join(".llman").join("config.yaml"))
 }
 
 pub fn llmanspec_config_path() -> Result<PathBuf> {
-    Ok(env::current_dir()?
-        .join(LLMANSPEC_DIR_NAME)
-        .join("config.yaml"))
+    let cwd = env::current_dir()?;
+    let root = find_config_root(&cwd).unwrap_or(cwd);
+    Ok(root.join(LLMANSPEC_DIR_NAME).join("config.yaml"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
 
     #[test]
     fn apply_schema_header_inserts_before_doc_start() {
@@ -368,5 +410,54 @@ mod tests {
         assert!(changed);
         assert!(updated.starts_with(&schema_header_line(GLOBAL_SCHEMA_URL)));
         assert!(!updated.contains("old.json"));
+    }
+
+    #[test]
+    fn apply_schema_header_does_not_delete_late_schema_headers() {
+        let content = format!(
+            "# comment\n# yaml-language-server: $schema=https://example.com/old.json\nkey: value\n# yaml-language-server: $schema=https://example.com/keep.json\n"
+        );
+        let (updated, changed) = apply_schema_header_to_content(&content, GLOBAL_SCHEMA_URL);
+        assert!(changed);
+        assert!(updated.starts_with(&schema_header_line(GLOBAL_SCHEMA_URL)));
+        assert!(updated.contains("https://example.com/keep.json"));
+    }
+
+    #[test]
+    fn project_and_llmanspec_paths_discover_root_from_subdir() {
+        struct CwdGuard(PathBuf);
+
+        impl CwdGuard {
+            fn new() -> Self {
+                Self(env::current_dir().expect("current dir"))
+            }
+        }
+
+        impl Drop for CwdGuard {
+            fn drop(&mut self) {
+                let _ = env::set_current_dir(&self.0);
+            }
+        }
+
+        let cwd_guard = CwdGuard::new();
+
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path().join("repo");
+        let nested = root.join("a").join("b");
+        fs::create_dir_all(&nested).expect("create nested");
+        fs::create_dir_all(root.join(".git")).expect("create git dir");
+
+        env::set_current_dir(&nested).expect("chdir");
+
+        assert_eq!(
+            project_config_path().unwrap(),
+            root.join(".llman").join("config.yaml")
+        );
+        assert_eq!(
+            llmanspec_config_path().unwrap(),
+            root.join(LLMANSPEC_DIR_NAME).join("config.yaml")
+        );
+
+        drop(cwd_guard);
     }
 }

@@ -1,5 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 /// 分组消息（将连续的同类型消息合并）
 #[derive(Debug)]
@@ -72,10 +74,34 @@ pub struct ComposerItem {
 /// 对话摘要信息
 #[derive(Debug)]
 pub struct ConversationSummary {
+    pub key: ConversationKey,
     pub title: String,
     pub last_message_time: DateTime<Utc>,
     pub message_count: usize,
     pub conversation_type: ConversationType,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ConversationKey {
+    Traditional(TraditionalConversationKey),
+    Composer(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TraditionalConversationKey {
+    TabId(String),
+    Fallback(String),
+}
+
+impl ConversationKey {
+    pub fn short_id(&self) -> String {
+        let raw = match self {
+            ConversationKey::Composer(id) => id.as_str(),
+            ConversationKey::Traditional(TraditionalConversationKey::TabId(id)) => id.as_str(),
+            ConversationKey::Traditional(TraditionalConversationKey::Fallback(id)) => id.as_str(),
+        };
+        raw.chars().take(8).collect::<String>()
+    }
 }
 
 /// 对话类型枚举
@@ -160,6 +186,23 @@ pub struct WorkspaceMetadata {
 // ====== 实现方法 ======
 
 impl ChatTab {
+    pub fn conversation_key(&self) -> ConversationKey {
+        if let Some(tab_id) = self
+            .tab_id
+            .as_ref()
+            .map(|id| id.trim())
+            .filter(|id| !id.is_empty())
+        {
+            return ConversationKey::Traditional(TraditionalConversationKey::TabId(
+                tab_id.to_string(),
+            ));
+        }
+
+        ConversationKey::Traditional(TraditionalConversationKey::Fallback(
+            derive_tab_fallback_key(self),
+        ))
+    }
+
     /// 获取聊天标题
     pub fn get_title(&self) -> String {
         self.chat_title
@@ -232,7 +275,31 @@ impl ChatTab {
     }
 }
 
+fn derive_tab_fallback_key(tab: &ChatTab) -> String {
+    let mut hasher = DefaultHasher::new();
+    tab.chat_title.hash(&mut hasher);
+    tab.last_send_time.hash(&mut hasher);
+    tab.bubbles.len().hash(&mut hasher);
+
+    if let Some(first) = tab.bubbles.first() {
+        first.id.hash(&mut hasher);
+        first.created_at.hash(&mut hasher);
+        first.bubble_type.hash(&mut hasher);
+    }
+    if let Some(last) = tab.bubbles.last() {
+        last.id.hash(&mut hasher);
+        last.created_at.hash(&mut hasher);
+        last.bubble_type.hash(&mut hasher);
+    }
+
+    format!("{:016x}", hasher.finish())
+}
+
 impl ComposerItem {
+    pub fn conversation_key(&self) -> ConversationKey {
+        ConversationKey::Composer(self.composer_id.clone())
+    }
+
     /// 获取标题
     pub fn get_title(&self) -> String {
         if let Some(name) = &self.name

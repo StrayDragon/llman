@@ -149,6 +149,31 @@ fn test_comment_processor_with_nonexistent_files() {
     assert!(result.is_ok());
 }
 
+#[test]
+fn test_comment_processor_skips_directory_inputs_without_error() {
+    let env = TestEnvironment::new();
+    env.create_python_clean_config(test_constants::SHORT_COMMENT_LENGTH);
+
+    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let dir_path = env.path().join("some_dir");
+    std::fs::create_dir_all(&dir_path).unwrap();
+
+    let args = CleanUselessCommentsArgs {
+        config: Some(env.path().join(".llman").join("config.yaml")),
+        dry_run: true,
+        yes: false,
+        interactive: false,
+        force: true,
+        verbose: false,
+        git_only: false,
+        files: vec![dir_path],
+    };
+
+    let mut processor = CommentProcessor::new(config, args);
+    let result = processor.process().unwrap();
+    assert_eq!(result.errors, 0);
+}
+
 /// Tests CommentProcessor with invalid configuration
 #[test]
 fn test_comment_processor_with_invalid_config() {

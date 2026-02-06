@@ -1,8 +1,9 @@
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
+use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
-use crate::sdd::spec::staleness::{StalenessInfo, evaluate_staleness};
+use crate::sdd::spec::staleness::{StalenessEvaluator, StalenessInfo, evaluate_staleness};
 use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
     validate_change_delta_specs, validate_spec_content_with_frontmatter,
@@ -233,11 +234,13 @@ fn validate_by_type(
     let start = Instant::now();
     let (report, staleness) = match item_type {
         ItemType::Change => {
+            validate_sdd_id(id, "change")?;
             let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(id);
             let report = validate_change_delta_specs(&change_dir, strict);
             (report, StalenessInfo::not_applicable())
         }
         ItemType::Spec => {
+            validate_sdd_id(id, "spec")?;
             let spec_path = root
                 .join(LLMANSPEC_DIR_NAME)
                 .join("specs")
@@ -421,6 +424,7 @@ fn run_bulk_validation(
     let mut items: Vec<ValidationItem> = Vec::new();
     for id in changes {
         let start = Instant::now();
+        validate_sdd_id(&id, "change")?;
         let report = validate_change_delta_specs(
             &root.join(LLMANSPEC_DIR_NAME).join("changes").join(&id),
             strict,
@@ -434,8 +438,10 @@ fn run_bulk_validation(
             staleness: StalenessInfo::not_applicable(),
         });
     }
+    let staleness_evaluator = (!specs.is_empty()).then(|| StalenessEvaluator::new(root));
     for id in specs {
         let start = Instant::now();
+        validate_sdd_id(&id, "spec")?;
         let spec_path = root
             .join(LLMANSPEC_DIR_NAME)
             .join("specs")
@@ -445,8 +451,10 @@ fn run_bulk_validation(
             Ok(content) => {
                 let validation =
                     validate_spec_content_with_frontmatter(&spec_path, &content, strict);
-                let staleness =
-                    evaluate_staleness(root, &id, &spec_path, validation.frontmatter.as_ref());
+                let staleness = staleness_evaluator
+                    .as_ref()
+                    .expect("staleness evaluator")
+                    .evaluate(&id, &spec_path, validation.frontmatter.as_ref(), None);
                 let mut issues = validation.report.issues;
                 issues.extend(apply_strict(staleness.issues, strict));
                 let valid = validation.report.valid

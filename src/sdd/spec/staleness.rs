@@ -2,7 +2,7 @@ use crate::sdd::spec::validation::{SpecFrontmatter, ValidationIssue, ValidationL
 use serde::Serialize;
 use std::collections::BTreeSet;
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -60,6 +60,188 @@ impl StalenessInfo {
     }
 }
 
+pub struct StalenessEvaluator {
+    root: PathBuf,
+    base_ref: Option<String>,
+    merge_base: Option<Result<String, String>>,
+    diff_paths: Option<Result<Vec<String>, String>>,
+    dirty: Result<bool, String>,
+}
+
+impl StalenessEvaluator {
+    pub fn new(root: &Path) -> Self {
+        let root = root.to_path_buf();
+        let base_ref = resolve_base_ref(&root);
+        let merge_base = base_ref
+            .as_deref()
+            .map(|reference| resolve_merge_base(&root, reference));
+        let diff_paths = match merge_base.as_ref() {
+            Some(Ok(base)) => Some(git_diff_names(&root, base)),
+            _ => None,
+        };
+        let dirty = git_status_dirty(&root);
+        Self {
+            root,
+            base_ref,
+            merge_base,
+            diff_paths,
+            dirty,
+        }
+    }
+
+    pub fn evaluate(
+        &self,
+        spec_id: &str,
+        spec_path: &Path,
+        frontmatter: Option<&SpecFrontmatter>,
+        spec_updated_override: Option<bool>,
+    ) -> StalenessResult {
+        let mut issues = Vec::new();
+        let mut notes = Vec::new();
+        let mut status = StalenessStatus::Ok;
+
+        let scope = frontmatter
+            .map(|fm| normalize_scope_list(&fm.valid_scope))
+            .unwrap_or_default();
+        if scope.is_empty() {
+            status = StalenessStatus::Warn;
+            notes.push(t!("sdd.validate.staleness_scope_missing").to_string());
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Warning,
+                path: format!("{spec_id}/staleness"),
+                message: t!("sdd.validate.staleness_scope_missing").to_string(),
+            });
+        }
+
+        let base_ref = self.base_ref.clone();
+        if base_ref.is_none() {
+            status = StalenessStatus::Warn;
+            notes.push(t!("sdd.validate.staleness_base_missing").to_string());
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Warning,
+                path: format!("{spec_id}/staleness"),
+                message: t!("sdd.validate.staleness_base_missing").to_string(),
+            });
+        }
+
+        let mut touched_paths = Vec::new();
+        let mut spec_updated = false;
+
+        if status != StalenessStatus::Warn && base_ref.is_some() {
+            match self.merge_base.as_ref() {
+                Some(Ok(_base)) => {
+                    let diff_paths = match self.diff_paths.as_ref() {
+                        Some(Ok(paths)) => paths.clone(),
+                        Some(Err(err)) => {
+                            status = StalenessStatus::Warn;
+                            notes.push(err.clone());
+                            issues.push(ValidationIssue {
+                                level: ValidationLevel::Warning,
+                                path: format!("{spec_id}/staleness"),
+                                message: err.clone(),
+                            });
+                            Vec::new()
+                        }
+                        None => Vec::new(),
+                    };
+
+                    if !diff_paths.is_empty() {
+                        let spec_rel = spec_relative_path(&self.root, spec_path);
+                        spec_updated = diff_paths.iter().any(|path| path == &spec_rel);
+                        touched_paths = diff_paths
+                            .iter()
+                            .filter(|path| scope_matches(path, &scope))
+                            .cloned()
+                            .collect();
+                    }
+
+                    let mut spec_updated_effective = spec_updated;
+                    if let Some(value) = spec_updated_override {
+                        spec_updated_effective = value;
+                    }
+
+                    if !touched_paths.is_empty() && !spec_updated_effective {
+                        status = StalenessStatus::Stale;
+                        issues.push(ValidationIssue {
+                            level: ValidationLevel::Warning,
+                            path: format!("{spec_id}/staleness"),
+                            message: t!("sdd.validate.staleness_stale").to_string(),
+                        });
+                    } else if spec_updated_effective && touched_paths.is_empty() {
+                        status = StalenessStatus::Info;
+                        notes.push(t!("sdd.validate.staleness_spec_updated").to_string());
+                    }
+                    spec_updated = spec_updated_effective;
+                }
+                Some(Err(err)) => {
+                    status = StalenessStatus::Warn;
+                    notes.push(err.clone());
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Warning,
+                        path: format!("{spec_id}/staleness"),
+                        message: err.clone(),
+                    });
+                }
+                None => {
+                    status = StalenessStatus::Warn;
+                    let err = t!("sdd.validate.staleness_git_failed").to_string();
+                    notes.push(err.clone());
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Warning,
+                        path: format!("{spec_id}/staleness"),
+                        message: err,
+                    });
+                }
+            }
+        }
+
+        if let Some(value) = spec_updated_override {
+            spec_updated = value;
+            if value && status == StalenessStatus::Ok && touched_paths.is_empty() {
+                status = StalenessStatus::Info;
+                notes.push(t!("sdd.validate.staleness_spec_updated").to_string());
+            }
+        }
+
+        let dirty = match &self.dirty {
+            Ok(dirty) => *dirty,
+            Err(err) => {
+                notes.push(err.clone());
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Warning,
+                    path: format!("{spec_id}/staleness"),
+                    message: err.clone(),
+                });
+                true
+            }
+        };
+
+        if dirty {
+            if status == StalenessStatus::Ok {
+                status = StalenessStatus::Warn;
+            }
+            notes.push(t!("sdd.validate.staleness_dirty").to_string());
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Warning,
+                path: format!("{spec_id}/staleness"),
+                message: t!("sdd.validate.staleness_dirty").to_string(),
+            });
+        }
+
+        let info = StalenessInfo {
+            status,
+            base_ref,
+            scope,
+            touched_paths,
+            spec_updated,
+            dirty,
+            notes,
+        };
+
+        StalenessResult { info, issues }
+    }
+}
+
 pub fn evaluate_staleness(
     root: &Path,
     spec_id: &str,
@@ -76,140 +258,7 @@ pub fn evaluate_staleness_with_override(
     frontmatter: Option<&SpecFrontmatter>,
     spec_updated_override: Option<bool>,
 ) -> StalenessResult {
-    let mut issues = Vec::new();
-    let mut notes = Vec::new();
-    let mut status = StalenessStatus::Ok;
-
-    let scope = frontmatter
-        .map(|fm| normalize_scope_list(&fm.valid_scope))
-        .unwrap_or_default();
-    if scope.is_empty() {
-        status = StalenessStatus::Warn;
-        notes.push(t!("sdd.validate.staleness_scope_missing").to_string());
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Warning,
-            path: format!("{spec_id}/staleness"),
-            message: t!("sdd.validate.staleness_scope_missing").to_string(),
-        });
-    }
-
-    let base_ref = resolve_base_ref(root);
-    if base_ref.is_none() {
-        status = StalenessStatus::Warn;
-        notes.push(t!("sdd.validate.staleness_base_missing").to_string());
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Warning,
-            path: format!("{spec_id}/staleness"),
-            message: t!("sdd.validate.staleness_base_missing").to_string(),
-        });
-    }
-
-    let mut touched_paths = Vec::new();
-    let mut spec_updated = false;
-
-    if status != StalenessStatus::Warn
-        && let Some(base_ref) = &base_ref
-    {
-        match resolve_merge_base(root, base_ref) {
-            Ok(base) => {
-                let diff_paths = match git_diff_names(root, &base) {
-                    Ok(paths) => paths,
-                    Err(err) => {
-                        status = StalenessStatus::Warn;
-                        notes.push(err.clone());
-                        issues.push(ValidationIssue {
-                            level: ValidationLevel::Warning,
-                            path: format!("{spec_id}/staleness"),
-                            message: err,
-                        });
-                        Vec::new()
-                    }
-                };
-
-                if !diff_paths.is_empty() {
-                    let spec_rel = spec_relative_path(root, spec_path);
-                    spec_updated = diff_paths.iter().any(|path| path == &spec_rel);
-                    touched_paths = diff_paths
-                        .iter()
-                        .filter(|path| scope_matches(path, &scope))
-                        .cloned()
-                        .collect();
-                }
-
-                let mut spec_updated_effective = spec_updated;
-                if let Some(value) = spec_updated_override {
-                    spec_updated_effective = value;
-                }
-
-                if !touched_paths.is_empty() && !spec_updated_effective {
-                    status = StalenessStatus::Stale;
-                    issues.push(ValidationIssue {
-                        level: ValidationLevel::Warning,
-                        path: format!("{spec_id}/staleness"),
-                        message: t!("sdd.validate.staleness_stale").to_string(),
-                    });
-                } else if spec_updated_effective && touched_paths.is_empty() {
-                    status = StalenessStatus::Info;
-                    notes.push(t!("sdd.validate.staleness_spec_updated").to_string());
-                }
-                spec_updated = spec_updated_effective;
-            }
-            Err(err) => {
-                status = StalenessStatus::Warn;
-                notes.push(err.clone());
-                issues.push(ValidationIssue {
-                    level: ValidationLevel::Warning,
-                    path: format!("{spec_id}/staleness"),
-                    message: err,
-                });
-            }
-        }
-    }
-
-    if let Some(value) = spec_updated_override {
-        spec_updated = value;
-        if value && status == StalenessStatus::Ok && touched_paths.is_empty() {
-            status = StalenessStatus::Info;
-            notes.push(t!("sdd.validate.staleness_spec_updated").to_string());
-        }
-    }
-
-    let dirty = match git_status_dirty(root) {
-        Ok(dirty) => dirty,
-        Err(err) => {
-            notes.push(err.clone());
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Warning,
-                path: format!("{spec_id}/staleness"),
-                message: err,
-            });
-            true
-        }
-    };
-
-    if dirty {
-        if status == StalenessStatus::Ok {
-            status = StalenessStatus::Warn;
-        }
-        notes.push(t!("sdd.validate.staleness_dirty").to_string());
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Warning,
-            path: format!("{spec_id}/staleness"),
-            message: t!("sdd.validate.staleness_dirty").to_string(),
-        });
-    }
-
-    let info = StalenessInfo {
-        status,
-        base_ref,
-        scope,
-        touched_paths,
-        spec_updated,
-        dirty,
-        notes,
-    };
-
-    StalenessResult { info, issues }
+    StalenessEvaluator::new(root).evaluate(spec_id, spec_path, frontmatter, spec_updated_override)
 }
 
 fn resolve_base_ref(root: &Path) -> Option<String> {
@@ -225,6 +274,12 @@ fn resolve_base_ref(root: &Path) -> Option<String> {
     }
     if git_ref_exists(root, "origin/master") {
         return Some("origin/master".to_string());
+    }
+    if git_ref_exists(root, "main") {
+        return Some("main".to_string());
+    }
+    if git_ref_exists(root, "master") {
+        return Some("master".to_string());
     }
     None
 }

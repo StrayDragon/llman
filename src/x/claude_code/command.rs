@@ -1,3 +1,4 @@
+use crate::arg_utils::split_shell_args;
 use crate::x::claude_code::config::{Config, ConfigGroup};
 use crate::x::claude_code::interactive;
 use crate::x::claude_code::security::{SecurityChecker, SecurityWarning};
@@ -337,16 +338,23 @@ fn handle_interactive_mode(config: &Config) -> Result<(String, Vec<String>)> {
         .context(t!("claude_code.error.prompt_args_failed"))?;
 
     let claude_args = if use_args {
-        let args_text = inquire::Text::new(&t!("claude_code.run.interactive.enter_args"))
-            .with_help_message(&t!("claude_code.run.interactive.args_help"))
-            .prompt()
-            .context(t!("claude_code.error.args_input_failed"))?;
+        loop {
+            let args_text = inquire::Text::new(&t!("claude_code.run.interactive.enter_args"))
+                .with_help_message(&t!("claude_code.run.interactive.args_help"))
+                .prompt()
+                .context(t!("claude_code.error.args_input_failed"))?;
 
-        // 简单的参数分割（可以用更复杂的方式处理引号等）
-        args_text
-            .split_whitespace()
-            .map(|s| s.to_string())
-            .collect()
+            match split_shell_args(&args_text) {
+                Ok(args) => break args,
+                Err(e) => {
+                    eprintln!(
+                        "{}",
+                        t!("claude_code.run.interactive.args_parse_failed", error = e)
+                    );
+                    continue;
+                }
+            }
+        }
     } else {
         Vec::new()
     };

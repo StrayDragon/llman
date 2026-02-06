@@ -45,6 +45,8 @@ impl PromptCommand {
     pub fn generate_interactive(&self) -> Result<()> {
         println!("{}", t!("interactive.title"));
 
+        let interactive = is_interactive();
+
         let apps = vec![CURSOR_APP, CODEX_APP, CLAUDE_CODE_APP];
         let app = Select::new(&t!("interactive.select_app"), apps).prompt()?;
 
@@ -54,7 +56,9 @@ impl PromptCommand {
         }
 
         if app == CURSOR_APP {
-            self.check_project_directory()?;
+            if self.project_root(false, interactive)?.is_none() {
+                return Ok(());
+            }
             let target_dir = self.prompt_target_dir(app)?;
             for template_name in &templates {
                 self.generate_rules_with_target_dir(
@@ -116,8 +120,8 @@ impl PromptCommand {
 
         match app {
             CURSOR_APP => {
-                if !force {
-                    self.check_project_directory()?;
+                if self.project_root(force, interactive)?.is_none() {
+                    return Ok(());
                 }
                 let target_path = self.get_target_path(app, output_name, target_dir)?;
                 if target_path.exists() && !force {
@@ -215,13 +219,26 @@ impl PromptCommand {
         Ok(())
     }
 
-    pub fn remove_rule(&self, app: &str, name: &str) -> Result<()> {
+    pub fn remove_rule(&self, app: &str, name: &str, yes: bool, interactive: bool) -> Result<()> {
         self.validate_app(app)?;
 
         let rule_path = self.config.rule_file_path(app, name);
 
         if !rule_path.exists() {
             return Err(anyhow!(t!("errors.rule_not_found", name = name)));
+        }
+
+        if yes {
+            fs::remove_file(&rule_path)?;
+            println!("{}", t!("messages.rule_deleted", name = name));
+            return Ok(());
+        }
+
+        if !interactive {
+            return Err(anyhow!(t!(
+                "errors.non_interactive_delete_requires_yes",
+                name = name
+            )));
         }
 
         let confirm = Confirm::new(&t!("messages.confirm_delete", name = name))
@@ -245,23 +262,6 @@ impl PromptCommand {
             CLAUDE_CODE_APP => Ok(()),
             _ => Err(anyhow!(t!("errors.invalid_app", app = app))),
         }
-    }
-
-    fn check_project_directory(&self) -> Result<()> {
-        let current_dir = env::current_dir()?;
-
-        if let Some(user_dir) = directories::UserDirs::new()
-            && current_dir == user_dir.home_dir().to_path_buf()
-        {
-            return Err(anyhow!(t!("errors.home_dir_not_allowed")));
-        }
-
-        let git_dir = current_dir.join(".git");
-        if !git_dir.exists() {
-            return Err(anyhow!(t!("errors.not_project_directory")));
-        }
-
-        Ok(())
     }
 
     fn prompt_target_dir(&self, app: &str) -> Result<PathBuf> {
@@ -294,8 +294,9 @@ impl PromptCommand {
 
         match app {
             CURSOR_APP => {
-                let current_dir = env::current_dir()?;
-                Ok(current_dir.join(TARGET_CURSOR_RULES_DIR))
+                let cwd = env::current_dir()?;
+                let root = find_git_root(&cwd).unwrap_or(cwd);
+                Ok(root.join(TARGET_CURSOR_RULES_DIR))
             }
             _ => Err(anyhow!(t!("errors.invalid_app", app = app))),
         }
@@ -378,14 +379,26 @@ impl PromptCommand {
         Ok(())
     }
 
-    fn project_root(&self, force: bool) -> Result<PathBuf> {
+    fn project_root(&self, force: bool, interactive: bool) -> Result<Option<PathBuf>> {
         self.ensure_not_home_dir()?;
         let cwd = env::current_dir()?;
         if let Some(root) = find_git_root(&cwd) {
-            return Ok(root);
+            return Ok(Some(root));
         }
         if force {
-            return Ok(cwd);
+            return Ok(Some(cwd));
+        }
+        if interactive {
+            let prompt = t!("interactive.project_root_force_prompt");
+            let confirmed = Confirm::new(&prompt)
+                .with_default(false)
+                .prompt()
+                .map_err(|e| anyhow!(t!("errors.interactive_prompt_error", error = e)))?;
+            if confirmed {
+                return Ok(Some(cwd));
+            }
+            println!("{}", t!("messages.operation_cancelled"));
+            return Ok(None);
         }
         Err(anyhow!(t!("errors.project_scope_requires_repo")))
     }
@@ -411,6 +424,7 @@ impl PromptCommand {
         name: &str,
         scope: PromptScope,
         force: bool,
+        interactive: bool,
     ) -> Result<Vec<PathBuf>> {
         let mut targets = Vec::new();
         if scope == PromptScope::User || scope == PromptScope::All {
@@ -418,7 +432,9 @@ impl PromptCommand {
             targets.push(dir.join(format!("{name}.md")));
         }
         if scope == PromptScope::Project || scope == PromptScope::All {
-            let root = self.project_root(force)?;
+            let Some(root) = self.project_root(force, interactive)? else {
+                return Ok(Vec::new());
+            };
             let dir = root.join(".codex").join("prompts");
             targets.push(dir.join(format!("{name}.md")));
         }
@@ -433,7 +449,11 @@ impl PromptCommand {
         interactive: bool,
         content: &str,
     ) -> Result<()> {
-        for target_path in self.codex_prompt_targets(name, scope, force)? {
+        let targets = self.codex_prompt_targets(name, scope, force, interactive)?;
+        if targets.is_empty() {
+            return Ok(());
+        }
+        for target_path in targets {
             if target_path.exists() && !force {
                 let overwrite = confirm_overwrite(&target_path, interactive)?;
                 if !overwrite {
@@ -453,13 +473,21 @@ impl PromptCommand {
         Ok(())
     }
 
-    fn claude_memory_targets(&self, scope: PromptScope, force: bool) -> Result<Vec<PathBuf>> {
+    fn claude_memory_targets(
+        &self,
+        scope: PromptScope,
+        force: bool,
+        interactive: bool,
+    ) -> Result<Vec<PathBuf>> {
         let mut targets = Vec::new();
         if scope == PromptScope::User || scope == PromptScope::All {
             targets.push(self.claude_home_dir()?.join(CLAUDE_MEMORY_FILE));
         }
         if scope == PromptScope::Project || scope == PromptScope::All {
-            targets.push(self.project_root(force)?.join(CLAUDE_MEMORY_FILE));
+            let Some(root) = self.project_root(force, interactive)? else {
+                return Ok(Vec::new());
+            };
+            targets.push(root.join(CLAUDE_MEMORY_FILE));
         }
         Ok(targets)
     }
@@ -471,9 +499,19 @@ impl PromptCommand {
         interactive: bool,
         body: &str,
     ) -> Result<()> {
-        for path in self.claude_memory_targets(scope, force)? {
+        let targets = self.claude_memory_targets(scope, force, interactive)?;
+        if targets.is_empty() {
+            return Ok(());
+        }
+        for path in targets {
             if path.exists() {
-                let existing = fs::read_to_string(&path).unwrap_or_default();
+                let existing = fs::read_to_string(&path).map_err(|e| {
+                    anyhow!(t!(
+                        "errors.file_read_failed",
+                        path = path.display(),
+                        error = e
+                    ))
+                })?;
                 let needs_confirm =
                     !existing.trim().is_empty() && !has_llman_prompts_markers(&existing);
                 if needs_confirm && !force {
@@ -660,7 +698,7 @@ mod tests {
         let temp_dir = temp_config_dir("codex_home");
         let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
         let targets = command
-            .codex_prompt_targets("draftpr", super::PromptScope::User, false)
+            .codex_prompt_targets("draftpr", super::PromptScope::User, false, false)
             .unwrap();
         assert_eq!(targets.len(), 1);
         assert_eq!(targets[0], codex_home.join("prompts").join("draftpr.md"));
@@ -668,5 +706,116 @@ mod tests {
         unsafe {
             env::remove_var("CODEX_HOME");
         }
+    }
+
+    #[test]
+    fn test_remove_rule_requires_yes_in_non_interactive() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        let temp_dir = temp_config_dir("rm_non_interactive");
+        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+
+        command
+            .config
+            .ensure_app_dir(CURSOR_APP)
+            .expect("ensure app dir");
+        let rule_path = command.config.rule_file_path(CURSOR_APP, "demo");
+        fs::write(&rule_path, "content").expect("write rule");
+
+        let err = command
+            .remove_rule(CURSOR_APP, "demo", false, false)
+            .expect_err("should require --yes");
+        assert!(err.to_string().contains("--yes"));
+
+        command
+            .remove_rule(CURSOR_APP, "demo", true, false)
+            .expect("remove with yes");
+        assert!(!rule_path.exists());
+    }
+
+    #[test]
+    fn test_claude_inject_fails_if_existing_file_is_not_utf8() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let cwd_guard = CwdGuard::new();
+
+        let temp = TempDir::new().expect("temp dir");
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(repo.join(".git")).expect("create git dir");
+        env::set_current_dir(&repo).expect("chdir");
+
+        let file = repo.join("CLAUDE.md");
+        let original_bytes = vec![0xFF, 0xFE, 0xFD];
+        fs::write(&file, &original_bytes).expect("write invalid utf8");
+
+        let temp_dir = temp_config_dir("claude_invalid_utf8");
+        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+
+        let err = command
+            .write_claude_memory_files(super::PromptScope::Project, true, false, "body")
+            .expect_err("should fail to read");
+        assert!(err.to_string().contains("Failed to read"));
+
+        let after = fs::read(&file).expect("read bytes");
+        assert_eq!(after, original_bytes);
+
+        drop(cwd_guard);
+    }
+
+    #[test]
+    fn test_project_scope_requires_force_when_git_root_missing_non_interactive() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let cwd_guard = CwdGuard::new();
+
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path().join("no_repo");
+        fs::create_dir_all(&root).expect("create dir");
+        env::set_current_dir(&root).expect("chdir");
+
+        let temp_dir = temp_config_dir("codex_no_repo");
+        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+
+        let err = command
+            .write_codex_prompt_files("draftpr", super::PromptScope::Project, false, false, "x")
+            .expect_err("should require force");
+        assert!(err.to_string().contains("--force"));
+        assert!(!root.join(".codex/prompts/draftpr.md").exists());
+
+        command
+            .write_codex_prompt_files("draftpr", super::PromptScope::Project, true, false, "x")
+            .expect("force writes");
+        assert!(root.join(".codex/prompts/draftpr.md").exists());
+
+        drop(cwd_guard);
+    }
+
+    #[test]
+    fn test_project_scope_writes_to_repo_root_from_subdir() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let cwd_guard = CwdGuard::new();
+
+        let temp = TempDir::new().expect("temp dir");
+        let repo = temp.path().join("repo");
+        let nested = repo.join("a").join("b");
+        fs::create_dir_all(&nested).expect("create nested dirs");
+        fs::create_dir_all(repo.join(".git")).expect("create git dir");
+        env::set_current_dir(&nested).expect("chdir");
+
+        let temp_dir = temp_config_dir("codex_repo_root");
+        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+
+        command
+            .write_codex_prompt_files(
+                "draftpr",
+                super::PromptScope::Project,
+                false,
+                false,
+                "content",
+            )
+            .expect("write");
+
+        assert!(repo.join(".codex/prompts/draftpr.md").exists());
+        assert!(!nested.join(".codex/prompts/draftpr.md").exists());
+
+        drop(cwd_guard);
     }
 }
