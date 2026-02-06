@@ -3,9 +3,14 @@ use crate::skills::catalog::types::{
 };
 use anyhow::{Result, anyhow};
 use inquire::Select;
+use inquire::error::InquireError;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
+
+#[derive(Debug, thiserror::Error)]
+#[error("cancelled")]
+pub(crate) struct SkillSyncCancelled;
 
 pub fn apply_target_links(
     skill: &SkillCandidate,
@@ -32,16 +37,83 @@ pub fn apply_target_diff(
     interactive: bool,
     target_conflict: Option<TargetConflictStrategy>,
 ) -> Result<()> {
+    apply_target_diff_with_conflict_resolver(
+        skills,
+        target,
+        desired,
+        interactive,
+        target_conflict,
+        |skill_id, target| resolve_target_conflict(skill_id, target, true, None),
+    )
+}
+
+fn apply_target_diff_with_conflict_resolver<F>(
+    skills: &[SkillCandidate],
+    target: &ConfigEntry,
+    desired: &HashSet<String>,
+    interactive: bool,
+    target_conflict: Option<TargetConflictStrategy>,
+    mut resolve_conflict: F,
+) -> Result<()>
+where
+    F: FnMut(&str, &ConfigEntry) -> Result<TargetConflictStrategy>,
+{
     if target.mode == TargetMode::Skip {
         return Ok(());
     }
-    for skill in skills {
+
+    #[derive(Debug, Clone, Copy)]
+    struct PlannedOp {
+        skill_index: usize,
+        enabled: bool,
+        conflict_strategy: Option<TargetConflictStrategy>,
+    }
+
+    let mut planned = Vec::new();
+
+    // Phase 1: plan and resolve any interactive conflicts before applying changes,
+    // so that a user cancel results in a full no-op.
+    for (index, skill) in skills.iter().enumerate() {
         let current = is_skill_linked(skill, target);
         let wanted = desired.contains(&skill.skill_id);
         if current == wanted {
             continue;
         }
-        apply_target_link(skill, target, wanted, interactive, target_conflict)?;
+
+        let mut conflict_strategy = None;
+        if wanted {
+            let link_path = target.path.join(&skill.skill_id);
+            let entry_exists = fs::symlink_metadata(&link_path).is_ok();
+            if entry_exists {
+                conflict_strategy = match target_conflict {
+                    Some(strategy) => Some(strategy),
+                    None => {
+                        if !interactive {
+                            return Err(anyhow!(t!(
+                                "skills.target_conflict.requires_flag",
+                                skill = skill.skill_id,
+                                target = target.id
+                            )));
+                        }
+                        Some(resolve_conflict(&skill.skill_id, target)?)
+                    }
+                };
+            }
+        }
+
+        planned.push(PlannedOp {
+            skill_index: index,
+            enabled: wanted,
+            conflict_strategy,
+        });
+    }
+
+    // Phase 2: apply planned changes with any conflict strategy pre-resolved.
+    for op in planned {
+        let skill = skills
+            .get(op.skill_index)
+            .ok_or_else(|| anyhow!("invalid skill index"))?;
+        apply_target_link(skill, target, op.enabled, interactive, op.conflict_strategy)?;
     }
     Ok(())
 }
@@ -115,7 +187,7 @@ fn ensure_target_link(
     let link_path = target.path.join(&skill.skill_id);
     let desired = &skill.skill_dir;
 
-    if link_path.exists() {
+    if fs::symlink_metadata(&link_path).is_ok() {
         let is_symlink = fs::symlink_metadata(&link_path)
             .map(|meta| meta.file_type().is_symlink())
             .unwrap_or(false);
@@ -140,20 +212,18 @@ fn ensure_target_link(
 
 fn remove_target_link(skill: &SkillCandidate, target: &ConfigEntry) -> Result<()> {
     let link_path = target.path.join(&skill.skill_id);
-    if !link_path.exists() {
+    let meta = match fs::symlink_metadata(&link_path) {
+        Ok(meta) => meta,
+        Err(_) => return Ok(()),
+    };
+    if meta.file_type().is_symlink() {
+        remove_path(&link_path)?;
         return Ok(());
     }
-    if fs::symlink_metadata(&link_path)
-        .map(|meta| meta.file_type().is_symlink())
-        .unwrap_or(false)
-    {
-        remove_path(&link_path)?;
-    } else {
-        eprintln!(
-            "{}",
-            t!("skills.target.not_symlink", path = link_path.display())
-        );
-    }
+    eprintln!(
+        "{}",
+        t!("skills.target.not_symlink", path = link_path.display())
+    );
     Ok(())
 }
 
@@ -180,9 +250,19 @@ fn resolve_target_conflict(
     );
     let overwrite_label = t!("skills.target_conflict.option_overwrite").to_string();
     let skip_label = t!("skills.target_conflict.option_skip").to_string();
-    let selection = Select::new(&prompt, vec![overwrite_label.clone(), skip_label.clone()])
-        .prompt()
-        .map_err(|e| anyhow!(t!("skills.target_conflict.prompt_failed", error = e)))?;
+    let selection =
+        match Select::new(&prompt, vec![overwrite_label.clone(), skip_label.clone()]).prompt() {
+            Ok(selection) => selection,
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                return Err(SkillSyncCancelled.into());
+            }
+            Err(e) => {
+                return Err(anyhow!(t!(
+                    "skills.target_conflict.prompt_failed",
+                    error = e
+                )));
+            }
+        };
     if selection == overwrite_label {
         Ok(TargetConflictStrategy::Overwrite)
     } else {
@@ -387,5 +467,101 @@ mod tests {
         .expect("apply diff");
         let target_path = fs::read_link(&link_path).expect("read link");
         assert_eq!(target_path, skill_dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_dangling_symlink_is_treated_as_existing_entry() {
+        use std::os::unix::fs as unix_fs;
+
+        let temp = TempDir::new().expect("temp dir");
+        let skills_root = temp.path().join("skills");
+        let skill_dir = skills_root.join("skill");
+        fs::create_dir_all(&skill_dir).expect("create skill dir");
+        fs::write(skill_dir.join("SKILL.md"), "# skill").expect("write skill");
+
+        let target_root = temp.path().join("targets");
+        fs::create_dir_all(&target_root).expect("create target root");
+
+        let link_path = target_root.join("skill");
+        unix_fs::symlink(temp.path().join("missing"), &link_path).expect("dangling symlink");
+
+        let skill = SkillCandidate {
+            skill_id: "skill".to_string(),
+            skill_dir: skill_dir.clone(),
+        };
+        let target = ConfigEntry {
+            id: "claude_user".to_string(),
+            agent: "claude".to_string(),
+            scope: "user".to_string(),
+            path: target_root.clone(),
+            enabled: true,
+            mode: TargetMode::Link,
+        };
+
+        apply_target_link(
+            &skill,
+            &target,
+            true,
+            false,
+            Some(TargetConflictStrategy::Overwrite),
+        )
+        .expect("overwrite dangling");
+
+        let meta = fs::symlink_metadata(&link_path).expect("metadata");
+        assert!(meta.file_type().is_symlink());
+        let dest = fs::read_link(&link_path).expect("read link");
+        assert_eq!(dest, skill_dir);
+
+        apply_target_link(&skill, &target, false, false, None).expect("remove");
+        assert!(fs::symlink_metadata(&link_path).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_conflict_cancel_aborts_without_side_effects() {
+        let temp = TempDir::new().expect("temp dir");
+        let skills_root = temp.path().join("skills");
+        let skill_dir = skills_root.join("skill");
+        fs::create_dir_all(&skill_dir).expect("create skill dir");
+        fs::write(skill_dir.join("SKILL.md"), "# skill").expect("write skill");
+
+        let target_root = temp.path().join("targets");
+        fs::create_dir_all(&target_root).expect("create target root");
+
+        let link_path = target_root.join("skill");
+        fs::create_dir_all(&link_path).expect("create conflict dir");
+
+        let skill = SkillCandidate {
+            skill_id: "skill".to_string(),
+            skill_dir: skill_dir.clone(),
+        };
+        let target = ConfigEntry {
+            id: "claude_user".to_string(),
+            agent: "claude".to_string(),
+            scope: "user".to_string(),
+            path: target_root,
+            enabled: true,
+            mode: TargetMode::Link,
+        };
+
+        let mut desired = HashSet::new();
+        desired.insert("skill".to_string());
+
+        let err = apply_target_diff_with_conflict_resolver(
+            &[skill],
+            &target,
+            &desired,
+            true,
+            None,
+            |_skill_id, _target| Err(SkillSyncCancelled.into()),
+        )
+        .expect_err("cancel");
+        assert!(err.is::<SkillSyncCancelled>());
+
+        // The conflict entry is unchanged: still a directory and not replaced by a symlink.
+        let meta = fs::symlink_metadata(&link_path).expect("meta");
+        assert!(meta.is_dir());
+        assert!(!meta.file_type().is_symlink());
     }
 }

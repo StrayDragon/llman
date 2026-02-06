@@ -59,9 +59,13 @@ fn run_with_root(root: &Path, args: UpdateSkillsArgs) -> Result<()> {
         )));
     }
 
-    let config = load_or_create_config(&llmanspec_path)?;
     let interactive = is_interactive(args.no_interactive);
     let tools = resolve_tools(&args, interactive)?;
+    if args.path.is_some() && tools.len() > 1 {
+        return Err(anyhow!(t!("sdd.update_skills.multi_tool_path_conflict")));
+    }
+
+    let config = load_or_create_config(&llmanspec_path)?;
     let outputs = resolve_outputs(root, &config, &tools, args.path.as_deref(), interactive)?;
     let templates = skill_templates(&config, root)?;
 
@@ -156,6 +160,7 @@ fn write_tool_skills(base: &Path, templates: &[super::templates::SkillTemplate])
 mod tests {
     use super::*;
     use std::env;
+    use tempfile::tempdir;
 
     #[test]
     fn resolve_override_path_respects_relative() {
@@ -170,5 +175,24 @@ mod tests {
         let values = vec!["claude,codex".to_string()];
         let tools = parse_tool_args(&values).expect("tools");
         assert_eq!(tools, vec![SkillTool::Claude, SkillTool::Codex]);
+    }
+
+    #[test]
+    fn rejects_multi_tool_override_path() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        fs::create_dir_all(root.join(LLMANSPEC_DIR_NAME)).expect("create llmanspec");
+
+        let args = UpdateSkillsArgs {
+            all: true,
+            tool: Vec::new(),
+            path: Some(PathBuf::from("./skills-out")),
+            no_interactive: true,
+        };
+
+        let result = super::run_with_root(root, args);
+        assert!(result.is_err());
+        assert!(!root.join("skills-out").exists());
+        assert!(!root.join(LLMANSPEC_DIR_NAME).join("config.yaml").exists());
     }
 }

@@ -79,7 +79,11 @@ impl SecurityChecker {
 
         let dangerous_patterns = security_config
             .and_then(|s| s.dangerous_patterns.clone())
-            .unwrap_or_else(Self::default_dangerous_patterns);
+            .unwrap_or_else(Self::default_dangerous_patterns)
+            .into_iter()
+            .map(|pattern| pattern.trim().to_lowercase())
+            .filter(|pattern| !pattern.is_empty())
+            .collect();
 
         let settings_files = security_config
             .and_then(|s| s.claude_settings_files.clone())
@@ -200,7 +204,9 @@ impl SecurityChecker {
         let permission_lower = permission.to_lowercase();
 
         for pattern in &self.dangerous_patterns {
-            if let Some(matched) = self.matches_dangerous_pattern(&permission_lower, pattern) {
+            let pattern_lower = pattern.to_lowercase();
+            if let Some(matched) = self.matches_dangerous_pattern(&permission_lower, &pattern_lower)
+            {
                 let matched_str = matched.clone();
                 return Some((matched, self.get_pattern_details(&matched_str)));
             }
@@ -481,6 +487,21 @@ mod tests {
         assert!(
             checker
                 .get_dangerous_pattern_info("Bash(sudo rm -rf /file)")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn test_get_dangerous_pattern_info_normalizes_pattern_case() {
+        let checker = SecurityChecker {
+            dangerous_patterns: vec!["RM -RF".to_string()],
+            settings_files: vec![],
+            enabled: true,
+        };
+
+        assert!(
+            checker
+                .get_dangerous_pattern_info("Bash(rm -rf /tmp/*)")
                 .is_some()
         );
     }

@@ -1,6 +1,7 @@
 use crate::tool::config::LanguageSpecificRules;
 use anyhow::{Result, anyhow};
 use std::cmp::Reverse;
+use std::collections::HashSet;
 use std::path::Path;
 use tree_sitter::{Language, Node, Parser, Query, QueryCursor, StreamingIterator};
 use tree_sitter_highlight::HighlightConfiguration;
@@ -134,6 +135,7 @@ impl TreeSitterProcessor {
             .ok_or_else(|| anyhow!(t!("tool.tree_sitter.parse_content_failed")))?;
 
         let mut comments = Vec::new();
+        let mut seen_ranges: HashSet<(usize, usize)> = HashSet::new();
 
         let comment_query = self
             .get_language_for_file(file_path)
@@ -146,6 +148,10 @@ impl TreeSitterProcessor {
             while let Some(mat) = matches.next() {
                 for capture in mat.captures {
                     let node = capture.node;
+                    let range = (node.byte_range().start, node.byte_range().end);
+                    if !seen_ranges.insert(range) {
+                        continue;
+                    }
                     let comment_text = &content[node.byte_range()];
 
                     comments.push(CommentInfo {
@@ -156,16 +162,22 @@ impl TreeSitterProcessor {
                         end_col: node.end_position().column,
                         start_byte: node.byte_range().start,
                         end_byte: node.byte_range().end,
-                        kind: self.classify_comment(node, &lang_name),
+                        kind: self.classify_comment(node, comment_text, &lang_name),
                     });
                 }
             }
         } else {
             // Fallback to manual node traversal
-            self.extract_comments_fallback(tree.root_node(), content, &mut comments, &lang_name);
+            self.extract_comments_fallback(
+                tree.root_node(),
+                content,
+                &mut comments,
+                &lang_name,
+                &mut seen_ranges,
+            );
         }
 
-        Ok(comments)
+        Ok(normalize_comment_spans(comments))
     }
 
     fn extract_comments_fallback(
@@ -174,9 +186,14 @@ impl TreeSitterProcessor {
         content: &str,
         comments: &mut Vec<CommentInfo>,
         lang_name: &str,
+        seen_ranges: &mut HashSet<(usize, usize)>,
     ) {
         if node.kind().contains("comment") {
             let comment_text = &content[node.byte_range()];
+            let range = (node.byte_range().start, node.byte_range().end);
+            if !seen_ranges.insert(range) {
+                return;
+            }
             comments.push(CommentInfo {
                 text: comment_text.to_string(),
                 start_line: node.start_position().row + 1,
@@ -185,41 +202,73 @@ impl TreeSitterProcessor {
                 end_col: node.end_position().column,
                 start_byte: node.byte_range().start,
                 end_byte: node.byte_range().end,
-                kind: self.classify_comment(node, lang_name),
+                kind: self.classify_comment(node, comment_text, lang_name),
             });
         }
 
         for child in node.children(&mut node.walk()) {
-            self.extract_comments_fallback(child, content, comments, lang_name);
+            self.extract_comments_fallback(child, content, comments, lang_name, seen_ranges);
         }
     }
 
-    fn classify_comment(&self, node: Node, lang_name: &str) -> CommentKind {
+    fn classify_comment(&self, node: Node, comment_text: &str, lang_name: &str) -> CommentKind {
         let node_kind = node.kind();
 
         match lang_name {
             "python" => {
-                if node_kind == "comment" {
+                if node_kind == "comment" || comment_text.trim_start().starts_with('#') {
                     CommentKind::Line
                 } else {
                     CommentKind::Unknown
                 }
             }
-            "javascript" | "typescript" => match node_kind {
-                "comment" => CommentKind::Line,
-                "block_comment" | "multiline_comment" => CommentKind::Block,
-                _ => CommentKind::Unknown,
-            },
-            "rust" => match node_kind {
-                "line_comment" => CommentKind::Line,
-                "block_comment" => CommentKind::Block,
-                "doc_comment" => CommentKind::Doc,
-                _ => CommentKind::Unknown,
-            },
+            "javascript" | "typescript" => {
+                if comment_text.starts_with("/**") {
+                    return CommentKind::Doc;
+                }
+
+                match node_kind {
+                    "comment" => CommentKind::Line,
+                    "block_comment" | "multiline_comment" => CommentKind::Block,
+                    _ => {
+                        if comment_text.starts_with("//") {
+                            CommentKind::Line
+                        } else if comment_text.starts_with("/*") {
+                            CommentKind::Block
+                        } else {
+                            CommentKind::Unknown
+                        }
+                    }
+                }
+            }
+            "rust" => {
+                if comment_text.starts_with("///")
+                    || comment_text.starts_with("//!")
+                    || comment_text.starts_with("/**")
+                    || comment_text.starts_with("/*!")
+                {
+                    return CommentKind::Doc;
+                }
+
+                match node_kind {
+                    "line_comment" => CommentKind::Line,
+                    "block_comment" => CommentKind::Block,
+                    "doc_comment" => CommentKind::Doc,
+                    _ => CommentKind::Unknown,
+                }
+            }
             "go" => match node_kind {
                 "comment" => CommentKind::Line,
                 "block_comment" => CommentKind::Block,
-                _ => CommentKind::Unknown,
+                _ => {
+                    if comment_text.starts_with("//") {
+                        CommentKind::Line
+                    } else if comment_text.starts_with("/*") {
+                        CommentKind::Block
+                    } else {
+                        CommentKind::Unknown
+                    }
+                }
             },
             _ => CommentKind::Unknown,
         }
@@ -247,9 +296,8 @@ impl TreeSitterProcessor {
                     .docstrings
                     .or(rules.jsdoc.or(rules.doc_comments.or(rules.godoc)))
                 {
-                    Some(true) => return false,
-                    Some(false) => {}
-                    None => return false,
+                    Some(true) => {}
+                    Some(false) | None => return false,
                 }
             }
             CommentKind::Unknown => return false,
@@ -308,6 +356,27 @@ impl TreeSitterProcessor {
     }
 
     // Comment removal uses byte ranges from tree-sitter; no heuristic lookup needed.
+}
+
+fn normalize_comment_spans(mut comments: Vec<CommentInfo>) -> Vec<CommentInfo> {
+    comments.sort_by(|a, b| {
+        a.start_byte
+            .cmp(&b.start_byte)
+            .then_with(|| b.end_byte.cmp(&a.end_byte))
+    });
+
+    let mut kept = Vec::new();
+    for comment in comments {
+        let contained = kept.iter().any(|outer: &CommentInfo| {
+            outer.start_byte <= comment.start_byte && outer.end_byte >= comment.end_byte
+        });
+        if contained {
+            continue;
+        }
+        kept.push(comment);
+    }
+
+    kept
 }
 
 #[derive(Debug, Clone)]
@@ -425,5 +494,43 @@ fn main() {
 
         assert_eq!(removed.len(), 1);
         assert!(!new_content.contains("Block comment"));
+    }
+
+    #[test]
+    fn doc_comment_toggle_semantics_match_line_and_block() {
+        let mut processor = TreeSitterProcessor::new().unwrap();
+        let content = "/// short\nfn main() {}\n";
+
+        let enabled = LanguageSpecificRules {
+            doc_comments: Some(true),
+            min_comment_length: Some(200),
+            ..Default::default()
+        };
+        let (new_content, removed) = processor
+            .remove_comments_from_content(content, Path::new("test.rs"), &enabled)
+            .unwrap();
+        assert_eq!(removed.len(), 1);
+        assert!(!new_content.contains("///"));
+
+        let disabled = LanguageSpecificRules {
+            doc_comments: Some(false),
+            min_comment_length: Some(200),
+            ..Default::default()
+        };
+        let (new_content, removed) = processor
+            .remove_comments_from_content(content, Path::new("test.rs"), &disabled)
+            .unwrap();
+        assert_eq!(removed.len(), 0);
+        assert!(new_content.contains("///"));
+
+        let default = LanguageSpecificRules {
+            min_comment_length: Some(200),
+            ..Default::default()
+        };
+        let (new_content, removed) = processor
+            .remove_comments_from_content(content, Path::new("test.rs"), &default)
+            .unwrap();
+        assert_eq!(removed.len(), 0);
+        assert!(new_content.contains("///"));
     }
 }

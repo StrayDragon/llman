@@ -2,6 +2,7 @@ use llman::tool::command::CleanUselessCommentsArgs;
 use llman::tool::config::Config;
 use llman::tool::processor::CommentProcessor;
 mod common;
+mod env_lock;
 use common::*;
 use std::process::Command;
 
@@ -224,7 +225,9 @@ tools:
 
 #[test]
 fn test_file_scoping() {
+    let _guard = env_lock::lock_env();
     let env = TestEnvironment::new();
+    let _cwd = env_lock::CwdGuard::set(env.path()).unwrap();
 
     // Create files with different extensions
     env.create_file("test.py", "# Python comment");
@@ -278,9 +281,9 @@ tools:
 
 #[test]
 fn test_git_only_processes_tracked_files() {
+    let _guard = env_lock::lock_env();
     let env = TestEnvironment::new();
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(env.path()).unwrap();
+    let _cwd = env_lock::CwdGuard::set(env.path()).unwrap();
 
     let _test_file = env.create_file("tracked.py", "# x\n");
     Command::new("git")
@@ -320,8 +323,6 @@ tools:
     let result = processor.process().unwrap();
 
     assert_eq!(result.files_changed.len(), 1);
-
-    std::env::set_current_dir(original_dir).unwrap();
 }
 
 #[test]

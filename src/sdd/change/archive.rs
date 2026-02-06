@@ -1,5 +1,6 @@
 use crate::sdd::change::delta::{RequirementBlock, normalize_requirement_name, parse_delta_spec};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::spec::staleness::evaluate_staleness_with_override;
 use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, validate_spec_content_with_frontmatter,
@@ -43,11 +44,15 @@ struct RequirementsSection {
 }
 
 pub fn run(args: ArchiveArgs) -> Result<()> {
+    run_with_root(Path::new("."), args)
+}
+
+fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
     let change_name = args
         .change
         .as_ref()
         .ok_or_else(|| anyhow!(t!("sdd.archive.change_required")))?;
-    let root = Path::new(".");
+    validate_sdd_id(change_name, "change")?;
     let changes_dir = root.join(LLMANSPEC_DIR_NAME).join("changes");
     let change_dir = changes_dir.join(change_name);
 
@@ -651,6 +656,19 @@ System MUST support alpha.
         };
 
         let result = build_updated_spec(&update, "update-thing");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_path_traversal_change_id() {
+        let dir = tempdir().expect("tempdir");
+        let args = ArchiveArgs {
+            change: Some("../oops".to_string()),
+            skip_specs: true,
+            dry_run: true,
+            force: false,
+        };
+        let result = run_with_root(dir.path(), args);
         assert!(result.is_err());
     }
 }

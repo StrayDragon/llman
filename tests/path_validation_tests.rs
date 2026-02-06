@@ -3,6 +3,7 @@ use llman::path_utils::{create_validated_pathbuf, safe_parent_for_creation, vali
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
+mod env_lock;
 
 #[test]
 fn test_prevent_empty_path_creation() -> Result<()> {
@@ -76,11 +77,9 @@ fn test_environment_variable_validation() -> Result<()> {
 
 #[test]
 fn test_no_space_directory_creation() -> Result<()> {
+    let _guard = env_lock::lock_env();
     let temp_dir = TempDir::new()?;
-    let original_dir = std::env::current_dir()?;
-
-    // Change to temp directory for testing
-    std::env::set_current_dir(&temp_dir)?;
+    let _cwd = env_lock::CwdGuard::set(temp_dir.path())?;
 
     // Try to create a file with just a filename (no parent directories)
     let config_path = PathBuf::from("test_config.yaml");
@@ -107,9 +106,6 @@ fn test_no_space_directory_creation() -> Result<()> {
             );
         }
     }
-
-    // Restore original directory
-    std::env::set_current_dir(original_dir)?;
 
     Ok(())
 }

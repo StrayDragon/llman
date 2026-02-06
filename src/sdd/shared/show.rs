@@ -1,5 +1,6 @@
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
+use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
 use crate::sdd::spec::parser::{Requirement, parse_change, parse_spec};
@@ -173,6 +174,7 @@ fn show_direct(
 }
 
 fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
+    validate_sdd_id(change_id, "change")?;
     let change_dir = root
         .join(LLMANSPEC_DIR_NAME)
         .join("changes")
@@ -206,6 +208,7 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
 }
 
 fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
+    validate_sdd_id(spec_id, "spec")?;
     let spec_path = root
         .join(LLMANSPEC_DIR_NAME)
         .join("specs")

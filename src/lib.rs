@@ -3,6 +3,7 @@ extern crate rust_i18n;
 
 i18n!("locales");
 
+pub mod arg_utils;
 pub mod cli;
 pub mod config;
 pub mod config_schema;

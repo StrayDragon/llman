@@ -108,6 +108,9 @@ interactive:
   target_dir_help:
     en: "Where to write generated rule files"
 
+  project_root_force_prompt:
+    en: "No git repository detected. Continue using current directory as project root? (equivalent to --force)"
+
   no_templates:
     en: "⚠️  No templates available, nothing to generate"
 
@@ -178,6 +181,9 @@ errors:
   io_error:
     en: "IO Error: %{error}"
 
+  file_read_failed:
+    en: "Failed to read %{path}: %{error}"
+
   inquire_error:
     en: "Inquire Error: %{error}"
 
@@ -222,6 +228,9 @@ errors:
 
   non_interactive_inject_requires_force:
     en: "Non-interactive mode cannot modify existing %{path}; re-run with --force"
+
+  non_interactive_delete_requires_yes:
+    en: "Non-interactive mode cannot delete rule '%{name}'; re-run with --yes"
 
   rule_not_found:
     en: "Rule not found: %{name}"
@@ -356,6 +365,9 @@ cursor:
 
     composer_not_found:
       en: "Composer ID not found: %{id}"
+
+    selected_conversation_not_found:
+      en: "Selected conversation not found: %{id}"
 
     unsupported_output_mode:
       en: "Unsupported output mode: %{mode}"
@@ -639,6 +651,9 @@ tool:
 
       file_not_found:
         en: "Warning: File not found: %{path}"
+
+      path_skipped_not_file:
+        en: "Warning: Skipping non-file path: %{path}"
 
       walk_error:
         en: "Error walking directory: %{error}"
@@ -1057,6 +1072,8 @@ claude_code:
         en: "Enter arguments for claude command:"
       args_help:
         en: "e.g., --version --help project create"
+      args_parse_failed:
+        en: "Invalid argument string: %{error}. Please try again."
     using_config:
       en: "Using configuration: %{name}"
     error:
@@ -1323,6 +1340,9 @@ codex:
     open_editor_failed:
       en: "Failed to open editor: %{editor}"
 
+    invalid_editor_command:
+      en: "Invalid editor command: %{editor} (%{error})"
+
     editor_exit_status:
       en: "Editor exited with status: %{status}"
 
@@ -1471,6 +1491,10 @@ sdd:
     region_unterminated:
       en: "Region '%{name}' is not terminated in %{path}"
 
+  shared:
+    invalid_id:
+      en: "Invalid %{kind} id '%{id}'. Use a simple identifier (no '/', '\\', '.' or '..')."
+
   update_skills:
     no_llmanspec:
       en: "No llmanspec directory found. Run '%{cmd}' first."
@@ -1484,6 +1508,8 @@ sdd:
       en: "Invalid tool: %{tool}"
     prompt_path:
       en: "Output path for %{tool} skills:"
+    multi_tool_path_conflict:
+      en: "Cannot use --path when generating multiple tools. Run per tool (e.g. --tool claude --path ...) or omit --path."
 
   list:
     no_changes_dir:
@@ -1502,6 +1528,8 @@ sdd:
       en: "complete"
     just_now:
       en: "just now"
+    conflicting_flags:
+      en: "Flags --specs and --changes are mutually exclusive."
 
   show:
     option_change:
@@ -1884,13 +1912,15 @@ self:
       en: "Failed to read file: %{path} (%{error})"
     write_failed:
       en: "Failed to write file: %{path} (%{error})"
+    yaml_parse_failed:
+      en: "Failed to parse YAML: %{path} (%{error})"
   completion:
     install_prompt:
       en: "Install llman completion block into %{path}?"
     install_help:
       en: "This will add or update the marked llman completion block."
     non_interactive:
-      en: "Non-interactive mode cannot modify %{path}; run in an interactive shell."
+      en: "Non-interactive mode cannot modify %{path}; re-run with --yes."
     read_failed:
       en: "Failed to read file: %{path} (%{error})"
     write_failed:

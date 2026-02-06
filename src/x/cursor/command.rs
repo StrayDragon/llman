@@ -1,6 +1,8 @@
 use crate::path_utils::validate_path_str;
 use crate::x::cursor::database::CursorDatabase;
-use crate::x::cursor::models::{ConversationExport, ConversationSummary, ConversationType};
+use crate::x::cursor::models::{
+    ConversationExport, ConversationKey, ConversationSummary, ConversationType,
+};
 use anyhow::{Result, anyhow};
 use chrono::Utc;
 use clap::{Args, Subcommand};
@@ -199,14 +201,8 @@ fn export_interactive_with_path(db_path: Option<&str>) -> Result<()> {
         return Ok(());
     }
 
-    let all_conversations = db.get_all_conversations_mixed()?;
-    let selected_exports: Vec<&ConversationExport> = all_conversations
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| selected_conversations.contains(i))
-        .map(|(_, export)| export)
-        .collect();
-
+    let exports = db.get_conversation_exports_by_keys(&selected_conversations)?;
+    let selected_exports: Vec<&ConversationExport> = exports.iter().collect();
     handle_export(&selected_exports)?;
     Ok(())
 }
@@ -248,7 +244,34 @@ fn select_workspace() -> Result<String> {
 fn select_conversations(
     summaries: &[ConversationSummary],
     db: &CursorDatabase,
-) -> Result<Vec<usize>> {
+) -> Result<Vec<ConversationKey>> {
+    #[derive(Clone)]
+    struct ConversationPick {
+        key: ConversationKey,
+        label: String,
+    }
+
+    impl std::fmt::Display for ConversationPick {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.label)
+        }
+    }
+
+    #[derive(Clone)]
+    enum ConversationOption {
+        Conversation(ConversationPick),
+        SearchMore,
+    }
+
+    impl std::fmt::Display for ConversationOption {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                ConversationOption::Conversation(pick) => write!(f, "{}", pick.label),
+                ConversationOption::SearchMore => write!(f, "{}", t!("cursor.export.search_more")),
+            }
+        }
+    }
+
     let mut options = Vec::new();
     let recent_count = std::cmp::min(5, summaries.len());
     for summary in summaries.iter().take(recent_count) {
@@ -256,37 +279,11 @@ fn select_conversations(
             ConversationType::Traditional => t!("cursor.export.conversation_type_chat"),
             ConversationType::Composer(_) => t!("cursor.export.conversation_type_composer"),
         };
-        options.push(format!(
-            "📝 {} {} - {} - {}",
-            summary.title,
-            type_indicator,
-            if summary.message_count > 0 {
-                t!("cursor.export.message_count", count = summary.message_count).to_string()
-            } else {
-                t!("cursor.export.composer_chat").to_string()
-            },
-            summary.last_message_time.format("%m-%d %H:%M")
-        ));
-    }
-    if summaries.len() > recent_count {
-        options.push(t!("cursor.export.search_more").to_string());
-    }
-
-    let selections = MultiSelect::new(&t!("cursor.export.select_conversations"), options)
-        .with_help_message(&t!("cursor.export.select_help"))
-        .prompt()?;
-
-    let mut selected_indices = Vec::new();
-    for selection in selections {
-        if selection == t!("cursor.export.search_more") {
-            selected_indices.extend(search_conversations(db)?);
-        } else if let Some(index) = summaries.iter().position(|summary| {
-            let type_indicator = match &summary.conversation_type {
-                ConversationType::Traditional => t!("cursor.export.conversation_type_chat"),
-                ConversationType::Composer(_) => t!("cursor.export.conversation_type_composer"),
-            };
-            let option_text = format!(
-                "📝 {} {} - {} - {}",
+        let key = summary.key.clone();
+        options.push(ConversationOption::Conversation(ConversationPick {
+            key,
+            label: format!(
+                "📝 {} {} - {} - {} [{}]",
                 summary.title,
                 type_indicator,
                 if summary.message_count > 0 {
@@ -294,17 +291,45 @@ fn select_conversations(
                 } else {
                     t!("cursor.export.composer_chat").to_string()
                 },
-                summary.last_message_time.format("%m-%d %H:%M")
-            );
-            option_text == selection
-        }) {
-            selected_indices.push(index);
+                summary.last_message_time.format("%m-%d %H:%M"),
+                summary.key.short_id()
+            ),
+        }));
+    }
+    if summaries.len() > recent_count {
+        options.push(ConversationOption::SearchMore);
+    }
+
+    let selections = MultiSelect::new(&t!("cursor.export.select_conversations"), options)
+        .with_help_message(&t!("cursor.export.select_help"))
+        .prompt()?;
+
+    let mut selected_keys: Vec<ConversationKey> = Vec::new();
+    for selection in selections {
+        match selection {
+            ConversationOption::Conversation(pick) => selected_keys.push(pick.key),
+            ConversationOption::SearchMore => selected_keys.extend(search_conversations(db)?),
         }
     }
-    Ok(selected_indices)
+
+    let mut seen = std::collections::HashSet::new();
+    selected_keys.retain(|key| seen.insert(key.clone()));
+    Ok(selected_keys)
 }
 
-fn search_conversations(db: &CursorDatabase) -> Result<Vec<usize>> {
+fn search_conversations(db: &CursorDatabase) -> Result<Vec<ConversationKey>> {
+    #[derive(Clone)]
+    struct ConversationPick {
+        key: ConversationKey,
+        label: String,
+    }
+
+    impl std::fmt::Display for ConversationPick {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.label)
+        }
+    }
+
     let search_text = Text::new(&t!("cursor.export.search_keyword"))
         .with_help_message(&t!("cursor.export.search_help"))
         .prompt()?;
@@ -321,22 +346,23 @@ fn search_conversations(db: &CursorDatabase) -> Result<Vec<usize>> {
     let options: Vec<_> = search_results
         .iter()
         .map(|tab| {
-            format!(
-                "📝 {} ({}) - {}",
-                tab.get_title(),
-                t!("cursor.export.message_count", count = tab.bubbles.len()),
-                tab.get_last_send_time().format("%m-%d %H:%M")
-            )
+            let key = tab.conversation_key();
+            ConversationPick {
+                label: format!(
+                    "📝 {} ({}) - {} [{}]",
+                    tab.get_title(),
+                    t!("cursor.export.message_count", count = tab.bubbles.len()),
+                    tab.get_last_send_time().format("%m-%d %H:%M"),
+                    key.short_id()
+                ),
+                key,
+            }
         })
         .collect();
     let selected =
         MultiSelect::new(&t!("cursor.export.select_search_results"), options.clone()).prompt()?;
 
-    let selected_indices = selected
-        .iter()
-        .filter_map(|s| options.iter().position(|opt| opt == s))
-        .collect();
-    Ok(selected_indices)
+    Ok(selected.into_iter().map(|pick| pick.key).collect())
 }
 
 fn handle_export(conversations: &[&ConversationExport]) -> Result<()> {

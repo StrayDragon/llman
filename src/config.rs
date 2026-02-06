@@ -17,6 +17,14 @@ pub const DEFAULT_EXTENSION: &str = "txt";
 pub const PROMPT_DIR: &str = "prompt";
 pub const TARGET_CURSOR_RULES_DIR: &str = ".cursor/rules";
 
+fn rule_extension_for_app(app: &str) -> &'static str {
+    match app {
+        CURSOR_APP => CURSOR_EXTENSION,
+        CODEX_APP => CODEX_EXTENSION,
+        _ => DEFAULT_EXTENSION,
+    }
+}
+
 pub fn resolve_config_dir(cli_override: Option<&Path>) -> Result<PathBuf> {
     if let Some(path) = cli_override {
         validate_path_str(&path.to_string_lossy())
@@ -80,11 +88,7 @@ impl Config {
     }
 
     pub fn rule_file_path(&self, app: &str, name: &str) -> PathBuf {
-        let extension = match app {
-            CURSOR_APP => CURSOR_EXTENSION,
-            CODEX_APP => CODEX_EXTENSION,
-            _ => DEFAULT_EXTENSION,
-        };
+        let extension = rule_extension_for_app(app);
         self.app_dir(app).join(format!("{name}.{extension}"))
     }
 
@@ -96,11 +100,13 @@ impl Config {
         }
 
         let mut rules = Vec::new();
+        let expected_extension = rule_extension_for_app(app);
         for entry in fs::read_dir(app_dir)? {
             let entry = entry?;
             let path = entry.path();
 
             if path.is_file()
+                && path.extension().and_then(|ext| ext.to_str()) == Some(expected_extension)
                 && let Some(stem) = path.file_stem()
                 && let Some(name) = stem.to_str()
             {
@@ -118,6 +124,8 @@ mod tests {
     use super::*;
     use crate::test_utils::ENV_MUTEX;
     use std::env;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_config_with_env_var() {
@@ -242,6 +250,39 @@ mod tests {
             rule_path,
             temp_dir.join("prompt").join(CODEX_APP).join("draftpr.md")
         );
+
+        unsafe {
+            env::remove_var(ENV_CONFIG_DIR);
+        }
+    }
+
+    #[test]
+    fn test_list_rules_filters_by_extension_per_app() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        let temp = TempDir::new().expect("temp dir");
+        unsafe {
+            env::set_var(ENV_CONFIG_DIR, temp.path());
+        }
+
+        let config = Config::new().unwrap();
+        let cursor_dir = config.ensure_app_dir(CURSOR_APP).unwrap();
+        let codex_dir = config.ensure_app_dir(CODEX_APP).unwrap();
+        let claude_dir = config.ensure_app_dir(CLAUDE_CODE_APP).unwrap();
+
+        fs::write(cursor_dir.join("keep.mdc"), "x").expect("write");
+        fs::write(cursor_dir.join("ignore.txt"), "x").expect("write");
+        fs::write(cursor_dir.join("backup.mdc.bak"), "x").expect("write");
+
+        fs::write(codex_dir.join("draft.md"), "x").expect("write");
+        fs::write(codex_dir.join("draft.md.bak"), "x").expect("write");
+
+        fs::write(claude_dir.join("mem.txt"), "x").expect("write");
+        fs::write(claude_dir.join("mem.md"), "x").expect("write");
+
+        assert_eq!(config.list_rules(CURSOR_APP).unwrap(), vec!["keep"]);
+        assert_eq!(config.list_rules(CODEX_APP).unwrap(), vec!["draft"]);
+        assert_eq!(config.list_rules(CLAUDE_CODE_APP).unwrap(), vec!["mem"]);
 
         unsafe {
             env::remove_var(ENV_CONFIG_DIR);

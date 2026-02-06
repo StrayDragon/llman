@@ -5,6 +5,7 @@ use crate::skills::catalog::types::{
 };
 use crate::skills::cli::interactive::is_interactive;
 use crate::skills::config::load_config;
+use crate::skills::targets::sync::SkillSyncCancelled;
 use crate::skills::targets::sync::{apply_target_diff, apply_target_links, is_skill_linked};
 use anyhow::Result;
 use chrono::Utc;
@@ -12,6 +13,7 @@ use clap::{Args, ValueEnum};
 use inquire::error::InquireError;
 use inquire::{Confirm, MultiSelect, Select};
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::fs;
 
 #[derive(Args)]
@@ -64,7 +66,14 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
         if !confirm_apply(&target)? {
             return Ok(());
         }
-        apply_target_diff(&skills, &target, &selected, true, target_conflict)?;
+        match apply_target_diff(&skills, &target, &selected, true, target_conflict) {
+            Ok(()) => {}
+            Err(e) if e.is::<SkillSyncCancelled>() => {
+                println!("{}", t!("messages.operation_cancelled"));
+                return Ok(());
+            }
+            Err(e) => return Err(e),
+        }
         update_registry_for_target(&mut registry, &skills, &target, &selected);
         registry.save(&paths.registry_path)?;
     } else {
@@ -90,46 +99,69 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
 fn select_target(
     config: &crate::skills::catalog::types::SkillsConfig,
 ) -> Result<Option<crate::skills::catalog::types::ConfigEntry>> {
+    #[derive(Clone)]
+    enum TargetSelection {
+        Target {
+            label: String,
+            target: crate::skills::catalog::types::ConfigEntry,
+        },
+        Exit {
+            label: String,
+        },
+    }
+
+    impl fmt::Display for TargetSelection {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Target { label, .. } => write!(f, "{label}"),
+                Self::Exit { label } => write!(f, "{label}"),
+            }
+        }
+    }
+
     loop {
-        let mut labels = Vec::new();
-        let mut targets = Vec::new();
+        let mut choices = Vec::new();
         for target in &config.targets {
             let label = if target.mode == TargetMode::Skip {
-                format!("{} - {}", t!("skills.manager.state_skip"), target.id)
+                format!(
+                    "{} - {} ({}/{})",
+                    t!("skills.manager.state_skip"),
+                    target.id,
+                    target.agent,
+                    target.scope
+                )
             } else {
-                target.id.clone()
+                format!("{} ({}/{})", target.id, target.agent, target.scope)
             };
-            labels.push(label);
-            targets.push(target.clone());
+            choices.push(TargetSelection::Target {
+                label,
+                target: target.clone(),
+            });
         }
-        let exit_label = t!("skills.manager.exit").to_string();
-        labels.push(exit_label.clone());
+        let exit_label = format!("[{}]", t!("skills.manager.exit"));
+        choices.push(TargetSelection::Exit { label: exit_label });
 
-        let selection =
-            match Select::new(&t!("skills.manager.select_target"), labels.clone()).prompt() {
-                Ok(selection) => selection,
-                Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                    return Ok(None);
-                }
-                Err(e) => {
-                    return Err(anyhow::anyhow!(t!(
-                        "skills.manager.prompt_failed",
-                        error = e
-                    )));
-                }
-            };
-        if selection == exit_label {
-            return Ok(None);
-        }
-        let Some(idx) = labels.iter().position(|label| label == &selection) else {
-            continue;
-        };
-        if let Some(target) = targets.get(idx) {
-            if target.mode == TargetMode::Skip {
-                println!("{}", t!("skills.manager.read_only"));
-                continue;
+        let selection = match Select::new(&t!("skills.manager.select_target"), choices).prompt() {
+            Ok(selection) => selection,
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                return Ok(None);
             }
-            return Ok(Some(target.clone()));
+            Err(e) => {
+                return Err(anyhow::anyhow!(t!(
+                    "skills.manager.prompt_failed",
+                    error = e
+                )));
+            }
+        };
+        match selection {
+            TargetSelection::Exit { .. } => return Ok(None),
+            TargetSelection::Target { target, .. } => {
+                if target.mode == TargetMode::Skip {
+                    println!("{}", t!("skills.manager.read_only"));
+                    continue;
+                }
+                return Ok(Some(target));
+            }
         }
     }
 }
