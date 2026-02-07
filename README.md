@@ -8,3 +8,7 @@
 > [!warning]
 >
 > 🏗 施工中
+
+## Docs
+
+- Skills 分组配置（`registry.json`）：`docs/skills-registry-presets.md`

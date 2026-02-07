@@ -1837,6 +1837,14 @@ skills:
       en: "Select which agent tools to manage"
     select_scope:
       en: "Select scope to manage"
+    select_mode:
+      en: "Select mode:"
+    mode_apply_preset:
+      en: "Apply preset"
+    mode_select_individually:
+      en: "Select individually"
+    select_presets:
+      en: "Select presets:"
     prompt_failed:
       en: "Failed to read selection: %{error}"
     exit:
@@ -1855,6 +1863,18 @@ skills:
       en: "Target is read-only and cannot be toggled."
     hidden_user_scope_skills_hint:
       en: "Hidden %{count} skills already managed in user scope."
+    group_skills_count:
+      en: "%{count} skills"
+    preset_not_found:
+      en: "Preset '%{preset}' not found."
+    preset_missing_parent:
+      en: "Preset '%{preset}' extends missing preset '%{parent}'."
+    preset_cycle:
+      en: "Circular preset dependency detected: %{chain}."
+    preset_unknown_skill_dir:
+      en: "Preset '%{preset}' references unknown skill dir '%{dir}'."
+    preset_empty:
+      en: "Preset '%{preset}' resolves to an empty skill set."
   config:
     read_failed:
       en: "Failed to read skills config: %{error}"

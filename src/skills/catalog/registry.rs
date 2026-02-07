@@ -8,6 +8,18 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Registry {
     pub skills: HashMap<String, SkillEntry>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub presets: HashMap<String, PresetEntry>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct PresetEntry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extends: Option<String>,
+    #[serde(default)]
+    pub skill_dirs: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -89,6 +101,40 @@ mod tests {
         let content = fs::read_to_string(&path).expect("read");
         let parsed: Registry = serde_json::from_str(&content).expect("parse json");
         assert!(parsed.skills.contains_key("alpha"));
+        assert!(parsed.presets.is_empty());
+    }
+
+    #[test]
+    fn load_old_registry_without_presets_is_compatible() {
+        let temp = TempDir::new().expect("temp dir");
+        let path = temp.path().join("registry.json");
+        fs::write(
+            &path,
+            r#"{
+  "skills": {
+    "alpha": {
+      "targets": { "claude_user": true }
+    }
+  }
+}"#,
+        )
+        .expect("write registry");
+
+        let parsed = Registry::load(&path).expect("load registry");
+        assert!(parsed.skills.contains_key("alpha"));
+        assert!(parsed.presets.is_empty());
+    }
+
+    #[test]
+    fn save_skips_empty_presets_field() {
+        let temp = TempDir::new().expect("temp dir");
+        let path = temp.path().join("registry.json");
+        let mut registry = Registry::default();
+        registry.ensure_skill("alpha");
+
+        registry.save(&path).expect("save");
+        let content = fs::read_to_string(&path).expect("read");
+        assert!(!content.contains("\"presets\""));
     }
 
     #[cfg(unix)]
