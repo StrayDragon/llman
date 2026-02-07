@@ -414,9 +414,7 @@ mod tests {
 
     #[test]
     fn apply_schema_header_does_not_delete_late_schema_headers() {
-        let content = format!(
-            "# comment\n# yaml-language-server: $schema=https://example.com/old.json\nkey: value\n# yaml-language-server: $schema=https://example.com/keep.json\n"
-        );
+        let content = "# comment\n# yaml-language-server: $schema=https://example.com/old.json\nkey: value\n# yaml-language-server: $schema=https://example.com/keep.json\n".to_string();
         let (updated, changed) = apply_schema_header_to_content(&content, GLOBAL_SCHEMA_URL);
         assert!(changed);
         assert!(updated.starts_with(&schema_header_line(GLOBAL_SCHEMA_URL)));
