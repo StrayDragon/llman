@@ -40,8 +40,8 @@ jobs:
       - name: Setup justfile
         uses: extractions/setup-just@v2
 
-      - name: Run checks
-        run: just check
+      - name: Check all
+        run: just check-all
 
   build:
     name: Build Check
