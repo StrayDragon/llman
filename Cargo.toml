@@ -31,6 +31,8 @@ clap = { version = "4.5.53", features = [
 clap_complete = "4.5.53"
 directories = "6.0.0"
 inquire = { version = "0.9.1", features = ["editor"] }
+crossterm = "0.29.0"
+ratatui = "0.30.0"
 thiserror = "2.0.12"
 rust-i18n = "3.1.2"
 serde = { version = "1.0.216", features = ["derive"] }

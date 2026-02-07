@@ -453,7 +453,8 @@ mod tests {
         };
         let mut desired = HashSet::new();
 
-        apply_target_diff(&[skill.clone()], &target, &desired, true, None).expect("apply diff");
+        apply_target_diff(std::slice::from_ref(&skill), &target, &desired, true, None)
+            .expect("apply diff");
         assert!(link_path.exists());
 
         desired.insert("skill".to_string());

@@ -4,23 +4,15 @@
 描述 llman 在不同来源中发现技能、进行托管快照、处理冲突并为目标路径建立链接的整体流程和约束。
 ## Requirements
 ### Requirement: 交互式技能管理入口
-`llman skills` MUST 在交互式终端扫描 `<skills_root>` 并进入三段式交互流程：先选择 agent tool（如 `claude`、`codex`、`_agentskills_`），再为该 agent 选择 scope，最后展示该 scope 对应 target 的技能多选列表。`mode=skip` 的 target 必须展示为只读不可切换。默认勾选来自该 target 目录内的实际软链接状态。用户确认后，管理器 MUST 仅对该 target 执行差异同步：新增项创建软链接、取消项移除软链接。命令 MUST NOT 创建或更新 `store/` 快照。
+`llman skills` MUST 在交互式终端扫描 `<skills_root>` 后，直接进入既有交互主流程：先选择 agent，再选择 scope，最后进入 skills 多选。`mode=skip` 的 target 必须展示为只读不可切换。用户确认后，管理器 MUST 仅对选定 target 执行差异同步：新增项创建软链接、取消项移除软链接。命令 MUST NOT 创建或更新 `store/` 快照。
 
-#### Scenario: 交互式先选 agent 再选 scope 再选技能
-- **WHEN** 用户在交互式终端运行 `llman skills`
-- **THEN** 管理器先要求选择 agent tool，再选择 scope，最后展示技能多选列表
+#### Scenario: 直接进入 agent 菜单
+- **WHEN** 用户运行 `llman skills`
+- **THEN** 管理器直接展示 `Select which agent tools to manage`，不再出现 `Select mode`
 
-#### Scenario: scope 级别目标选择
-- **WHEN** 用户选择 `claude` 后再选择 `Project (This project only)`
-- **THEN** 管理器仅针对 Claude 的 project target 展示默认勾选并执行后续同步
-
-#### Scenario: 默认勾选来自目标链接
-- **WHEN** 目标目录已有指向技能目录的 `<skill_id>` 软链接
-- **THEN** 该技能在列表中默认勾选
-
-#### Scenario: 确认后仅同步差异
-- **WHEN** 用户确认选择
-- **THEN** 管理器仅对该 target 增删变更项
+#### Scenario: Select individually 既有流程保留
+- **WHEN** 用户进入交互流程
+- **THEN** 管理器按 agent → scope → skills 流程执行
 
 #### Scenario: 取消不产生变更
 - **WHEN** 用户在确认前退出或返回
@@ -246,3 +238,109 @@ Skills 模块重构 MUST 保持技能发现、目标链接、冲突处理、regi
 #### Scenario: 保留当前 scope 已链接技能
 - **WHEN** 用户进入 `project/repo` 管理，某技能在当前 scope 已链接（无论 user scope 是否也链接）
 - **THEN** 该技能继续显示在多选列表中
+
+### Requirement: 预设来源与默认推断
+管理器 MUST 支持运行时预设目录：当 `registry.json` 中 `presets` 非空时，MUST 使用其作为预设来源；当 `presets` 为空或不存在时，MUST 从技能目录名按 `<preset>.<skill>` 规则自动推断默认预设。自动推断得到的预设 MUST 仅存在于运行时，MUST NOT 写回 `registry.json`。
+
+#### Scenario: 优先使用 registry 预设
+- **WHEN** `registry.json` 包含非空 `presets`
+- **THEN** 管理器使用该预设集合，不使用自动推断结果覆盖
+
+#### Scenario: 自动推断默认预设
+- **WHEN** `registry.json` 不包含 `presets` 或其为空
+- **THEN** 目录名 `superpowers.brainstorming` 被归入预设 `superpowers`，并将完整目录名加入该预设的 `skill_dirs`
+
+#### Scenario: 推断预设不落盘
+- **WHEN** 管理器使用自动推断得到默认预设并完成一次会话
+- **THEN** `registry.json` 不新增或修改 `presets` 字段
+
+### Requirement: 预设继承与解析
+管理器 MUST 支持预设通过 `extends` 继承父预设。解析时 MUST 先递归合并父预设，再合并当前预设的 `skill_dirs`，并对结果去重。
+
+#### Scenario: 预设继承
+- **WHEN** 预设 `full-stack` 定义 `extends = "daily"`
+- **THEN** 解析 `full-stack` 时先包含 `daily` 的技能，再添加 `full-stack` 自身技能并去重
+
+### Requirement: 启动前预设校验与失败策略
+每次执行 `llman skills` 时，管理器 MUST 在进入任何交互 prompt 前完成预设校验。校验 MUST 至少包括：`extends` 父预设存在性、继承无环、`skill_dirs` 引用存在性、解析后结果非空。任一校验失败时，命令 MUST 立即报错并中止。
+
+#### Scenario: 父预设不存在
+- **WHEN** 预设 `full-stack` 的 `extends` 指向不存在的预设
+- **THEN** 命令在进入交互前报错并退出
+
+#### Scenario: 继承循环
+- **WHEN** 预设 A extends B，且 B extends A
+- **THEN** 命令在进入交互前报错并退出
+
+#### Scenario: 引用不存在技能目录
+- **WHEN** 某预设 `skill_dirs` 包含不存在的目录名
+- **THEN** 命令在进入交互前报错并退出
+
+#### Scenario: 预设解析为空
+- **WHEN** 某预设解析后的技能集合为空
+- **THEN** 命令在进入交互前报错并退出
+
+### Requirement: 预设功能仅限交互模式
+本变更中，预设能力 MUST 仅通过交互流程提供。`llman skills` MUST NOT 新增任何 presets 专用命令参数。
+
+#### Scenario: 命令行帮助不包含预设参数
+- **WHEN** 用户查看 `llman skills --help`
+- **THEN** 帮助信息不包含 `--preset`、`--save-preset`、`--list-presets` 等 presets 参数
+
+### Requirement: 技能分组推断与展示
+管理器 MUST 根据技能目录名中的 `.` 推断分组：`<group>.<name>` 归入 `<group>`，不含 `.` 的目录归入 `ungrouped`。交互式技能列表 MUST 按分组聚合展示。
+
+#### Scenario: 分组推断
+- **WHEN** 技能目录名为 `superpowers.brainstorming`
+- **THEN** 该技能归入 `superpowers` 分组
+
+#### Scenario: 无分组技能
+- **WHEN** 技能目录名为 `mermaid-expert`
+- **THEN** 该技能归入 `ungrouped` 分组
+
+#### Scenario: 分组展示
+- **WHEN** 用户进入技能多选列表
+- **THEN** 技能按分组聚合显示，并展示分组标题
+
+### Requirement: skills 列表中的分组节点
+技能多选列表 MUST 以树形结构展示可选项：父节点为分组节点，子节点为该分组覆盖的具体技能。分组来源包含两类：
+1) `registry.presets` 中定义的配置化预设；
+2) 基于目录名 `<group>.<name>` 自动推断的分组预设。
+
+选择分组项时，管理器 MUST 将其展开为对应技能集合并去重，最终按技能集合应用到目标。
+分组项的默认勾选状态 MUST 由当前默认技能集合推导：仅当该分组覆盖的技能集合全部已在默认集合中时，才显示为勾选；否则 MUST 不勾选。
+
+分组项的可视状态 MUST 支持三态：`[ ]`（未选）、`[x]`（全集选中）、`[-]`（部分选中）。
+树形选择 MUST 支持关键字过滤搜索：用户输入关键字后，列表仅展示匹配的分组与技能（匹配技能时其父分组必须保留显示）。
+
+#### Scenario: 选择分组自动展开
+- **WHEN** 用户在 skills 列表中选择 `dakesan (3 skills)`
+- **THEN** 管理器将 `dakesan` 对应技能集合加入最终选择集合
+
+#### Scenario: 配置预设与分组预设并存
+- **WHEN** `registry.presets` 包含 `daily`，且目录分组包含 `dakesan`
+- **THEN** 列表中同时展示 `daily (...)` 与 `dakesan (...)`
+
+#### Scenario: 树形父子联动
+- **WHEN** 用户在树形列表中切换分组父节点
+- **THEN** 该父节点下所有子技能同步选中或取消
+
+#### Scenario: 重叠技能去重
+- **WHEN** 用户同时选择多个分组，且它们包含同一技能
+- **THEN** 最终应用集合中该技能只保留一份
+
+#### Scenario: 搜索过滤保留父节点
+- **WHEN** 用户在树形选择中输入关键字，仅匹配到某个技能
+- **THEN** 该技能所属分组仍显示，且仅显示匹配到的子技能
+
+#### Scenario: preset 默认勾选为“全集命中”
+- **WHEN** 当前默认集合仅包含某 preset 的部分技能
+- **THEN** 该分组默认状态不勾选
+
+### Requirement: 技能条目展示应同时包含 skill_id 与目录名
+交互式技能列表中的每个技能项 MUST 展示为 `skill_id (directory_name)`，用于明确用户可选标识与其目录来源。当技能目录分组与 skill_id 不一致时，管理器 MUST 仍按该格式展示。
+
+#### Scenario: 展示 skill_id 与目录名
+- **WHEN** 技能 `skill_id` 为 `brainstorming`，目录名为 `superpowers.brainstorming`
+- **THEN** 交互选项显示为 `brainstorming (superpowers.brainstorming)`
+
