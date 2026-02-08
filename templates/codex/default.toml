@@ -1,0 +1,21 @@
+# llman codex provider configuration
+# Each [model_providers.<group_name>] block defines a provider.
+# The [model_providers.<group_name>.env] sub-table holds the actual API key
+# that will be injected as an environment variable when running codex.
+#
+# Example:
+#
+# [model_providers.minimax]
+# name = "minimax"
+# base_url = "https://api.minimaxi.com/v1"
+# wire_api = "responses"
+# env_key = "MINIMAX_CODEX_API_KEY"
+#
+# [model_providers.minimax.env]
+# MINIMAX_CODEX_API_KEY = "sk-your-key-here"
+#
+# Usage:
+#   llman x codex                    # interactive select & run
+#   llman x codex run --group minimax  # direct run
+#   llman x codex account import     # add a new provider interactively
+#   llman x codex account edit       # edit this file
