@@ -1275,193 +1275,123 @@ claude_code:
         recommendation:
           en: "Review this command pattern for potential security implications."
 
-# OpenAI Codex configuration - symlink + groups
+# OpenAI Codex configuration - provider upsert + env injection
 codex:
-  # Account management
   account:
-    no_groups:
-      en: "No configuration groups found"
-    create_hint:
-      en: "Use 'llman x codex account create <name>' to create a new group"
-    list_header:
-      en: "Available codex configuration groups:"
-    current_group:
-      en: "Current group: %{name}"
-    current_indicator:
-      en: "(current)"
-    current_marker:
-      en: " *"
-    switched:
-      en: "✓ Switched to group: %{name}"
-    created:
-      en: "✓ Group '%{name}' created successfully"
-    edit_hint:
-      en: "Edit with: llman x codex account edit %{name}"
+    config_created:
+      en: "Created default configuration at: %{path}"
     edited:
-      en: "✓ Group '%{name}' edited successfully"
+      en: "✓ Configuration edited successfully"
     imported:
-      en: "✓ Group '%{name}' imported successfully"
-    deleted:
-      en: "✓ Group '%{name}' deleted successfully"
-    delete_cancelled:
-      en: "Deletion cancelled"
+      en: "✓ Provider '%{name}' imported successfully"
 
-  # Interactive flow
   interactive:
     select_group:
-      en: "Select a codex configuration group:"
-    select_template:
-      en: "Select a template:"
-    delete_warning:
-      en: "You are about to delete group '%{name}'. This action cannot be undone."
-    confirm_delete:
-      en: "Are you sure you want to delete group '%{name}'?"
+      en: "Select a configuration group to activate:"
+    import_group_name:
+      en: "Provider group name:"
+    import_group_name_help:
+      en: "e.g., openai, minimax, custom-provider"
+    import_base_url:
+      en: "Base URL:"
+    import_base_url_help:
+      en: "e.g., https://api.openai.com/v1"
+    import_env_key_id:
+      en: "Environment variable name for API key:"
+    import_env_key_id_help:
+      en: "The env var codex will read (default: CODEX_API_KEY)"
+    import_api_key_value:
+      en: "API key value:"
+    import_api_key_value_help:
+      en: "Your actual API key (stored in llman config only)"
 
-  # Errors
+  main:
+    no_configs_found:
+      en: "No codex provider configurations found"
+    suggestion:
+      en: "Get started with:"
+    command_import:
+      en: "llman x codex account import"
+    command_edit:
+      en: "llman x codex account edit"
+    config_location:
+      en: "Configuration file"
+
+  run:
+    interactive:
+      prompt_args:
+        en: "Do you want to pass arguments to codex?"
+      enter_args:
+        en: "Enter arguments for codex command:"
+      args_help:
+        en: "e.g., --version --help"
+      args_parse_failed:
+        en: "Invalid argument string: %{error}. Please try again."
+    using_config:
+      en: "Using configuration: %{name}"
+    provider_synced:
+      en: "✓ Provider '%{name}' synced to ~/.codex/config.toml"
+    error:
+      group_required_non_interactive:
+        en: "Error: In non-interactive mode, --group is required"
+      use_i_or_group:
+        en: "Use -i for interactive mode or specify --group <name>"
+
   error:
     group_not_found:
-      en: "Group '%{name}' not found"
+      en: "Provider '%{name}' not found"
     group_exists:
-      en: "Group '%{name}' already exists"
-    codex_not_found:
-      en: "Codex CLI not found. Please install it first: npm install -g @openai/codex"
-    unknown_template:
-      en: "Unknown template: %{template}"
+      en: "Provider '%{name}' already exists. Use 'account edit' to modify."
     failed_codex_command:
       en: "Failed to run codex command"
-    profile_not_found:
-      en: "Profile '%{name}' not found"
-    no_last_used:
-      en: "No profile specified and no last used profile found"
-
-    file_not_found:
-      en: "File not found: %{path}"
-
     open_editor_failed:
       en: "Failed to open editor: %{editor}"
-
     invalid_editor_command:
       en: "Invalid editor command: %{editor} (%{error})"
-
     editor_exit_status:
       en: "Editor exited with status: %{status}"
-
     execute_failed:
       en: "Failed to execute codex"
-
-    exit_status:
-      en: "Codex exited with status: %{status}"
-
     select_group_failed:
       en: "Failed to select group"
-
-    select_group_map_failed:
-      en: "Failed to map selection to group"
-
-    select_template_failed:
-      en: "Failed to select template"
-
-    confirm_delete_failed:
-      en: "Failed to confirm deletion"
-
-    metadata_read_failed:
-      en: "Failed to read metadata file: %{path}"
-
-    metadata_parse_failed:
-      en: "Failed to parse metadata file: %{path}"
-
-    metadata_create_dir_failed:
-      en: "Failed to create codex directory: %{path}"
-
-    metadata_serialize_failed:
-      en: "Failed to serialize metadata"
-
-    metadata_write_failed:
-      en: "Failed to write metadata file: %{path}"
-
-    create_group_dir_failed:
-      en: "Failed to create group directory: %{path}"
-
-    create_group_write_failed:
-      en: "Failed to write group file: %{path}"
-
-    import_group_dir_failed:
-      en: "Failed to create import directory: %{path}"
-
-    import_group_copy_failed:
-      en: "Failed to copy group file: %{source} -> %{target}"
-
-    delete_group_failed:
-      en: "Failed to delete group file: %{path}"
-
-    read_group_failed:
-      en: "Failed to read group configuration: %{path}"
-
-    backup_failed:
-      en: "Failed to back up existing config: %{path}"
-
-    remove_existing_config_failed:
-      en: "Failed to remove existing config: %{path}"
-
-    create_codex_config_dir_failed:
-      en: "Failed to create codex config directory: %{path}"
-
+    no_configuration_selected:
+      en: "No configuration selected"
+    prompt_args_failed:
+      en: "Failed to prompt for arguments"
+    args_input_failed:
+      en: "Failed to get codex arguments"
+    import_prompt_failed:
+      en: "Failed during import prompt"
+    load_config_failed:
+      en: "Failed to load configuration"
+    parse_config_failed:
+      en: "Failed to parse configuration: %{path}"
+    project_dir_not_found:
+      en: "Could not determine project directory"
+    create_config_dir_failed:
+      en: "Failed to create config directory: %{path}"
+    serialize_config_failed:
+      en: "Failed to serialize configuration"
+    write_config_failed:
+      en: "Failed to write configuration: %{path}"
+    metadata_failed:
+      en: "Failed to read file metadata"
+    permissions_failed:
+      en: "Failed to set file permissions"
     home_dir_failed:
       en: "Failed to get home directory"
-
-    symlink_failed:
-      en: "Failed to create symlink: %{source} -> %{target}"
-
-    copy_failed:
-      en: "Failed to copy config file: %{source} -> %{target}"
-
-  # Config import/migration
-  config:
-    backup_notice:
-      en: "Backed up existing config to: %{path}"
-
-    import:
-      found_existing:
-        en: "Found existing OpenAI Codex configuration, importing..."
-      imported_as_default:
-        en: "Existing configuration imported as 'default'"
-      default_location:
-        en: "Default configuration location: %{path}"
-    setup:
-      creating_default:
-        en: "First time use, creating default configuration..."
-      default_created:
-        en: "Default configuration created"
-    migrate:
-      detected_regular_file:
-        en: "Detected regular configuration file, migrating to symlink system..."
-      migrated_success:
-        en: "Configuration migrated to symlink system successfully"
-      backup_location:
-        en: "Original configuration backed up to: %{path}"
-
-  # Validation rules
-  validation:
-    name_required:
-      en: "Configuration name is required"
-    invalid_chars:
-      en: "Name can only contain letters, numbers, hyphens, and underscores"
-    name_too_short:
-      en: "Name must be at least 2 characters long"
-    name_too_long:
-      en: "Name must be less than 50 characters"
-
-
-  # Security warnings
-  security:
-    warning:
-      en: "Configuration path: <{config_path}> Configuration item: {config_item} is prohibited in <llman config>/claude-code.toml"
-    disabled:
-      en: "Security checks are disabled"
-    no_settings:
-      en: "No Claude Code settings files found"
-    parse_error:
-      en: "Error parsing settings file {path}: {error}"
+    read_codex_config_failed:
+      en: "Failed to read ~/.codex/config.toml"
+    parse_codex_config_failed:
+      en: "Failed to parse ~/.codex/config.toml"
+    codex_config_not_table:
+      en: "~/.codex/config.toml root is not a TOML table"
+    create_codex_dir_failed:
+      en: "Failed to create ~/.codex directory"
+    serialize_codex_config_failed:
+      en: "Failed to serialize codex config"
+    write_codex_config_failed:
+      en: "Failed to write ~/.codex/config.toml"
 
 # SDD workflow
 sdd:

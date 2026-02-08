@@ -1,341 +1,201 @@
-use crate::config::resolve_config_dir;
-use anyhow::{Context, Result, bail};
+use crate::path_utils::safe_parent_for_creation;
+use anyhow::{Context, Result, anyhow};
+use directories::ProjectDirs;
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use toml::Value;
 
-/// Metadata for codex configuration management
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Metadata {
-    /// Currently selected group
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub current_group: Option<String>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfig {
+    pub name: String,
+    pub base_url: String,
+    #[serde(default = "default_wire_api")]
+    pub wire_api: String,
+    pub env_key: String,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
 }
 
-impl Metadata {
-    /// Load metadata from file
+fn default_wire_api() -> String {
+    "responses".to_string()
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct Config {
+    #[serde(default)]
+    pub model_providers: HashMap<String, ProviderConfig>,
+}
+
+impl Config {
     pub fn load() -> Result<Self> {
-        let path = Self::metadata_path()?;
+        let path = Self::config_file_path()?;
+        Self::load_from_path(&path)
+    }
 
+    pub fn load_from_path(path: &PathBuf) -> Result<Self> {
         if !path.exists() {
-            return Ok(Self {
-                current_group: None,
-            });
+            return Ok(Self::default());
         }
 
-        let content = fs::read_to_string(&path).context(t!(
-            "codex.error.metadata_read_failed",
-            path = path.display()
-        ))?;
+        let content = fs::read_to_string(path)
+            .with_context(|| t!("codex.error.load_config_failed", path = path.display()))?;
 
-        let metadata: Self = toml::from_str(&content).context(t!(
-            "codex.error.metadata_parse_failed",
-            path = path.display()
-        ))?;
-
-        Ok(metadata)
+        toml::from_str(&content)
+            .with_context(|| t!("codex.error.parse_config_failed", path = path.display()))
     }
 
-    /// Save metadata to file
+    pub fn provider_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.model_providers.keys().cloned().collect();
+        names.sort();
+        names
+    }
+
+    pub fn get_provider(&self, name: &str) -> Option<&ProviderConfig> {
+        self.model_providers.get(name)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.model_providers.is_empty()
+    }
+
+    pub fn add_provider(&mut self, key: String, provider: ProviderConfig) {
+        self.model_providers.insert(key, provider);
+    }
+
+    pub fn config_file_path() -> Result<PathBuf> {
+        if let Ok(config_dir) = std::env::var("LLMAN_CONFIG_DIR") {
+            return Ok(PathBuf::from(config_dir).join("codex.toml"));
+        }
+        let project_dirs = ProjectDirs::from("com", "StrayDragon", "llman")
+            .ok_or_else(|| anyhow!(t!("codex.error.project_dir_not_found")))?;
+        Ok(project_dirs.config_dir().join("codex.toml"))
+    }
+
     pub fn save(&self) -> Result<()> {
-        let path = Self::metadata_path()?;
+        let path = Self::config_file_path()?;
+        self.save_to_path(&path)
+    }
 
-        // Create parent directory if needed
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).context(t!(
-                "codex.error.metadata_create_dir_failed",
-                path = parent.display()
-            ))?;
+    pub fn save_to_path(&self, path: &PathBuf) -> Result<()> {
+        if let Some(parent) = safe_parent_for_creation(path) {
+            fs::create_dir_all(parent).with_context(|| {
+                t!(
+                    "codex.error.create_config_dir_failed",
+                    path = parent.display()
+                )
+            })?;
         }
 
-        let content =
-            toml::to_string_pretty(self).context(t!("codex.error.metadata_serialize_failed"))?;
+        let content = toml::to_string_pretty(self)
+            .with_context(|| t!("codex.error.serialize_config_failed"))?;
 
-        fs::write(&path, content).context(t!(
-            "codex.error.metadata_write_failed",
-            path = path.display()
-        ))?;
+        fs::write(path, content)
+            .with_context(|| t!("codex.error.write_config_failed", path = path.display()))?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(path)
+                .with_context(|| t!("codex.error.metadata_failed"))?
+                .permissions();
+            perms.set_mode(0o600);
+            fs::set_permissions(path, perms)
+                .with_context(|| t!("codex.error.permissions_failed"))?;
+        }
 
         Ok(())
-    }
-
-    /// Get metadata file path
-    fn metadata_path() -> Result<PathBuf> {
-        let codex_dir = Self::codex_dir()?;
-        Ok(codex_dir.join("metadata.toml"))
-    }
-
-    /// Get codex configuration directory
-    pub fn codex_dir() -> Result<PathBuf> {
-        let config_dir = resolve_config_dir(None)?;
-        Ok(config_dir.join("codex"))
-    }
-
-    /// Get groups directory path
-    pub fn groups_dir() -> Result<PathBuf> {
-        Ok(Self::codex_dir()?.join("groups"))
     }
 }
 
-/// Configuration manager for codex groups
-pub struct ConfigManager;
-
-impl ConfigManager {
-    /// List all available groups
-    pub fn get_group_names() -> Result<Vec<String>> {
-        let groups_dir = Metadata::groups_dir()?;
-
-        if !groups_dir.exists() {
-            return Ok(Vec::new());
-        }
-
-        let mut groups = Vec::new();
-
-        for entry in fs::read_dir(&groups_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-
-            if path.is_file()
-                && path.extension().and_then(|s| s.to_str()) == Some("toml")
-                && let Some(name) = path.file_stem().and_then(|s| s.to_str())
-            {
-                groups.push(name.to_string());
-            }
-        }
-
-        groups.sort();
-        Ok(groups)
-    }
-
-    /// Get path to a group's config file
-    pub fn group_path(name: &str) -> Result<PathBuf> {
-        let groups_dir = Metadata::groups_dir()?;
-        Ok(groups_dir.join(format!("{}.toml", name)))
-    }
-
-    /// Check if a group exists
-    pub fn group_exists(name: &str) -> Result<bool> {
-        Ok(Self::group_path(name)?.exists())
-    }
-
-    /// Create a new group from template
-    pub fn create_group(name: &str, template: &str) -> Result<()> {
-        let group_path = Self::group_path(name)?;
-
-        if group_path.exists() {
-            bail!("{}", t!("codex.error.group_exists", name = name));
-        }
-
-        // Create groups directory if needed
-        if let Some(parent) = group_path.parent() {
-            fs::create_dir_all(parent).context(t!(
-                "codex.error.create_group_dir_failed",
-                path = parent.display()
-            ))?;
-        }
-
-        // Write template
-        fs::write(&group_path, template).context(t!(
-            "codex.error.create_group_write_failed",
-            path = group_path.display()
-        ))?;
-
-        Ok(())
-    }
-
-    /// Import a group from existing codex config
-    pub fn import_group(name: &str, source_path: &Path) -> Result<()> {
-        let group_path = Self::group_path(name)?;
-
-        if group_path.exists() {
-            bail!("{}", t!("codex.error.group_exists", name = name));
-        }
-
-        // Create groups directory if needed
-        if let Some(parent) = group_path.parent() {
-            fs::create_dir_all(parent).context(t!(
-                "codex.error.import_group_dir_failed",
-                path = parent.display()
-            ))?;
-        }
-
-        // Copy file
-        fs::copy(source_path, &group_path).context(t!(
-            "codex.error.import_group_copy_failed",
-            source = source_path.display(),
-            target = group_path.display()
-        ))?;
-
-        Ok(())
-    }
-
-    /// Delete a group
-    pub fn delete_group(name: &str) -> Result<()> {
-        let group_path = Self::group_path(name)?;
-
-        if !group_path.exists() {
-            bail!("{}", t!("codex.error.group_not_found", name = name));
-        }
-
-        fs::remove_file(&group_path).context(t!(
-            "codex.error.delete_group_failed",
-            path = group_path.display()
-        ))?;
-
-        Ok(())
-    }
-
-    /// Read a group's configuration
-    pub fn get_group_content(name: &str) -> Result<String> {
-        let group_path = Self::group_path(name)?;
-
-        if !group_path.exists() {
-            bail!("{}", t!("codex.error.group_not_found", name = name));
-        }
-
-        fs::read_to_string(&group_path).context(t!(
-            "codex.error.read_group_failed",
-            path = group_path.display()
-        ))
-    }
-
-    /// Switch to a group by creating symlink
-    pub fn switch_group(name: &str) -> Result<()> {
-        let group_path = Self::group_path(name)?;
-
-        if !group_path.exists() {
-            bail!("{}", t!("codex.error.group_not_found", name = name));
-        }
-
-        let codex_config = Self::codex_config_path()?;
-
-        // Backup existing config if it's not a symlink
-        if codex_config.exists() && !Self::is_symlink(&codex_config) {
-            let backup_path = codex_config.with_extension("toml.backup");
-            fs::rename(&codex_config, &backup_path).context(t!(
-                "codex.error.backup_failed",
-                path = codex_config.display()
-            ))?;
-            eprintln!(
-                "{}",
-                t!("codex.config.backup_notice", path = backup_path.display())
-            );
-        }
-
-        // Remove existing symlink/file
-        if codex_config.exists() {
-            fs::remove_file(&codex_config).context(t!(
-                "codex.error.remove_existing_config_failed",
-                path = codex_config.display()
-            ))?;
-        }
-
-        // Create parent directory if needed
-        if let Some(parent) = codex_config.parent() {
-            fs::create_dir_all(parent).context(t!(
-                "codex.error.create_codex_config_dir_failed",
-                path = parent.display()
-            ))?;
-        }
-
-        // Create symlink
-        Self::create_symlink(&group_path, &codex_config)?;
-
-        // Update metadata
-        let mut metadata = Metadata::load()?;
-        metadata.current_group = Some(name.to_string());
-        metadata.save()?;
-
-        Ok(())
-    }
-
-    /// Get the path to ~/.codex/config.toml
-    fn codex_config_path() -> Result<PathBuf> {
-        let home = dirs::home_dir().context(t!("codex.error.home_dir_failed"))?;
-        Ok(home.join(".codex").join("config.toml"))
-    }
-
-    /// Check if a path is a symlink
-    #[cfg(unix)]
-    fn is_symlink(path: &Path) -> bool {
-        path.symlink_metadata()
-            .map(|m| m.file_type().is_symlink())
-            .unwrap_or(false)
-    }
-
-    #[cfg(windows)]
-    fn is_symlink(_path: &Path) -> bool {
-        // On Windows, we use file copy instead of symlink
-        false
-    }
-
-    /// Create a symlink (or copy on Windows)
-    #[cfg(unix)]
-    fn create_symlink(source: &Path, target: &Path) -> Result<()> {
-        std::os::unix::fs::symlink(source, target).context(t!(
-            "codex.error.symlink_failed",
-            source = source.display(),
-            target = target.display()
-        ))?;
-        Ok(())
-    }
-
-    #[cfg(windows)]
-    fn create_symlink(source: &Path, target: &Path) -> Result<()> {
-        // On Windows, copy the file instead of creating symlink
-        fs::copy(source, target).context(t!(
-            "codex.error.copy_failed",
-            source = source.display(),
-            target = target.display()
-        ))?;
-        Ok(())
-    }
-
-    /// Get default templates for common providers
-    pub fn get_template(provider: &str) -> &'static str {
-        match provider {
-            "openai" => include_str!("../../../templates/codex/openai.toml"),
-            "minimax" => include_str!("../../../templates/codex/minimax.toml"),
-            "rightcode" => include_str!("../../../templates/codex/rightcode.toml"),
-            _ => include_str!("../../../templates/codex/custom.toml"),
-        }
-    }
+/// Build a TOML table for a provider (without the env sub-table) for upsert into codex config.
+pub fn provider_to_codex_table(provider: &ProviderConfig) -> Value {
+    let mut table = toml::map::Map::new();
+    table.insert("name".into(), Value::String(provider.name.clone()));
+    table.insert("base_url".into(), Value::String(provider.base_url.clone()));
+    table.insert("wire_api".into(), Value::String(provider.wire_api.clone()));
+    table.insert("env_key".into(), Value::String(provider.env_key.clone()));
+    Value::Table(table)
 }
 
-/// Template provider enum
-#[derive(Debug, Clone, Copy)]
-pub enum TemplateProvider {
-    OpenAI,
-    MiniMax,
-    RightCode,
-    Custom,
+/// Upsert the selected provider into `~/.codex/config.toml`.
+/// Sets `model_provider = "<name>"` and `model_providers.<name> = { ... }`.
+/// Returns true if the file was actually written (config changed), false if already up-to-date.
+pub fn upsert_to_codex_config(provider_key: &str, provider: &ProviderConfig) -> Result<bool> {
+    let codex_config_path = codex_config_path()?;
+
+    let mut doc: Value = if codex_config_path.exists() {
+        let content = fs::read_to_string(&codex_config_path)
+            .with_context(|| t!("codex.error.read_codex_config_failed"))?;
+        toml::from_str(&content).with_context(|| t!("codex.error.parse_codex_config_failed"))?
+    } else {
+        Value::Table(toml::map::Map::new())
+    };
+
+    let root = doc
+        .as_table_mut()
+        .ok_or_else(|| anyhow!(t!("codex.error.codex_config_not_table")))?;
+
+    let new_provider_table = provider_to_codex_table(provider);
+
+    // Check if already up-to-date
+    let current_model_provider = root
+        .get("model_provider")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let current_provider_entry = root
+        .get("model_providers")
+        .and_then(|v| v.as_table())
+        .and_then(|t| t.get(provider_key));
+
+    if current_model_provider.as_deref() == Some(provider_key)
+        && current_provider_entry == Some(&new_provider_table)
+    {
+        return Ok(false);
+    }
+
+    // Set model_provider
+    root.insert(
+        "model_provider".into(),
+        Value::String(provider_key.to_string()),
+    );
+
+    // Upsert model_providers.<name>
+    let providers = root
+        .entry("model_providers")
+        .or_insert_with(|| Value::Table(toml::map::Map::new()));
+
+    if let Some(providers_table) = providers.as_table_mut() {
+        providers_table.insert(provider_key.to_string(), new_provider_table);
+    }
+
+    // Write back
+    if let Some(parent) = codex_config_path.parent() {
+        fs::create_dir_all(parent).with_context(|| t!("codex.error.create_codex_dir_failed"))?;
+    }
+
+    let output = toml::to_string_pretty(&doc)
+        .with_context(|| t!("codex.error.serialize_codex_config_failed"))?;
+
+    fs::write(&codex_config_path, output)
+        .with_context(|| t!("codex.error.write_codex_config_failed"))?;
+
+    Ok(true)
 }
 
-impl TemplateProvider {
-    pub fn all() -> Vec<Self> {
-        vec![Self::OpenAI, Self::MiniMax, Self::RightCode, Self::Custom]
-    }
+/// Get the path to `~/.codex/config.toml`.
+fn codex_config_path() -> Result<PathBuf> {
+    let home = dirs::home_dir().context(t!("codex.error.home_dir_failed"))?;
+    Ok(home.join(".codex").join("config.toml"))
+}
 
-    pub fn display_name(&self) -> &str {
-        match self {
-            Self::OpenAI => "OpenAI (gpt-5-codex)",
-            Self::MiniMax => "MiniMax (codex-MiniMax-M2)",
-            Self::RightCode => "RightCode (gpt-5.1-codex)",
-            Self::Custom => "Custom",
-        }
-    }
-
-    pub fn key(&self) -> &str {
-        match self {
-            Self::OpenAI => "openai",
-            Self::MiniMax => "minimax",
-            Self::RightCode => "rightcode",
-            Self::Custom => "custom",
-        }
-    }
-
-    pub fn template(&self) -> &'static str {
-        ConfigManager::get_template(self.key())
+pub fn mask_secret(value: &str) -> String {
+    if value.len() <= 8 {
+        "*".repeat(value.len())
+    } else {
+        format!("{}...{}", &value[..4], &value[value.len() - 4..])
     }
 }

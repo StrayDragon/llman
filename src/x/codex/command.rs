@@ -1,12 +1,11 @@
 use crate::arg_utils::split_shell_args;
+use crate::x::codex::config::{Config, upsert_to_codex_config};
+use crate::x::codex::interactive;
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
-use std::path::{Path, PathBuf};
+use std::fs;
 use std::process::Command;
-
-use super::config::{ConfigManager, Metadata};
-use super::interactive;
 
 #[derive(Args)]
 #[command(
@@ -18,91 +17,43 @@ use super::interactive;
 pub struct CodexArgs {
     #[command(subcommand)]
     pub command: Option<CodexCommands>,
-
-    /// Arguments to pass to codex (when no subcommand)
-    #[arg(last = true)]
-    pub args: Vec<String>,
 }
 
 #[derive(Subcommand)]
 pub enum CodexCommands {
-    /// Manage Codex configuration groups
+    /// Manage Codex configuration
+    #[command(alias = "a")]
     Account {
         #[command(subcommand)]
-        command: Option<AccountCommands>,
+        action: Option<AccountAction>,
+    },
+    /// Run codex with configuration selection
+    Run {
+        #[arg(
+            short = 'i',
+            long,
+            help = "Interactive mode: prompt for configuration and arguments"
+        )]
+        interactive: bool,
+
+        #[arg(long = "group", help = "Configuration group name to use")]
+        group: Option<String>,
+
+        #[arg(
+            trailing_var_arg = true,
+            allow_hyphen_values = true,
+            help = "Arguments to pass to codex (use -- to separate from run options)"
+        )]
+        args: Vec<String>,
     },
 }
 
 #[derive(Subcommand)]
-pub enum AccountCommands {
-    /// List all configuration groups
-    List,
-    /// Use a specific group
-    Use {
-        /// Group name
-        name: String,
-    },
-    /// Create a new group
-    Create {
-        /// Group name
-        name: String,
-        /// Template provider (openai, minimax, rightcode, custom)
-        #[arg(short, long)]
-        template: Option<String>,
-    },
-    /// Edit a group's configuration
-    Edit {
-        /// Group name
-        name: String,
-    },
-    /// Import a group from existing codex config
-    Import {
-        /// Group name
-        name: String,
-        /// Path to codex config file
-        path: PathBuf,
-    },
-    /// Delete a group
-    #[command(alias = "rm")]
-    Delete {
-        /// Group name
-        name: String,
-    },
-}
-
-pub fn run(args: &CodexArgs) -> Result<()> {
-    match &args.command {
-        None => {
-            // Interactive mode: select group and execute codex
-            handle_interactive_execution(&args.args)?;
-        }
-        Some(CodexCommands::Account { command }) => match command {
-            None => {
-                // Default: list groups
-                handle_account_list()?;
-            }
-            Some(AccountCommands::List) => {
-                handle_account_list()?;
-            }
-            Some(AccountCommands::Use { name }) => {
-                handle_account_use(name)?;
-            }
-            Some(AccountCommands::Create { name, template }) => {
-                handle_account_create(name, template.as_deref())?;
-            }
-            Some(AccountCommands::Edit { name }) => {
-                handle_account_edit(name)?;
-            }
-            Some(AccountCommands::Import { name, path }) => {
-                handle_account_import(name, path)?;
-            }
-            Some(AccountCommands::Delete { name }) => {
-                handle_account_delete(name)?;
-            }
-        },
-    }
-
-    Ok(())
+pub enum AccountAction {
+    /// Edit codex configuration file
+    Edit,
+    /// Import a new provider configuration interactively
+    Import,
 }
 
 fn select_editor_raw() -> String {
@@ -131,205 +82,204 @@ fn parse_editor_command(raw: &str) -> Result<(String, Vec<String>)> {
     }
 }
 
-/// Handle interactive group selection and execution (llman x codex)
-fn handle_interactive_execution(args: &[String]) -> Result<()> {
-    let groups = ConfigManager::get_group_names()?;
+pub fn run(args: &CodexArgs) -> Result<()> {
+    match &args.command {
+        None => handle_main_command()?,
+        Some(CodexCommands::Account { action }) => handle_account_command(action.as_ref())?,
+        Some(CodexCommands::Run {
+            interactive,
+            group,
+            args,
+        }) => handle_run_command(*interactive, group.as_deref(), args.clone())?,
+    }
+    Ok(())
+}
 
-    if groups.is_empty() {
-        bail!(
-            "{}\n{}",
-            t!("codex.account.no_groups"),
-            t!("codex.account.create_hint")
+/// `llman x codex` — interactive select → upsert provider → inject env → exec codex
+fn handle_main_command() -> Result<()> {
+    let config = Config::load().context(t!("codex.error.load_config_failed"))?;
+
+    if config.is_empty() {
+        bail!(no_configs_message());
+    }
+
+    if let Some(selected) = interactive::select_provider(&config)? {
+        activate_and_exec(&config, &selected, &[])?;
+    }
+
+    Ok(())
+}
+
+fn handle_account_command(action: Option<&AccountAction>) -> Result<()> {
+    match action {
+        Some(AccountAction::Edit) | None => handle_account_edit()?,
+        Some(AccountAction::Import) => handle_account_import()?,
+    }
+    Ok(())
+}
+
+fn handle_account_edit() -> Result<()> {
+    let config_path = Config::config_file_path()?;
+
+    if !config_path.exists() {
+        if let Some(parent) = config_path.parent() {
+            fs::create_dir_all(parent).context(t!(
+                "codex.error.create_config_dir_failed",
+                path = parent.display()
+            ))?;
+        }
+        let template = include_str!("../../../templates/codex/default.toml");
+        fs::write(&config_path, template).context(t!(
+            "codex.error.write_config_failed",
+            path = config_path.display()
+        ))?;
+        println!(
+            "{}",
+            t!("codex.account.config_created", path = config_path.display())
         );
     }
-
-    // Select group
-    let group_name = interactive::select_group(&groups)?;
-
-    // Switch to group
-    ConfigManager::switch_group(&group_name)?;
-
-    println!("{}", t!("codex.account.switched", name = &group_name));
-
-    // Execute codex
-    execute_codex(args)?;
-
-    Ok(())
-}
-
-/// Handle account list (llman x codex account list)
-fn handle_account_list() -> Result<()> {
-    let groups = ConfigManager::get_group_names()?;
-
-    if groups.is_empty() {
-        println!("{}", t!("codex.account.no_groups"));
-        println!("{}", t!("codex.account.create_hint"));
-        return Ok(());
-    }
-
-    let metadata = Metadata::load()?;
-
-    println!("{}", t!("codex.account.list_header"));
-    println!();
-
-    for name in groups {
-        let is_current = metadata.current_group.as_ref() == Some(&name);
-        if is_current {
-            println!("  {}{}", name, t!("codex.account.current_marker"));
-        } else {
-            println!("  {}", name);
-        }
-    }
-
-    println!();
-
-    if let Some(ref current) = metadata.current_group {
-        println!("{}", t!("codex.account.current_group", name = current));
-    }
-
-    Ok(())
-}
-
-/// Handle account use (llman x codex account use \<name\>)
-fn handle_account_use(name: &str) -> Result<()> {
-    if !ConfigManager::group_exists(name)? {
-        bail!("{}", t!("codex.error.group_not_found", name = name));
-    }
-
-    ConfigManager::switch_group(name)?;
-
-    println!("{}", t!("codex.account.switched", name = name));
-
-    Ok(())
-}
-
-/// Handle account create (llman x codex account create \<name\>)
-fn handle_account_create(name: &str, template: Option<&str>) -> Result<()> {
-    if ConfigManager::group_exists(name)? {
-        bail!("{}", t!("codex.error.group_exists", name = name));
-    }
-
-    let template_key = if let Some(t) = template {
-        t
-    } else {
-        // Interactive template selection
-        interactive::select_template()?
-    };
-
-    let template_content = ConfigManager::get_template(template_key);
-
-    ConfigManager::create_group(name, template_content)?;
-
-    println!("{}", t!("codex.account.created", name = name));
-    println!("{}", t!("codex.account.edit_hint", name = name));
-
-    Ok(())
-}
-
-/// Handle account edit (llman x codex account edit \<name\>)
-fn handle_account_edit(name: &str) -> Result<()> {
-    if !ConfigManager::group_exists(name)? {
-        bail!("{}", t!("codex.error.group_not_found", name = name));
-    }
-
-    let group_path = ConfigManager::group_path(name)?;
 
     let editor_raw = select_editor_raw();
     let (editor_cmd, editor_args) = parse_editor_command(&editor_raw)?;
 
-    // Open editor
     let status = Command::new(&editor_cmd)
         .args(editor_args)
-        .arg(&group_path)
+        .arg(&config_path)
         .status()
         .context(t!("codex.error.open_editor_failed", editor = editor_raw))?;
 
     if !status.success() {
-        bail!("{}", t!("codex.error.editor_exit_status", status = status));
+        bail!(t!("codex.error.editor_exit_status", status = status));
     }
 
-    println!("{}", t!("codex.account.edited", name = name));
-
+    println!("{}", t!("codex.account.edited"));
     Ok(())
 }
 
-/// Handle account import (llman x codex account import \<name\> \<path\>)
-fn handle_account_import(name: &str, path: &Path) -> Result<()> {
-    if ConfigManager::group_exists(name)? {
-        bail!("{}", t!("codex.error.group_exists", name = name));
+fn handle_account_import() -> Result<()> {
+    if let Some((key, provider)) = interactive::prompt_import()? {
+        let mut config = Config::load().context(t!("codex.error.load_config_failed"))?;
+
+        if config.model_providers.contains_key(&key) {
+            bail!(t!("codex.error.group_exists", name = key));
+        }
+
+        config.add_provider(key.clone(), provider);
+        config.save()?;
+        println!("{}", t!("codex.account.imported", name = key));
+    }
+    Ok(())
+}
+
+fn handle_run_command(
+    interactive_mode: bool,
+    group_name: Option<&str>,
+    args: Vec<String>,
+) -> Result<()> {
+    let config = Config::load().context(t!("codex.error.load_config_failed"))?;
+
+    if config.is_empty() {
+        bail!(no_configs_message());
     }
 
-    if !path.exists() {
+    if !interactive_mode && group_name.is_none() {
         bail!(
-            "{}",
-            t!("codex.error.file_not_found", path = path.display())
+            "{}\n{}",
+            t!("codex.run.error.group_required_non_interactive"),
+            t!("codex.run.error.use_i_or_group")
         );
     }
 
-    ConfigManager::import_group(name, path)?;
+    let (selected, codex_args) = if interactive_mode {
+        handle_interactive_mode(&config)?
+    } else {
+        (group_name.unwrap().to_string(), args)
+    };
 
-    println!("{}", t!("codex.account.imported", name = name));
-
-    Ok(())
-}
-
-/// Handle account delete (llman x codex account delete \<name\>)
-fn handle_account_delete(name: &str) -> Result<()> {
-    if !ConfigManager::group_exists(name)? {
-        bail!("{}", t!("codex.error.group_not_found", name = name));
-    }
-
-    // Confirm deletion
-    if !interactive::confirm_delete(name)? {
-        println!("{}", t!("codex.account.delete_cancelled"));
-        return Ok(());
-    }
-
-    ConfigManager::delete_group(name)?;
-
-    // Clear current_group if it was deleted
-    let mut metadata = Metadata::load()?;
-    if metadata.current_group.as_ref() == Some(&name.to_string()) {
-        metadata.current_group = None;
-        metadata.save()?;
-    }
-
-    println!("{}", t!("codex.account.deleted", name = name));
+    activate_and_exec(&config, &selected, &codex_args)?;
 
     Ok(())
 }
 
-/// Execute codex with arguments
-fn execute_codex(args: &[String]) -> Result<()> {
-    // Check if codex is available
-    if !is_codex_available() {
-        bail!("{}", t!("codex.error.codex_not_found"));
+/// Core: upsert provider to codex config, inject env vars, exec codex.
+fn activate_and_exec(config: &Config, provider_key: &str, args: &[String]) -> Result<()> {
+    let provider = config
+        .get_provider(provider_key)
+        .ok_or_else(|| anyhow::anyhow!(t!("codex.error.group_not_found", name = provider_key)))?;
+
+    // Upsert provider to ~/.codex/config.toml
+    let wrote = upsert_to_codex_config(provider_key, provider)?;
+    if wrote {
+        println!("{}", t!("codex.run.provider_synced", name = provider_key));
     }
 
-    // Build command
+    println!("{}", t!("codex.run.using_config", name = provider_key));
+
+    // Execute codex with injected env vars
     let mut cmd = Command::new("codex");
-
+    for (key, value) in &provider.env {
+        cmd.env(key, value);
+    }
     for arg in args {
         cmd.arg(arg);
     }
 
-    // Execute
     let status = cmd.status().context(t!("codex.error.execute_failed"))?;
 
     if !status.success() {
-        bail!("{}", t!("codex.error.exit_status", status = status));
+        bail!(t!("codex.error.failed_codex_command"));
     }
 
     Ok(())
 }
 
-/// Check if codex CLI is available
-fn is_codex_available() -> bool {
-    Command::new("codex")
-        .arg("--version")
-        .output()
-        .ok()
-        .is_some_and(|output| output.status.success())
+fn no_configs_message() -> String {
+    let config_path = Config::config_file_path()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "unknown".to_string());
+
+    format!(
+        "{}\n\n{}\n  {}\n  {}\n\n{}:\n  {}",
+        t!("codex.main.no_configs_found"),
+        t!("codex.main.suggestion"),
+        t!("codex.main.command_import"),
+        t!("codex.main.command_edit"),
+        t!("codex.main.config_location"),
+        config_path
+    )
+}
+
+fn handle_interactive_mode(config: &Config) -> Result<(String, Vec<String>)> {
+    let selected = interactive::select_provider(config)?
+        .ok_or_else(|| anyhow::anyhow!(t!("codex.error.no_configuration_selected")))?;
+
+    let use_args = inquire::Confirm::new(&t!("codex.run.interactive.prompt_args"))
+        .with_default(false)
+        .prompt()
+        .context(t!("codex.error.prompt_args_failed"))?;
+
+    let codex_args = if use_args {
+        loop {
+            let args_text = inquire::Text::new(&t!("codex.run.interactive.enter_args"))
+                .with_help_message(&t!("codex.run.interactive.args_help"))
+                .prompt()
+                .context(t!("codex.error.args_input_failed"))?;
+
+            match split_shell_args(&args_text) {
+                Ok(parsed) => break parsed,
+                Err(e) => {
+                    eprintln!(
+                        "{}",
+                        t!("codex.run.interactive.args_parse_failed", error = e)
+                    );
+                }
+            }
+        }
+    } else {
+        Vec::new()
+    };
+
+    Ok((selected, codex_args))
 }
 
 #[cfg(test)]
@@ -337,6 +287,7 @@ mod tests {
     use super::*;
     use crate::config::ENV_CONFIG_DIR;
     use crate::test_utils::ENV_MUTEX;
+    use crate::x::codex::config::{ProviderConfig, provider_to_codex_table};
     use std::env;
     use std::fs;
     use tempfile::TempDir;
@@ -389,14 +340,9 @@ mod tests {
             env::set_var(ENV_CONFIG_DIR, temp.path());
         }
 
-        // Create a dummy group so handle_account_edit can proceed.
-        let group_path = ConfigManager::group_path("demo").expect("group path");
-        if let Some(parent) = group_path.parent() {
-            fs::create_dir_all(parent).expect("create parent");
-        }
-        fs::write(&group_path, "key = \"value\"").expect("write group");
+        let config_path = temp.path().join("codex.toml");
+        fs::write(&config_path, "[model_providers]\n").expect("write config");
 
-        // Create an "editor" that exits non-zero.
         let editor_path = temp.path().join("fail-editor.sh");
         fs::write(&editor_path, "#!/bin/sh\nexit 42\n").expect("write editor");
         let mut perms = fs::metadata(&editor_path).expect("meta").permissions();
@@ -408,12 +354,97 @@ mod tests {
             env::set_var("EDITOR", editor_path.to_string_lossy().to_string());
         }
 
-        let err = handle_account_edit("demo").expect_err("should error");
+        let err = handle_account_edit().expect_err("should error");
         assert!(err.to_string().contains("Editor exited with status"));
 
         unsafe {
             env::remove_var(ENV_CONFIG_DIR);
             env::remove_var("EDITOR");
         }
+    }
+
+    #[test]
+    fn config_load_and_provider_access() {
+        let temp = TempDir::new().expect("temp dir");
+        let config_path = temp.path().join("codex.toml");
+
+        let content = r#"
+[model_providers.openai]
+name = "openai"
+base_url = "https://api.openai.com/v1"
+wire_api = "responses"
+env_key = "OPENAI_API_KEY"
+
+[model_providers.openai.env]
+OPENAI_API_KEY = "sk-test-key"
+
+[model_providers.minimax]
+name = "minimax"
+base_url = "https://api.minimax.com/v1"
+wire_api = "responses"
+env_key = "MINIMAX_KEY"
+
+[model_providers.minimax.env]
+MINIMAX_KEY = "sk-minimax"
+"#;
+        fs::write(&config_path, content).expect("write config");
+
+        let config = Config::load_from_path(&config_path).expect("load config");
+        assert_eq!(config.provider_names(), vec!["minimax", "openai"]);
+        assert!(!config.is_empty());
+
+        let openai = config.get_provider("openai").expect("openai");
+        assert_eq!(openai.base_url, "https://api.openai.com/v1");
+        assert_eq!(openai.env.get("OPENAI_API_KEY").unwrap(), "sk-test-key");
+
+        let minimax = config.get_provider("minimax").expect("minimax");
+        assert_eq!(minimax.env_key, "MINIMAX_KEY");
+        assert_eq!(minimax.env.get("MINIMAX_KEY").unwrap(), "sk-minimax");
+    }
+
+    #[test]
+    fn upsert_creates_and_updates_codex_config() {
+        let temp = TempDir::new().expect("temp dir");
+        let codex_dir = temp.path().join(".codex");
+        fs::create_dir_all(&codex_dir).expect("create .codex");
+        let codex_config = codex_dir.join("config.toml");
+
+        // Write initial codex config
+        fs::write(
+            &codex_config,
+            r#"model = "o3-pro"
+model_provider = "openai"
+
+[model_providers.openai]
+name = "openai"
+base_url = "https://api.openai.com/v1"
+wire_api = "responses"
+env_key = "OPENAI_API_KEY"
+"#,
+        )
+        .expect("write codex config");
+
+        let provider = ProviderConfig {
+            name: "minimax".into(),
+            base_url: "https://api.minimax.com/v1".into(),
+            wire_api: "responses".into(),
+            env_key: "MINIMAX_KEY".into(),
+            env: [("MINIMAX_KEY".into(), "sk-test".into())]
+                .into_iter()
+                .collect(),
+        };
+
+        // We can't easily test upsert_to_codex_config because it uses dirs::home_dir,
+        // but we can test the building blocks
+        let table = provider_to_codex_table(&provider);
+        assert!(table.is_table());
+        let t = table.as_table().unwrap();
+        assert_eq!(t.get("name").unwrap().as_str().unwrap(), "minimax");
+        assert_eq!(
+            t.get("base_url").unwrap().as_str().unwrap(),
+            "https://api.minimax.com/v1"
+        );
+        // env should NOT be in the codex table
+        assert!(t.get("env").is_none());
     }
 }

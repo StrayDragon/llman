@@ -1,74 +1,59 @@
+use crate::x::codex::config::{Config, ProviderConfig};
 use anyhow::{Context, Result};
-use inquire::{Confirm, Select};
+use inquire::{Select, Text};
 use rust_i18n::t;
 
-use super::config::{Metadata, TemplateProvider};
+pub fn select_provider(config: &Config) -> Result<Option<String>> {
+    if config.is_empty() {
+        return Ok(None);
+    }
 
-/// Select a group from available groups
-pub fn select_group(groups: &[String]) -> Result<String> {
-    let metadata = Metadata::load()?;
+    let names = config.provider_names();
 
-    // Add indicator for current group
-    let options: Vec<String> = groups
-        .iter()
-        .map(|name| {
-            if metadata.current_group.as_ref() == Some(name) {
-                format!("{} {}", name, t!("codex.account.current_indicator"))
-            } else {
-                name.clone()
-            }
-        })
-        .collect();
-
-    let selection = Select::new(&t!("codex.interactive.select_group"), options.clone())
+    let selection = Select::new(&t!("codex.interactive.select_group"), names)
         .prompt()
         .context(t!("codex.error.select_group_failed"))?;
 
-    let index = options
-        .iter()
-        .position(|option| option == &selection)
-        .context(t!("codex.error.select_group_map_failed"))?;
-
-    Ok(groups[index].clone())
+    Ok(Some(selection))
 }
 
-/// Select a template provider
-pub fn select_template() -> Result<&'static str> {
-    let templates = TemplateProvider::all();
-
-    let options: Vec<String> = templates
-        .iter()
-        .map(|t| t.display_name().to_string())
-        .collect();
-
-    let selection = Select::new(&t!("codex.interactive.select_template"), options)
+pub fn prompt_import() -> Result<Option<(String, ProviderConfig)>> {
+    let group_name = Text::new(&t!("codex.interactive.import_group_name"))
+        .with_help_message(&t!("codex.interactive.import_group_name_help"))
         .prompt()
-        .context(t!("codex.error.select_template_failed"))?;
+        .context(t!("codex.error.import_prompt_failed"))?;
 
-    // Map selection back to template key
-    let template = if selection.starts_with("OpenAI") {
-        "openai"
-    } else if selection.starts_with("MiniMax") {
-        "minimax"
-    } else if selection.starts_with("RightCode") {
-        "rightcode"
-    } else {
-        "custom"
+    let group_name = group_name.trim().to_string();
+    if group_name.is_empty() {
+        return Ok(None);
+    }
+
+    let base_url = Text::new(&t!("codex.interactive.import_base_url"))
+        .with_help_message(&t!("codex.interactive.import_base_url_help"))
+        .prompt()
+        .context(t!("codex.error.import_prompt_failed"))?;
+
+    let env_key_id = Text::new(&t!("codex.interactive.import_env_key_id"))
+        .with_default("CODEX_API_KEY")
+        .with_help_message(&t!("codex.interactive.import_env_key_id_help"))
+        .prompt()
+        .context(t!("codex.error.import_prompt_failed"))?;
+
+    let api_key_value = Text::new(&t!("codex.interactive.import_api_key_value"))
+        .with_help_message(&t!("codex.interactive.import_api_key_value_help"))
+        .prompt()
+        .context(t!("codex.error.import_prompt_failed"))?;
+
+    let mut env = std::collections::HashMap::new();
+    env.insert(env_key_id.clone(), api_key_value);
+
+    let provider = ProviderConfig {
+        name: group_name.clone(),
+        base_url,
+        wire_api: "responses".to_string(),
+        env_key: env_key_id,
+        env,
     };
 
-    Ok(template)
-}
-
-/// Confirm group deletion
-pub fn confirm_delete(name: &str) -> Result<bool> {
-    println!();
-    println!(
-        "⚠️  {}",
-        t!("codex.interactive.delete_warning", name = name)
-    );
-
-    Confirm::new(&t!("codex.interactive.confirm_delete", name = name))
-        .with_default(false)
-        .prompt()
-        .context(t!("codex.error.confirm_delete_failed"))
+    Ok(Some((group_name, provider)))
 }
