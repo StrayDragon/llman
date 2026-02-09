@@ -8,7 +8,7 @@ use anyhow::{Result, anyhow};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::generate;
 use inquire::Confirm;
-use jsonschema::JSONSchema;
+use jsonschema::validator_for;
 use serde_json::Value;
 use std::env;
 use std::fs;
@@ -492,10 +492,10 @@ fn load_schema(path: &std::path::Path) -> Result<Value> {
 }
 
 fn validate_schema(name: &str, schema: &Value, instance: Value) -> Result<()> {
-    let compiled = JSONSchema::compile(schema)
+    let validator = validator_for(schema)
         .map_err(|e| anyhow!(t!("self.schema.check_invalid", path = name, error = e)))?;
-    if let Err(errors) = compiled.validate(&instance) {
-        let first = format_schema_errors(errors.map(|e| e.to_string()));
+    if !validator.is_valid(&instance) {
+        let first = format_schema_errors(validator.iter_errors(&instance).map(|e| e.to_string()));
         return Err(anyhow!(t!(
             "self.schema.check_failed",
             name = name,
