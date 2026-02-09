@@ -14,7 +14,6 @@ const ENV_SKILLS_DIR: &str = "LLMAN_SKILLS_DIR";
 const LLMAN_CONFIG_FILE: &str = "config.yaml";
 const SKILLS_DIR: &str = "skills";
 const CONFIG_FILE: &str = "config.toml";
-const REGISTRY_FILE: &str = "registry.json";
 
 #[derive(Deserialize, Debug)]
 struct TomlConfig {
@@ -59,7 +58,6 @@ impl SkillsPaths {
         let root = resolve_skills_root(cli_override)?;
         Ok(Self {
             root: root.clone(),
-            registry_path: root.join(REGISTRY_FILE),
             config_path: root.join(CONFIG_FILE),
         })
     }
@@ -511,7 +509,6 @@ mod tests {
         .expect("write config");
         let paths = SkillsPaths {
             root: skills_root.clone(),
-            registry_path: skills_root.join("registry.json"),
             config_path: skills_root.join("config.toml"),
         };
         let err = load_config(&paths).expect_err("should reject v1");
@@ -533,7 +530,6 @@ mod tests {
         .expect("write config");
         let paths = SkillsPaths {
             root: skills_root.clone(),
-            registry_path: skills_root.join("registry.json"),
             config_path: skills_root.join("config.toml"),
         };
         let err = load_config(&paths).expect_err("should reject sources");
@@ -552,7 +548,6 @@ mod tests {
         .expect("write config");
         let paths = SkillsPaths {
             root: skills_root.clone(),
-            registry_path: skills_root.join("registry.json"),
             config_path: skills_root.join("config.toml"),
         };
         let err = load_config(&paths).expect_err("should reject copy mode");

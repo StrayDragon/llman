@@ -30,7 +30,6 @@ pub struct SkillsConfig {
 #[derive(Clone, Debug)]
 pub struct SkillsPaths {
     pub root: PathBuf,
-    pub registry_path: PathBuf,
     pub config_path: PathBuf,
 }
 

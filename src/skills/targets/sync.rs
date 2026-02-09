@@ -4,7 +4,7 @@ use crate::skills::catalog::types::{
 use anyhow::{Result, anyhow};
 use inquire::Select;
 use inquire::error::InquireError;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 
@@ -15,13 +15,12 @@ pub(crate) struct SkillSyncCancelled;
 pub fn apply_target_links(
     skill: &SkillCandidate,
     config: &SkillsConfig,
-    entry: &crate::skills::catalog::registry::SkillEntry,
+    desired_by_target: &HashMap<String, bool>,
     interactive: bool,
     target_conflict: Option<TargetConflictStrategy>,
 ) -> Result<()> {
     for target in &config.targets {
-        let enabled = entry
-            .targets
+        let enabled = desired_by_target
             .get(&target.id)
             .copied()
             .unwrap_or(target.enabled);
@@ -295,8 +294,6 @@ fn create_symlink(target: &Path, link: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::skills::catalog::registry::SkillEntry;
-    use std::collections::HashMap;
     use tempfile::TempDir;
 
     #[test]
@@ -327,12 +324,9 @@ mod tests {
         let config = SkillsConfig {
             targets: vec![target],
         };
-        let entry = SkillEntry {
-            targets: HashMap::new(),
-            updated_at: None,
-        };
+        let desired_by_target = HashMap::new();
 
-        let err = apply_target_links(&skill, &config, &entry, false, None)
+        let err = apply_target_links(&skill, &config, &desired_by_target, false, None)
             .expect_err("should require target-conflict");
         assert!(err.to_string().contains("--target-conflict"));
     }
@@ -366,15 +360,12 @@ mod tests {
         let config = SkillsConfig {
             targets: vec![target],
         };
-        let entry = SkillEntry {
-            targets: HashMap::new(),
-            updated_at: None,
-        };
+        let desired_by_target = HashMap::new();
 
         apply_target_links(
             &skill,
             &config,
-            &entry,
+            &desired_by_target,
             false,
             Some(TargetConflictStrategy::Overwrite),
         )
