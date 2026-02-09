@@ -28,10 +28,10 @@ pub enum SddCommands {
     },
     /// Generate or update llman sdd skills
     UpdateSkills {
-        /// Generate skills for all tools
+        /// Generate skills for all tools (OPSX commands only for Claude)
         #[arg(long)]
         all: bool,
-        /// Tool to generate skills for: claude,codex (repeatable)
+        /// Tool to generate skills for: claude,codex (repeatable; OPSX commands only for claude)
         #[arg(long, value_delimiter = ',')]
         tool: Vec<String>,
         /// Override output path for generated skills
@@ -40,7 +40,7 @@ pub enum SddCommands {
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
-        /// Generate only OPSX slash commands (no skills)
+        /// Generate only OPSX slash commands for Claude (no skills)
         #[arg(long, conflicts_with = "skills_only")]
         commands_only: bool,
         /// Generate only skills (no OPSX slash commands)

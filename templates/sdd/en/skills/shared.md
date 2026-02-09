@@ -10,10 +10,10 @@ Common commands:
 <!-- endregion -->
 
 <!-- region: opsx-quickstart -->
-OPSX workflow (slash commands):
+OPSX workflow:
 - Install/update: `llman sdd update-skills --all`
-- Claude Code binds commands at: `.claude/commands/opsx/`
-- Codex binds prompts at: `.codex/prompts/`
+- Claude Code command bindings: `.claude/commands/opsx/`
+- Codex does not generate OPSX slash-command/custom-prompt bindings; use `llman-sdd-*` skills.
 
 Common actions:
 - `/opsx:new <id|description>` → create `llmanspec/changes/<id>/`
@@ -24,7 +24,7 @@ Common actions:
 - `/opsx:archive <id>` → merge deltas + move to `llmanspec/changes/archive/`
 
 Troubleshooting:
-- If `/opsx:*` is not recognized, rerun `llman sdd update-skills --all`.
+- If Claude `/opsx:*` is not recognized, rerun `llman sdd update-skills --all`.
 - If legacy bindings exist (`.claude/commands/openspec/` or `.codex/prompts/openspec-*.md`), rerun `llman sdd update-skills` in an interactive terminal to migrate (it requires double confirmation).
 <!-- endregion -->
 

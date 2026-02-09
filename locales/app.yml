@@ -1440,6 +1440,8 @@ sdd:
       en: "Output path for %{tool} skills:"
     multi_tool_path_conflict:
       en: "Cannot use --path when generating multiple tools. Run per tool (e.g. --tool claude --path ...) or omit --path."
+    commands_only_requires_claude:
+      en: "No selected tool supports OPSX commands. Use --tool claude for commands, or switch to --skills-only for Codex."
     legacy_requires_interactive:
       en: "Legacy OpenSpec command bindings detected. Re-run without --no-interactive to migrate to /opsx:*."
     legacy_detected:
