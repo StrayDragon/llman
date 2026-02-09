@@ -10,10 +10,10 @@
 <!-- endregion -->
 
 <!-- region: opsx-quickstart -->
-OPSX 工作流（slash commands）：
+OPSX 工作流：
 - 安装/刷新：`llman sdd update-skills --all`
-- Claude Code 命令位置：`.claude/commands/opsx/`
-- Codex prompts 位置：`.codex/prompts/`
+- Claude Code 命令绑定位置：`.claude/commands/opsx/`
+- Codex 不生成 OPSX slash-command/custom-prompt 绑定；请使用 `llman-sdd-*` skills。
 
 常见动作：
 - `/opsx:new <id|description>` → 创建 `llmanspec/changes/<id>/`
@@ -24,7 +24,7 @@ OPSX 工作流（slash commands）：
 - `/opsx:archive <id>` → 合并 deltas 并移动到 `llmanspec/changes/archive/`
 
 故障排查：
-- `/opsx:*` 不生效：重新运行 `llman sdd update-skills --all`。
+- Claude `/opsx:*` 不生效：重新运行 `llman sdd update-skills --all`。
 - 存在 legacy 绑定（`.claude/commands/openspec/` 或 `.codex/prompts/openspec-*.md`）：在交互式终端运行 `llman sdd update-skills` 进行迁移（需要二次确认）。
 <!-- endregion -->
 

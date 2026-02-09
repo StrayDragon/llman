@@ -381,7 +381,7 @@ fn test_sdd_update_recreates_templates() {
 }
 
 #[test]
-fn test_sdd_update_skills_writes_codex_templates() {
+fn test_sdd_update_skills_writes_codex_skills_without_opsx_prompts() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
 
@@ -410,4 +410,7 @@ fn test_sdd_update_skills_writes_codex_templates() {
 
     let skill_path = output_dir.join("llman-sdd-onboard").join("SKILL.md");
     assert!(skill_path.exists());
+
+    let codex_prompts = work_dir.join(".codex/prompts");
+    assert!(!codex_prompts.exists());
 }

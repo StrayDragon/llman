@@ -27,8 +27,9 @@ Locale + skills：
 
 仅使用 AGENTS.md 的上下文注入方式。
 
-Slash commands：
-- 优先使用由 `llman sdd update-skills` 生成的托管 `/opsx:*` 工作流命令。
+OPSX 入口：
+- Claude Code：优先使用由 `llman sdd update-skills` 生成的托管 `/opsx:*` 工作流命令。
+- Codex：使用生成的 `llman-sdd-*` skills，不依赖 slash commands/custom prompts。
 - 不要手动添加其它工具专用的 slash commands。
 
 OPSX 快速上手：

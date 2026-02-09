@@ -160,6 +160,12 @@ fn run_with_root(root: &Path, args: UpdateSkillsArgs) -> Result<()> {
     let generate_commands = !args.skills_only;
 
     let tools = resolve_tools(&args, interactive)?;
+    if args.commands_only && !tools.contains(&SkillTool::Claude) {
+        return Err(anyhow!(t!(
+            "sdd.update_skills.commands_only_requires_claude"
+        )));
+    }
+
     if generate_skills && args.path.is_some() && tools.len() > 1 {
         return Err(anyhow!(t!("sdd.update_skills.multi_tool_path_conflict")));
     }
@@ -350,9 +356,6 @@ fn write_opsx_commands(
     if tools.contains(&SkillTool::Claude) {
         write_opsx_claude(root, opsx)?;
     }
-    if tools.contains(&SkillTool::Codex) {
-        write_opsx_codex(root, opsx)?;
-    }
     Ok(())
 }
 
@@ -370,22 +373,6 @@ fn write_opsx_claude(root: &Path, opsx: &[super::templates::OpsxTemplate]) -> Re
             body.trim_end()
         );
         fs::write(base.join(format!("{}.md", spec.id)), content)?;
-    }
-    Ok(())
-}
-
-fn write_opsx_codex(root: &Path, opsx: &[super::templates::OpsxTemplate]) -> Result<()> {
-    let base = root.join(".codex/prompts");
-    fs::create_dir_all(&base)?;
-    for spec in OPSX_COMMAND_SPECS {
-        let body = find_opsx_body(opsx, spec.id)?;
-        let content = format!(
-            "---\ndescription: {}\nargument-hint: {}\n---\n\n{}\n",
-            yaml_string(spec.description),
-            yaml_string("command arguments"),
-            body.trim_end()
-        );
-        fs::write(base.join(format!("opsx-{}.md", spec.id)), content)?;
     }
     Ok(())
 }
@@ -537,7 +524,7 @@ mod tests {
     }
 
     #[test]
-    fn update_skills_writes_opsx_prompts_for_codex_project_only() {
+    fn update_skills_codex_generates_skills_without_opsx_prompts() {
         let dir = tempdir().expect("tempdir");
         let root = dir.path();
         fs::create_dir_all(root.join(LLMANSPEC_DIR_NAME)).expect("create llmanspec");
@@ -553,23 +540,47 @@ mod tests {
 
         super::run_with_root(root, args).expect("update-skills");
 
-        for cmd in EXPECTED_OPSX_COMMANDS {
-            let path = root.join(".codex/prompts").join(format!("opsx-{cmd}.md"));
-            assert!(path.exists(), "missing prompt {cmd}");
-            let content = fs::read_to_string(&path).expect("read prompt");
+        for skill in EXPECTED_WORKFLOW_SKILLS {
             assert!(
-                content.contains("description:"),
-                "prompt missing description frontmatter: {cmd}"
-            );
-            assert!(
-                content.contains("argument-hint:"),
-                "prompt missing argument-hint frontmatter: {cmd}"
-            );
-            assert!(
-                content.contains("<!-- llman-template-version: 1 -->"),
-                "prompt does not include opsx body template: {cmd}"
+                root.join(".codex/skills")
+                    .join(skill)
+                    .join("SKILL.md")
+                    .exists(),
+                "missing codex skill {skill}"
             );
         }
+
+        for cmd in EXPECTED_OPSX_COMMANDS {
+            let path = root.join(".codex/prompts").join(format!("opsx-{cmd}.md"));
+            assert!(!path.exists(), "unexpected codex prompt {cmd}");
+        }
+    }
+
+    #[test]
+    fn update_skills_commands_only_requires_claude() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        fs::create_dir_all(root.join(LLMANSPEC_DIR_NAME)).expect("create llmanspec");
+
+        let args = UpdateSkillsArgs {
+            all: false,
+            tool: vec!["codex".to_string()],
+            path: None,
+            no_interactive: true,
+            commands_only: true,
+            skills_only: false,
+        };
+
+        let result = super::run_with_root(root, args);
+        assert!(result.is_err(), "expected commands-only codex to fail");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("No selected tool supports OPSX commands"),
+            "unexpected error message: {err}"
+        );
+        assert!(!root.join(".claude/commands/opsx").exists());
+        assert!(!root.join(".codex/prompts").exists());
+        assert!(!root.join(".codex/skills").exists());
     }
 
     #[test]
