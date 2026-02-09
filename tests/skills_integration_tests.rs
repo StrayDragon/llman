@@ -130,6 +130,52 @@ enabled = true
 
 #[cfg(unix)]
 #[test]
+fn test_skills_cli_warns_when_legacy_registry_exists() {
+    let temp = TempDir::new().expect("temp dir");
+    let work_dir = temp.path();
+    let skills_root = work_dir.join("skills-root");
+    let skill_dir = skills_root.join("example");
+    fs::create_dir_all(&skill_dir).expect("skill dir");
+    fs::write(skill_dir.join("SKILL.md"), "# example skill").expect("write SKILL.md");
+
+    let target_root = work_dir.join("targets");
+    fs::create_dir_all(&target_root).expect("target root");
+
+    fs::create_dir_all(&skills_root).expect("skills root");
+    let config = format!(
+        r#"version = 2
+
+[[target]]
+id = "claude_user"
+agent = "claude"
+scope = "user"
+path = "{}"
+mode = "link"
+enabled = true
+"#,
+        target_root.display()
+    );
+    fs::write(skills_root.join("config.toml"), config).expect("write config");
+    fs::write(skills_root.join("registry.json"), "{}").expect("write legacy registry");
+
+    let output = run_llman(
+        &["skills", "--skills-dir", skills_root.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&output);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Legacy skills registry detected at")
+            && stderr.contains("it is ignored in realtime mode"),
+        "stderr did not contain legacy registry warning:\n{}",
+        stderr
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn test_skills_cli_non_interactive_supports_project_target_id_without_registry() {
     let temp = TempDir::new().expect("temp dir");
     let work_dir = temp.path();

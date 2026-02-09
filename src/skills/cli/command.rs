@@ -82,6 +82,16 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
 
     let paths = SkillsPaths::resolve_with_override(args.skills_dir.as_deref())?;
     paths.ensure_dirs()?;
+    let legacy_registry_path = paths.root.join("registry.json");
+    if legacy_registry_path.exists() {
+        eprintln!(
+            "{}",
+            t!(
+                "skills.manager.legacy_registry_detected",
+                path = legacy_registry_path.display()
+            )
+        );
+    }
     let config = load_config(&paths)?;
     let target_conflict = args.target_conflict.map(TargetConflictStrategy::from);
     let skills = dedupe_skills(discover_skills(&paths.root)?);

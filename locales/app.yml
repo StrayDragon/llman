@@ -1811,6 +1811,8 @@ skills:
       en: "Target is read-only and cannot be toggled."
     hidden_user_scope_skills_hint:
       en: "Hidden %{count} skills already managed in user scope."
+    legacy_registry_detected:
+      en: "Legacy skills registry detected at %{path}; it is ignored in realtime mode."
     group_skills_count:
       en: "%{count} skills"
     preset_not_found:
