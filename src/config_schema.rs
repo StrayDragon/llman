@@ -3,7 +3,7 @@ use crate::sdd::project::config::SddConfig;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::tool::config as tool_config;
 use anyhow::{Result, anyhow};
-use jsonschema::JSONSchema;
+use jsonschema::validator_for;
 use schemars::JsonSchema;
 use schemars::generate::SchemaSettings;
 use serde::{Deserialize, Serialize};
@@ -240,9 +240,13 @@ pub fn validate_yaml_value(
 ) -> Result<(), String> {
     let json_value = serde_json::to_value(value).map_err(|e| e.to_string())?;
     let schema_value = schema_value_for_kind(kind)?;
-    let compiled = JSONSchema::compile(&schema_value).map_err(|e| e.to_string())?;
-    if let Err(errors) = compiled.validate(&json_value) {
-        return Err(format_schema_errors(errors.map(|err| err.to_string())));
+    let validator = validator_for(&schema_value).map_err(|e| e.to_string())?;
+    if !validator.is_valid(&json_value) {
+        return Err(format_schema_errors(
+            validator
+                .iter_errors(&json_value)
+                .map(|err| err.to_string()),
+        ));
     }
     Ok(())
 }

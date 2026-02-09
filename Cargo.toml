@@ -1,8 +1,8 @@
 [package]
 name = "llman"
 version = "0.0.18"
-# Edition 2024 requires Rust nightly toolchain
-# CI configured to use nightly for edition 2024 support
+# Project is pinned to a nightly toolchain in rust-toolchain.toml
+# CI must use the same pinned nightly baseline
 edition = "2024"
 authors = ["L8ng <straydragonl@foxmail.com>"]
 description = "A tool for managing LLM application rules(prompts) ..."
@@ -18,8 +18,8 @@ name = "llman"
 path = "src/lib.rs"
 
 [dependencies]
-anyhow = "1.0.100"
-clap = { version = "4.5.53", features = [
+anyhow = "1.0.101"
+clap = { version = "4.5.57", features = [
     "deprecated",
     "env",
     "unicode",
@@ -28,25 +28,25 @@ clap = { version = "4.5.53", features = [
     "cargo",
     "derive",
 ] }
-clap_complete = "4.5.53"
+clap_complete = "4.5.65"
 directories = "6.0.0"
-inquire = { version = "0.9.1", features = ["editor"] }
+inquire = { version = "0.9.3", features = ["editor"] }
 crossterm = "0.29.0"
 ratatui = "0.30.0"
-thiserror = "2.0.12"
-rust-i18n = "3.1.2"
-serde = { version = "1.0.216", features = ["derive"] }
-serde_json = "1.0.133"
-toml = "0.9.10"
-diesel = { version = "2.2.10", features = ["sqlite", "chrono"] }
-chrono = { version = "0.4.38", features = ["serde"] }
+thiserror = "2.0.18"
+rust-i18n = "3.1.5"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+toml = "0.9.11"
+diesel = { version = "2.3.6", features = ["sqlite", "chrono"] }
+chrono = { version = "0.4.43", features = ["serde"] }
 dirs = "6.0.0"
-glob = "0.3.1"
-ignore = "0.4.22"
+glob = "0.3.3"
+ignore = "0.4.25"
 
 # Comment processing and parsing
-tree-sitter = "0.26.3"
-tree-sitter-highlight = "0.26.3"
+tree-sitter = "0.26.5"
+tree-sitter-highlight = "0.26.5"
 tree-sitter-javascript = "0.25.0"
 tree-sitter-typescript = "0.23.2"
 tree-sitter-python = "0.25.0"
@@ -54,15 +54,15 @@ tree-sitter-rust = "0.24.0"
 tree-sitter-go = "0.25.0"
 
 # Configuration and validation
-schemars = { version = "1.2.0", features = ["derive"] }
-jsonschema = "0.17.1"
+schemars = { version = "1.2.1", features = ["derive"] }
+jsonschema = "0.41.0"
 
 # JSON parsing and repair
 llm_json = "1.0.2"
 
 # Additional utilities
-regex = "1.11.1"
+regex = "1.12.3"
 serde_yaml = "0.9.34"
 
 [dev-dependencies]
-tempfile = "3.13.0"
+tempfile = "3.24.0"
