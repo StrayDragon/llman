@@ -25,7 +25,22 @@ Locale + skills：
 - locale 仅影响模板与 skills，CLI 输出保持英文。
 - 使用 `llman sdd update-skills` 刷新技能。
 
-仅使用 AGENTS.md 的上下文注入方式，不要添加工具专用的 slash commands。
+仅使用 AGENTS.md 的上下文注入方式。
+
+Slash commands：
+- 优先使用由 `llman sdd update-skills` 生成的托管 `/opsx:*` 工作流命令。
+- 不要手动添加其它工具专用的 slash commands。
+
+OPSX 快速上手：
+- `/opsx:onboard`（引导式走一遍完整流程）
+- `/opsx:new <id|description>`（开始一个 change）
+- `/opsx:continue <id>`（创建下一个 artifact）
+- `/opsx:ff <id>`（一次性创建所有 artifacts）
+- `/opsx:apply <id>`（按 tasks 实施）
+- `/opsx:verify <id>`（核对实现与 artifacts 是否一致）
+- `/opsx:sync <id>`（手动同步 delta specs；不归档）
+- `/opsx:archive <id>`（归档并合并 deltas）
+- `/opsx:bulk-archive`（批量归档多个 changes）
 
 ## 阶段 1：创建变更
 在以下情况创建提案：

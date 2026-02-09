@@ -364,20 +364,20 @@ fn test_sdd_update_recreates_templates() {
     );
     assert_success(&init_output);
 
-    let proposal_path = work_dir
+    let template_path = work_dir
         .join("llmanspec")
         .join("templates")
         .join("spec-driven")
-        .join("proposal.md");
-    fs::remove_file(&proposal_path).expect("remove proposal template");
-    assert!(!proposal_path.exists());
+        .join("new.md");
+    fs::remove_file(&template_path).expect("remove template");
+    assert!(!template_path.exists());
 
     let update_output = run_llman(&["sdd", "update"], work_dir, work_dir);
     assert_success(&update_output);
 
-    assert!(proposal_path.exists());
-    let content = fs::read_to_string(&proposal_path).expect("read proposal template");
-    assert!(content.contains("## Why"));
+    assert!(template_path.exists());
+    let content = fs::read_to_string(&template_path).expect("read template");
+    assert!(content.contains("/opsx:new"));
 }
 
 #[test]

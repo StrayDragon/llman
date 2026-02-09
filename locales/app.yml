@@ -1440,6 +1440,22 @@ sdd:
       en: "Output path for %{tool} skills:"
     multi_tool_path_conflict:
       en: "Cannot use --path when generating multiple tools. Run per tool (e.g. --tool claude --path ...) or omit --path."
+    legacy_requires_interactive:
+      en: "Legacy OpenSpec command bindings detected. Re-run without --no-interactive to migrate to /opsx:*."
+    legacy_detected:
+      en: "Legacy OpenSpec command bindings detected (will be removed and replaced by /opsx:*):\n- %{paths}"
+    legacy_confirm:
+      en: "Migrate now and remove the legacy bindings?"
+    legacy_aborted:
+      en: "Migration canceled."
+    legacy_confirm_phrase:
+      en: "MIGRATE"
+    legacy_confirm_prompt:
+      en: "Type %{phrase} to confirm migration:"
+    legacy_phrase_mismatch:
+      en: "Confirmation phrase mismatch. Migration canceled."
+    missing_opsx_template:
+      en: "Missing OPSX template for %{id}."
 
   list:
     no_changes_dir:
