@@ -7,7 +7,7 @@ on:
 env:
   # Bump when cache strategy changes to force refresh
   CACHE_VERSION: v4
-  # RUST_TOOLCHAIN: nightly-2026-02-08
+  RUST_TOOLCHAIN: nightly-2026-02-08
 
 jobs:
   test:
@@ -29,11 +29,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-test-${{ env.CACHE_VERSION }}-
 
-      # - name: Install Rust toolchain
-      #   uses: dtolnay/rust-toolchain@stable
-      #   with:
-      #     toolchain: ${{ env.RUST_TOOLCHAIN }}
-      #     components: rustfmt, clippy
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
 
       - name: Print useful env versions
         run: |
@@ -68,10 +68,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-${{ env.CACHE_VERSION }}-
 
-      # - name: Install Rust toolchain
-      #   uses: dtolnay/rust-toolchain@stable
-      #   with:
-      #     toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Print useful env versions
         run: |
