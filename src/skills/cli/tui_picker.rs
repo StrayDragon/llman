@@ -7,6 +7,8 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
+const LIST_SCROLL_PADDING_ROWS: usize = 2;
+
 #[derive(Clone, Debug)]
 pub enum TuiEntryKind {
     Preset { skill_ids: Vec<String> },
@@ -196,6 +198,7 @@ impl PickerState {
         let list = List::new(items)
             .block(Block::default().borders(Borders::ALL).title(prompt))
             .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+            .scroll_padding(LIST_SCROLL_PADDING_ROWS)
             .highlight_symbol("> ");
         frame.render_stateful_widget(list, chunks[0], &mut state);
 
