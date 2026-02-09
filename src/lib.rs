@@ -9,6 +9,7 @@ pub mod arg_utils;
 pub mod cli;
 pub mod config;
 pub mod config_schema;
+pub mod editor;
 pub mod error;
 pub mod path_utils;
 pub mod prompt;

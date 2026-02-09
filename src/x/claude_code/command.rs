@@ -1,10 +1,14 @@
 use crate::arg_utils::split_shell_args;
+use crate::editor::{parse_editor_command, select_editor_raw};
+use crate::path_utils::safe_parent_for_creation;
 use crate::x::claude_code::config::{Config, ConfigGroup};
 use crate::x::claude_code::interactive;
 use crate::x::claude_code::security::{SecurityChecker, SecurityWarning};
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
+use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 #[derive(Args)]
@@ -54,6 +58,8 @@ pub enum ClaudeCodeCommands {
 
 #[derive(Subcommand)]
 pub enum AccountAction {
+    /// Edit claude-code configuration file
+    Edit,
     /// Display all configured API configuration groups
     ///
     /// This command lists all configuration groups that have been created,
@@ -155,6 +161,11 @@ fn handle_main_command() -> Result<()> {
 }
 
 fn handle_account_command(action: Option<&AccountAction>) -> Result<()> {
+    if matches!(action, Some(AccountAction::Edit)) {
+        handle_account_edit()?;
+        return Ok(());
+    }
+
     let mut config = Config::load().context(t!("claude_code.error.load_config_failed"))?;
 
     match action {
@@ -167,10 +178,77 @@ fn handle_account_command(action: Option<&AccountAction>) -> Result<()> {
 
 fn execute_account_action(config: &mut Config, action: &AccountAction) -> Result<()> {
     match action {
+        AccountAction::Edit => unreachable!("Edit is handled before config load"),
         AccountAction::List => handle_list_groups(config),
         AccountAction::Import { force } => handle_import_group(config, *force)?,
         AccountAction::Use { name, args } => handle_use_group(config, name, args.clone())?,
     }
+    Ok(())
+}
+
+fn handle_account_edit() -> Result<()> {
+    let config_path = Config::config_file_path()?;
+    let editor_raw = select_editor_raw();
+    handle_account_edit_with(&config_path, &editor_raw)
+}
+
+fn handle_account_edit_with(config_path: &Path, editor_raw: &str) -> Result<()> {
+    if !config_path.exists() {
+        if let Some(parent) = safe_parent_for_creation(config_path) {
+            fs::create_dir_all(parent).context(t!(
+                "claude_code.config.create_dir_failed",
+                path = parent.display()
+            ))?;
+        }
+
+        let template = include_str!("../../../templates/claude-code/default.toml");
+        fs::write(config_path, template).context(t!(
+            "claude_code.config.write_failed",
+            path = config_path.display()
+        ))?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(config_path)
+                .context(t!("claude_code.config.metadata_failed"))?
+                .permissions();
+            perms.set_mode(0o600);
+            fs::set_permissions(config_path, perms)
+                .context(t!("claude_code.config.permissions_failed"))?;
+        }
+
+        println!(
+            "{}",
+            t!(
+                "claude_code.account.config_created",
+                path = config_path.display()
+            )
+        );
+    }
+
+    let (editor_cmd, editor_args) = parse_editor_command(editor_raw).map_err(|e| {
+        anyhow::anyhow!(t!(
+            "claude_code.error.invalid_editor_command",
+            editor = editor_raw,
+            error = e
+        ))
+    })?;
+
+    let status = Command::new(&editor_cmd)
+        .args(editor_args)
+        .arg(config_path)
+        .status()
+        .context(t!(
+            "claude_code.error.open_editor_failed",
+            editor = editor_raw
+        ))?;
+
+    if !status.success() {
+        bail!(t!("claude_code.error.editor_exit_status", status = status));
+    }
+
+    println!("{}", t!("claude_code.account.edited"));
     Ok(())
 }
 
@@ -316,10 +394,11 @@ fn no_configs_message() -> String {
         .unwrap_or_else(|_| t!("claude_code.main.unknown_path").to_string());
 
     format!(
-        "{}\n\n{}\n  {}\n\n{}:\n  {}",
+        "{}\n\n{}\n  {}\n  {}\n\n{}:\n  {}",
         t!("claude_code.main.no_configs_found"),
         t!("claude_code.main.suggestion_import"),
         t!("claude_code.main.command_import"),
+        t!("claude_code.main.command_edit"),
         t!("claude_code.main.alternative_config"),
         config_path
     )
