@@ -40,6 +40,12 @@ pub enum SddCommands {
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
+        /// Generate only OPSX slash commands (no skills)
+        #[arg(long, conflicts_with = "skills_only")]
+        commands_only: bool,
+        /// Generate only skills (no OPSX slash commands)
+        #[arg(long, conflicts_with = "commands_only")]
+        skills_only: bool,
     },
     /// List changes or specs
     List {
@@ -141,11 +147,15 @@ pub fn run(args: &SddArgs) -> Result<()> {
             tool,
             path,
             no_interactive,
+            commands_only,
+            skills_only,
         } => update_skills::run(update_skills::UpdateSkillsArgs {
             all: *all,
             tool: tool.clone(),
             path: path.clone(),
             no_interactive: *no_interactive,
+            commands_only: *commands_only,
+            skills_only: *skills_only,
         }),
         SddCommands::List {
             specs,

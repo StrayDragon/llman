@@ -15,14 +15,45 @@ pub struct SkillTemplate {
     pub content: String,
 }
 
-const SPEC_DRIVEN_FILES: &[&str] = &["proposal.md", "spec.md", "design.md", "tasks.md"];
+const SPEC_DRIVEN_FILES: &[&str] = &[
+    "explore.md",
+    "onboard.md",
+    "new.md",
+    "continue.md",
+    "ff.md",
+    "apply.md",
+    "verify.md",
+    "sync.md",
+    "archive.md",
+    "bulk-archive.md",
+];
 
 const SKILL_FILES: &[&str] = &[
     "llman-sdd-onboard.md",
     "llman-sdd-new-change.md",
+    "llman-sdd-explore.md",
+    "llman-sdd-continue.md",
+    "llman-sdd-ff.md",
+    "llman-sdd-apply.md",
+    "llman-sdd-verify.md",
+    "llman-sdd-sync.md",
+    "llman-sdd-bulk-archive.md",
     "llman-sdd-show.md",
     "llman-sdd-validate.md",
     "llman-sdd-archive.md",
+];
+
+const OPSX_COMMAND_IDS: &[&str] = &[
+    "explore",
+    "onboard",
+    "new",
+    "continue",
+    "ff",
+    "apply",
+    "verify",
+    "sync",
+    "archive",
+    "bulk-archive",
 ];
 
 pub fn spec_driven_templates(config: &SddConfig, root: &Path) -> Result<Vec<TemplateFile>> {
@@ -42,6 +73,20 @@ pub fn skill_templates(config: &SddConfig, root: &Path) -> Result<Vec<SkillTempl
         files.push(SkillTemplate { name, content });
     }
     Ok(files)
+}
+
+pub struct OpsxTemplate {
+    pub id: &'static str,
+    pub content: String,
+}
+
+pub fn opsx_templates(config: &SddConfig, root: &Path) -> Result<Vec<OpsxTemplate>> {
+    let mut templates = Vec::new();
+    for id in OPSX_COMMAND_IDS {
+        let content = load_template(config, root, &format!("spec-driven/{id}.md"))?;
+        templates.push(OpsxTemplate { id, content });
+    }
+    Ok(templates)
 }
 
 pub fn render_project_template(
@@ -129,22 +174,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/project.md"
         ))),
-        "templates/sdd/en/spec-driven/proposal.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/spec-driven/proposal.md"
-        ))),
-        "templates/sdd/en/spec-driven/spec.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/spec-driven/spec.md"
-        ))),
-        "templates/sdd/en/spec-driven/design.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/spec-driven/design.md"
-        ))),
-        "templates/sdd/en/spec-driven/tasks.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/spec-driven/tasks.md"
-        ))),
         "templates/sdd/en/skills/llman-sdd-onboard.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/llman-sdd-onboard.md"
@@ -152,6 +181,34 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/en/skills/llman-sdd-new-change.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/llman-sdd-new-change.md"
+        ))),
+        "templates/sdd/en/skills/llman-sdd-explore.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/skills/llman-sdd-explore.md"
+        ))),
+        "templates/sdd/en/skills/llman-sdd-continue.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/skills/llman-sdd-continue.md"
+        ))),
+        "templates/sdd/en/skills/llman-sdd-ff.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/skills/llman-sdd-ff.md"
+        ))),
+        "templates/sdd/en/skills/llman-sdd-apply.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/skills/llman-sdd-apply.md"
+        ))),
+        "templates/sdd/en/skills/llman-sdd-verify.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/skills/llman-sdd-verify.md"
+        ))),
+        "templates/sdd/en/skills/llman-sdd-sync.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/skills/llman-sdd-sync.md"
+        ))),
+        "templates/sdd/en/skills/llman-sdd-bulk-archive.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/skills/llman-sdd-bulk-archive.md"
         ))),
         "templates/sdd/en/skills/llman-sdd-show.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -164,6 +221,46 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/en/skills/llman-sdd-archive.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/llman-sdd-archive.md"
+        ))),
+        "templates/sdd/en/spec-driven/explore.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/spec-driven/explore.md"
+        ))),
+        "templates/sdd/en/spec-driven/onboard.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/spec-driven/onboard.md"
+        ))),
+        "templates/sdd/en/spec-driven/new.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/spec-driven/new.md"
+        ))),
+        "templates/sdd/en/spec-driven/continue.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/spec-driven/continue.md"
+        ))),
+        "templates/sdd/en/spec-driven/ff.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/spec-driven/ff.md"
+        ))),
+        "templates/sdd/en/spec-driven/apply.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/spec-driven/apply.md"
+        ))),
+        "templates/sdd/en/spec-driven/verify.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/spec-driven/verify.md"
+        ))),
+        "templates/sdd/en/spec-driven/sync.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/spec-driven/sync.md"
+        ))),
+        "templates/sdd/en/spec-driven/archive.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/spec-driven/archive.md"
+        ))),
+        "templates/sdd/en/spec-driven/bulk-archive.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/spec-driven/bulk-archive.md"
         ))),
         "templates/sdd/en/skills/shared.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -181,22 +278,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/project.md"
         ))),
-        "templates/sdd/zh-Hans/spec-driven/proposal.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/zh-Hans/spec-driven/proposal.md"
-        ))),
-        "templates/sdd/zh-Hans/spec-driven/spec.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/zh-Hans/spec-driven/spec.md"
-        ))),
-        "templates/sdd/zh-Hans/spec-driven/design.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/zh-Hans/spec-driven/design.md"
-        ))),
-        "templates/sdd/zh-Hans/spec-driven/tasks.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/zh-Hans/spec-driven/tasks.md"
-        ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-onboard.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/skills/llman-sdd-onboard.md"
@@ -204,6 +285,34 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/zh-Hans/skills/llman-sdd-new-change.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/skills/llman-sdd-new-change.md"
+        ))),
+        "templates/sdd/zh-Hans/skills/llman-sdd-explore.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/skills/llman-sdd-explore.md"
+        ))),
+        "templates/sdd/zh-Hans/skills/llman-sdd-continue.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/skills/llman-sdd-continue.md"
+        ))),
+        "templates/sdd/zh-Hans/skills/llman-sdd-ff.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/skills/llman-sdd-ff.md"
+        ))),
+        "templates/sdd/zh-Hans/skills/llman-sdd-apply.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/skills/llman-sdd-apply.md"
+        ))),
+        "templates/sdd/zh-Hans/skills/llman-sdd-verify.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/skills/llman-sdd-verify.md"
+        ))),
+        "templates/sdd/zh-Hans/skills/llman-sdd-sync.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/skills/llman-sdd-sync.md"
+        ))),
+        "templates/sdd/zh-Hans/skills/llman-sdd-bulk-archive.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/skills/llman-sdd-bulk-archive.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-show.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -216,6 +325,46 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/zh-Hans/skills/llman-sdd-archive.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/skills/llman-sdd-archive.md"
+        ))),
+        "templates/sdd/zh-Hans/spec-driven/explore.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/spec-driven/explore.md"
+        ))),
+        "templates/sdd/zh-Hans/spec-driven/onboard.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/spec-driven/onboard.md"
+        ))),
+        "templates/sdd/zh-Hans/spec-driven/new.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/spec-driven/new.md"
+        ))),
+        "templates/sdd/zh-Hans/spec-driven/continue.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/spec-driven/continue.md"
+        ))),
+        "templates/sdd/zh-Hans/spec-driven/ff.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/spec-driven/ff.md"
+        ))),
+        "templates/sdd/zh-Hans/spec-driven/apply.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/spec-driven/apply.md"
+        ))),
+        "templates/sdd/zh-Hans/spec-driven/verify.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/spec-driven/verify.md"
+        ))),
+        "templates/sdd/zh-Hans/spec-driven/sync.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/spec-driven/sync.md"
+        ))),
+        "templates/sdd/zh-Hans/spec-driven/archive.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/spec-driven/archive.md"
+        ))),
+        "templates/sdd/zh-Hans/spec-driven/bulk-archive.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/spec-driven/bulk-archive.md"
         ))),
         "templates/sdd/zh-Hans/skills/shared.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
