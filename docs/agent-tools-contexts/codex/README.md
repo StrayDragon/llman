@@ -75,7 +75,7 @@ env = { "GIT_SIGNING_KEY" = "${GIT_SIGNING_KEY}" }
 
 与本仓库对接建议：
 
-- 本仓库把 skills 统一收敛在 `skills/`，并用 `skills/registry.json` 标注投放目标（例如 `codex_user`/`codex_repo`）。
+- 本仓库把 skills 统一收敛在 `skills/`，投放目标由 `config.toml` target 与目标目录实时链接状态共同决定（不再依赖 `skills/registry.json`）。
 - 由 llman（或你的同步脚本）把需要投放给 Codex 的技能同步到 `~/.codex/skills/`（用户级）或业务仓库的 `.codex/skills/`（项目级）。
 
 ## 6) 与本仓库现状对应

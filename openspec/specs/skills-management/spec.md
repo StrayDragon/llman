@@ -16,7 +16,7 @@
 
 #### Scenario: 取消不产生变更
 - **WHEN** 用户在确认前退出或返回
-- **THEN** 不修改任何目标链接且不写入 registry
+- **THEN** 不修改任何目标链接且不写入持久化状态文件
 
 ### Requirement: 尊重忽略规则并跳过软链接
 管理器 MUST 在扫描时遵循 `.gitignore` 与全局忽略规则；若技能目录或 `SKILL.md` 为软链接，管理器 MUST 解析其目标并在目标包含 `SKILL.md` 时将其视为可管理技能。
@@ -158,31 +158,12 @@ Codex user 目标路径 MUST 优先使用 `.agents/skills` 体系，并兼容已
 - **WHEN** `<skills_root>` 下存在包含 `SKILL.md` 的技能目录
 - **THEN** 管理器将其作为可管理技能展示
 
-### Requirement: 启用状态持久化
-管理器 MUST 在 `<skills_root>/registry.json` 记录用户确认后的技能/目标启用状态。交互模式 MUST 使用目标目录中的链接状态作为默认选择来源，并且在用户确认之前不得写入或更新 registry。非交互模式下，若 `registry.json` 缺失则回退到 `config.toml` 里的 `enabled` 默认值。
-
-#### Scenario: 交互默认来自文件系统
-- **WHEN** 交互模式选择某 target，且 `registry.json` 存在不同状态
-- **THEN** 默认勾选仍以目标目录链接状态为准
-
-#### Scenario: 交互取消不写入 registry
-- **WHEN** 用户退出而未确认
-- **THEN** `registry.json` 不被创建或修改
-
-#### Scenario: 确认后持久化状态
-- **WHEN** 用户确认应用
-- **THEN** `registry.json` 更新为确认后的状态
-
-#### Scenario: 非交互缺省回退配置默认值
-- **WHEN** 非交互模式且 `registry.json` 不存在
-- **THEN** 使用 `config.toml` 的 `enabled` 默认值
-
 ### Requirement: Skills 重构保持行为一致
-Skills 模块重构 MUST 保持技能发现、目标链接、冲突处理、registry 记录与 CLI 输出行为一致，且不得改变配置解析优先级与数据格式。
+Skills 模块重构 MUST 保持技能发现、目标链接、冲突处理与 CLI 输出行为一致，且不得改变配置解析优先级。
 
 #### Scenario: Skills 重构后回归
 - **WHEN** `src/skills/` 的模块结构被重组
-- **THEN** `llman skills` 的扫描、链接与 registry 行为保持不变
+- **THEN** `llman skills` 的扫描与链接行为保持不变
 
 ### Requirement: 断链 symlink 必须被视为已存在条目
 在同步 targets 时，技能管理器 MUST 将断链 symlink 视为“已存在的文件系统条目”。即使 `exists()` 为 false，只要 `symlink_metadata()` 表明这是一个 symlink，也必须能够按冲突策略执行覆盖或移除。
@@ -196,18 +177,11 @@ Skills 模块重构 MUST 保持技能发现、目标链接、冲突处理、regi
 - **THEN** 该断链 symlink 会被移除
 
 ### Requirement: 冲突提示取消必须是安全 no-op
-在交互模式下，如果用户取消冲突处理提示，管理器 MUST 将其视为安全的整体 abort（安全退出），并 MUST NOT 产生部分变更（包括不写入 registry）。
+在交互模式下，如果用户取消冲突处理提示，管理器 MUST 将其视为安全的整体 abort（安全退出），并 MUST NOT 产生部分变更。
 
 #### Scenario: 取消冲突提示
 - **WHEN** target 存在冲突条目且用户在 overwrite/skip 提示中取消
-- **THEN** 命令整体 abort 且不应用任何变更，并以成功状态退出（不写入 registry）
-
-### Requirement: Registry 更新必须原子化
-写入 `<skills_root>/registry.json` 时，管理器 MUST 采用原子写入方式，避免崩溃/中断导致 registry 损坏。
-
-#### Scenario: registry 写入具备崩溃安全
-- **WHEN** 管理器更新 `registry.json`
-- **THEN** 磁盘上的文件要么是旧的有效 JSON，要么是新的有效 JSON，不得出现部分写入的损坏文件
+- **THEN** 命令整体 abort 且不应用任何变更，并以成功状态退出
 
 ### Requirement: 交互菜单必须展示 agent 与 scope 语义
 交互菜单 MUST 展示与工具语义一致的文案，而不是直接暴露内部 target id。
@@ -240,45 +214,15 @@ Skills 模块重构 MUST 保持技能发现、目标链接、冲突处理、regi
 - **THEN** 该技能继续显示在多选列表中
 
 ### Requirement: 预设来源与默认推断
-管理器 MUST 支持运行时预设目录：当 `registry.json` 中 `presets` 非空时，MUST 使用其作为预设来源；当 `presets` 为空或不存在时，MUST 从技能目录名按 `<preset>.<skill>` 规则自动推断默认预设。自动推断得到的预设 MUST 仅存在于运行时，MUST NOT 写回 `registry.json`。
-
-#### Scenario: 优先使用 registry 预设
-- **WHEN** `registry.json` 包含非空 `presets`
-- **THEN** 管理器使用该预设集合，不使用自动推断结果覆盖
+管理器 MUST 仅支持运行时目录推断预设：MUST 从技能目录名按 `<preset>.<skill>` 规则自动推断分组。推断得到的预设 MUST 仅存在于运行时，不得依赖或写入任何 registry 持久化字段。
 
 #### Scenario: 自动推断默认预设
-- **WHEN** `registry.json` 不包含 `presets` 或其为空
-- **THEN** 目录名 `superpowers.brainstorming` 被归入预设 `superpowers`，并将完整目录名加入该预设的 `skill_dirs`
+- **WHEN** 技能目录名为 `superpowers.brainstorming`
+- **THEN** 该目录被归入预设 `superpowers`，并以完整目录名作为该预设成员
 
-#### Scenario: 推断预设不落盘
-- **WHEN** 管理器使用自动推断得到默认预设并完成一次会话
-- **THEN** `registry.json` 不新增或修改 `presets` 字段
-
-### Requirement: 预设继承与解析
-管理器 MUST 支持预设通过 `extends` 继承父预设。解析时 MUST 先递归合并父预设，再合并当前预设的 `skill_dirs`，并对结果去重。
-
-#### Scenario: 预设继承
-- **WHEN** 预设 `full-stack` 定义 `extends = "daily"`
-- **THEN** 解析 `full-stack` 时先包含 `daily` 的技能，再添加 `full-stack` 自身技能并去重
-
-### Requirement: 启动前预设校验与失败策略
-每次执行 `llman skills` 时，管理器 MUST 在进入任何交互 prompt 前完成预设校验。校验 MUST 至少包括：`extends` 父预设存在性、继承无环、`skill_dirs` 引用存在性、解析后结果非空。任一校验失败时，命令 MUST 立即报错并中止。
-
-#### Scenario: 父预设不存在
-- **WHEN** 预设 `full-stack` 的 `extends` 指向不存在的预设
-- **THEN** 命令在进入交互前报错并退出
-
-#### Scenario: 继承循环
-- **WHEN** 预设 A extends B，且 B extends A
-- **THEN** 命令在进入交互前报错并退出
-
-#### Scenario: 引用不存在技能目录
-- **WHEN** 某预设 `skill_dirs` 包含不存在的目录名
-- **THEN** 命令在进入交互前报错并退出
-
-#### Scenario: 预设解析为空
-- **WHEN** 某预设解析后的技能集合为空
-- **THEN** 命令在进入交互前报错并退出
+#### Scenario: 无分段目录归入 ungrouped
+- **WHEN** 技能目录名不包含 `.`
+- **THEN** 该技能归入 `ungrouped` 分组
 
 ### Requirement: 预设功能仅限交互模式
 本变更中，预设能力 MUST 仅通过交互流程提供。`llman skills` MUST NOT 新增任何 presets 专用命令参数。
@@ -303,9 +247,7 @@ Skills 模块重构 MUST 保持技能发现、目标链接、冲突处理、regi
 - **THEN** 技能按分组聚合显示，并展示分组标题
 
 ### Requirement: skills 列表中的分组节点
-技能多选列表 MUST 以树形结构展示可选项：父节点为分组节点，子节点为该分组覆盖的具体技能。分组来源包含两类：
-1) `registry.presets` 中定义的配置化预设；
-2) 基于目录名 `<group>.<name>` 自动推断的分组预设。
+技能多选列表 MUST 以树形结构展示可选项：父节点为分组节点，子节点为该分组覆盖的具体技能。分组来源 MUST 仅为基于目录名 `<group>.<name>` 自动推断的分组预设。
 
 选择分组项时，管理器 MUST 将其展开为对应技能集合并去重，最终按技能集合应用到目标。
 分组项的默认勾选状态 MUST 由当前默认技能集合推导：仅当该分组覆盖的技能集合全部已在默认集合中时，才显示为勾选；否则 MUST 不勾选。
@@ -316,10 +258,6 @@ Skills 模块重构 MUST 保持技能发现、目标链接、冲突处理、regi
 #### Scenario: 选择分组自动展开
 - **WHEN** 用户在 skills 列表中选择 `dakesan (3 skills)`
 - **THEN** 管理器将 `dakesan` 对应技能集合加入最终选择集合
-
-#### Scenario: 配置预设与分组预设并存
-- **WHEN** `registry.presets` 包含 `daily`，且目录分组包含 `dakesan`
-- **THEN** 列表中同时展示 `daily (...)` 与 `dakesan (...)`
 
 #### Scenario: 树形父子联动
 - **WHEN** 用户在树形列表中切换分组父节点
@@ -344,3 +282,21 @@ Skills 模块重构 MUST 保持技能发现、目标链接、冲突处理、regi
 - **WHEN** 技能 `skill_id` 为 `brainstorming`，目录名为 `superpowers.brainstorming`
 - **THEN** 交互选项显示为 `brainstorming (superpowers.brainstorming)`
 
+### Requirement: 启用状态实时计算
+管理器 MUST 不再依赖任何 registry 文件作为技能启用状态来源。交互与非交互流程都 MUST 基于目标目录真实链接状态实时计算技能启用状态，并仅将 `config.toml` 的 `target.enabled` 作为“当前未链接时”的默认回退值。
+
+#### Scenario: 交互默认来自文件系统
+- **WHEN** 交互模式选择某 target
+- **THEN** 默认勾选基于目标目录的真实链接状态计算
+
+#### Scenario: 非交互已链接优先
+- **WHEN** 非交互模式下某技能在某 target 已存在正确链接
+- **THEN** 管理器保持该技能在该 target 启用，不因配置默认值覆盖
+
+#### Scenario: 非交互未链接回退配置默认值
+- **WHEN** 非交互模式下某技能在某 target 当前未链接
+- **THEN** 管理器使用该 target 的 `enabled` 默认值决定是否创建链接
+
+#### Scenario: 运行不写持久化状态文件
+- **WHEN** 管理器完成交互或非交互会话
+- **THEN** 管理器不会创建或更新任何 registry 状态文件

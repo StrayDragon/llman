@@ -1,4 +1,3 @@
-use crate::skills::catalog::registry::{PresetEntry, Registry};
 use crate::skills::catalog::scan::discover_skills;
 use crate::skills::catalog::types::{
     ConfigEntry, SkillCandidate, SkillsConfig, SkillsPaths, TargetConflictStrategy, TargetMode,
@@ -8,9 +7,8 @@ use crate::skills::cli::tui_picker;
 use crate::skills::cli::tui_picker::{TuiEntry, TuiEntryKind};
 use crate::skills::config::load_config;
 use crate::skills::targets::sync::SkillSyncCancelled;
-use crate::skills::targets::sync::{apply_target_diff, apply_target_links, is_skill_linked};
+use crate::skills::targets::sync::{apply_target_diff, is_skill_linked};
 use anyhow::Result;
-use chrono::Utc;
 use clap::{Args, ValueEnum};
 use inquire::error::InquireError;
 use inquire::{Confirm, Select};
@@ -43,8 +41,6 @@ pub enum TargetConflictArg {
 
 #[derive(Clone, Debug)]
 struct RuntimePreset {
-    description: Option<String>,
-    extends: Option<String>,
     skill_dirs: Vec<String>,
 }
 
@@ -87,12 +83,10 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
     let paths = SkillsPaths::resolve_with_override(args.skills_dir.as_deref())?;
     paths.ensure_dirs()?;
     let config = load_config(&paths)?;
-    let mut registry = Registry::load(&paths.registry_path)?;
     let target_conflict = args.target_conflict.map(TargetConflictStrategy::from);
     let skills = dedupe_skills(discover_skills(&paths.root)?);
     let skill_dir_catalog = build_skill_dir_catalog(&paths.root, &skills)?;
-    let runtime_presets = build_runtime_presets(&registry, &skill_dir_catalog);
-    validate_runtime_presets(&runtime_presets, &skill_dir_catalog)?;
+    let runtime_presets = infer_runtime_presets_from_catalog(&skill_dir_catalog);
 
     if skills.is_empty() {
         println!("{}", t!("skills.manager.no_skills"));
@@ -122,29 +116,20 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
             }
             Err(e) => return Err(e),
         }
-        update_registry_for_target(
-            &mut registry,
-            &skills,
-            &interactive_selection.target,
-            &interactive_selection.selected,
-        );
-        registry.save(&paths.registry_path)?;
     } else {
-        for skill in &skills {
-            let entry = registry.ensure_skill(&skill.skill_id);
-            ensure_target_defaults(entry, &config.targets);
+        for target in &config.targets {
+            let desired: HashSet<String> = skills
+                .iter()
+                .filter_map(|skill| {
+                    if is_skill_linked(skill, target) || target.enabled {
+                        Some(skill.skill_id.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            apply_target_diff(&skills, target, &desired, false, target_conflict)?;
         }
-        for skill in &skills {
-            let entry = match registry.skills.get(&skill.skill_id) {
-                Some(entry) => entry,
-                None => continue,
-            };
-            apply_target_links(skill, &config, entry, false, target_conflict)?;
-            if let Some(entry) = registry.skills.get_mut(&skill.skill_id) {
-                entry.updated_at = Some(Utc::now().to_rfc3339());
-            }
-        }
-        registry.save(&paths.registry_path)?;
     }
     Ok(())
 }
@@ -166,40 +151,8 @@ fn run_interactive_selection(
     Ok(Some(InteractiveSelection { target, selected }))
 }
 
-fn preset_display_label(name: &str, count: usize, description: Option<&str>) -> String {
-    match description {
-        Some(description) if !description.trim().is_empty() => {
-            format!("{} ({} skills) - {}", name, count, description)
-        }
-        _ => format!("{} ({} skills)", name, count),
-    }
-}
-
-fn build_runtime_presets(
-    registry: &Registry,
-    skill_dir_catalog: &SkillDirCatalog,
-) -> HashMap<String, RuntimePreset> {
-    if !registry.presets.is_empty() {
-        return registry_presets_to_runtime(&registry.presets);
-    }
-    infer_runtime_presets_from_catalog(skill_dir_catalog)
-}
-
-fn registry_presets_to_runtime(
-    presets: &HashMap<String, PresetEntry>,
-) -> HashMap<String, RuntimePreset> {
-    let mut out = HashMap::new();
-    for (name, preset) in presets {
-        out.insert(
-            name.clone(),
-            RuntimePreset {
-                description: preset.description.clone(),
-                extends: preset.extends.clone(),
-                skill_dirs: preset.skill_dirs.clone(),
-            },
-        );
-    }
-    out
+fn preset_display_label(name: &str, count: usize) -> String {
+    format!("{} ({} skills)", name, count)
 }
 
 fn infer_runtime_presets_from_catalog(
@@ -213,8 +166,6 @@ fn infer_runtime_presets_from_catalog(
         let entry = out
             .entry(preset_name.to_string())
             .or_insert_with(|| RuntimePreset {
-                description: None,
-                extends: None,
                 skill_dirs: Vec::new(),
             });
         if !entry.skill_dirs.iter().any(|existing| existing == dir_name) {
@@ -224,48 +175,15 @@ fn infer_runtime_presets_from_catalog(
     out
 }
 
-fn validate_runtime_presets(
-    presets: &HashMap<String, RuntimePreset>,
-    skill_dir_catalog: &SkillDirCatalog,
-) -> Result<()> {
-    let known_dirs: HashSet<String> = skill_dir_catalog.dir_to_skill_id.keys().cloned().collect();
-
-    for (name, preset) in presets {
-        if let Some(parent) = &preset.extends
-            && !presets.contains_key(parent)
-        {
-            return Err(anyhow::anyhow!(t!(
-                "skills.manager.preset_missing_parent",
-                preset = name,
-                parent = parent
-            )));
-        }
-        for dir in &preset.skill_dirs {
-            if !known_dirs.contains(dir) {
-                return Err(anyhow::anyhow!(t!(
-                    "skills.manager.preset_unknown_skill_dir",
-                    preset = name,
-                    dir = dir
-                )));
-            }
-        }
-        let resolved = resolve_preset_skill_dirs(presets, name, &mut Vec::new())?;
-        if resolved.is_empty() {
-            return Err(anyhow::anyhow!(t!(
-                "skills.manager.preset_empty",
-                preset = name
-            )));
-        }
-    }
-    Ok(())
-}
-
 fn resolve_preset_skill_ids(
     presets: &HashMap<String, RuntimePreset>,
     preset_name: &str,
     skill_dir_catalog: &SkillDirCatalog,
 ) -> Result<Vec<String>> {
-    let dirs = resolve_preset_skill_dirs(presets, preset_name, &mut Vec::new())?;
+    let dirs = presets
+        .get(preset_name)
+        .map(|preset| preset.skill_dirs.clone())
+        .unwrap_or_default();
     let mut out = Vec::new();
     for dir in dirs {
         if let Some(skill_id) = skill_dir_catalog.dir_to_skill_id.get(dir.as_str())
@@ -273,6 +191,12 @@ fn resolve_preset_skill_ids(
         {
             out.push(skill_id.clone());
         }
+    }
+    if out.is_empty() {
+        return Err(anyhow::anyhow!(t!(
+            "skills.manager.preset_empty",
+            preset = preset_name
+        )));
     }
     Ok(out)
 }
@@ -367,41 +291,6 @@ fn discover_root_skill_dirs(root: &Path) -> Result<HashMap<String, PathBuf>> {
         out.insert(dir_name, canonical_path);
     }
 
-    Ok(out)
-}
-
-fn resolve_preset_skill_dirs(
-    presets: &HashMap<String, RuntimePreset>,
-    preset_name: &str,
-    visiting: &mut Vec<String>,
-) -> Result<Vec<String>> {
-    if visiting.iter().any(|name| name == preset_name) {
-        let mut chain = visiting.clone();
-        chain.push(preset_name.to_string());
-        return Err(anyhow::anyhow!(t!(
-            "skills.manager.preset_cycle",
-            chain = chain.join(" -> ")
-        )));
-    }
-
-    let preset = presets.get(preset_name).ok_or_else(|| {
-        anyhow::anyhow!(t!("skills.manager.preset_not_found", preset = preset_name))
-    })?;
-
-    visiting.push(preset_name.to_string());
-    let mut out = Vec::new();
-
-    if let Some(parent) = &preset.extends {
-        out.extend(resolve_preset_skill_dirs(presets, parent, visiting)?);
-    }
-
-    for dir in &preset.skill_dirs {
-        if !out.iter().any(|existing| existing == dir) {
-            out.push(dir.clone());
-        }
-    }
-
-    visiting.pop();
     Ok(out)
 }
 
@@ -755,11 +644,7 @@ fn preset_options_from_skills(
         out.push(SkillOption::Preset(PresetOption {
             name: preset_name.clone(),
             skill_ids,
-            label: preset_display_label(
-                &preset_name,
-                preset.skill_dirs.len(),
-                preset.description.as_deref(),
-            ),
+            label: preset_display_label(&preset_name, preset.skill_dirs.len()),
         }));
     }
 
@@ -819,7 +704,7 @@ fn infer_group_presets(
         skill_ids.dedup();
         out.push(PresetOption {
             name: group_name.clone(),
-            label: preset_display_label(&group_name, skill_ids.len(), None),
+            label: preset_display_label(&group_name, skill_ids.len()),
             skill_ids,
         });
     }
@@ -958,22 +843,6 @@ fn confirm_apply(target: &crate::skills::catalog::types::ConfigEntry) -> Result<
     Ok(confirmation)
 }
 
-fn update_registry_for_target(
-    registry: &mut Registry,
-    skills: &[SkillCandidate],
-    target: &crate::skills::catalog::types::ConfigEntry,
-    selected: &HashSet<String>,
-) {
-    let now = Utc::now().to_rfc3339();
-    for skill in skills {
-        let entry = registry.ensure_skill(&skill.skill_id);
-        entry
-            .targets
-            .insert(target.id.clone(), selected.contains(&skill.skill_id));
-        entry.updated_at = Some(now.clone());
-    }
-}
-
 fn dedupe_skills(skills: Vec<SkillCandidate>) -> Vec<SkillCandidate> {
     let mut seen: HashMap<String, SkillCandidate> = HashMap::new();
     for skill in skills {
@@ -1027,64 +896,11 @@ impl From<TargetConflictArg> for TargetConflictStrategy {
     }
 }
 
-fn ensure_target_defaults(
-    entry: &mut crate::skills::catalog::registry::SkillEntry,
-    targets: &[crate::skills::catalog::types::ConfigEntry],
-) {
-    for target in targets {
-        entry
-            .targets
-            .entry(target.id.clone())
-            .or_insert(target.enabled);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::skills::catalog::registry::Registry;
     use crate::skills::catalog::types::{ConfigEntry, SkillsConfig};
     use std::path::PathBuf;
-
-    #[test]
-    fn test_update_registry_for_target_only_updates_target() {
-        let mut registry = Registry::default();
-        registry
-            .ensure_skill("alpha")
-            .targets
-            .insert("other".to_string(), true);
-
-        let skills = vec![
-            SkillCandidate {
-                skill_id: "alpha".to_string(),
-                skill_dir: PathBuf::from("/tmp/alpha"),
-            },
-            SkillCandidate {
-                skill_id: "beta".to_string(),
-                skill_dir: PathBuf::from("/tmp/beta"),
-            },
-        ];
-        let target = crate::skills::catalog::types::ConfigEntry {
-            id: "claude_user".to_string(),
-            agent: "claude".to_string(),
-            scope: "user".to_string(),
-            path: PathBuf::from("/tmp/target"),
-            enabled: true,
-            mode: TargetMode::Link,
-        };
-        let mut selected = HashSet::new();
-        selected.insert("alpha".to_string());
-
-        update_registry_for_target(&mut registry, &skills, &target, &selected);
-
-        let alpha = registry.skills.get("alpha").expect("alpha entry");
-        let beta = registry.skills.get("beta").expect("beta entry");
-        assert_eq!(alpha.targets.get("claude_user"), Some(&true));
-        assert_eq!(beta.targets.get("claude_user"), Some(&false));
-        assert_eq!(alpha.targets.get("other"), Some(&true));
-        assert!(alpha.updated_at.is_some());
-        assert!(beta.updated_at.is_some());
-    }
 
     #[test]
     fn test_selectable_agents_uses_expected_order() {
@@ -1352,113 +1168,45 @@ mod tests {
 
     #[test]
     fn test_resolve_preset_skill_dirs_extends_and_dedupes() {
-        let mut presets = HashMap::new();
-        presets.insert(
-            "daily".to_string(),
-            RuntimePreset {
-                description: None,
-                extends: None,
-                skill_dirs: vec!["superpowers.brainstorming".to_string()],
-            },
-        );
-        presets.insert(
+        let presets = HashMap::from([(
             "full-stack".to_string(),
             RuntimePreset {
-                description: None,
-                extends: Some("daily".to_string()),
                 skill_dirs: vec![
+                    "superpowers.brainstorming".to_string(),
                     "superpowers.brainstorming".to_string(),
                     "vercel-labs.react-best-practices".to_string(),
                 ],
             },
-        );
+        )]);
 
-        let resolved = resolve_preset_skill_dirs(&presets, "full-stack", &mut Vec::new())
-            .expect("resolve preset");
-        assert_eq!(
-            resolved,
-            vec![
-                "superpowers.brainstorming".to_string(),
-                "vercel-labs.react-best-practices".to_string()
-            ]
-        );
-    }
-
-    #[test]
-    fn test_validate_runtime_presets_detects_cycle() {
-        let mut presets = HashMap::new();
-        presets.insert(
-            "a".to_string(),
-            RuntimePreset {
-                description: None,
-                extends: Some("b".to_string()),
-                skill_dirs: vec!["a.alpha".to_string()],
-            },
-        );
-        presets.insert(
-            "b".to_string(),
-            RuntimePreset {
-                description: None,
-                extends: Some("a".to_string()),
-                skill_dirs: vec!["b.beta".to_string()],
-            },
-        );
         let catalog = SkillDirCatalog {
             dir_to_skill_id: HashMap::from([
-                ("a.alpha".to_string(), "alpha".to_string()),
-                ("b.beta".to_string(), "beta".to_string()),
+                (
+                    "superpowers.brainstorming".to_string(),
+                    "brainstorming".to_string(),
+                ),
+                (
+                    "vercel-labs.react-best-practices".to_string(),
+                    "react-best-practices".to_string(),
+                ),
             ]),
             skill_id_to_dir_name: HashMap::from([
-                ("alpha".to_string(), "a.alpha".to_string()),
-                ("beta".to_string(), "b.beta".to_string()),
+                (
+                    "brainstorming".to_string(),
+                    "superpowers.brainstorming".to_string(),
+                ),
+                (
+                    "react-best-practices".to_string(),
+                    "vercel-labs.react-best-practices".to_string(),
+                ),
             ]),
         };
 
-        let err = validate_runtime_presets(&presets, &catalog).expect_err("cycle error");
-        assert!(
-            err.to_string()
-                .contains("Circular preset dependency detected")
-        );
-    }
-
-    #[test]
-    fn test_validate_runtime_presets_detects_unknown_skill_dir() {
-        let mut presets = HashMap::new();
-        presets.insert(
-            "daily".to_string(),
-            RuntimePreset {
-                description: None,
-                extends: None,
-                skill_dirs: vec!["missing.skill".to_string()],
-            },
-        );
-        let catalog = SkillDirCatalog {
-            dir_to_skill_id: HashMap::from([("alpha".to_string(), "alpha".to_string())]),
-            skill_id_to_dir_name: HashMap::from([("alpha".to_string(), "alpha".to_string())]),
-        };
-
-        let err = validate_runtime_presets(&presets, &catalog).expect_err("unknown dir error");
-        assert!(err.to_string().contains("references unknown skill dir"));
-    }
-
-    #[test]
-    fn test_validate_runtime_presets_detects_empty_preset() {
-        let mut presets = HashMap::new();
-        presets.insert(
-            "daily".to_string(),
-            RuntimePreset {
-                description: None,
-                extends: None,
-                skill_dirs: vec![],
-            },
-        );
-        let catalog = SkillDirCatalog {
-            dir_to_skill_id: HashMap::from([("alpha".to_string(), "alpha".to_string())]),
-            skill_id_to_dir_name: HashMap::from([("alpha".to_string(), "alpha".to_string())]),
-        };
-
-        let err = validate_runtime_presets(&presets, &catalog).expect_err("empty preset error");
-        assert!(err.to_string().contains("resolves to an empty skill set"));
+        let resolved =
+            resolve_preset_skill_ids(&presets, "full-stack", &catalog).expect("resolve preset");
+        assert_eq!(resolved.len(), 2);
+        assert!(resolved.contains(&"brainstorming".to_string()));
+        assert!(resolved.contains(&"react-best-practices".to_string()));
     }
 
     #[test]
@@ -1466,8 +1214,6 @@ mod tests {
         let presets = HashMap::from([(
             "superpowers".to_string(),
             RuntimePreset {
-                description: None,
-                extends: None,
                 skill_dirs: vec!["superpowers.brainstorming".to_string()],
             },
         )]);
@@ -1489,13 +1235,43 @@ mod tests {
     }
 
     #[test]
+    fn test_resolve_preset_selections_unknown_dir_errors() {
+        let presets = HashMap::from([(
+            "daily".to_string(),
+            RuntimePreset {
+                skill_dirs: vec!["missing.skill".to_string()],
+            },
+        )]);
+
+        let catalog = SkillDirCatalog {
+            dir_to_skill_id: HashMap::from([("alpha".to_string(), "alpha".to_string())]),
+            skill_id_to_dir_name: HashMap::from([("alpha".to_string(), "alpha".to_string())]),
+        };
+
+        let err =
+            resolve_preset_skill_ids(&presets, "daily", &catalog).expect_err("missing mapping");
+        assert!(err.to_string().contains("resolves to an empty skill set"));
+    }
+
+    #[test]
+    fn test_resolve_preset_selections_empty_preset_errors() {
+        let presets = HashMap::from([("daily".to_string(), RuntimePreset { skill_dirs: vec![] })]);
+
+        let catalog = SkillDirCatalog {
+            dir_to_skill_id: HashMap::from([("alpha".to_string(), "alpha".to_string())]),
+            skill_id_to_dir_name: HashMap::from([("alpha".to_string(), "alpha".to_string())]),
+        };
+
+        let err = resolve_preset_skill_ids(&presets, "daily", &catalog).expect_err("empty preset");
+        assert!(err.to_string().contains("resolves to an empty skill set"));
+    }
+
+    #[test]
     fn test_resolve_preset_selections_merges_and_dedupes() {
         let presets = HashMap::from([
             (
                 "superpowers".to_string(),
                 RuntimePreset {
-                    description: None,
-                    extends: None,
                     skill_dirs: vec![
                         "superpowers.brainstorming".to_string(),
                         "superpowers.writing-plans".to_string(),
@@ -1505,8 +1281,6 @@ mod tests {
             (
                 "daily".to_string(),
                 RuntimePreset {
-                    description: None,
-                    extends: None,
                     skill_dirs: vec![
                         "superpowers.brainstorming".to_string(),
                         "mermaid-expert".to_string(),
@@ -1557,7 +1331,6 @@ mod tests {
 
     #[test]
     fn test_build_runtime_presets_prefers_dir_name_over_skill_id() {
-        let registry = Registry::default();
         let catalog = SkillDirCatalog {
             dir_to_skill_id: HashMap::from([(
                 "superpowers.brainstorming".to_string(),
@@ -1569,7 +1342,7 @@ mod tests {
             )]),
         };
 
-        let presets = build_runtime_presets(&registry, &catalog);
+        let presets = infer_runtime_presets_from_catalog(&catalog);
         let superpowers = presets.get("superpowers").expect("superpowers preset");
         assert_eq!(
             superpowers.skill_dirs,
@@ -1725,8 +1498,6 @@ mod tests {
         let runtime_presets = HashMap::from([(
             "daily".to_string(),
             RuntimePreset {
-                description: None,
-                extends: None,
                 skill_dirs: vec!["superpowers.brainstorming".to_string()],
             },
         )]);
@@ -1785,16 +1556,12 @@ mod tests {
             (
                 "base".to_string(),
                 RuntimePreset {
-                    description: None,
-                    extends: None,
                     skill_dirs: vec!["superpowers.brainstorming".to_string()],
                 },
             ),
             (
                 "daily".to_string(),
                 RuntimePreset {
-                    description: None,
-                    extends: Some("base".to_string()),
                     skill_dirs: vec!["mermaid-expert".to_string()],
                 },
             ),

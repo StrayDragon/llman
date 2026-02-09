@@ -11,4 +11,4 @@
 
 ## Docs
 
-- Skills 分组配置（`registry.json`）：`docs/skills-registry-presets.md`
+- Skills 分组推断说明（实时计算）：`docs/skills-registry-presets.md`
