@@ -1,0 +1,63 @@
+schema: spec-driven
+
+context: |
+  Project: llman CLI quality uplift
+  Primary usage: interactive CLI distributed via cargo install.
+  Platforms: Linux and macOS are primary; Windows support is partial and not a target.
+  Compatibility: output and exit codes may change, but changes must be documented per task.
+
+  Constraints:
+  - Do not touch real user config in tests/dev commands; use `LLMAN_CONFIG_DIR`.
+  - Keep changes incremental and reviewable (one task per PR/merge).
+
+  Goals:
+  - Improve maintainability, readability, and separation of concerns.
+  - Improve reliability, error signaling, testability, and CI signal quality.
+  - Improve CLI experience: error messages, help, and consistency.
+
+  Non-goals:
+  - No large new frameworks or rewrites.
+  - No full Windows support expansion.
+  - No breaking changes without a documented rollback path.
+
+  Guiding principles:
+  - Small, mergeable steps (one task at a time).
+  - Prefer shared helpers in `src/config.rs` and `src/path_utils.rs`.
+  - Fail loudly and consistently for errors.
+  - Avoid risky behavior when parsing or modifying user files.
+
+  Risks and mitigations:
+  - Output and exit code changes can surprise users; document changes and provide examples.
+  - Config path changes can move data; keep the same default path and add migration notes.
+  - Safer comment cleaning may remove fewer comments; warn clearly and keep risky fallback opt-in.
+  - Stricter CI can slow feedback; keep steps minimal and prefer `just check`.
+
+  Milestones:
+  - M1: consistent config path resolution and error/exit handling.
+  - M2: cursor export correctness and safer tool behavior.
+  - M3: quality gates (fmt/clippy) and message consistency.
+
+  Acceptance overview:
+  - `cargo +nightly fmt -- --check` passes.
+  - `cargo +nightly clippy --all-targets --all-features -- -D warnings` passes.
+  - `cargo +nightly test --all` passes.
+  - Manual smoke checks for `llman x cc`, `llman x codex`, `llman x cursor`, `llman prompt`, `llman tool`.
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours

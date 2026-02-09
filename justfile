@@ -7,23 +7,23 @@ default:
 
 # 构建项目
 build:
-    cargo +nightly build
+    cargo build
 
 # 构建发布版本
 build-release:
-    cargo +nightly build --release
+    cargo build --release
 
 # 运行项目（使用测试配置）
 run *args:
-    LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo +nightly run -- {{args}}
+    LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo run -- {{args}}
 
 # 使用生产配置运行
 run-prod *args:
-    cargo +nightly run -- {{args}}
+    cargo run -- {{args}}
 
 # 安装到本地
 install:
-    cargo +nightly install --path .
+    cargo install --path .
 
 # 清理构建产物
 clean:
@@ -35,7 +35,7 @@ clean:
 
 # 运行测试
 test:
-    cargo +nightly test
+    cargo test
 
 # =============================================================================
 # 代码质量检查
@@ -43,23 +43,23 @@ test:
 
 # 代码格式化
 fmt:
-    cargo +nightly fmt
+    cargo fmt
 
 # 检查代码格式化（不修改文件）
 fmt-check:
-    cargo +nightly fmt --all -- --check
+    cargo fmt --all -- --check
 
 # 代码检查（clippy，包含重要警告）
 lint:
-    cargo +nightly clippy -- -D warnings
+    cargo clippy -- -D warnings
 
 # 快速编译检查
 check-compile:
-    cargo +nightly check --all-targets
+    cargo check --all-targets
 
 # 文档检查
 doc-check:
-    cargo +nightly doc --no-deps --all-features --document-private-items
+    cargo doc --no-deps --all-features --document-private-items
 
 # 核心检查（格式化检查 + lint + 测试）
 check: fmt-check lint test
@@ -89,4 +89,4 @@ check-sdd-templates:
 
 # 检查配置 schema
 check-schemas:
-    LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo +nightly run -- self schema check
+    LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo run -- self schema check
