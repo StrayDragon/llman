@@ -53,6 +53,14 @@ impl CursorDatabase {
     /// # 参数
     /// * `custom_path` - 自定义数据库路径，None时自动查找最新的workspace数据库
     pub fn new(custom_path: Option<&str>) -> Result<Self> {
+        Self::new_with_options(custom_path, true)
+    }
+
+    pub fn new_without_global(custom_path: Option<&str>) -> Result<Self> {
+        Self::new_with_options(custom_path, false)
+    }
+
+    fn new_with_options(custom_path: Option<&str>, include_global_db: bool) -> Result<Self> {
         let db_path = if let Some(path) = custom_path {
             PathBuf::from(path)
         } else {
@@ -60,7 +68,11 @@ impl CursorDatabase {
         };
 
         // 获取全局数据库路径
-        let global_db_path = Self::get_global_db_path().ok();
+        let global_db_path = if include_global_db {
+            Self::get_global_db_path().ok()
+        } else {
+            None
+        };
 
         println!(
             "{}: {}\n",
@@ -683,35 +695,6 @@ mod tests {
     use diesel::sqlite::SqliteConnection;
     use tempfile::tempdir;
 
-    struct EnvVarGuard {
-        key: &'static str,
-        previous: Option<String>,
-    }
-
-    impl EnvVarGuard {
-        fn set(key: &'static str, value: &str) -> Self {
-            let previous = std::env::var(key).ok();
-            unsafe {
-                std::env::set_var(key, value);
-            }
-            Self { key, previous }
-        }
-    }
-
-    impl Drop for EnvVarGuard {
-        fn drop(&mut self) {
-            if let Some(value) = self.previous.as_ref() {
-                unsafe {
-                    std::env::set_var(self.key, value);
-                }
-            } else {
-                unsafe {
-                    std::env::remove_var(self.key);
-                }
-            }
-        }
-    }
-
     fn write_item_table(db_path: &Path, chat_json: &str) {
         let mut conn =
             SqliteConnection::establish(&db_path.to_string_lossy()).expect("establish sqlite");
@@ -728,13 +711,7 @@ mod tests {
 
     #[test]
     fn selected_keys_map_to_correct_export_even_if_summary_is_sorted() {
-        let _guard = crate::test_utils::ENV_MUTEX
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
         let dir = tempdir().expect("tempdir");
-        let home = dir.path().join("home");
-        std::fs::create_dir_all(&home).expect("home dir");
-        let _home_guard = EnvVarGuard::set("HOME", &home.to_string_lossy());
 
         let db_path = dir.path().join("state.vscdb");
         let chat_json = r#"{
@@ -758,7 +735,7 @@ mod tests {
         write_item_table(&db_path, chat_json);
 
         let db_path_str = db_path.to_string_lossy().to_string();
-        let db = CursorDatabase::new(Some(&db_path_str)).expect("db");
+        let db = CursorDatabase::new_without_global(Some(&db_path_str)).expect("db");
         let summaries = db.get_conversation_summaries().expect("summaries");
         assert_eq!(summaries.len(), 2);
         assert_eq!(summaries[0].title, "New Chat");
@@ -773,13 +750,7 @@ mod tests {
 
     #[test]
     fn search_results_share_same_key_space_as_exports() {
-        let _guard = crate::test_utils::ENV_MUTEX
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
         let dir = tempdir().expect("tempdir");
-        let home = dir.path().join("home");
-        std::fs::create_dir_all(&home).expect("home dir");
-        let _home_guard = EnvVarGuard::set("HOME", &home.to_string_lossy());
 
         let db_path = dir.path().join("state.vscdb");
         let chat_json = r#"{
@@ -803,7 +774,7 @@ mod tests {
         write_item_table(&db_path, chat_json);
 
         let db_path_str = db_path.to_string_lossy().to_string();
-        let db = CursorDatabase::new(Some(&db_path_str)).expect("db");
+        let db = CursorDatabase::new_without_global(Some(&db_path_str)).expect("db");
         let results = db.search_conversations("old").expect("search");
         assert_eq!(results.len(), 1);
         let key = results[0].conversation_key();

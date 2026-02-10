@@ -2,7 +2,6 @@ use llman::tool::command::CleanUselessCommentsArgs;
 use llman::tool::config::Config;
 use llman::tool::processor::CommentProcessor;
 mod common;
-mod env_lock;
 use common::*;
 use std::process::Command;
 
@@ -225,9 +224,7 @@ tools:
 
 #[test]
 fn test_file_scoping() {
-    let _guard = env_lock::lock_env();
     let env = TestEnvironment::new();
-    let _cwd = env_lock::CwdGuard::set(env.path()).unwrap();
 
     // Create files with different extensions
     env.create_file("test.py", "# Python comment");
@@ -268,7 +265,7 @@ tools:
     };
 
     let mut processor = CommentProcessor::new(config, args);
-    let result = processor.process().unwrap();
+    let result = processor.process_with_cwd(env.path()).unwrap();
 
     // Should process both .py and .js files, but not .txt
     // Comments are not removed because they're exactly at the minimum length threshold
@@ -281,9 +278,7 @@ tools:
 
 #[test]
 fn test_git_only_processes_tracked_files() {
-    let _guard = env_lock::lock_env();
     let env = TestEnvironment::new();
-    let _cwd = env_lock::CwdGuard::set(env.path()).unwrap();
 
     let _test_file = env.create_file("tracked.py", "# x\n");
     Command::new("git")
@@ -320,7 +315,7 @@ tools:
     };
 
     let mut processor = CommentProcessor::new(config, args);
-    let result = processor.process().unwrap();
+    let result = processor.process_with_cwd(env.path()).unwrap();
 
     assert_eq!(result.files_changed.len(), 1);
 }

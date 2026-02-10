@@ -25,6 +25,9 @@ const CLAUDE_MEMORY_FILE: &str = "CLAUDE.md";
 
 pub struct PromptCommand {
     config: Config,
+    cwd_override: Option<PathBuf>,
+    codex_home_override: Option<PathBuf>,
+    claude_home_override: Option<PathBuf>,
 }
 
 impl PromptCommand {
@@ -32,6 +35,9 @@ impl PromptCommand {
     pub fn new() -> Result<Self> {
         Ok(Self {
             config: Config::new()?,
+            cwd_override: None,
+            codex_home_override: None,
+            claude_home_override: None,
         })
     }
 
@@ -39,6 +45,9 @@ impl PromptCommand {
     pub fn with_config_dir(config_dir: Option<&str>) -> Result<Self> {
         Ok(Self {
             config: Config::with_config_dir(config_dir)?,
+            cwd_override: None,
+            codex_home_override: None,
+            claude_home_override: None,
         })
     }
 
@@ -294,7 +303,7 @@ impl PromptCommand {
 
         match app {
             CURSOR_APP => {
-                let cwd = env::current_dir()?;
+                let cwd = self.cwd()?;
                 let root = find_git_root(&cwd).unwrap_or(cwd);
                 Ok(root.join(TARGET_CURSOR_RULES_DIR))
             }
@@ -369,8 +378,15 @@ fn has_llman_prompts_markers(content: &str) -> bool {
 }
 
 impl PromptCommand {
+    fn cwd(&self) -> Result<PathBuf> {
+        if let Some(cwd) = self.cwd_override.as_ref() {
+            return Ok(cwd.clone());
+        }
+        Ok(env::current_dir()?)
+    }
+
     fn ensure_not_home_dir(&self) -> Result<()> {
-        let current_dir = env::current_dir()?;
+        let current_dir = self.cwd()?;
         if let Some(user_dir) = directories::UserDirs::new()
             && current_dir == user_dir.home_dir().to_path_buf()
         {
@@ -381,7 +397,7 @@ impl PromptCommand {
 
     fn project_root(&self, force: bool, interactive: bool) -> Result<Option<PathBuf>> {
         self.ensure_not_home_dir()?;
-        let cwd = env::current_dir()?;
+        let cwd = self.cwd()?;
         if let Some(root) = find_git_root(&cwd) {
             return Ok(Some(root));
         }
@@ -404,6 +420,9 @@ impl PromptCommand {
     }
 
     fn codex_home_dir(&self) -> Result<PathBuf> {
+        if let Some(home) = self.codex_home_override.as_ref() {
+            return Ok(home.clone());
+        }
         if let Ok(home) = env::var("CODEX_HOME") {
             return Ok(PathBuf::from(home));
         }
@@ -412,6 +431,9 @@ impl PromptCommand {
     }
 
     fn claude_home_dir(&self) -> Result<PathBuf> {
+        if let Some(home) = self.claude_home_override.as_ref() {
+            return Ok(home.clone());
+        }
         if let Ok(home) = env::var("CLAUDE_HOME") {
             return Ok(PathBuf::from(home));
         }
@@ -548,31 +570,11 @@ fn select_templates(templates: Vec<String>) -> Result<Vec<String>> {
 mod tests {
     use super::{PromptCommand, select_templates};
     use crate::config::{CLAUDE_CODE_APP, CODEX_APP, CURSOR_APP, TARGET_CURSOR_RULES_DIR};
-    use crate::test_utils::ENV_MUTEX;
     use std::env;
     use std::fs;
     use std::path::Path;
-    use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
     use tempfile::TempDir;
-
-    struct CwdGuard {
-        original: PathBuf,
-    }
-
-    impl CwdGuard {
-        fn new() -> Self {
-            Self {
-                original: env::current_dir().expect("current dir"),
-            }
-        }
-    }
-
-    impl Drop for CwdGuard {
-        fn drop(&mut self) {
-            let _ = env::set_current_dir(&self.original);
-        }
-    }
 
     fn temp_config_dir(label: &str) -> std::path::PathBuf {
         let nanos = SystemTime::now()
@@ -601,8 +603,10 @@ mod tests {
     #[test]
     fn test_get_target_path_default_dir() {
         let temp_dir = temp_config_dir("default");
-        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
-        let current_dir = env::current_dir().unwrap();
+        let temp_cwd = TempDir::new().expect("temp dir");
+        let current_dir = temp_cwd.path().to_path_buf();
+        let mut command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        command.cwd_override = Some(current_dir.clone());
         let target = command
             .get_target_path(CURSOR_APP, "feedback-mode", None)
             .unwrap();
@@ -624,17 +628,14 @@ mod tests {
 
     #[test]
     fn test_claude_inject_requires_force_in_non_interactive_when_unmanaged() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let cwd_guard = CwdGuard::new();
-
         let temp = TempDir::new().expect("temp dir");
         let repo = temp.path().join("repo");
         fs::create_dir_all(repo.join(".git")).expect("create git dir");
         fs::write(repo.join("CLAUDE.md"), "user content").expect("write");
-        env::set_current_dir(&repo).expect("chdir");
 
         let temp_dir = temp_config_dir("claude_non_interactive");
-        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        let mut command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        command.cwd_override = Some(repo);
 
         let result = command.write_claude_memory_files(
             super::PromptScope::Project,
@@ -643,19 +644,13 @@ mod tests {
             "llman body",
         );
         assert!(result.is_err());
-
-        drop(cwd_guard);
     }
 
     #[test]
     fn test_claude_inject_updates_managed_block_non_interactive() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let cwd_guard = CwdGuard::new();
-
         let temp = TempDir::new().expect("temp dir");
         let repo = temp.path().join("repo");
         fs::create_dir_all(repo.join(".git")).expect("create git dir");
-        env::set_current_dir(&repo).expect("chdir");
 
         let file = repo.join("CLAUDE.md");
         fs::write(
@@ -669,7 +664,8 @@ mod tests {
         .expect("write");
 
         let temp_dir = temp_config_dir("claude_managed_update");
-        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        let mut command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        command.cwd_override = Some(repo);
         command
             .write_claude_memory_files(super::PromptScope::Project, false, false, "new body")
             .expect("update");
@@ -679,39 +675,26 @@ mod tests {
         assert!(updated.contains(super::LLMAN_PROMPTS_MARKER_END));
         assert!(updated.contains("new body"));
         assert!(updated.contains("user content"));
-
-        drop(cwd_guard);
     }
 
     #[test]
     fn test_codex_user_targets_respect_codex_home() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-
         let temp = TempDir::new().expect("temp dir");
         let codex_home = temp.path().join("codexhome");
         fs::create_dir_all(&codex_home).expect("create codex home");
 
-        unsafe {
-            env::set_var("CODEX_HOME", &codex_home);
-        }
-
         let temp_dir = temp_config_dir("codex_home");
-        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        let mut command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        command.codex_home_override = Some(codex_home.clone());
         let targets = command
             .codex_prompt_targets("draftpr", super::PromptScope::User, false, false)
             .unwrap();
         assert_eq!(targets.len(), 1);
         assert_eq!(targets[0], codex_home.join("prompts").join("draftpr.md"));
-
-        unsafe {
-            env::remove_var("CODEX_HOME");
-        }
     }
 
     #[test]
     fn test_remove_rule_requires_yes_in_non_interactive() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-
         let temp_dir = temp_config_dir("rm_non_interactive");
         let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
 
@@ -735,20 +718,17 @@ mod tests {
 
     #[test]
     fn test_claude_inject_fails_if_existing_file_is_not_utf8() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let cwd_guard = CwdGuard::new();
-
         let temp = TempDir::new().expect("temp dir");
         let repo = temp.path().join("repo");
         fs::create_dir_all(repo.join(".git")).expect("create git dir");
-        env::set_current_dir(&repo).expect("chdir");
 
         let file = repo.join("CLAUDE.md");
         let original_bytes = vec![0xFF, 0xFE, 0xFD];
         fs::write(&file, &original_bytes).expect("write invalid utf8");
 
         let temp_dir = temp_config_dir("claude_invalid_utf8");
-        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        let mut command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        command.cwd_override = Some(repo);
 
         let err = command
             .write_claude_memory_files(super::PromptScope::Project, true, false, "body")
@@ -757,22 +737,17 @@ mod tests {
 
         let after = fs::read(&file).expect("read bytes");
         assert_eq!(after, original_bytes);
-
-        drop(cwd_guard);
     }
 
     #[test]
     fn test_project_scope_requires_force_when_git_root_missing_non_interactive() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let cwd_guard = CwdGuard::new();
-
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path().join("no_repo");
         fs::create_dir_all(&root).expect("create dir");
-        env::set_current_dir(&root).expect("chdir");
 
         let temp_dir = temp_config_dir("codex_no_repo");
-        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        let mut command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        command.cwd_override = Some(root.clone());
 
         let err = command
             .write_codex_prompt_files("draftpr", super::PromptScope::Project, false, false, "x")
@@ -784,24 +759,19 @@ mod tests {
             .write_codex_prompt_files("draftpr", super::PromptScope::Project, true, false, "x")
             .expect("force writes");
         assert!(root.join(".codex/prompts/draftpr.md").exists());
-
-        drop(cwd_guard);
     }
 
     #[test]
     fn test_project_scope_writes_to_repo_root_from_subdir() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let cwd_guard = CwdGuard::new();
-
         let temp = TempDir::new().expect("temp dir");
         let repo = temp.path().join("repo");
         let nested = repo.join("a").join("b");
         fs::create_dir_all(&nested).expect("create nested dirs");
         fs::create_dir_all(repo.join(".git")).expect("create git dir");
-        env::set_current_dir(&nested).expect("chdir");
 
         let temp_dir = temp_config_dir("codex_repo_root");
-        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        let mut command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        command.cwd_override = Some(nested.clone());
 
         command
             .write_codex_prompt_files(
@@ -815,7 +785,5 @@ mod tests {
 
         assert!(repo.join(".codex/prompts/draftpr.md").exists());
         assert!(!nested.join(".codex/prompts/draftpr.md").exists());
-
-        drop(cwd_guard);
     }
 }

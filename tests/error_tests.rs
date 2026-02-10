@@ -1,8 +1,5 @@
 use llman::error::{LlmanError, Result};
 use std::io;
-use std::sync::Mutex;
-
-static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
 fn load_i18n_template(key: &str, locale: &str) -> String {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
@@ -150,11 +147,7 @@ fn test_llman_error_from_conversions() {
 /// Tests the display_localized method of LlmanError
 #[test]
 fn test_llman_error_display_localized() {
-    let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
     let locale = "en";
-    unsafe {
-        std::env::set_var("LLMAN_LANG", locale);
-    }
     llman::init_locale();
 
     let config_error = LlmanError::Config {
@@ -190,10 +183,6 @@ fn test_llman_error_display_localized() {
     let template = load_i18n_template("errors.rule_not_found", locale);
     let expected = format_i18n_template(&template, &[("name", "missing_rule")]);
     assert_eq!(localized, expected);
-
-    unsafe {
-        std::env::remove_var("LLMAN_LANG");
-    }
 }
 
 /// Tests that LlmanError variants can be cloned and compared

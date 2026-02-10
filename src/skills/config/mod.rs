@@ -77,11 +77,28 @@ fn resolve_skills_root(cli_override: Option<&Path>) -> Result<PathBuf> {
         return resolve_skills_root_from_env(&env_skills_dir);
     }
 
-    if let Some(config_dir) = load_skills_root_from_llman_config()? {
+    let config_dir = resolve_config_dir(None)?;
+    resolve_skills_root_with(None, None, &config_dir)
+}
+
+fn resolve_skills_root_with(
+    cli_override: Option<&Path>,
+    env_skills_dir: Option<&str>,
+    config_dir: &Path,
+) -> Result<PathBuf> {
+    if let Some(path) = cli_override {
+        return resolve_skills_root_from_cli(path);
+    }
+
+    if let Some(env_skills_dir) = env_skills_dir {
+        return resolve_skills_root_from_env(env_skills_dir);
+    }
+
+    let global_config = config_dir.join(LLMAN_CONFIG_FILE);
+    if let Some(config_dir) = load_skills_root_from_config_path(&global_config)? {
         return Ok(config_dir);
     }
 
-    let config_dir = resolve_config_dir(None)?;
     Ok(config_dir.join(SKILLS_DIR))
 }
 
@@ -102,11 +119,6 @@ fn resolve_skills_root_from_config(raw: &str) -> Result<PathBuf> {
     validate_path_str(raw)
         .map_err(|e| anyhow!(t!("skills.config.skills_dir_invalid_config", error = e)))?;
     expand_path(raw)
-}
-
-fn load_skills_root_from_llman_config() -> Result<Option<PathBuf>> {
-    let global_config = resolve_config_dir(None)?.join(LLMAN_CONFIG_FILE);
-    load_skills_root_from_config_path(&global_config)
 }
 
 fn load_skills_root_from_config_path(path: &Path) -> Result<Option<PathBuf>> {
@@ -164,8 +176,8 @@ pub fn load_config(paths: &SkillsPaths) -> Result<SkillsConfig> {
 fn resolve_target_entries(entries: Vec<TomlEntry>) -> Result<Vec<ConfigEntry>> {
     let mut resolved = Vec::new();
     for entry in entries {
-        let path = expand_path(&entry.path)?;
         let mode = parse_target_mode(entry.mode.as_deref())?;
+        let path = expand_path(&entry.path)?;
         resolved.push(ConfigEntry {
             id: entry.id,
             agent: entry.agent,
@@ -191,15 +203,32 @@ fn parse_target_mode(raw: Option<&str>) -> Result<TargetMode> {
 
 fn default_targets() -> Result<Vec<ConfigEntry>> {
     let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let (claude_project_path, claude_project_mode) = default_repo_scope_dir(&cwd, ".claude/skills");
-    let (codex_repo_path, codex_repo_mode) = default_repo_scope_dir(&cwd, ".agents/skills");
+    let home_dir = dirs::home_dir();
+    let claude_home = env::var("CLAUDE_HOME").ok().map(PathBuf::from);
+    let codex_home = env::var("CODEX_HOME").ok().map(PathBuf::from);
+    default_targets_with(
+        &cwd,
+        home_dir.as_deref(),
+        claude_home.as_deref(),
+        codex_home.as_deref(),
+    )
+}
+
+fn default_targets_with(
+    cwd: &Path,
+    home_dir: Option<&Path>,
+    claude_home: Option<&Path>,
+    codex_home: Option<&Path>,
+) -> Result<Vec<ConfigEntry>> {
+    let (claude_project_path, claude_project_mode) = default_repo_scope_dir(cwd, ".claude/skills");
+    let (codex_repo_path, codex_repo_mode) = default_repo_scope_dir(cwd, ".agents/skills");
 
     Ok(vec![
         ConfigEntry {
             id: "claude_user".to_string(),
             agent: "claude".to_string(),
             scope: "user".to_string(),
-            path: default_claude_user_dir()?,
+            path: default_claude_user_dir_with(claude_home, home_dir)?,
             enabled: true,
             mode: TargetMode::Link,
         },
@@ -215,7 +244,7 @@ fn default_targets() -> Result<Vec<ConfigEntry>> {
             id: "codex_user".to_string(),
             agent: "codex".to_string(),
             scope: "user".to_string(),
-            path: default_codex_user_dir()?,
+            path: default_codex_user_dir_with(codex_home, home_dir)?,
             enabled: true,
             mode: TargetMode::Link,
         },
@@ -231,23 +260,28 @@ fn default_targets() -> Result<Vec<ConfigEntry>> {
             id: "agent_global".to_string(),
             agent: "agent".to_string(),
             scope: "global".to_string(),
-            path: default_agent_global_dir()?,
+            path: default_agent_global_dir_with(home_dir)?,
             enabled: true,
             mode: TargetMode::Link,
         },
     ])
 }
 
-fn default_claude_user_dir() -> Result<PathBuf> {
-    if let Ok(home) = env::var("CLAUDE_HOME") {
-        return Ok(PathBuf::from(home).join("skills"));
+fn default_claude_user_dir_with(
+    claude_home: Option<&Path>,
+    home_dir: Option<&Path>,
+) -> Result<PathBuf> {
+    if let Some(home) = claude_home {
+        return Ok(home.join("skills"));
     }
-    expand_path("~/.claude/skills")
+    expand_path_with("~/.claude/skills", home_dir, |_key| None)
 }
 
-fn default_codex_user_dir() -> Result<PathBuf> {
-    if let Ok(home) = env::var("CODEX_HOME") {
-        let home = PathBuf::from(home);
+fn default_codex_user_dir_with(
+    codex_home: Option<&Path>,
+    home_dir: Option<&Path>,
+) -> Result<PathBuf> {
+    if let Some(home) = codex_home {
         let preferred = home.join(".agents").join("skills");
         if preferred.exists() {
             return Ok(preferred);
@@ -259,19 +293,19 @@ fn default_codex_user_dir() -> Result<PathBuf> {
         return Ok(preferred);
     }
 
-    let preferred = expand_path("~/.agents/skills")?;
+    let preferred = expand_path_with("~/.agents/skills", home_dir, |_key| None)?;
     if preferred.exists() {
         return Ok(preferred);
     }
-    let legacy = expand_path("~/.codex/skills")?;
+    let legacy = expand_path_with("~/.codex/skills", home_dir, |_key| None)?;
     if legacy.exists() {
         return Ok(legacy);
     }
     Ok(preferred)
 }
 
-fn default_agent_global_dir() -> Result<PathBuf> {
-    expand_path("~/.skills")
+fn default_agent_global_dir_with(home_dir: Option<&Path>) -> Result<PathBuf> {
+    expand_path_with("~/.skills", home_dir, |_key| None)
 }
 
 fn default_repo_scope_dir(cwd: &Path, relative: &str) -> (PathBuf, TargetMode) {
@@ -282,14 +316,24 @@ fn default_repo_scope_dir(cwd: &Path, relative: &str) -> (PathBuf, TargetMode) {
 }
 
 fn expand_path(raw: &str) -> Result<PathBuf> {
-    let expanded = expand_env_vars(raw);
-    let path = expand_tilde(&expanded)?;
+    expand_path_with(raw, None, |key| env::var(key).ok())
+}
+
+fn expand_path_with<F>(raw: &str, home_dir: Option<&Path>, env_lookup: F) -> Result<PathBuf>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    let expanded = expand_env_vars_with(raw, env_lookup);
+    let path = expand_tilde_with(&expanded, home_dir)?;
     Ok(PathBuf::from(path))
 }
 
-fn expand_tilde(path: &str) -> Result<String> {
+fn expand_tilde_with(path: &str, home_dir: Option<&Path>) -> Result<String> {
     if path == "~" || path.starts_with("~/") {
-        let home = dirs::home_dir().ok_or_else(|| anyhow!(t!("skills.config.home_missing")))?;
+        let home = home_dir
+            .map(Path::to_path_buf)
+            .or_else(dirs::home_dir)
+            .ok_or_else(|| anyhow!(t!("skills.config.home_missing")))?;
         if path == "~" {
             return Ok(home.to_string_lossy().to_string());
         }
@@ -299,11 +343,14 @@ fn expand_tilde(path: &str) -> Result<String> {
     Ok(path.to_string())
 }
 
-fn expand_env_vars(input: &str) -> String {
+fn expand_env_vars_with<F>(input: &str, lookup: F) -> String
+where
+    F: Fn(&str) -> Option<String>,
+{
     let re = Regex::new(r"\$([A-Za-z0-9_]+)|\$\{([^}]+)\}").unwrap();
     re.replace_all(input, |caps: &regex::Captures| {
         let key = caps.get(1).or_else(|| caps.get(2)).unwrap().as_str();
-        env::var(key).unwrap_or_else(|_| caps.get(0).unwrap().as_str().to_string())
+        lookup(key).unwrap_or_else(|| caps.get(0).unwrap().as_str().to_string())
     })
     .to_string()
 }
@@ -311,87 +358,51 @@ fn expand_env_vars(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::ENV_MUTEX;
+    use std::collections::HashMap;
     use tempfile::TempDir;
-
-    struct CwdGuard {
-        original: PathBuf,
-    }
-
-    impl CwdGuard {
-        fn new() -> Self {
-            Self {
-                original: env::current_dir().expect("current dir"),
-            }
-        }
-    }
-
-    impl Drop for CwdGuard {
-        fn drop(&mut self) {
-            let _ = env::set_current_dir(&self.original);
-        }
-    }
 
     #[test]
     fn test_expand_env_vars() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        unsafe {
-            env::set_var("SKILLS_TEST_PATH", "/tmp/skills-test");
-        }
-        let expanded = expand_env_vars("$SKILLS_TEST_PATH/dir");
+        let vars: HashMap<&str, &str> = HashMap::from([("SKILLS_TEST_PATH", "/tmp/skills-test")]);
+        let expanded = expand_env_vars_with("$SKILLS_TEST_PATH/dir", |key| {
+            vars.get(key).map(|value| (*value).to_string())
+        });
         assert_eq!(expanded, "/tmp/skills-test/dir");
-        unsafe {
-            env::remove_var("SKILLS_TEST_PATH");
-        }
     }
 
     #[test]
     fn test_load_default_config() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
         let config_dir = temp.path().join("config");
         fs::create_dir_all(&config_dir).expect("create config dir");
-        let home_root = temp.path().join("home");
-        fs::create_dir_all(&home_root).expect("home root");
-        unsafe {
-            env::set_var("LLMAN_CONFIG_DIR", &config_dir);
-            env::set_var("HOME", &home_root);
-            env::set_var("CLAUDE_HOME", home_root.join("claude"));
-            env::set_var("CODEX_HOME", home_root.join("codex"));
-        }
-        let paths = SkillsPaths::resolve().expect("paths");
+        let root = resolve_skills_root_with(None, None, &config_dir).expect("paths");
+        let paths = SkillsPaths {
+            root: root.clone(),
+            config_path: root.join(CONFIG_FILE),
+        };
         assert_eq!(paths.root, config_dir.join("skills"));
         let config = load_config(&paths).expect("config");
         assert!(!config.targets.is_empty());
-        unsafe {
-            env::remove_var("LLMAN_CONFIG_DIR");
-            env::remove_var("HOME");
-            env::remove_var("CLAUDE_HOME");
-            env::remove_var("CODEX_HOME");
-        }
     }
 
     #[test]
     fn test_resolve_skills_root_cli_overrides_env_and_config() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
         let cli_root = temp.path().join("cli-root");
         let env_root = temp.path().join("env-root");
-        unsafe {
-            env::set_var(ENV_SKILLS_DIR, &env_root);
-        }
+        let config_dir = temp.path().join("config");
 
-        let paths = SkillsPaths::resolve_with_override(Some(cli_root.as_path())).expect("paths");
-        assert_eq!(paths.root, cli_root);
-
-        unsafe {
-            env::remove_var(ENV_SKILLS_DIR);
-        }
+        let resolved = resolve_skills_root_with(
+            Some(cli_root.as_path()),
+            Some(env_root.to_str().unwrap()),
+            &config_dir,
+        )
+        .expect("paths");
+        assert_eq!(resolved, cli_root);
     }
 
     #[test]
     fn test_resolve_skills_root_env_overrides_config() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
         let env_root = temp.path().join("env-root");
         let global_root = temp.path().join("global-root");
@@ -406,44 +417,18 @@ mod tests {
             ),
         )
         .expect("write global config");
-
-        unsafe {
-            env::set_var("LLMAN_CONFIG_DIR", &config_dir);
-        }
-
-        unsafe {
-            env::set_var(ENV_SKILLS_DIR, &env_root);
-        }
-
-        let paths = SkillsPaths::resolve().expect("paths");
-        assert_eq!(paths.root, env_root);
-
-        unsafe {
-            env::remove_var(ENV_SKILLS_DIR);
-            env::remove_var("LLMAN_CONFIG_DIR");
-        }
+        let resolved =
+            resolve_skills_root_with(None, Some(env_root.to_str().unwrap()), &config_dir)
+                .expect("paths");
+        assert_eq!(resolved, env_root);
     }
 
     #[test]
     fn test_resolve_skills_root_local_config_ignored() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
-        let local_root = temp.path().join("local-root");
         let global_root = temp.path().join("global-root");
         let config_dir = temp.path().join("config");
         fs::create_dir_all(&config_dir).expect("create config dir");
-
-        let _cwd_guard = CwdGuard::new();
-        env::set_current_dir(temp.path()).expect("set cwd");
-        fs::create_dir_all(temp.path().join(".llman")).expect("create .llman");
-        fs::write(
-            temp.path().join(".llman").join("config.yaml"),
-            format!(
-                "version: \"0.1\"\ntools: {{}}\nskills:\n  dir: {}\n",
-                local_root.display()
-            ),
-        )
-        .expect("write local config");
 
         fs::write(
             config_dir.join("config.yaml"),
@@ -453,29 +438,16 @@ mod tests {
             ),
         )
         .expect("write global config");
-
-        unsafe {
-            env::set_var("LLMAN_CONFIG_DIR", &config_dir);
-        }
-
-        let paths = SkillsPaths::resolve().expect("paths");
-        assert_eq!(paths.root, global_root);
-
-        unsafe {
-            env::remove_var("LLMAN_CONFIG_DIR");
-        }
+        let resolved = resolve_skills_root_with(None, None, &config_dir).expect("paths");
+        assert_eq!(resolved, global_root);
     }
 
     #[test]
     fn test_resolve_skills_root_global_config_fallback() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
         let global_root = temp.path().join("global-root");
         let config_dir = temp.path().join("config");
         fs::create_dir_all(&config_dir).expect("create config dir");
-
-        let _cwd_guard = CwdGuard::new();
-        env::set_current_dir(temp.path()).expect("set cwd");
         fs::write(
             config_dir.join("config.yaml"),
             format!(
@@ -484,17 +456,8 @@ mod tests {
             ),
         )
         .expect("write global config");
-
-        unsafe {
-            env::set_var("LLMAN_CONFIG_DIR", &config_dir);
-        }
-
-        let paths = SkillsPaths::resolve().expect("paths");
-        assert_eq!(paths.root, global_root);
-
-        unsafe {
-            env::remove_var("LLMAN_CONFIG_DIR");
-        }
+        let resolved = resolve_skills_root_with(None, None, &config_dir).expect("paths");
+        assert_eq!(resolved, global_root);
     }
 
     #[test]
@@ -556,25 +519,16 @@ mod tests {
 
     #[test]
     fn test_default_targets_include_repo_scopes_inside_git_repo() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
         let repo_root = temp.path().join("repo");
         let nested = repo_root.join("nested");
         fs::create_dir_all(repo_root.join(".git")).expect("create .git");
         fs::create_dir_all(&nested).expect("create nested");
 
-        let _cwd_guard = CwdGuard::new();
-        env::set_current_dir(&nested).expect("set cwd");
-
         let home_root = temp.path().join("home");
         fs::create_dir_all(&home_root).expect("create home");
-        unsafe {
-            env::set_var("HOME", &home_root);
-            env::remove_var("CLAUDE_HOME");
-            env::remove_var("CODEX_HOME");
-        }
-
-        let targets = default_targets().expect("default targets");
+        let targets =
+            default_targets_with(&nested, Some(&home_root), None, None).expect("default targets");
 
         let claude_project = targets
             .iter()
@@ -589,31 +543,17 @@ mod tests {
             .expect("codex_repo target");
         assert_eq!(codex_repo.mode, TargetMode::Link);
         assert_eq!(codex_repo.path, repo_root.join(".agents/skills"));
-
-        unsafe {
-            env::remove_var("HOME");
-        }
     }
 
     #[test]
     fn test_default_targets_mark_repo_scopes_read_only_outside_git_repo() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
         let cwd = temp.path().join("work");
         fs::create_dir_all(&cwd).expect("create cwd");
 
-        let _cwd_guard = CwdGuard::new();
-        env::set_current_dir(&cwd).expect("set cwd");
-
         let home_root = temp.path().join("home");
         fs::create_dir_all(&home_root).expect("create home");
-        unsafe {
-            env::set_var("HOME", &home_root);
-            env::remove_var("CLAUDE_HOME");
-            env::remove_var("CODEX_HOME");
-        }
-
-        let targets = default_targets().expect("default targets");
+        let targets = default_targets_with(&cwd, Some(&home_root), None, None).expect("default");
 
         let claude_project = targets
             .iter()
@@ -626,50 +566,26 @@ mod tests {
             .find(|target| target.id == "codex_repo")
             .expect("codex_repo target");
         assert_eq!(codex_repo.mode, TargetMode::Skip);
-
-        unsafe {
-            env::remove_var("HOME");
-        }
     }
 
     #[test]
     fn test_codex_user_prefers_agents_skills_path() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
         let home_root = temp.path().join("home");
         fs::create_dir_all(home_root.join(".agents/skills")).expect("create agents skills");
         fs::create_dir_all(home_root.join(".codex/skills")).expect("create codex skills");
 
-        unsafe {
-            env::set_var("HOME", &home_root);
-            env::remove_var("CODEX_HOME");
-        }
-
-        let path = default_codex_user_dir().expect("codex user dir");
+        let path = default_codex_user_dir_with(None, Some(&home_root)).expect("codex user dir");
         assert_eq!(path, home_root.join(".agents/skills"));
-
-        unsafe {
-            env::remove_var("HOME");
-        }
     }
 
     #[test]
     fn test_codex_user_falls_back_to_codex_skills_when_agents_missing() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
         let home_root = temp.path().join("home");
         fs::create_dir_all(home_root.join(".codex/skills")).expect("create codex skills");
 
-        unsafe {
-            env::set_var("HOME", &home_root);
-            env::remove_var("CODEX_HOME");
-        }
-
-        let path = default_codex_user_dir().expect("codex user dir");
+        let path = default_codex_user_dir_with(None, Some(&home_root)).expect("codex user dir");
         assert_eq!(path, home_root.join(".codex/skills"));
-
-        unsafe {
-            env::remove_var("HOME");
-        }
     }
 }

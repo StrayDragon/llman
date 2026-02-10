@@ -392,11 +392,6 @@ tools:
 fn test_config_environment_substitution() {
     let env = TestEnvironment::new();
 
-    // Test if config supports environment variable substitution (if implemented)
-    unsafe {
-        std::env::set_var("TEST_MIN_LENGTH", "15");
-    }
-
     let config_with_env = r#"
 version: "0.1"
 tools:
@@ -429,10 +424,6 @@ tools:
         Err(_) => {
             println!("Environment substitution not implemented or failed");
         }
-    }
-
-    unsafe {
-        std::env::remove_var("TEST_MIN_LENGTH");
     }
 }
 

@@ -5,6 +5,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 #[derive(Args)]
@@ -57,15 +58,17 @@ pub enum AccountAction {
 }
 
 fn select_editor_raw() -> String {
-    std::env::var("VISUAL")
-        .ok()
+    let visual = std::env::var("VISUAL").ok();
+    let editor = std::env::var("EDITOR").ok();
+    select_editor_from_env(visual.as_deref(), editor.as_deref())
+}
+
+fn select_editor_from_env(visual: Option<&str>, editor: Option<&str>) -> String {
+    visual
         .filter(|value| !value.trim().is_empty())
-        .or_else(|| {
-            std::env::var("EDITOR")
-                .ok()
-                .filter(|value| !value.trim().is_empty())
-        })
-        .unwrap_or_else(|| "vi".to_string())
+        .or_else(|| editor.filter(|value| !value.trim().is_empty()))
+        .unwrap_or("vi")
+        .to_string()
 }
 
 fn parse_editor_command(raw: &str) -> Result<(String, Vec<String>)> {
@@ -120,7 +123,11 @@ fn handle_account_command(action: Option<&AccountAction>) -> Result<()> {
 
 fn handle_account_edit() -> Result<()> {
     let config_path = Config::config_file_path()?;
+    let editor_raw = select_editor_raw();
+    handle_account_edit_with(&config_path, &editor_raw)
+}
 
+fn handle_account_edit_with(config_path: &Path, editor_raw: &str) -> Result<()> {
     if !config_path.exists() {
         if let Some(parent) = config_path.parent() {
             fs::create_dir_all(parent).context(t!(
@@ -129,7 +136,7 @@ fn handle_account_edit() -> Result<()> {
             ))?;
         }
         let template = include_str!("../../../templates/codex/default.toml");
-        fs::write(&config_path, template).context(t!(
+        fs::write(config_path, template).context(t!(
             "codex.error.write_config_failed",
             path = config_path.display()
         ))?;
@@ -139,12 +146,11 @@ fn handle_account_edit() -> Result<()> {
         );
     }
 
-    let editor_raw = select_editor_raw();
-    let (editor_cmd, editor_args) = parse_editor_command(&editor_raw)?;
+    let (editor_cmd, editor_args) = parse_editor_command(editor_raw)?;
 
     let status = Command::new(&editor_cmd)
         .args(editor_args)
-        .arg(&config_path)
+        .arg(config_path)
         .status()
         .context(t!("codex.error.open_editor_failed", editor = editor_raw))?;
 
@@ -285,10 +291,7 @@ fn handle_interactive_mode(config: &Config) -> Result<(String, Vec<String>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::ENV_CONFIG_DIR;
-    use crate::test_utils::ENV_MUTEX;
     use crate::x::codex::config::{ProviderConfig, provider_to_codex_table};
-    use std::env;
     use std::fs;
     use tempfile::TempDir;
 
@@ -309,23 +312,14 @@ mod tests {
 
     #[test]
     fn editor_env_prefers_visual_over_editor_and_falls_back_to_vi() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-
-        unsafe {
-            env::set_var("VISUAL", "code --wait");
-            env::set_var("EDITOR", "vim");
-        }
-        assert_eq!(select_editor_raw(), "code --wait");
-
-        unsafe {
-            env::remove_var("VISUAL");
-            env::set_var("EDITOR", "  ");
-        }
-        assert_eq!(select_editor_raw(), "vi");
-
-        unsafe {
-            env::remove_var("EDITOR");
-        }
+        assert_eq!(
+            select_editor_from_env(Some("code --wait"), Some("vim")),
+            "code --wait"
+        );
+        assert_eq!(select_editor_from_env(None, Some("vim")), "vim");
+        assert_eq!(select_editor_from_env(Some("  "), Some("vim")), "vim");
+        assert_eq!(select_editor_from_env(None, Some("  ")), "vi");
+        assert_eq!(select_editor_from_env(None, None), "vi");
     }
 
     #[cfg(unix)]
@@ -333,13 +327,7 @@ mod tests {
     fn editor_non_zero_exit_status_is_propagated() {
         use std::os::unix::fs::PermissionsExt;
 
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-
         let temp = TempDir::new().expect("temp dir");
-        unsafe {
-            env::set_var(ENV_CONFIG_DIR, temp.path());
-        }
-
         let config_path = temp.path().join("codex.toml");
         fs::write(&config_path, "[model_providers]\n").expect("write config");
 
@@ -349,18 +337,9 @@ mod tests {
         perms.set_mode(0o755);
         fs::set_permissions(&editor_path, perms).expect("chmod");
 
-        unsafe {
-            env::remove_var("VISUAL");
-            env::set_var("EDITOR", editor_path.to_string_lossy().to_string());
-        }
-
-        let err = handle_account_edit().expect_err("should error");
+        let err = handle_account_edit_with(&config_path, &editor_path.to_string_lossy())
+            .expect_err("should error");
         assert!(err.to_string().contains("Editor exited with status"));
-
-        unsafe {
-            env::remove_var(ENV_CONFIG_DIR);
-            env::remove_var("EDITOR");
-        }
     }
 
     #[test]

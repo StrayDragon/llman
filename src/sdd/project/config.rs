@@ -186,7 +186,6 @@ pub fn resolve_skill_path(root: &Path, path: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
     use std::fs;
     use tempfile::tempdir;
 
@@ -208,8 +207,9 @@ mod tests {
 
     #[test]
     fn resolve_skill_path_handles_relative() {
-        let root = env::temp_dir().join("llman_sdd_root");
-        let resolved = resolve_skill_path(&root, ".claude/skills");
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let resolved = resolve_skill_path(root, ".claude/skills");
         assert_eq!(resolved, root.join(".claude/skills"));
     }
 
