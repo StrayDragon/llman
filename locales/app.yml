@@ -1039,6 +1039,9 @@ claude_code:
     config_created:
       en: "Created default configuration at: %{path}"
 
+    editing:
+      en: "Editing configuration: %{path}"
+
     edited:
       en: "✓ Configuration edited successfully"
 
@@ -1298,6 +1301,9 @@ codex:
   account:
     config_created:
       en: "Created default configuration at: %{path}"
+
+    editing:
+      en: "Editing configuration: %{path}"
     edited:
       en: "✓ Configuration edited successfully"
     imported:
