@@ -25,6 +25,15 @@ fn rule_extension_for_app(app: &str) -> &'static str {
     }
 }
 
+fn expand_tilde_path(path: &Path) -> Result<PathBuf> {
+    let Ok(stripped) = path.strip_prefix("~") else {
+        return Ok(path.to_path_buf());
+    };
+
+    let home = dirs::home_dir().ok_or_else(|| anyhow!(t!("errors.home_dir_missing")))?;
+    Ok(home.join(stripped))
+}
+
 pub fn resolve_config_dir(cli_override: Option<&Path>) -> Result<PathBuf> {
     let env_override = env::var(ENV_CONFIG_DIR).ok();
     resolve_config_dir_with(cli_override, env_override.as_deref())
@@ -37,13 +46,13 @@ pub fn resolve_config_dir_with(
     if let Some(path) = cli_override {
         validate_path_str(&path.to_string_lossy())
             .map_err(|e| anyhow!(t!("errors.invalid_config_dir", error = e)))?;
-        return Ok(path.to_path_buf());
+        return expand_tilde_path(path);
     }
 
     if let Some(env_config_dir) = env_override {
         validate_path_str(env_config_dir)
             .map_err(|e| anyhow!(t!("errors.invalid_config_dir_env", error = e)))?;
-        return Ok(PathBuf::from(env_config_dir));
+        return expand_tilde_path(Path::new(env_config_dir));
     }
 
     let project_dirs = ProjectDirs::from("", "", APP_NAME)
@@ -130,6 +139,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::TestProcess;
     use std::fs;
     use tempfile::TempDir;
 
@@ -170,6 +180,29 @@ mod tests {
             .to_path_buf();
 
         assert_eq!(resolved, expected);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_resolve_config_dir_cli_expands_tilde_to_home() {
+        let temp_home = TempDir::new().expect("temp home");
+        let mut proc = TestProcess::new();
+        proc.set_var("HOME", temp_home.path());
+
+        let resolved =
+            resolve_config_dir_with(Some(Path::new("~/.config/llman")), None).expect("resolve");
+        assert_eq!(resolved, temp_home.path().join(".config").join("llman"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_resolve_config_dir_env_expands_tilde_to_home() {
+        let temp_home = TempDir::new().expect("temp home");
+        let mut proc = TestProcess::new();
+        proc.set_var("HOME", temp_home.path());
+
+        let resolved = resolve_config_dir_with(None, Some("~/.config/llman")).expect("resolve");
+        assert_eq!(resolved, temp_home.path().join(".config").join("llman"));
     }
 
     #[test]

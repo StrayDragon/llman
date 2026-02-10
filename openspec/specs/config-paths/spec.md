@@ -22,6 +22,17 @@ The CLI MUST resolve the configuration directory with the following precedence: 
 - **WHEN** the CLI resolves a config directory
 - **THEN** `LLMAN_CONFIG_DIR` is set to the resolved value for the process
 
+### Requirement: Tilde expansion for config-dir overrides
+If the CLI `--config-dir` override or `LLMAN_CONFIG_DIR` environment variable begins with `~`, the resolver MUST expand `~` to the current user's home directory before use, and MUST set `LLMAN_CONFIG_DIR` to the expanded path.
+
+#### Scenario: CLI override uses quoted tilde path
+- **WHEN** the user runs `llman --config-dir "~/.config/llman" <subcommand>`
+- **THEN** the resolved config directory is `<home>/.config/llman` (not `./~/.config/llman`)
+
+#### Scenario: Env override uses tilde path
+- **WHEN** `LLMAN_CONFIG_DIR` is set to `"~/.config/llman"` and no CLI override is provided
+- **THEN** the resolved config directory is `<home>/.config/llman`
+
 ### Requirement: Dev project guard requires explicit config dir
 When running inside the llman development repository and neither CLI nor env override is provided, the CLI MUST return an error instructing the user to set `--config-dir` or `LLMAN_CONFIG_DIR`.
 
