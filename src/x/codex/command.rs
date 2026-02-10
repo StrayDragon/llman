@@ -6,6 +6,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
 use std::fs;
+use std::io::{ErrorKind, Write};
 use std::path::Path;
 use std::process::Command;
 
@@ -101,21 +102,43 @@ fn handle_account_edit() -> Result<()> {
 }
 
 fn handle_account_edit_with(config_path: &Path, editor_raw: &str) -> Result<()> {
-    if !config_path.exists() {
-        if let Some(parent) = config_path.parent() {
-            fs::create_dir_all(parent).context(t!(
-                "codex.error.create_config_dir_failed",
-                path = parent.display()
-            ))?;
-        }
-        let template = include_str!("../../../templates/codex/default.toml");
-        fs::write(config_path, template).context(t!(
-            "codex.error.write_config_failed",
-            path = config_path.display()
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent).context(t!(
+            "codex.error.create_config_dir_failed",
+            path = parent.display()
         ))?;
+    }
+
+    let created = match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(config_path)
+    {
+        Ok(mut file) => {
+            let template = include_str!("../../../templates/codex/default.toml");
+            file.write_all(template.as_bytes()).context(t!(
+                "codex.error.write_config_failed",
+                path = config_path.display()
+            ))?;
+            println!(
+                "{}",
+                t!("codex.account.config_created", path = config_path.display())
+            );
+            true
+        }
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => false,
+        Err(e) => {
+            return Err(e).context(t!(
+                "codex.error.write_config_failed",
+                path = config_path.display()
+            ));
+        }
+    };
+
+    if !created {
         println!(
             "{}",
-            t!("codex.account.config_created", path = config_path.display())
+            t!("codex.account.editing", path = config_path.display())
         );
     }
 

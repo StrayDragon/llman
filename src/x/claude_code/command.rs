@@ -8,6 +8,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
 use std::fs;
+use std::io::{ErrorKind, Write};
 use std::path::Path;
 use std::process::Command;
 
@@ -193,37 +194,58 @@ fn handle_account_edit() -> Result<()> {
 }
 
 fn handle_account_edit_with(config_path: &Path, editor_raw: &str) -> Result<()> {
-    if !config_path.exists() {
-        if let Some(parent) = safe_parent_for_creation(config_path) {
-            fs::create_dir_all(parent).context(t!(
-                "claude_code.config.create_dir_failed",
-                path = parent.display()
-            ))?;
-        }
-
-        let template = include_str!("../../../templates/claude-code/default.toml");
-        fs::write(config_path, template).context(t!(
-            "claude_code.config.write_failed",
-            path = config_path.display()
+    if let Some(parent) = safe_parent_for_creation(config_path) {
+        fs::create_dir_all(parent).context(t!(
+            "claude_code.config.create_dir_failed",
+            path = parent.display()
         ))?;
+    }
 
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = fs::metadata(config_path)
-                .context(t!("claude_code.config.metadata_failed"))?
-                .permissions();
-            perms.set_mode(0o600);
-            fs::set_permissions(config_path, perms)
-                .context(t!("claude_code.config.permissions_failed"))?;
+    let created = match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(config_path)
+    {
+        Ok(mut file) => {
+            let template = include_str!("../../../templates/claude-code/default.toml");
+            file.write_all(template.as_bytes()).context(t!(
+                "claude_code.config.write_failed",
+                path = config_path.display()
+            ))?;
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = fs::metadata(config_path)
+                    .context(t!("claude_code.config.metadata_failed"))?
+                    .permissions();
+                perms.set_mode(0o600);
+                fs::set_permissions(config_path, perms)
+                    .context(t!("claude_code.config.permissions_failed"))?;
+            }
+
+            println!(
+                "{}",
+                t!(
+                    "claude_code.account.config_created",
+                    path = config_path.display()
+                )
+            );
+            true
         }
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => false,
+        Err(e) => {
+            return Err(e).context(t!(
+                "claude_code.config.write_failed",
+                path = config_path.display()
+            ));
+        }
+    };
 
+    if !created {
         println!(
             "{}",
-            t!(
-                "claude_code.account.config_created",
-                path = config_path.display()
-            )
+            t!("claude_code.account.editing", path = config_path.display())
         );
     }
 
