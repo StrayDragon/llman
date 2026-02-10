@@ -1026,6 +1026,9 @@ claude_code:
     command_import:
       en: "• Import a configuration: llman x claude-code account import"
 
+    command_edit:
+      en: "• Edit configuration: llman x claude-code account edit"
+
     alternative_config:
       en: "Or create a configuration file manually at:"
 
@@ -1033,6 +1036,12 @@ claude_code:
       en: "unknown"
 
   account:
+    config_created:
+      en: "Created default configuration at: %{path}"
+
+    edited:
+      en: "✓ Configuration edited successfully"
+
     group_exists:
       en: "Configuration group \"%{name}\" already exists."
 
@@ -1085,6 +1094,15 @@ claude_code:
   error:
     parsing_json:
       en: "Error parsing JSON configuration"
+
+    open_editor_failed:
+      en: "Failed to open editor: %{editor}"
+
+    invalid_editor_command:
+      en: "Invalid editor command: %{editor} (%{error})"
+
+    editor_exit_status:
+      en: "Editor exited with status: %{status}"
 
     failed_claude_command:
       en: "Failed to run claude command"

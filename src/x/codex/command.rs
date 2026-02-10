@@ -1,4 +1,5 @@
 use crate::arg_utils::split_shell_args;
+use crate::editor::{parse_editor_command, select_editor_raw};
 use crate::x::codex::config::{Config, upsert_to_codex_config};
 use crate::x::codex::interactive;
 use anyhow::{Context, Result, bail};
@@ -55,34 +56,6 @@ pub enum AccountAction {
     Edit,
     /// Import a new provider configuration interactively
     Import,
-}
-
-fn select_editor_raw() -> String {
-    let visual = std::env::var("VISUAL").ok();
-    let editor = std::env::var("EDITOR").ok();
-    select_editor_from_env(visual.as_deref(), editor.as_deref())
-}
-
-fn select_editor_from_env(visual: Option<&str>, editor: Option<&str>) -> String {
-    visual
-        .filter(|value| !value.trim().is_empty())
-        .or_else(|| editor.filter(|value| !value.trim().is_empty()))
-        .unwrap_or("vi")
-        .to_string()
-}
-
-fn parse_editor_command(raw: &str) -> Result<(String, Vec<String>)> {
-    let parts = split_shell_args(raw).map_err(|e| {
-        anyhow::anyhow!(t!(
-            "codex.error.invalid_editor_command",
-            editor = raw,
-            error = e
-        ))
-    })?;
-    match parts.split_first() {
-        Some((cmd, args)) if !cmd.trim().is_empty() => Ok((cmd.clone(), args.to_vec())),
-        _ => Ok(("vi".to_string(), Vec::new())),
-    }
 }
 
 pub fn run(args: &CodexArgs) -> Result<()> {
@@ -146,7 +119,13 @@ fn handle_account_edit_with(config_path: &Path, editor_raw: &str) -> Result<()> 
         );
     }
 
-    let (editor_cmd, editor_args) = parse_editor_command(editor_raw)?;
+    let (editor_cmd, editor_args) = parse_editor_command(editor_raw).map_err(|e| {
+        anyhow::anyhow!(t!(
+            "codex.error.invalid_editor_command",
+            editor = editor_raw,
+            error = e
+        ))
+    })?;
 
     let status = Command::new(&editor_cmd)
         .args(editor_args)
@@ -291,6 +270,7 @@ fn handle_interactive_mode(config: &Config) -> Result<(String, Vec<String>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::editor::select_editor_from_env;
     use crate::x::codex::config::{ProviderConfig, provider_to_codex_table};
     use std::fs;
     use tempfile::TempDir;

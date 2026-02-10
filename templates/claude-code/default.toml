@@ -1,0 +1,12 @@
+# Claude Code configuration for llman
+#
+# Define one or more configuration groups under [groups.<name>].
+# Each group is a map of environment variables that will be injected when running `claude`.
+#
+# Example:
+# [groups.my-group]
+# ANTHROPIC_BASE_URL = "https://api.anthropic.com"
+# ANTHROPIC_AUTH_TOKEN = "your-api-key"
+# ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
+#
+[groups]
