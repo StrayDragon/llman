@@ -1,9 +1,7 @@
 use llman::tool::command::RmUselessDirsArgs;
 use llman::tool::rm_empty_dirs::run;
 use std::fs;
-use std::path::PathBuf;
 use tempfile::TempDir;
-mod env_lock;
 
 #[test]
 fn test_rm_useless_dirs_dry_run_and_live() {
@@ -284,30 +282,16 @@ tools:
 
 #[test]
 fn test_rm_useless_dirs_default_gitignore_is_relative_to_target() {
-    let _guard = env_lock::lock_env();
-    struct CwdGuard {
-        original: PathBuf,
-    }
-
-    impl Drop for CwdGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.original);
-        }
-    }
-
-    let original = std::env::current_dir().expect("cwd");
-    let _guard = CwdGuard { original };
-
-    let cwd = TempDir::new().expect("Failed to create temp cwd");
-    std::env::set_current_dir(cwd.path()).expect("set cwd");
-
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let root = temp_dir.path();
 
-    fs::create_dir_all(root.join("ignored_dir/inner")).expect("Failed to create ignored_dir/inner");
+    let ignored_dir = "llman_rm_empty_dirs_ignored_dir_should_stay";
+    fs::create_dir_all(root.join(ignored_dir).join("inner"))
+        .expect("Failed to create ignored_dir/inner");
     fs::create_dir_all(root.join("remove_me/inner")).expect("Failed to create remove_me/inner");
     fs::write(root.join("keep.txt"), "keep").expect("Failed to create keep.txt");
-    fs::write(root.join(".gitignore"), "ignored_dir/\n").expect("Failed to create .gitignore");
+    fs::write(root.join(".gitignore"), format!("{ignored_dir}/\n"))
+        .expect("Failed to create .gitignore");
 
     let live_args = RmUselessDirsArgs {
         config: None,
@@ -320,7 +304,7 @@ fn test_rm_useless_dirs_default_gitignore_is_relative_to_target() {
 
     run(&live_args).expect("Live run failed");
 
-    assert!(root.join("ignored_dir").exists());
+    assert!(root.join(ignored_dir).exists());
     assert!(!root.join("remove_me").exists());
     assert!(root.join("keep.txt").exists());
 }

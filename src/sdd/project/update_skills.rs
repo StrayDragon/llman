@@ -406,7 +406,6 @@ fn display_relative(root: &Path, path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
     use std::fs;
     use tempfile::tempdir;
 
@@ -438,9 +437,10 @@ mod tests {
 
     #[test]
     fn resolve_override_path_respects_relative() {
-        let root = env::temp_dir().join("llman-sdd-skills");
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
         let path = Path::new(".claude/skills");
-        let resolved = resolve_override_path(&root, path);
+        let resolved = resolve_override_path(root, path);
         assert_eq!(resolved, root.join(".claude/skills"));
     }
 

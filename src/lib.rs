@@ -3,6 +3,8 @@ extern crate rust_i18n;
 
 i18n!("locales");
 
+use std::sync::OnceLock;
+
 pub mod arg_utils;
 pub mod cli;
 pub mod config;
@@ -19,6 +21,10 @@ pub mod x;
 #[cfg(test)]
 pub mod test_utils;
 
+static LOCALE_INIT: OnceLock<()> = OnceLock::new();
+
 pub fn init_locale() {
-    rust_i18n::set_locale("en");
+    LOCALE_INIT.get_or_init(|| {
+        rust_i18n::set_locale("en");
+    });
 }

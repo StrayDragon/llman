@@ -381,20 +381,27 @@ fn has_root_marker(root: &Path, name: &str) -> bool {
 
 pub fn project_config_path() -> Result<PathBuf> {
     let cwd = env::current_dir()?;
-    let root = find_config_root(&cwd).unwrap_or(cwd);
-    Ok(root.join(".llman").join("config.yaml"))
+    Ok(project_config_path_from(&cwd))
 }
 
 pub fn llmanspec_config_path() -> Result<PathBuf> {
     let cwd = env::current_dir()?;
-    let root = find_config_root(&cwd).unwrap_or(cwd);
-    Ok(root.join(LLMANSPEC_DIR_NAME).join("config.yaml"))
+    Ok(llmanspec_config_path_from(&cwd))
+}
+
+fn project_config_path_from(cwd: &Path) -> PathBuf {
+    let root = find_config_root(cwd).unwrap_or_else(|| cwd.to_path_buf());
+    root.join(".llman").join("config.yaml")
+}
+
+fn llmanspec_config_path_from(cwd: &Path) -> PathBuf {
+    let root = find_config_root(cwd).unwrap_or_else(|| cwd.to_path_buf());
+    root.join(LLMANSPEC_DIR_NAME).join("config.yaml")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use tempfile::TempDir;
 
     #[test]
@@ -427,39 +434,19 @@ mod tests {
 
     #[test]
     fn project_and_llmanspec_paths_discover_root_from_subdir() {
-        struct CwdGuard(PathBuf);
-
-        impl CwdGuard {
-            fn new() -> Self {
-                Self(env::current_dir().expect("current dir"))
-            }
-        }
-
-        impl Drop for CwdGuard {
-            fn drop(&mut self) {
-                let _ = env::set_current_dir(&self.0);
-            }
-        }
-
-        let cwd_guard = CwdGuard::new();
-
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path().join("repo");
         let nested = root.join("a").join("b");
         fs::create_dir_all(&nested).expect("create nested");
         fs::create_dir_all(root.join(".git")).expect("create git dir");
 
-        env::set_current_dir(&nested).expect("chdir");
-
         assert_eq!(
-            project_config_path().unwrap(),
+            project_config_path_from(&nested),
             root.join(".llman").join("config.yaml")
         );
         assert_eq!(
-            llmanspec_config_path().unwrap(),
+            llmanspec_config_path_from(&nested),
             root.join(LLMANSPEC_DIR_NAME).join("config.yaml")
         );
-
-        drop(cwd_guard);
     }
 }

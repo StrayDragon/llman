@@ -26,14 +26,22 @@ fn rule_extension_for_app(app: &str) -> &'static str {
 }
 
 pub fn resolve_config_dir(cli_override: Option<&Path>) -> Result<PathBuf> {
+    let env_override = env::var(ENV_CONFIG_DIR).ok();
+    resolve_config_dir_with(cli_override, env_override.as_deref())
+}
+
+pub fn resolve_config_dir_with(
+    cli_override: Option<&Path>,
+    env_override: Option<&str>,
+) -> Result<PathBuf> {
     if let Some(path) = cli_override {
         validate_path_str(&path.to_string_lossy())
             .map_err(|e| anyhow!(t!("errors.invalid_config_dir", error = e)))?;
         return Ok(path.to_path_buf());
     }
 
-    if let Ok(env_config_dir) = env::var(ENV_CONFIG_DIR) {
-        validate_path_str(&env_config_dir)
+    if let Some(env_config_dir) = env_override {
+        validate_path_str(env_config_dir)
             .map_err(|e| anyhow!(t!("errors.invalid_config_dir_env", error = e)))?;
         return Ok(PathBuf::from(env_config_dir));
     }
@@ -122,72 +130,40 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::ENV_MUTEX;
-    use std::env;
     use std::fs;
     use tempfile::TempDir;
 
     #[test]
-    fn test_config_with_env_var() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-
-        let temp_dir = env::temp_dir().join("llman_test");
-        unsafe {
-            env::set_var(ENV_CONFIG_DIR, &temp_dir);
-        }
-
-        let config = Config::new().unwrap();
-        assert_eq!(config.config_dir, temp_dir);
-        assert_eq!(config.prompt_dir, temp_dir.join("prompt"));
-
-        unsafe {
-            env::remove_var(ENV_CONFIG_DIR);
-        }
+    fn test_resolve_config_dir_env_override() {
+        let temp = TempDir::new().expect("temp dir");
+        let temp_dir = temp.path().to_path_buf();
+        let resolved = resolve_config_dir_with(None, temp_dir.to_str()).unwrap();
+        assert_eq!(resolved, temp_dir);
     }
 
     #[test]
     fn test_resolve_config_dir_cli_overrides_env() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let env_dir = env::temp_dir().join("llman_env_dir_resolve");
-        let cli_dir = env::temp_dir().join("llman_cli_dir_resolve");
+        let env_temp = TempDir::new().expect("temp dir");
+        let cli_temp = TempDir::new().expect("temp dir");
+        let env_dir = env_temp.path().to_path_buf();
+        let cli_dir = cli_temp.path().to_path_buf();
 
-        unsafe {
-            env::set_var(ENV_CONFIG_DIR, &env_dir);
-        }
-
-        let resolved = resolve_config_dir(Some(cli_dir.as_path())).unwrap();
+        let resolved = resolve_config_dir_with(Some(cli_dir.as_path()), env_dir.to_str()).unwrap();
         assert_eq!(resolved, cli_dir);
-
-        unsafe {
-            env::remove_var(ENV_CONFIG_DIR);
-        }
     }
 
     #[test]
     fn test_resolve_config_dir_env_overrides_default() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let env_dir = env::temp_dir().join("llman_env_dir_default");
+        let env_temp = TempDir::new().expect("temp dir");
+        let env_dir = env_temp.path().to_path_buf();
 
-        unsafe {
-            env::set_var(ENV_CONFIG_DIR, &env_dir);
-        }
-
-        let resolved = resolve_config_dir(None).unwrap();
+        let resolved = resolve_config_dir_with(None, env_dir.to_str()).unwrap();
         assert_eq!(resolved, env_dir);
-
-        unsafe {
-            env::remove_var(ENV_CONFIG_DIR);
-        }
     }
 
     #[test]
     fn test_resolve_config_dir_default_path() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        unsafe {
-            env::remove_var(ENV_CONFIG_DIR);
-        }
-
-        let resolved = resolve_config_dir(None).unwrap();
+        let resolved = resolve_config_dir_with(None, None).unwrap();
         let expected = ProjectDirs::from("", "", APP_NAME)
             .unwrap()
             .config_dir()
@@ -198,74 +174,45 @@ mod tests {
 
     #[test]
     fn test_app_dir() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("temp dir");
+        let temp_dir = temp.path().to_path_buf();
 
-        let temp_dir = env::temp_dir().join("llman_test_app");
-        unsafe {
-            env::set_var(ENV_CONFIG_DIR, &temp_dir);
-        }
-
-        let config = Config::new().unwrap();
+        let config = Config::with_config_dir(temp_dir.to_str()).unwrap();
         let cursor_dir = config.app_dir("cursor");
         assert_eq!(cursor_dir, temp_dir.join("prompt").join("cursor"));
-
-        unsafe {
-            env::remove_var(ENV_CONFIG_DIR);
-        }
     }
 
     #[test]
     fn test_rule_file_path() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("temp dir");
+        let temp_dir = temp.path().to_path_buf();
 
-        let temp_dir = env::temp_dir().join("llman_test_rule");
-        unsafe {
-            env::set_var(ENV_CONFIG_DIR, &temp_dir);
-        }
-
-        let config = Config::new().unwrap();
+        let config = Config::with_config_dir(temp_dir.to_str()).unwrap();
         let rule_path = config.rule_file_path("cursor", "test-rule");
         assert_eq!(
             rule_path,
             temp_dir.join("prompt").join("cursor").join("test-rule.mdc")
         );
-
-        unsafe {
-            env::remove_var(ENV_CONFIG_DIR);
-        }
     }
 
     #[test]
     fn test_rule_file_path_codex_uses_md() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("temp dir");
+        let temp_dir = temp.path().to_path_buf();
 
-        let temp_dir = env::temp_dir().join("llman_test_rule_codex");
-        unsafe {
-            env::set_var(ENV_CONFIG_DIR, &temp_dir);
-        }
-
-        let config = Config::new().unwrap();
+        let config = Config::with_config_dir(temp_dir.to_str()).unwrap();
         let rule_path = config.rule_file_path(CODEX_APP, "draftpr");
         assert_eq!(
             rule_path,
             temp_dir.join("prompt").join(CODEX_APP).join("draftpr.md")
         );
-
-        unsafe {
-            env::remove_var(ENV_CONFIG_DIR);
-        }
     }
 
     #[test]
     fn test_list_rules_filters_by_extension_per_app() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-
         let temp = TempDir::new().expect("temp dir");
-        unsafe {
-            env::set_var(ENV_CONFIG_DIR, temp.path());
-        }
+        let config = Config::with_config_dir(temp.path().to_str()).unwrap();
 
-        let config = Config::new().unwrap();
         let cursor_dir = config.ensure_app_dir(CURSOR_APP).unwrap();
         let codex_dir = config.ensure_app_dir(CODEX_APP).unwrap();
         let claude_dir = config.ensure_app_dir(CLAUDE_CODE_APP).unwrap();
@@ -283,9 +230,5 @@ mod tests {
         assert_eq!(config.list_rules(CURSOR_APP).unwrap(), vec!["keep"]);
         assert_eq!(config.list_rules(CODEX_APP).unwrap(), vec!["draft"]);
         assert_eq!(config.list_rules(CLAUDE_CODE_APP).unwrap(), vec!["mem"]);
-
-        unsafe {
-            env::remove_var(ENV_CONFIG_DIR);
-        }
     }
 }

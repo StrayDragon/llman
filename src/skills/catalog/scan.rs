@@ -7,6 +7,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub fn discover_skills(root: &Path) -> Result<Vec<SkillCandidate>> {
+    discover_skills_with_global_ignore(root, None)
+}
+
+fn discover_skills_with_global_ignore(
+    root: &Path,
+    global_ignore: Option<&Path>,
+) -> Result<Vec<SkillCandidate>> {
     let mut candidates = Vec::new();
     if !root.exists() {
         return Ok(candidates);
@@ -14,15 +21,23 @@ pub fn discover_skills(root: &Path) -> Result<Vec<SkillCandidate>> {
 
     let mut seen_dirs: HashSet<PathBuf> = HashSet::new();
     let store_dir = root.join("store");
-    let walker = WalkBuilder::new(root)
+    let mut builder = WalkBuilder::new(root);
+    builder
         .hidden(false)
         .follow_links(false)
         .git_ignore(true)
-        .git_global(true)
         .git_exclude(true)
         .require_git(false)
-        .filter_entry(move |entry| entry.path() != store_dir)
-        .build();
+        .filter_entry(move |entry| entry.path() != store_dir);
+    if let Some(ignore_path) = global_ignore {
+        builder.git_global(false).current_dir(root);
+        if let Some(err) = builder.add_ignore(ignore_path) {
+            return Err(err.into());
+        }
+    } else {
+        builder.git_global(true);
+    }
+    let walker = builder.build();
 
     for entry in walker {
         let entry = entry?;
@@ -159,8 +174,6 @@ pub fn slugify(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::ENV_MUTEX;
-    use std::env;
     use tempfile::TempDir;
 
     #[test]
@@ -222,18 +235,9 @@ mod tests {
 
     #[test]
     fn test_discover_respects_global_ignore() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("temp dir");
-        let home_root = temp.path().join("home");
-        let xdg_config = temp.path().join("xdg");
-        let global_ignore = xdg_config.join("git").join("ignore");
-        fs::create_dir_all(global_ignore.parent().unwrap()).expect("create git ignore dir");
+        let global_ignore = temp.path().join("global-ignore");
         fs::write(&global_ignore, "global-skill/\n").expect("write global ignore");
-        unsafe {
-            env::set_var("HOME", &home_root);
-            env::set_var("XDG_CONFIG_HOME", &xdg_config);
-            env::set_var("GIT_CONFIG_NOSYSTEM", "1");
-        }
 
         let root = temp.path().join("source");
         fs::create_dir_all(&root).expect("create source");
@@ -245,14 +249,9 @@ mod tests {
         fs::create_dir_all(&kept).expect("create kept skill");
         fs::write(kept.join("SKILL.md"), "# kept").expect("write skill");
 
-        let discovered = discover_skills(&root).expect("discover skills");
+        let discovered = discover_skills_with_global_ignore(&root, Some(&global_ignore))
+            .expect("discover skills");
         assert_eq!(discovered.len(), 1);
         assert_eq!(discovered[0].skill_id, "kept-skill");
-
-        unsafe {
-            env::remove_var("HOME");
-            env::remove_var("XDG_CONFIG_HOME");
-            env::remove_var("GIT_CONFIG_NOSYSTEM");
-        }
     }
 }

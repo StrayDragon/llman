@@ -76,6 +76,15 @@ impl CommentProcessor {
     }
 
     pub fn process(&mut self) -> Result<ProcessingResult> {
+        let cwd = std::env::current_dir()?;
+        self.process_with_roots(Path::new("."), &cwd)
+    }
+
+    pub fn process_with_cwd(&mut self, cwd: &Path) -> Result<ProcessingResult> {
+        self.process_with_roots(cwd, cwd)
+    }
+
+    fn process_with_roots(&mut self, walk_root: &Path, cwd: &Path) -> Result<ProcessingResult> {
         let clean_config = self
             .config
             .get_clean_comments_config()
@@ -94,13 +103,17 @@ impl CommentProcessor {
                 .and_then(|safety| safety.git_aware)
                 .unwrap_or(false);
         let tracked_files = if git_only {
-            self.load_git_tracked_files()?
+            self.load_git_tracked_files(cwd)?
         } else {
             None
         };
-        let cwd = std::env::current_dir()?;
-        let files_to_process =
-            self.find_files(&compiled_scope, git_only, tracked_files.as_ref(), &cwd)?;
+        let files_to_process = self.find_files(
+            &compiled_scope,
+            git_only,
+            tracked_files.as_ref(),
+            walk_root,
+            cwd,
+        )?;
         let mut results = ProcessingResult::default();
 
         for file_path in files_to_process {
@@ -154,6 +167,7 @@ impl CommentProcessor {
         scope: &CompiledScopePatterns,
         git_only: bool,
         tracked_files: Option<&HashSet<PathBuf>>,
+        walk_root: &Path,
         cwd: &Path,
     ) -> Result<Vec<PathBuf>> {
         let mut files = Vec::new();
@@ -166,20 +180,25 @@ impl CommentProcessor {
         // If specific files are provided, use them
         if !self.args.files.is_empty() {
             for file in &self.args.files {
-                if file.exists() {
-                    if file.is_file() {
+                let candidate = if file.is_absolute() {
+                    file.clone()
+                } else {
+                    cwd.join(file)
+                };
+                if candidate.exists() {
+                    if candidate.is_file() {
                         if !git_only
                             || tracked_files
-                                .map(|tracked| self.is_tracked(file, cwd, tracked))
+                                .map(|tracked| self.is_tracked(&candidate, cwd, tracked))
                                 .unwrap_or(false)
                         {
-                            files.push(file.clone());
+                            files.push(candidate.clone());
                         } else {
                             eprintln!(
                                 "{}",
                                 t!(
                                     "tool.clean_comments.processor.file_not_tracked",
-                                    path = file.display()
+                                    path = candidate.display()
                                 )
                             );
                         }
@@ -188,7 +207,7 @@ impl CommentProcessor {
                             "{}",
                             t!(
                                 "tool.clean_comments.processor.path_skipped_not_file",
-                                path = file.display()
+                                path = candidate.display()
                             )
                         );
                     }
@@ -197,7 +216,7 @@ impl CommentProcessor {
                         "{}",
                         t!(
                             "tool.clean_comments.processor.file_not_found",
-                            path = file.display()
+                            path = candidate.display()
                         )
                     );
                 }
@@ -206,15 +225,16 @@ impl CommentProcessor {
         }
 
         // Otherwise, walk the directory tree
-        let walker = WalkBuilder::new(".");
+        let walker = WalkBuilder::new(walk_root);
 
         for result in walker.build() {
             match result {
                 Ok(entry) => {
                     let path = entry.path();
                     if path.is_file() {
+                        let relative = path.strip_prefix(walk_root).unwrap_or(path);
                         // Check if file matches include patterns
-                        if scope.matches(path)
+                        if scope.matches(relative)
                             && (!git_only
                                 || tracked_files
                                     .map(|tracked| self.is_tracked(path, cwd, tracked))
@@ -249,8 +269,8 @@ impl CommentProcessor {
         }
     }
 
-    fn load_git_tracked_files(&self) -> Result<Option<HashSet<PathBuf>>> {
-        let repo_root = match self.git_repo_root()? {
+    fn load_git_tracked_files(&self, cwd: &Path) -> Result<Option<HashSet<PathBuf>>> {
+        let repo_root = match self.git_repo_root(cwd)? {
             Some(root) => root,
             None => return Ok(None),
         };
@@ -283,9 +303,10 @@ impl CommentProcessor {
         Ok(Some(tracked))
     }
 
-    fn git_repo_root(&self) -> Result<Option<PathBuf>> {
+    fn git_repo_root(&self, cwd: &Path) -> Result<Option<PathBuf>> {
         let output = match Command::new("git")
             .args(["rev-parse", "--show-toplevel"])
+            .current_dir(cwd)
             .output()
         {
             Ok(output) => output,

@@ -1,4 +1,4 @@
-use crate::config::{ENV_CONFIG_DIR, resolve_config_dir};
+use crate::config::{ENV_CONFIG_DIR, resolve_config_dir_with};
 use crate::config_schema::ensure_global_sample_config;
 use crate::prompt::PromptCommand;
 use crate::sdd::command::SddArgs;
@@ -156,7 +156,8 @@ pub fn run() -> Result<()> {
 /// Determine the configuration directory to use
 fn determine_config_dir(cli_config_dir: Option<&PathBuf>) -> Result<PathBuf> {
     let has_cli_override = cli_config_dir.is_some();
-    let has_env_override = env::var(ENV_CONFIG_DIR).is_ok();
+    let env_override = env::var(ENV_CONFIG_DIR).ok();
+    let has_env_override = env_override.is_some();
 
     // Check if we're in llman development project
     if !has_cli_override && !has_env_override && is_llman_dev_project() {
@@ -167,7 +168,10 @@ fn determine_config_dir(cli_config_dir: Option<&PathBuf>) -> Result<PathBuf> {
         return Err(anyhow!(message));
     }
 
-    resolve_config_dir(cli_config_dir.map(|path| path.as_path()))
+    resolve_config_dir_with(
+        cli_config_dir.map(|path| path.as_path()),
+        env_override.as_deref(),
+    )
 }
 
 /// Check if current directory is an llman development project
@@ -264,26 +268,16 @@ fn handle_tool_command(args: &ToolArgs) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::determine_config_dir;
-    use crate::config::ENV_CONFIG_DIR;
-    use crate::test_utils::ENV_MUTEX;
-    use std::env;
+    use crate::config::resolve_config_dir_with;
+    use tempfile::TempDir;
 
     #[test]
     fn test_config_dir_cli_overrides_env() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let env_dir = env::temp_dir().join("llman_env_dir");
-        let cli_dir = env::temp_dir().join("llman_cli_dir");
-
-        unsafe {
-            env::set_var(ENV_CONFIG_DIR, &env_dir);
-        }
-
-        let resolved = determine_config_dir(Some(&cli_dir)).unwrap();
+        let env_temp = TempDir::new().expect("temp dir");
+        let cli_temp = TempDir::new().expect("temp dir");
+        let env_dir = env_temp.path().to_path_buf();
+        let cli_dir = cli_temp.path().to_path_buf();
+        let resolved = resolve_config_dir_with(Some(&cli_dir), env_dir.to_str()).unwrap();
         assert_eq!(resolved, cli_dir);
-
-        unsafe {
-            env::remove_var(ENV_CONFIG_DIR);
-        }
     }
 }
