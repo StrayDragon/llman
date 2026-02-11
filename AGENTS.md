@@ -33,6 +33,8 @@ Cargo equivalents use `cargo +nightly ...`.
 - Add unit tests near the code when possible, and integration tests under `tests/`.
 - Name new integration test files `*_tests.rs` and keep test names descriptive.
 - Use `LLMAN_CONFIG_DIR=./artifacts/testing_config_home` to avoid touching real user config.
+- Avoid workspace pollution: tests that may create files/dirs MUST use `tempfile::TempDir` (or `TestEnvironment`) and write only inside it so everything is auto-cleaned.
+- Avoid parallel test collisions: don’t use fixed relative paths/identifiers in the repo root (e.g. `config`, `config.yaml`); prefer unique temp paths and guard env/cwd changes with `crate::test_utils::TestProcess`.
 - When editing `templates/sdd/**`, run `just check-sdd-templates` (also in `just check-all`).
 
 ## Commit and Pull Request Guidelines

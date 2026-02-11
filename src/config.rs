@@ -173,6 +173,7 @@ mod tests {
 
     #[test]
     fn test_resolve_config_dir_default_path() {
+        let _proc = TestProcess::new();
         let resolved = resolve_config_dir_with(None, None).unwrap();
         let expected = ProjectDirs::from("", "", APP_NAME)
             .unwrap()
