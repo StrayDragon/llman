@@ -248,20 +248,22 @@ fn test_prompt_command_resource_usage() {
 /// Tests PromptCommand with various edge case inputs
 #[test]
 fn test_prompt_command_edge_case_inputs() {
-    // Test with various unusual but valid inputs
-    let edge_cases = vec![
-        Some("."),
-        Some("./"),
-        Some("../"),
-        Some(" "),
-        Some(".llman"),
-        Some("config"),
-        Some("config.yaml"),
-        None, // Default config
+    let env = TestEnvironment::new();
+    let root = env.path();
+
+    // Keep these edge cases confined to a temp workspace so tests don't pollute the repo root.
+    let edge_cases: Vec<Option<String>> = vec![
+        Some(root.to_string_lossy().to_string()),
+        Some(format!("{}/", root.display())),
+        Some(root.join("nested").join("..").to_string_lossy().to_string()),
+        Some(" ".to_string()),
+        Some(root.join(".llman").to_string_lossy().to_string()),
+        Some(root.join("config").to_string_lossy().to_string()),
+        Some(root.join("config.yaml").to_string_lossy().to_string()),
     ];
 
     for case in edge_cases {
-        let result = PromptCommand::with_config_dir(case);
+        let result = PromptCommand::with_config_dir(case.as_deref());
 
         match result {
             Ok(_) => {
