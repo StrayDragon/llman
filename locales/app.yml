@@ -1063,6 +1063,9 @@ claude_code:
     use_list_command:
       en: "Use 'llman x claude-code account list' to see available configuration groups."
 
+    env_invalid_keys:
+      en: "Invalid environment variable key(s): %{keys}"
+
   migrate:
     import_failed:
       en: "Failed to import from klaudes"
