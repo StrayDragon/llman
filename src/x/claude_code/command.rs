@@ -2,6 +2,9 @@ use crate::arg_utils::split_shell_args;
 use crate::editor::{parse_editor_command, select_editor_raw};
 use crate::path_utils::safe_parent_for_creation;
 use crate::x::claude_code::config::{Config, ConfigGroup};
+use crate::x::claude_code::env_injection::{
+    EnvSyntax, env_syntax_for_current_platform, render_env_injection_lines,
+};
 use crate::x::claude_code::interactive;
 use crate::x::claude_code::security::{SecurityChecker, SecurityWarning};
 use anyhow::{Context, Result, bail};
@@ -101,6 +104,17 @@ pub enum AccountAction {
         )]
         args: Vec<String>,
     },
+    /// Emit shell-consumable env injection statements for a configuration group
+    ///
+    /// Examples:
+    ///   bash/zsh:  eval "$(llman x claude-code account env my-group)"
+    ///   bash/zsh:  source <(llman x claude-code account env my-group)
+    ///   PowerShell: llman x claude-code account env my-group | Out-String | Invoke-Expression
+    #[command(about = "Emit env injection statements for a group")]
+    Env {
+        #[arg(help = "Name of the configuration group")]
+        name: String,
+    },
 }
 
 pub fn run(args: &ClaudeCodeArgs) -> Result<()> {
@@ -183,6 +197,7 @@ fn execute_account_action(config: &mut Config, action: &AccountAction) -> Result
         AccountAction::List => handle_list_groups(config),
         AccountAction::Import { force } => handle_import_group(config, *force)?,
         AccountAction::Use { name, args } => handle_use_group(config, name, args.clone())?,
+        AccountAction::Env { name } => handle_env_group(config, name)?,
     }
     Ok(())
 }
@@ -339,6 +354,38 @@ fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()
             t!("claude_code.account.use_list_command")
         );
     }
+    Ok(())
+}
+
+fn handle_env_group(config: &Config, name: &str) -> Result<()> {
+    if config.is_empty() {
+        bail!(no_configs_message());
+    }
+
+    let group = config.get_group(name).ok_or_else(|| {
+        anyhow::anyhow!(format!(
+            "{}\n{}",
+            t!("claude_code.account.group_not_found", name = name),
+            t!("claude_code.account.use_list_command")
+        ))
+    })?;
+
+    let syntax = env_syntax_for_current_platform();
+    let lines = render_env_injection_lines(group, syntax)?;
+
+    match syntax {
+        EnvSyntax::PosixExport => {
+            println!("# Bash/Zsh: source <(llman x claude-code account env {name}) && ...")
+        }
+        EnvSyntax::PowerShell => println!(
+            "# PowerShell: llman x claude-code account env {name} | Out-String | Invoke-Expression"
+        ),
+    }
+
+    for line in lines {
+        println!("{line}");
+    }
+
     Ok(())
 }
 
