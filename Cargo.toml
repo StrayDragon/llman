@@ -66,3 +66,21 @@ serde_yaml = "0.9.34"
 
 [dev-dependencies]
 tempfile = "3.24.0"
+
+# Keep `target/` growth in check:
+# - Compile workspace code with enough debug info for useful backtraces.
+# - Compile third-party dependencies with no debug info to significantly reduce
+#   `target/**/deps` disk usage.
+#
+# See: https://doc.rust-lang.org/cargo/reference/profiles.html
+[profile.dev]
+debug = 1
+
+[profile.dev.package."*"]
+debug = 0
+
+[profile.test]
+debug = 1
+
+[profile.test.package."*"]
+debug = 0
