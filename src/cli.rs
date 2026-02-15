@@ -10,7 +10,7 @@ use crate::x::claude_code::command::ClaudeCodeArgs;
 use crate::x::codex::command::CodexArgs;
 use crate::x::cursor::command::CursorArgs;
 use anyhow::{Result, anyhow};
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -18,14 +18,19 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
+#[command(arg_required_else_help = true)]
 pub struct Cli {
     /// Configuration directory for llman (default: ~/.config/llman)
     /// Required when running within llman project for development
     #[arg(short = 'C', long = "config-dir", global = true)]
     pub config_dir: Option<PathBuf>,
 
+    /// Print the resolved configuration directory path and exit
+    #[arg(long)]
+    pub print_config_dir_path: bool,
+
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -134,6 +139,21 @@ pub enum PromptScopeArg {
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
 
+    if cli.print_config_dir_path {
+        let env_override = env::var(ENV_CONFIG_DIR).ok();
+        let config_dir =
+            resolve_config_dir_with(cli.config_dir.as_deref(), env_override.as_deref())?;
+        println!("{}", config_dir.display());
+        return Ok(());
+    }
+
+    if cli.command.is_none() {
+        let mut command = Cli::command();
+        command.print_help()?;
+        println!();
+        return Ok(());
+    }
+
     // Determine and set config directory
     let config_dir = determine_config_dir(cli.config_dir.as_ref())?;
 
@@ -143,7 +163,7 @@ pub fn run() -> Result<()> {
     }
     ensure_global_sample_config(&config_dir)?;
 
-    match &cli.command {
+    match cli.command.as_ref().expect("command is present") {
         Commands::Prompt(args) => handle_prompt_command(args),
         Commands::Skills(args) => crate::skills::cli::command::run(args),
         Commands::Sdd(args) => crate::sdd::command::run(args),
