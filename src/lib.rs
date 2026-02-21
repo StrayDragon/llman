@@ -5,6 +5,7 @@ i18n!("locales");
 
 use std::sync::OnceLock;
 
+pub mod agents;
 pub mod arg_utils;
 pub mod cli;
 pub mod config;

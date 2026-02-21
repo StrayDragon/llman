@@ -1,3 +1,5 @@
+use crate::agents::manifest::{AgentManifestV1, load_agent_manifest_v1};
+use crate::config::resolve_config_dir;
 use crate::skills::catalog::scan::discover_skills;
 use crate::skills::catalog::types::{
     ConfigEntry, SkillCandidate, SkillsConfig, SkillsPaths, TargetConflictStrategy, TargetMode,
@@ -15,6 +17,7 @@ use inquire::{Confirm, Select};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 
 #[derive(Args)]
@@ -97,6 +100,16 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
     let skills = dedupe_skills(discover_skills(&paths.root)?);
     let skill_dir_catalog = build_skill_dir_catalog(&paths.root, &skills)?;
     let runtime_presets = infer_runtime_presets_from_catalog(&skill_dir_catalog);
+    let agent_manifests = if interactive {
+        let config_dir = resolve_config_dir(None)?;
+        load_agent_manifests(&config_dir)
+    } else {
+        Vec::new()
+    };
+    let agent_skill_ids: HashSet<String> = agent_manifests
+        .iter()
+        .map(|manifest| manifest.id.clone())
+        .collect();
 
     if skills.is_empty() {
         println!("{}", t!("skills.manager.no_skills"));
@@ -104,8 +117,14 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
     }
 
     if interactive {
-        let Some(interactive_selection) =
-            run_interactive_selection(&skills, &config, &runtime_presets, &skill_dir_catalog)?
+        let Some(interactive_selection) = run_interactive_selection(
+            &skills,
+            &config,
+            &runtime_presets,
+            &skill_dir_catalog,
+            &agent_manifests,
+            &agent_skill_ids,
+        )?
         else {
             return Ok(());
         };
@@ -149,12 +168,21 @@ fn run_interactive_selection(
     config: &SkillsConfig,
     runtime_presets: &HashMap<String, RuntimePreset>,
     skill_dir_catalog: &SkillDirCatalog,
+    agent_manifests: &[AgentManifestV1],
+    agent_skill_ids: &HashSet<String>,
 ) -> Result<Option<InteractiveSelection>> {
     let Some(target) = select_target(config)? else {
         return Ok(None);
     };
-    let Some(selected) =
-        select_skills_for_target(skills, &target, config, skill_dir_catalog, runtime_presets)?
+    let Some(selected) = select_skills_for_target(
+        skills,
+        &target,
+        config,
+        skill_dir_catalog,
+        runtime_presets,
+        agent_manifests,
+        agent_skill_ids,
+    )?
     else {
         return Ok(None);
     };
@@ -182,6 +210,51 @@ fn infer_runtime_presets_from_catalog(
             entry.skill_dirs.push(dir_name.to_string());
         }
     }
+    out
+}
+
+fn load_agent_manifests(config_dir: &Path) -> Vec<AgentManifestV1> {
+    let mut out = Vec::new();
+    let agents_dir = config_dir.join("agents");
+    let entries = match fs::read_dir(&agents_dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return out,
+        Err(e) => {
+            eprintln!(
+                "Warning: failed to read agents dir {}: {}",
+                agents_dir.display(),
+                e
+            );
+            return out;
+        }
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(e) => {
+                eprintln!("Warning: failed to read agent preset entry: {e}");
+                continue;
+            }
+        };
+        let path = entry.path();
+        let manifest_path = path.join("agent.toml");
+        if !manifest_path.exists() {
+            continue;
+        }
+        match load_agent_manifest_v1(&manifest_path) {
+            Ok(manifest) => out.push(manifest),
+            Err(e) => {
+                eprintln!(
+                    "Warning: skip invalid agent preset manifest {}: {}",
+                    manifest_path.display(),
+                    e
+                );
+            }
+        }
+    }
+
+    out.sort_by(|a, b| a.id.cmp(&b.id));
     out
 }
 
@@ -524,8 +597,12 @@ fn select_skills_for_target(
     config: &SkillsConfig,
     skill_dir_catalog: &SkillDirCatalog,
     runtime_presets: &HashMap<String, RuntimePreset>,
+    agent_manifests: &[AgentManifestV1],
+    agent_skill_ids: &HashSet<String>,
 ) -> Result<Option<HashSet<String>>> {
     let visible_skills = visible_skills_for_target(skills, target, config);
+    let known_skill_ids: HashSet<&str> =
+        skills.iter().map(|skill| skill.skill_id.as_str()).collect();
     let hidden_count = skills.len().saturating_sub(visible_skills.len());
     if matches!(target.scope.as_str(), "project" | "repo") && hidden_count > 0 {
         println!(
@@ -536,7 +613,14 @@ fn select_skills_for_target(
             )
         );
     }
-    let options = grouped_skill_options(&visible_skills, skill_dir_catalog, runtime_presets)?;
+    let options = grouped_skill_options(
+        &visible_skills,
+        &known_skill_ids,
+        skill_dir_catalog,
+        runtime_presets,
+        agent_manifests,
+        agent_skill_ids,
+    )?;
     let default_skill_indexes = default_skill_indexes(&visible_skills, &options, target, config);
     let defaults = default_indexes_with_preset_state(&options, &default_skill_indexes);
     let default_selected_skills = selected_skill_ids_from_indexes(&options, &defaults);
@@ -573,16 +657,29 @@ fn options_to_tui_entries(options: &[SkillOption]) -> Vec<TuiEntry> {
 
 fn grouped_skill_options(
     skills: &[SkillCandidate],
+    known_skill_ids: &HashSet<&str>,
     skill_dir_catalog: &SkillDirCatalog,
     runtime_presets: &HashMap<String, RuntimePreset>,
+    agent_manifests: &[AgentManifestV1],
+    agent_skill_ids: &HashSet<String>,
 ) -> Result<Vec<SkillOption>> {
-    let mut out = preset_options_from_skills(skills, skill_dir_catalog, runtime_presets)?;
+    let mut out = preset_options_from_skills(
+        skills,
+        known_skill_ids,
+        skill_dir_catalog,
+        runtime_presets,
+        agent_manifests,
+    )?;
 
     let mut entries: Vec<(String, String)> = skills
         .iter()
         .map(|skill| {
             let dir_name = display_dir_name_for_skill(skill, skill_dir_catalog);
-            let label = format_skill_option_label(&skill.skill_id, &dir_name);
+            let label = format_skill_option_label(
+                &skill.skill_id,
+                &dir_name,
+                agent_skill_ids.contains(&skill.skill_id),
+            );
             (skill.skill_id.clone(), label)
         })
         .collect();
@@ -629,15 +726,54 @@ fn selected_skill_ids_from_indexes(options: &[SkillOption], indexes: &[usize]) -
 
 fn preset_options_from_skills(
     skills: &[SkillCandidate],
+    known_skill_ids: &HashSet<&str>,
     skill_dir_catalog: &SkillDirCatalog,
     runtime_presets: &HashMap<String, RuntimePreset>,
+    agent_manifests: &[AgentManifestV1],
 ) -> Result<Vec<SkillOption>> {
-    let mut preset_names = runtime_presets.keys().cloned().collect::<Vec<_>>();
-    preset_names.sort();
-
     let visible_skill_ids: HashSet<&str> =
         skills.iter().map(|skill| skill.skill_id.as_str()).collect();
     let mut out = Vec::new();
+
+    for manifest in agent_manifests {
+        let mut desired = Vec::new();
+        desired.push(manifest.id.clone());
+        desired.extend(manifest.includes.clone());
+        desired.sort();
+        desired.dedup();
+
+        let mut missing = Vec::new();
+        let skill_ids = desired
+            .into_iter()
+            .filter(|skill_id| {
+                if visible_skill_ids.contains(skill_id.as_str()) {
+                    return true;
+                }
+                if known_skill_ids.contains(skill_id.as_str()) {
+                    return false;
+                }
+                missing.push(skill_id.clone());
+                false
+            })
+            .collect::<Vec<_>>();
+
+        if !missing.is_empty() {
+            eprintln!(
+                "Warning: agent preset `{}` references missing skills: {}",
+                manifest.id,
+                missing.join(", ")
+            );
+        }
+
+        out.push(SkillOption::Preset(PresetOption {
+            name: format!("agent::{}", manifest.id),
+            label: format!("[agent] {} ({} skills)", manifest.id, skill_ids.len()),
+            skill_ids,
+        }));
+    }
+
+    let mut preset_names = runtime_presets.keys().cloned().collect::<Vec<_>>();
+    preset_names.sort();
     for preset_name in preset_names {
         let Some(preset) = runtime_presets.get(&preset_name) else {
             continue;
@@ -741,8 +877,12 @@ fn display_dir_name_for_skill(
         .unwrap_or_else(|| skill.skill_id.clone())
 }
 
-fn format_skill_option_label(skill_id: &str, dir_name: &str) -> String {
-    format!("{} ({})", skill_id, dir_name)
+fn format_skill_option_label(skill_id: &str, dir_name: &str, is_agent_skill: bool) -> String {
+    if is_agent_skill {
+        format!("[agent] {} ({})", skill_id, dir_name)
+    } else {
+        format!("{} ({})", skill_id, dir_name)
+    }
 }
 
 fn visible_skills_for_target(
@@ -912,6 +1052,26 @@ mod tests {
     use crate::skills::catalog::types::{ConfigEntry, SkillsConfig};
     use std::path::PathBuf;
 
+    fn grouped_options_for(
+        skills: &[SkillCandidate],
+        catalog: &SkillDirCatalog,
+        runtime_presets: &HashMap<String, RuntimePreset>,
+        agent_manifests: &[AgentManifestV1],
+        agent_skill_ids: &HashSet<String>,
+    ) -> Vec<SkillOption> {
+        let known_skill_ids: HashSet<&str> =
+            skills.iter().map(|skill| skill.skill_id.as_str()).collect();
+        grouped_skill_options(
+            skills,
+            &known_skill_ids,
+            catalog,
+            runtime_presets,
+            agent_manifests,
+            agent_skill_ids,
+        )
+        .expect("options")
+    }
+
     #[test]
     fn test_selectable_agents_uses_expected_order() {
         let config = SkillsConfig {
@@ -1062,7 +1222,7 @@ mod tests {
             .expect("target");
 
         let catalog = SkillDirCatalog::default();
-        let options = grouped_skill_options(&skills, &catalog, &HashMap::new()).expect("options");
+        let options = grouped_options_for(&skills, &catalog, &HashMap::new(), &[], &HashSet::new());
 
         let defaults = default_skill_indexes(&skills, &options, target, &config);
         assert!(defaults.is_empty());
@@ -1127,7 +1287,7 @@ mod tests {
             .expect("target");
 
         let catalog = SkillDirCatalog::default();
-        let options = grouped_skill_options(&skills, &catalog, &HashMap::new()).expect("options");
+        let options = grouped_options_for(&skills, &catalog, &HashMap::new(), &[], &HashSet::new());
 
         let defaults = default_skill_indexes(&skills, &options, target, &config);
         assert_eq!(defaults, vec![1]);
@@ -1374,7 +1534,7 @@ mod tests {
         ];
 
         let catalog = SkillDirCatalog::default();
-        let options = grouped_skill_options(&skills, &catalog, &HashMap::new()).expect("options");
+        let options = grouped_options_for(&skills, &catalog, &HashMap::new(), &[], &HashSet::new());
         assert!(matches!(options.first(), Some(SkillOption::Preset(_))));
         let skill_count = options
             .iter()
@@ -1431,7 +1591,7 @@ mod tests {
             )]),
         };
 
-        let options = grouped_skill_options(&skills, &catalog, &HashMap::new()).expect("options");
+        let options = grouped_options_for(&skills, &catalog, &HashMap::new(), &[], &HashSet::new());
         let labels: Vec<String> = options
             .iter()
             .filter_map(|option| match option {
@@ -1513,7 +1673,7 @@ mod tests {
         )]);
 
         let options =
-            grouped_skill_options(&skills, &catalog, &runtime_presets).expect("grouped options");
+            grouped_options_for(&skills, &catalog, &runtime_presets, &[], &HashSet::new());
         let preset_labels: Vec<String> = options
             .iter()
             .filter_map(|option| match option {
@@ -1578,7 +1738,7 @@ mod tests {
         ]);
 
         let options =
-            grouped_skill_options(&skills, &catalog, &runtime_presets).expect("grouped options");
+            grouped_options_for(&skills, &catalog, &runtime_presets, &[], &HashSet::new());
         let daily_label = options
             .iter()
             .find_map(|option| match option {
@@ -1590,6 +1750,83 @@ mod tests {
             .expect("daily preset label");
 
         assert_eq!(daily_label, "daily (1 skills)");
+    }
+
+    #[test]
+    fn test_grouped_skill_options_includes_agent_presets_and_agent_skill_label() {
+        let skills = vec![
+            SkillCandidate {
+                skill_id: "foo".to_string(),
+                skill_dir: PathBuf::from("/tmp/foo"),
+            },
+            SkillCandidate {
+                skill_id: "bar".to_string(),
+                skill_dir: PathBuf::from("/tmp/bar"),
+            },
+        ];
+        let catalog = SkillDirCatalog::default();
+        let agent_manifests = vec![AgentManifestV1 {
+            version: 1,
+            id: "foo".to_string(),
+            description: None,
+            includes: vec!["bar".to_string()],
+            skills: vec![],
+        }];
+        let agent_skill_ids = HashSet::from(["foo".to_string()]);
+
+        let options = grouped_options_for(
+            &skills,
+            &catalog,
+            &HashMap::new(),
+            &agent_manifests,
+            &agent_skill_ids,
+        );
+
+        let agent_preset = options.iter().find_map(|option| match option {
+            SkillOption::Preset(preset) if preset.label.starts_with("[agent] foo ") => Some(preset),
+            _ => None,
+        });
+        let agent_preset = agent_preset.expect("agent preset exists");
+        assert!(agent_preset.skill_ids.contains(&"foo".to_string()));
+        assert!(agent_preset.skill_ids.contains(&"bar".to_string()));
+
+        let foo_label = options.iter().find_map(|option| match option {
+            SkillOption::Skill { skill_id, label } if skill_id == "foo" => Some(label.clone()),
+            _ => None,
+        });
+        assert_eq!(foo_label, Some("[agent] foo (foo)".to_string()));
+    }
+
+    #[test]
+    fn test_agent_preset_skips_missing_includes() {
+        let skills = vec![SkillCandidate {
+            skill_id: "foo".to_string(),
+            skill_dir: PathBuf::from("/tmp/foo"),
+        }];
+        let catalog = SkillDirCatalog::default();
+        let agent_manifests = vec![AgentManifestV1 {
+            version: 1,
+            id: "foo".to_string(),
+            description: None,
+            includes: vec!["missing".to_string()],
+            skills: vec![],
+        }];
+        let agent_skill_ids = HashSet::from(["foo".to_string()]);
+
+        let options = grouped_options_for(
+            &skills,
+            &catalog,
+            &HashMap::new(),
+            &agent_manifests,
+            &agent_skill_ids,
+        );
+
+        let agent_preset = options.iter().find_map(|option| match option {
+            SkillOption::Preset(preset) if preset.label.starts_with("[agent] foo ") => Some(preset),
+            _ => None,
+        });
+        let agent_preset = agent_preset.expect("agent preset exists");
+        assert_eq!(agent_preset.skill_ids, vec!["foo".to_string()]);
     }
 
     #[cfg(unix)]
