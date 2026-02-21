@@ -17,8 +17,12 @@ path = "src/main.rs"
 name = "llman"
 path = "src/lib.rs"
 
+[features]
+agents-ai = ["dep:adk-rust", "dep:futures", "dep:tokio"]
+
 [dependencies]
 anyhow = "1.0.101"
+adk-rust = { version = "0.3.1", default-features = false, features = ["openai"], optional = true }
 clap = { version = "4.5.57", features = [
     "deprecated",
     "env",
@@ -38,11 +42,14 @@ rust-i18n = "3.1.5"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 toml = "0.9.11"
+minijinja = "2.16.0"
 diesel = { version = "2.3.6", features = ["sqlite", "chrono"] }
 chrono = { version = "0.4.43", features = ["serde"] }
 dirs = "6.0.0"
 glob = "0.3.3"
 ignore = "0.4.25"
+futures = { version = "0.3.31", optional = true }
+tokio = { version = "1.47.1", features = ["rt-multi-thread"], optional = true }
 
 # Comment processing and parsing
 tree-sitter = "0.26.5"
@@ -66,6 +73,7 @@ serde_yaml = "0.9.34"
 
 [dev-dependencies]
 tempfile = "3.24.0"
+expectrl = "0.5.2"
 
 # Keep `target/` growth in check:
 # - Compile workspace code with enough debug info for useful backtraces.

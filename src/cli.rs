@@ -1,3 +1,4 @@
+use crate::agents::command::AgentsArgs;
 use crate::config::{ENV_CONFIG_DIR, resolve_config_dir_with};
 use crate::config_schema::ensure_global_sample_config;
 use crate::prompt::PromptCommand;
@@ -41,6 +42,8 @@ pub enum Commands {
     /// Manage skills
     #[command(alias = "skill")]
     Skills(SkillsArgs),
+    /// Manage agent presets
+    Agents(AgentsArgs),
     /// Spec-driven development workflow
     Sdd(SddArgs),
     /// Experimental commands
@@ -166,6 +169,7 @@ pub fn run() -> Result<()> {
     match cli.command.as_ref().expect("command is present") {
         Commands::Prompt(args) => handle_prompt_command(args),
         Commands::Skills(args) => crate::skills::cli::command::run(args),
+        Commands::Agents(args) => crate::agents::command::run(args),
         Commands::Sdd(args) => crate::sdd::command::run(args),
         Commands::X(args) => handle_x_command(args),
         Commands::Tool(args) => handle_tool_command(args),
