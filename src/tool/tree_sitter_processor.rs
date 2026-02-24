@@ -1,6 +1,5 @@
 use crate::tool::config::LanguageSpecificRules;
 use anyhow::{Result, anyhow};
-use std::cmp::Reverse;
 use std::collections::HashSet;
 use std::path::Path;
 use tree_sitter::{Language, Node, Parser, Query, QueryCursor, StreamingIterator};
@@ -279,6 +278,16 @@ impl TreeSitterProcessor {
         comment: &CommentInfo,
         rules: &LanguageSpecificRules,
     ) -> bool {
+        let preserve_regexes = compile_preserve_regexes(rules.preserve_patterns.as_deref());
+        self.should_remove_comment_with_regexes(comment, rules, &preserve_regexes)
+    }
+
+    fn should_remove_comment_with_regexes(
+        &self,
+        comment: &CommentInfo,
+        rules: &LanguageSpecificRules,
+        preserve_regexes: &[regex::Regex],
+    ) -> bool {
         // Check if comments are enabled for this type
         match comment.kind {
             CommentKind::Line => {
@@ -312,14 +321,11 @@ impl TreeSitterProcessor {
         }
 
         // Check preservation patterns
-        if let Some(patterns) = &rules.preserve_patterns {
-            for pattern in patterns {
-                if let Ok(regex) = regex::Regex::new(pattern)
-                    && regex.is_match(&comment.text)
-                {
-                    return false;
-                }
-            }
+        if preserve_regexes
+            .iter()
+            .any(|regex| regex.is_match(&comment.text))
+        {
+            return false;
         }
 
         true
@@ -332,30 +338,52 @@ impl TreeSitterProcessor {
         rules: &LanguageSpecificRules,
     ) -> Result<(String, Vec<CommentInfo>)> {
         let comments = self.extract_comments(content, file_path)?;
-        let mut removed_comments = Vec::new();
-        let mut result = content.to_string();
+        let preserve_regexes = compile_preserve_regexes(rules.preserve_patterns.as_deref());
 
-        // Process comments in reverse order to maintain correct positions
         let mut comments_to_remove: Vec<_> = comments
             .iter()
-            .filter(|c| self.should_remove_comment(c, rules))
+            .filter(|comment| {
+                self.should_remove_comment_with_regexes(comment, rules, &preserve_regexes)
+            })
+            .filter(|comment| {
+                comment.start_byte <= comment.end_byte && comment.end_byte <= content.len()
+            })
             .collect();
 
-        // Sort by start position (descending)
-        comments_to_remove.sort_by_key(|comment| Reverse(comment.start_byte));
-
-        for comment in comments_to_remove {
-            removed_comments.push(comment.clone());
-
-            if comment.end_byte <= result.len() && comment.start_byte <= comment.end_byte {
-                result.replace_range(comment.start_byte..comment.end_byte, "");
-            }
+        if comments_to_remove.is_empty() {
+            return Ok((content.to_string(), Vec::new()));
         }
 
-        Ok((result, removed_comments))
+        // Sort by start position (ascending) and rebuild in one pass.
+        comments_to_remove.sort_by_key(|comment| comment.start_byte);
+
+        let mut removed_comments = Vec::with_capacity(comments_to_remove.len());
+        let mut out = String::with_capacity(content.len());
+        let mut cursor = 0;
+
+        for comment in comments_to_remove {
+            if cursor > comment.start_byte {
+                continue;
+            }
+            out.push_str(&content[cursor..comment.start_byte]);
+            cursor = comment.end_byte;
+            removed_comments.push(comment.clone());
+        }
+
+        out.push_str(&content[cursor..]);
+
+        Ok((out, removed_comments))
     }
 
     // Comment removal uses byte ranges from tree-sitter; no heuristic lookup needed.
+}
+
+fn compile_preserve_regexes(patterns: Option<&[String]>) -> Vec<regex::Regex> {
+    let patterns = patterns.unwrap_or_default();
+    patterns
+        .iter()
+        .filter_map(|pattern| regex::Regex::new(pattern).ok())
+        .collect()
 }
 
 fn normalize_comment_spans(mut comments: Vec<CommentInfo>) -> Vec<CommentInfo> {
@@ -532,5 +560,36 @@ fn main() {
             .unwrap();
         assert_eq!(removed.len(), 0);
         assert!(new_content.contains("///"));
+    }
+
+    #[test]
+    fn preserve_patterns_apply_without_recompiling_per_comment() {
+        let mut processor = TreeSitterProcessor::new().unwrap();
+        let content = r#"
+fn main() {
+    // remove
+    let x = 1; // remove2
+    // TODO: keep
+    let y = 2;
+}
+"#;
+
+        let rules = LanguageSpecificRules {
+            single_line_comments: Some(true),
+            min_comment_length: Some(200),
+            preserve_patterns: Some(vec![r"^\s*//\s*TODO:".to_string()]),
+            ..Default::default()
+        };
+
+        let (new_content, removed) = processor
+            .remove_comments_from_content(content, Path::new("test.rs"), &rules)
+            .unwrap();
+
+        assert_eq!(removed.len(), 2);
+        assert!(!new_content.contains("// remove"));
+        assert!(!new_content.contains("// remove2"));
+        assert!(new_content.contains("// TODO: keep"));
+        assert!(new_content.contains("let x = 1;"));
+        assert!(new_content.contains("let y = 2;"));
     }
 }
