@@ -7,6 +7,7 @@ use crate::self_command::SelfArgs;
 use crate::skills::cli::command::SkillsArgs;
 use crate::skills::cli::interactive::is_interactive;
 use crate::tool::command::{ToolArgs, ToolCommands};
+use crate::x::arena::command::ArenaArgs;
 use crate::x::claude_code::command::ClaudeCodeArgs;
 use crate::x::codex::command::CodexArgs;
 use crate::x::cursor::command::CursorArgs;
@@ -130,6 +131,8 @@ pub enum XCommands {
     ClaudeCode(ClaudeCodeArgs),
     /// Commands for managing Codex configurations
     Codex(CodexArgs),
+    /// Arena: prompt/model challenge workflow
+    Arena(ArenaArgs),
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy)]
@@ -276,6 +279,7 @@ fn handle_x_command(args: &XArgs) -> Result<()> {
             crate::x::claude_code::command::run(claude_code_args)
         }
         XCommands::Codex(codex_args) => crate::x::codex::command::run(codex_args),
+        XCommands::Arena(arena_args) => crate::x::arena::command::run(arena_args),
     }
 }
 

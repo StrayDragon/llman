@@ -125,7 +125,8 @@ fn parse_builder_json_value(raw_json: &str) -> Result<Value> {
 
 #[cfg(feature = "agents-ai")]
 pub fn build_with_openai(request: &AgentPresetBuildRequest) -> Result<AgentPresetBuildOutput> {
-    use adk_rust::prelude::{Content, Llm, LlmRequest, OpenAIClient, OpenAIConfig};
+    use adk_core::{Content, Llm, LlmRequest};
+    use adk_model::{OpenAIClient, OpenAIConfig};
     use futures::StreamExt;
 
     let api_key = require_env_var("OPENAI_API_KEY")?;
