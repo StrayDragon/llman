@@ -18,11 +18,14 @@ name = "llman"
 path = "src/lib.rs"
 
 [features]
-agents-ai = ["dep:adk-rust", "dep:futures", "dep:tokio"]
+# NOTE: `arena` requires network/LLM dependencies in the default build.
+# Keep `agents-ai` as a behavior flag for `llman agents new --ai` only.
+agents-ai = []
 
 [dependencies]
 anyhow = "1.0.101"
-adk-rust = { version = "0.3.1", default-features = false, features = ["openai"], optional = true }
+adk-core = "0.3.1"
+adk-model = { version = "0.3.1", default-features = false, features = ["openai"] }
 clap = { version = "4.5.57", features = [
     "deprecated",
     "env",
@@ -48,8 +51,10 @@ chrono = { version = "0.4.43", features = ["serde"] }
 dirs = "6.0.0"
 glob = "0.3.3"
 ignore = "0.4.25"
-futures = { version = "0.3.31", optional = true }
-tokio = { version = "1.47.1", features = ["rt-multi-thread"], optional = true }
+futures = "0.3.31"
+tokio = { version = "1.47.1", features = ["rt-multi-thread", "time"] }
+reqwest = { version = "0.12.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+tempfile = "3.24.0"
 
 # Comment processing and parsing
 tree-sitter = "0.26.5"
@@ -72,7 +77,6 @@ regex = "1.12.3"
 serde_yaml = "0.9.34"
 
 [dev-dependencies]
-tempfile = "3.24.0"
 expectrl = "0.5.2"
 
 # Keep `target/` growth in check:
