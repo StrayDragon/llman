@@ -1486,6 +1486,102 @@ sdd:
     missing_opsx_template:
       en: "Missing OPSX template for %{id}."
 
+  import:
+    style_only:
+      en: "Unsupported style '%{style}'. Only --style openspec is supported."
+    source_missing:
+      en: "Import source directory not found: %{source}"
+    source_not_dir:
+      en: "Import source path is not a directory: %{source}"
+    symlink_unsupported:
+      en: "Symlink entries are not supported during import: %{path}"
+    duplicate_target:
+      en: "Duplicate target path in import plan: %{target}"
+    conflicts:
+      en: "Import conflicts detected. Target files already exist:\n- %{conflicts}"
+    dry_run_header:
+      en: "Dry-run import plan: %{source} -> %{target}"
+    dry_run_empty:
+      en: "Dry-run: no files need to be migrated."
+    dry_run_total:
+      en: "Dry-run total planned file writes: %{count}"
+    warning_non_standard:
+      en: "Warning: non-standard source entry will be copied: %{path}"
+    non_interactive:
+      en: "Non-interactive mode is dry-run only for import. Re-run in an interactive terminal to execute writes."
+    confirm_execute:
+      en: "Apply this import plan now?"
+    confirm_phrase:
+      en: "MIGRATE"
+    confirm_phrase_prompt:
+      en: "Type %{phrase} to confirm import:"
+    phrase_mismatch:
+      en: "Confirmation phrase mismatch. Import canceled."
+    cancelled:
+      en: "Import canceled."
+    apply_done:
+      en: "Import completed. Copied %{copied} file(s), generated %{generated} file(s). Source: %{source}; Target: %{target}"
+    delete_source_prompt:
+      en: "Delete original source directory after import? (%{source})"
+    source_deleted:
+      en: "Deleted source directory: %{source}"
+    source_kept:
+      en: "Source directory kept: %{source}"
+    plan_item_copy:
+      en: "  - COPY %{source} -> %{target}"
+    plan_item_copy_frontmatter:
+      en: "  - COPY+FILL_FRONTMATTER %{source} -> %{target}"
+    plan_item_generate:
+      en: "  - GENERATE %{target}"
+
+  export:
+    style_only:
+      en: "Unsupported style '%{style}'. Only --style openspec is supported."
+    source_missing:
+      en: "Export source directory not found: %{source}"
+    source_not_dir:
+      en: "Export source path is not a directory: %{source}"
+    symlink_unsupported:
+      en: "Symlink entries are not supported during export: %{path}"
+    duplicate_target:
+      en: "Duplicate target path in export plan: %{target}"
+    conflicts:
+      en: "Export conflicts detected. Target files already exist:\n- %{conflicts}"
+    dry_run_header:
+      en: "Dry-run export plan: %{source} -> %{target}"
+    dry_run_empty:
+      en: "Dry-run: no files need to be migrated."
+    dry_run_total:
+      en: "Dry-run total planned file writes: %{count}"
+    warning_non_standard:
+      en: "Warning: non-standard source entry will be copied: %{path}"
+    non_interactive:
+      en: "Non-interactive mode is dry-run only for export. Re-run in an interactive terminal to execute writes."
+    confirm_execute:
+      en: "Apply this export plan now?"
+    confirm_phrase:
+      en: "MIGRATE"
+    confirm_phrase_prompt:
+      en: "Type %{phrase} to confirm export:"
+    phrase_mismatch:
+      en: "Confirmation phrase mismatch. Export canceled."
+    cancelled:
+      en: "Export canceled."
+    apply_done:
+      en: "Export completed. Copied %{copied} file(s), generated %{generated} file(s). Source: %{source}; Target: %{target}"
+    delete_source_prompt:
+      en: "Delete original source directory after export? (%{source})"
+    source_deleted:
+      en: "Deleted source directory: %{source}"
+    source_kept:
+      en: "Source directory kept: %{source}"
+    plan_item_copy:
+      en: "  - COPY %{source} -> %{target}"
+    plan_item_copy_frontmatter:
+      en: "  - COPY+FILL_FRONTMATTER %{source} -> %{target}"
+    plan_item_generate:
+      en: "  - GENERATE %{target}"
+
   list:
     no_changes_dir:
       en: "No llmanspec changes directory found. Run 'llman sdd init' first."

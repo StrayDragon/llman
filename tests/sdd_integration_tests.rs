@@ -662,3 +662,67 @@ System MUST support the added behavior.
     );
     assert_success(&validate_output);
 }
+
+#[test]
+fn test_sdd_import_requires_style_flag() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let output = run_llman(&["sdd", "import"], work_dir, work_dir);
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("--style"));
+}
+
+#[test]
+fn test_sdd_import_rejects_unsupported_style() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let output = run_llman(&["sdd", "import", "--style", "unknown"], work_dir, work_dir);
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("openspec"));
+}
+
+#[test]
+fn test_sdd_export_non_interactive_dry_run_only() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    fs::create_dir_all(work_dir.join("llmanspec/specs/sample")).expect("create source specs dir");
+    fs::write(
+        work_dir.join("llmanspec/specs/sample/spec.md"),
+        "---\nllman_spec_valid_scope:\n  - src\nllman_spec_valid_commands:\n  - just test\nllman_spec_evidence:\n  - local\n---\n\n# Sample\n",
+    )
+    .expect("write source spec");
+
+    let output = run_llman(
+        &["sdd", "export", "--style", "openspec"],
+        work_dir,
+        work_dir,
+    );
+    assert!(!output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stdout.contains("Dry-run export plan"));
+    assert!(stderr.contains("Non-interactive mode"));
+    assert!(!work_dir.join("openspec/specs/sample/spec.md").exists());
+}
+
+#[test]
+fn test_sdd_help_shows_import_export_and_hides_migrate() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let output = run_llman(&["sdd", "--help"], work_dir, work_dir);
+    assert_success(&output);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("import"));
+    assert!(stdout.contains("export"));
+    assert!(!stdout.contains("migrate"));
+}

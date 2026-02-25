@@ -108,12 +108,82 @@ SDD 模板与 skills MUST 使用基于 MiniJinja 的模板单元注入机制进�
 - **THEN** 命令报错并拒绝继续渲染
 
 ### Requirement: SDD 命令范围
-`llman sdd` MUST 仅暴露 OpenSpec 工作流的核心命令：`init`、`update`、`update-skills`、`list`、`show`、`validate`、`archive`。在 SDD 子命令组中 MUST 不提供 `change`、`spec`、`view`、`completion`、`config` 等额外子命令。
+`llman sdd` MUST 暴露以下命令集合：`init`、`update`、`update-skills`、`list`、`show`、`validate`、`archive`、`import`、`export`。  
+其中 `import` 与 `export` MUST 作为 `llmanspec` 与外部规范目录互转的唯一入口。实现 MUST NOT 暴露 `migrate --from/--to` 兼容别名。  
+在 SDD 子命令组中 MUST 不提供 `change`、`spec`、`view`、`completion`、`config` 等额外子命令。
 
-#### Scenario: 帮助文本仅包含核心命令
+#### Scenario: 帮助文本包含 import/export
 - **WHEN** 用户执行 `llman sdd --help`
-- **THEN** 帮助文本仅包含 `init`、`update`、`update-skills`、`list`、`show`、`validate`、`archive`
-- **AND** 不包含 `change`、`spec`、`view`、`completion`、`config`
+- **THEN** 帮助文本包含 `import` 与 `export`
+- **AND** 帮助文本不包含 `migrate`
+
+#### Scenario: style 参数强约束
+- **WHEN** 用户执行 `llman sdd import` 或 `llman sdd export` 且缺少 `--style`
+- **THEN** 命令返回非零并提示 `--style openspec` 为必填
+
+#### Scenario: 旧命名不可用
+- **WHEN** 用户执行 `llman sdd migrate --from openspec`
+- **THEN** 命令返回未知子命令错误
+
+### Requirement: SDD OpenSpec 双向互转
+系统 MUST 提供：
+- `llman sdd import --style openspec [path]`，将 `openspec/` 迁移到 `llmanspec/`
+- `llman sdd export --style openspec [path]`，将 `llmanspec/` 迁移到 `openspec/`
+
+`--style` MUST 为必填，且当前仅允许值 `openspec`。命令 MUST 覆盖 `specs`、active `changes` 与 `changes/archive`。源侧非标准目录（例如 `explorations/`）MUST 输出 warning，并按相对路径复制到目标侧。目标存在同名文件冲突时 MUST 失败且 MUST NOT 覆盖。
+
+#### Scenario: style 参数缺失
+- **WHEN** 用户执行 `llman sdd import` 或 `llman sdd export` 且未传 `--style`
+- **THEN** 命令返回非零并提示需要 `--style openspec`
+
+#### Scenario: style 参数非法
+- **WHEN** 用户执行 `llman sdd import --style unknown`
+- **THEN** 命令返回非零并提示仅支持 `openspec`
+
+#### Scenario: 非标准目录复制并警告
+- **WHEN** 源目录包含非标准目录（例如 `openspec/explorations/`）
+- **THEN** 命令输出 warning
+- **AND** 执行写入阶段复制该目录到目标侧相同相对路径
+
+#### Scenario: 目标冲突即失败
+- **WHEN** 目标目录存在计划写入的同名文件
+- **THEN** 命令返回非零并中止
+- **AND** 不覆盖任何冲突文件
+
+### Requirement: SDD 互转执行安全门禁
+`import/export` MUST 默认先输出完整 dry-run 计划。真实写入 MUST 仅在交互终端中通过双确认后执行（`Confirm` + 确认短语）。非交互环境 MUST 在输出 dry-run 后拒绝写入并返回非零。迁移写入成功后 MUST 提示是否删除旧迁移目录（源目录），默认 MUST 为“不删除”。
+
+#### Scenario: 非交互环境仅演练
+- **WHEN** 用户在非交互环境执行 `llman sdd export --style openspec`
+- **THEN** 命令输出 dry-run 计划并返回非零
+- **AND** 不写入目标目录
+
+#### Scenario: 交互双确认后执行
+- **WHEN** 用户在交互环境执行 `llman sdd import --style openspec` 且通过双确认
+- **THEN** 命令执行实际写入
+
+#### Scenario: 默认不删除旧目录
+- **WHEN** 迁移写入成功后进入“删除旧目录”提示
+- **THEN** 默认选项为“不删除”
+- **AND** 用户接受默认选项后源目录保持不变
+
+### Requirement: SDD 互转元数据兼容
+`export` MUST 在缺失时自动补齐 OpenSpec 元数据：
+- `openspec/config.yaml`（至少包含 `schema: spec-driven`）
+- active change 的 `.openspec.yaml`（包含 `schema` 与 `created`）
+
+`import` MUST 在主 spec 缺失 llman frontmatter 时补齐最小必需键：
+- `llman_spec_valid_scope`
+- `llman_spec_valid_commands`
+- `llman_spec_evidence`
+
+#### Scenario: 导出自动创建 openspec config
+- **WHEN** 用户执行 `llman sdd export --style openspec` 且目标缺失 `openspec/config.yaml`
+- **THEN** 命令创建该文件并写入 `schema: spec-driven`
+
+#### Scenario: 导入补齐 frontmatter
+- **WHEN** 用户执行 `llman sdd import --style openspec` 且主 spec 缺失 llman frontmatter
+- **THEN** 命令在写入时补齐所需 frontmatter 键
 
 ### Requirement: SDD 列表与查看
 `llman sdd list` 默认 MUST 列出 `llmanspec/changes/` 下除 `archive` 外的变更 ID，提供 `--specs` 时 MUST 列出 `llmanspec/specs/` 下的 spec ID，提供 `--changes` 时 MUST 显式列出变更。`llman sdd list` MUST 支持 `--sort`（默认 `recent`，可选 `name`）。`llman sdd show` MUST 输出指定 change/spec 的原始 markdown（非 JSON 模式），并遵循 OpenSpec 的自动识别与 `--type change|spec` 覆盖规则。`list` 与 `show` MUST 支持 `--json` 机器可读输出：change JSON 输出 `id/title/deltaCount/deltas`，spec JSON 输出 `id/title/overview/requirementCount/requirements/metadata`。spec JSON MUST 支持 `--requirements`、`--no-scenarios` 与 `--requirement` 过滤（`--requirements` 与 `--requirement` 冲突时报错）。`--requirements-only` 作为 `--deltas-only` 的弃用别名，仅提示警告且不改变输出。
@@ -540,3 +610,4 @@ SDD MUST 提供 OPSX slash commands 的工具适配文件，并由 `llman sdd up
 #### Scenario: 同步后验证
 - **WHEN** delta specs 已合并到主 specs
 - **THEN** skill 运行 `llman sdd validate --specs` 验证合并结果
+

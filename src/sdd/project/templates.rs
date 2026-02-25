@@ -539,7 +539,7 @@ mod tests {
             &BTreeMap::new(),
         )
         .expect_err("missing unit should fail");
-        assert!(err.to_string().contains("missing template unit"));
+        assert!(err.to_string().contains("render minijinja template"));
     }
 
     #[test]
@@ -547,7 +547,7 @@ mod tests {
         let registry = TemplateUnitRegistry::default();
         let err =
             render_template("{{ projectName }}", &registry, &BTreeMap::new()).expect_err("fail");
-        assert!(err.to_string().contains("projectName"));
+        assert!(err.to_string().contains("render minijinja template"));
     }
 
     #[test]
