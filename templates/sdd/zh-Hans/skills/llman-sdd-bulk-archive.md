@@ -20,5 +20,10 @@ metadata:
    ```bash
    llman sdd validate --strict --no-interactive
    ```
+5. 若 archive 目录过多，可选执行一轮冻结：
+   - 预览：`llman sdd archive freeze --dry-run`
+   - 冻结：`llman sdd archive freeze --keep-recent <N>`
 
 {{region: templates/sdd/zh-Hans/skills/shared.md#sdd-commands}}
+
+{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}

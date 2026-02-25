@@ -53,6 +53,19 @@ Archive a completed change in llman SDD.
    llman sdd validate --strict --no-interactive
    ```
 
+6. **(Optional) Freeze archived directories into cold backup**
+
+   When `llmanspec/changes/archive/` accumulates many dated directories:
+   ```bash
+   llman sdd archive freeze --dry-run
+   llman sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>
+   ```
+
+   Restore specific entries when needed:
+   ```bash
+   llman sdd archive thaw --change <YYYY-MM-DD-id>
+   ```
+
 **Output On Success**
 
 ```
@@ -66,3 +79,6 @@ Archive a completed change in llman SDD.
 - Never archive without an explicitly confirmed change id
 - Stop on validation failure unless the user explicitly chooses to proceed
 - Prefer `--dry-run` before archiving when uncertain
+- Use freeze/thaw only for dated archive directories (`YYYY-MM-DD-*`) and keep a small recent window unfrozen when possible
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}

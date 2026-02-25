@@ -18,3 +18,5 @@ Use this skill to inspect changes, specs, and JSON output.
 {{region: templates/sdd/en/skills/shared.md#sdd-commands}}
 
 {{region: templates/sdd/en/skills/shared.md#validation-hints}}
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}

@@ -53,6 +53,19 @@
    llman sdd validate --strict --no-interactive
    ```
 
+6. **（可选）将 archive 目录冻结为冷备**
+
+   当 `llmanspec/changes/archive/` 下日期目录累计过多时：
+   ```bash
+   llman sdd archive freeze --dry-run
+   llman sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>
+   ```
+
+   需要恢复特定目录时：
+   ```bash
+   llman sdd archive thaw --change <YYYY-MM-DD-id>
+   ```
+
 **成功输出示例**
 
 ```
@@ -66,3 +79,6 @@
 - 没有明确确认的 change id，不要归档
 - 校验失败时默认停止，除非用户明确选择继续
 - 不确定时优先用 `--dry-run` 预览
+- freeze/thaw 仅针对日期归档目录（`YYYY-MM-DD-*`）；建议保留少量最近目录不冻结
+
+{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}

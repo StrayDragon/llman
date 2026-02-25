@@ -23,3 +23,6 @@ Use this skill when you need to introduce a new capability, breaking change, or 
 {{region: templates/sdd/en/skills/shared.md#sdd-commands}}
 
 {{region: templates/sdd/en/skills/shared.md#validation-hints}}
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{region: templates/sdd/en/skills/shared.md#future-planning}}

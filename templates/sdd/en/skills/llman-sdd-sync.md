@@ -24,3 +24,5 @@ This is a manual, reproducible protocol.
 
 {{region: templates/sdd/en/skills/shared.md#sdd-commands}}
 {{region: templates/sdd/en/skills/shared.md#validation-hints}}
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}

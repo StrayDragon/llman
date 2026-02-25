@@ -22,3 +22,5 @@ metadata:
 - 使用 `llman sdd update-skills` 刷新技能。
 
 {{region: templates/sdd/zh-Hans/skills/shared.md#validation-hints}}
+
+{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}

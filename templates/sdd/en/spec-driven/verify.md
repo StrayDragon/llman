@@ -52,3 +52,5 @@ Verify that the implementation matches the change artifacts (specs, tasks, desig
 **Guardrails**
 - Don’t invent evidence — cite file paths and concrete observations
 - Keep recommendations small and actionable
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}

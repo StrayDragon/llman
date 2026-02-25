@@ -112,3 +112,5 @@ llman sdd validate --strict --no-interactive
 - 讲清楚关键决策即可，避免长篇说教
 - 不要跳过校验步骤
 - 改动保持最小，严格围绕 tasks
+
+{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}

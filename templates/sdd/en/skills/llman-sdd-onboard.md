@@ -22,3 +22,5 @@ Use this skill to onboard to llman SDD in a repository.
 - Refresh skills with `llman sdd update-skills`.
 
 {{region: templates/sdd/en/skills/shared.md#validation-hints}}
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}

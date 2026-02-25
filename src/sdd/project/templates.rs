@@ -26,6 +26,7 @@ const SPEC_DRIVEN_FILES: &[&str] = &[
     "sync.md",
     "archive.md",
     "bulk-archive.md",
+    "future.md",
 ];
 
 const SKILL_FILES: &[&str] = &[
@@ -41,6 +42,7 @@ const SKILL_FILES: &[&str] = &[
     "llman-sdd-show.md",
     "llman-sdd-validate.md",
     "llman-sdd-archive.md",
+    "llman-sdd-specs-compact.md",
 ];
 
 const OPSX_COMMAND_IDS: &[&str] = &[
@@ -222,6 +224,10 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/llman-sdd-archive.md"
         ))),
+        "templates/sdd/en/skills/llman-sdd-specs-compact.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/skills/llman-sdd-specs-compact.md"
+        ))),
         "templates/sdd/en/spec-driven/explore.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/spec-driven/explore.md"
@@ -261,6 +267,10 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/en/spec-driven/bulk-archive.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/spec-driven/bulk-archive.md"
+        ))),
+        "templates/sdd/en/spec-driven/future.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/spec-driven/future.md"
         ))),
         "templates/sdd/en/skills/shared.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -326,6 +336,10 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/skills/llman-sdd-archive.md"
         ))),
+        "templates/sdd/zh-Hans/skills/llman-sdd-specs-compact.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/skills/llman-sdd-specs-compact.md"
+        ))),
         "templates/sdd/zh-Hans/spec-driven/explore.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/spec-driven/explore.md"
@@ -365,6 +379,10 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/zh-Hans/spec-driven/bulk-archive.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/spec-driven/bulk-archive.md"
+        ))),
+        "templates/sdd/zh-Hans/spec-driven/future.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/spec-driven/future.md"
         ))),
         "templates/sdd/zh-Hans/skills/shared.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

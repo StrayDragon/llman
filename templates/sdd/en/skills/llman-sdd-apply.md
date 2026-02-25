@@ -28,3 +28,5 @@ Use this skill to implement `tasks.md` for a change.
    ```
 
 {{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}

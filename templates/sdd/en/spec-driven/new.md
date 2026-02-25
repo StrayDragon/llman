@@ -42,3 +42,6 @@ After completing the steps, summarize:
 - Do NOT implement application code
 - Do NOT create any change artifacts yet (proposal/specs/design/tasks) — `/opsx:continue` or `/opsx:ff` will do that
 - If the id is invalid (not kebab-case), ask for a valid id
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{region: templates/sdd/en/skills/shared.md#future-planning}}
