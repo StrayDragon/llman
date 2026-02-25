@@ -15,13 +15,11 @@ metadata:
 3. 仅工具类变更使用 `--skip-specs`。
 4. 使用 `--dry-run` 预览操作。
 5. 重新执行 `llman sdd validate --strict --no-interactive`。
-6. 当 archive 目录增长过大时，执行冷备维护：
-   - 预览冻结候选：`llman sdd archive freeze --dry-run`
-   - 冻结旧归档：`llman sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
-   - 需要恢复时：`llman sdd archive thaw --change <YYYY-MM-DD-id>`
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#sdd-commands}}
+{{ unit("workflow/archive-freeze-guidance") }}
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#validation-hints}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
+{{ unit("skills/validation-hints") }}
+
+{{ unit("skills/structured-protocol") }}

@@ -25,8 +25,8 @@ Use this skill to continue an existing change and create the next missing artifa
    - Validate: `llman sdd validate <id> --strict --no-interactive`
    - Archive (when ready): `llman sdd archive <id>`
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
-{{region: templates/sdd/en/skills/shared.md#validation-hints}}
+{{ unit("skills/sdd-commands") }}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/en/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}

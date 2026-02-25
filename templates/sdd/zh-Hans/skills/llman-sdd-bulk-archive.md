@@ -24,6 +24,6 @@ metadata:
    - 预览：`llman sdd archive freeze --dry-run`
    - 冻结：`llman sdd archive freeze --keep-recent <N>`
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

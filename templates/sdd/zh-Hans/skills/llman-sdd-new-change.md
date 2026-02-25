@@ -20,9 +20,9 @@ metadata:
    - 每条 requirement 至少一个 `#### Scenario:`
 4. 校验：`llman sdd validate <change-id> --strict --no-interactive`。
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#validation-hints}}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/zh-Hans/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}

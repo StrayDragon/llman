@@ -1,7 +1,8 @@
 use super::config::{SddConfig, locale_fallbacks};
-use super::regions::expand_regions;
 use crate::sdd::shared::constants::LLMANSPEC_MARKERS;
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
+use minijinja::{Environment, ErrorKind, UndefinedBehavior};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -58,6 +59,29 @@ const OPSX_COMMAND_IDS: &[&str] = &[
     "bulk-archive",
 ];
 
+const UNIT_FILES: &[&str] = &[
+    "skills/sdd-commands.md",
+    "skills/validation-hints.md",
+    "skills/structured-protocol.md",
+    "skills/future-planning.md",
+    "workflow/archive-freeze-guidance.md",
+];
+
+#[derive(Default, Debug, Clone)]
+struct TemplateUnitRegistry {
+    units: BTreeMap<String, String>,
+}
+
+impl TemplateUnitRegistry {
+    fn register(&mut self, id: &str, content: String) -> Result<()> {
+        if self.units.contains_key(id) {
+            return Err(anyhow!("duplicate template unit id '{}'", id));
+        }
+        self.units.insert(id.to_string(), content);
+        Ok(())
+    }
+}
+
 pub fn spec_driven_templates(config: &SddConfig, root: &Path) -> Result<Vec<TemplateFile>> {
     let mut files = Vec::new();
     for name in SPEC_DRIVEN_FILES {
@@ -96,11 +120,18 @@ pub fn render_project_template(
     config: &SddConfig,
     root: &Path,
 ) -> Result<String> {
-    let base = load_template(config, root, "project.md")?;
-    Ok(base
-        .replace("{{projectName}}", project_name)
-        .replace("{{description}}", "TODO: Describe project purpose")
-        .replace("{{techStack}}", "TODO: List key technologies"))
+    let units = load_template_units(config, root)?;
+    let mut vars = BTreeMap::new();
+    vars.insert("projectName".to_string(), project_name.to_string());
+    vars.insert(
+        "description".to_string(),
+        "TODO: Describe project purpose".to_string(),
+    );
+    vars.insert(
+        "techStack".to_string(),
+        "TODO: List key technologies".to_string(),
+    );
+    load_template_with_context(config, root, "project.md", &units, &vars)
 }
 
 pub fn managed_block_content(config: &SddConfig, root: &Path) -> Result<String> {
@@ -120,46 +151,93 @@ pub fn default_agents_file(config: &SddConfig, root: &Path) -> Result<String> {
 }
 
 fn load_template(config: &SddConfig, root: &Path, relative_path: &str) -> Result<String> {
+    let units = load_template_units(config, root)?;
+    load_template_with_context(config, root, relative_path, &units, &BTreeMap::new())
+}
+
+fn load_template_with_context(
+    config: &SddConfig,
+    root: &Path,
+    relative_path: &str,
+    units: &TemplateUnitRegistry,
+    vars: &BTreeMap<String, String>,
+) -> Result<String> {
     for locale in locale_fallbacks(&config.locale) {
-        let path = format!("templates/sdd/{}/{relative_path}", locale);
-        if let Some(content) = embedded_template(&path) {
-            return expand_template(content, root);
-        }
-        let full_path = root.join(&path);
-        if full_path.exists() {
-            let content = fs::read_to_string(&full_path).map_err(|err| {
-                anyhow!(t!("sdd.templates.read_failed", path = path, error = err))
-            })?;
-            return expand_template(&content, root);
+        if let Some(raw) = load_locale_resource(root, &locale, relative_path)? {
+            return render_template(&raw, units, vars)
+                .with_context(|| format!("render template {}", relative_path));
         }
     }
 
     Err(anyhow!(t!("sdd.templates.not_found", path = relative_path)))
 }
 
-fn expand_template(raw: &str, root: &Path) -> Result<String> {
-    let expanded = expand_regions(raw, |path| load_source_content(path, root))?;
-    Ok(expanded.trim_end().to_string())
-}
+fn load_template_units(config: &SddConfig, root: &Path) -> Result<TemplateUnitRegistry> {
+    let mut registry = TemplateUnitRegistry::default();
 
-fn load_source_content(path: &str, root: &Path) -> Result<String> {
-    if let Some(content) = embedded_template(path) {
-        return Ok(content.to_string());
+    for locale in locale_fallbacks(&config.locale) {
+        for unit_file in UNIT_FILES {
+            let id = unit_file.trim_end_matches(".md");
+            if registry.units.contains_key(id) {
+                continue;
+            }
+            let relative_path = format!("units/{}", unit_file);
+            if let Some(content) = load_locale_resource(root, &locale, &relative_path)? {
+                registry.register(id, content)?;
+            }
+        }
     }
 
-    let resolved = if Path::new(path).is_absolute() {
-        Path::new(path).to_path_buf()
-    } else {
-        root.join(path)
-    };
+    Ok(registry)
+}
 
-    fs::read_to_string(&resolved).map_err(|err| {
-        anyhow!(t!(
-            "sdd.templates.read_failed",
-            path = resolved.display(),
-            error = err
-        ))
-    })
+fn load_locale_resource(root: &Path, locale: &str, relative_path: &str) -> Result<Option<String>> {
+    let path = format!("templates/sdd/{}/{}", locale, relative_path);
+    if let Some(content) = embedded_template(&path) {
+        return Ok(Some(content.to_string()));
+    }
+    let full_path = root.join(&path);
+    if !full_path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(&full_path)
+        .map_err(|err| anyhow!(t!("sdd.templates.read_failed", path = path, error = err)))?;
+    Ok(Some(content))
+}
+
+fn render_template(
+    raw: &str,
+    units: &TemplateUnitRegistry,
+    vars: &BTreeMap<String, String>,
+) -> Result<String> {
+    let mut env = Environment::new();
+    env.set_undefined_behavior(UndefinedBehavior::Strict);
+
+    let unit_map = units.units.clone();
+    env.add_function(
+        "unit",
+        move |id: String| -> std::result::Result<String, minijinja::Error> {
+            unit_map.get(&id).cloned().ok_or_else(|| {
+                minijinja::Error::new(
+                    ErrorKind::InvalidOperation,
+                    format!("missing template unit '{}'", id),
+                )
+            })
+        },
+    );
+
+    for (key, value) in vars {
+        env.add_global(key.clone(), value.clone());
+    }
+
+    env.add_template("sdd_template", raw)
+        .context("load minijinja template")?;
+    let rendered = env
+        .get_template("sdd_template")
+        .context("get minijinja template")?
+        .render(())
+        .context("render minijinja template")?;
+    Ok(rendered.trim_end().to_string())
 }
 
 fn embedded_template(path: &str) -> Option<&'static str> {
@@ -276,6 +354,28 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/shared.md"
         ))),
+        "templates/sdd/en/units/skills/sdd-commands.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/units/skills/sdd-commands.md"
+        ))),
+        "templates/sdd/en/units/skills/validation-hints.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/units/skills/validation-hints.md"
+        ))),
+        "templates/sdd/en/units/skills/structured-protocol.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/units/skills/structured-protocol.md"
+        ))),
+        "templates/sdd/en/units/skills/future-planning.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/units/skills/future-planning.md"
+        ))),
+        "templates/sdd/en/units/workflow/archive-freeze-guidance.md" => {
+            Some(include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/templates/sdd/en/units/workflow/archive-freeze-guidance.md"
+            )))
+        }
         "templates/sdd/zh-Hans/agents.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/agents.md"
@@ -388,6 +488,80 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/skills/shared.md"
         ))),
+        "templates/sdd/zh-Hans/units/skills/sdd-commands.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/units/skills/sdd-commands.md"
+        ))),
+        "templates/sdd/zh-Hans/units/skills/validation-hints.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/units/skills/validation-hints.md"
+        ))),
+        "templates/sdd/zh-Hans/units/skills/structured-protocol.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/units/skills/structured-protocol.md"
+        ))),
+        "templates/sdd/zh-Hans/units/skills/future-planning.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/units/skills/future-planning.md"
+        ))),
+        "templates/sdd/zh-Hans/units/workflow/archive-freeze-guidance.md" => {
+            Some(include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/templates/sdd/zh-Hans/units/workflow/archive-freeze-guidance.md"
+            )))
+        }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn duplicate_unit_registration_fails() {
+        let mut registry = TemplateUnitRegistry::default();
+        registry
+            .register("skills/sdd-commands", "first".to_string())
+            .expect("register first");
+        let err = registry
+            .register("skills/sdd-commands", "second".to_string())
+            .expect_err("duplicate id should fail");
+        assert!(err.to_string().contains("duplicate template unit id"));
+    }
+
+    #[test]
+    fn render_fails_on_missing_unit() {
+        let registry = TemplateUnitRegistry::default();
+        let err = render_template(
+            "{{ unit(\"skills/does-not-exist\") }}",
+            &registry,
+            &BTreeMap::new(),
+        )
+        .expect_err("missing unit should fail");
+        assert!(err.to_string().contains("missing template unit"));
+    }
+
+    #[test]
+    fn render_fails_on_missing_variable() {
+        let registry = TemplateUnitRegistry::default();
+        let err =
+            render_template("{{ projectName }}", &registry, &BTreeMap::new()).expect_err("fail");
+        assert!(err.to_string().contains("projectName"));
+    }
+
+    #[test]
+    fn render_injects_unit_content() {
+        let mut registry = TemplateUnitRegistry::default();
+        registry
+            .register("skills/sdd-commands", "commands".to_string())
+            .expect("register");
+        let rendered = render_template(
+            "Header\n{{ unit(\"skills/sdd-commands\") }}\nFooter",
+            &registry,
+            &BTreeMap::new(),
+        )
+        .expect("render");
+        assert_eq!(rendered, "Header\ncommands\nFooter");
     }
 }

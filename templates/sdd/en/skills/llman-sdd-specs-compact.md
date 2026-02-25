@@ -38,8 +38,8 @@ Use this skill to reduce specs bloat while preserving MUST/Scenario behavior.
 - Include: keep/merge/remove decisions and rationale.
 - Include validation commands and expected outcomes.
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/en/skills/shared.md#validation-hints}}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

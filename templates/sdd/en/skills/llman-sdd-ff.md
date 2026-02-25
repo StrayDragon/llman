@@ -26,8 +26,8 @@ Use this skill to create **all** artifacts for a new change quickly (proposal â†
    ```
 5. Show a short status summary and suggest next actions (`llman-sdd-apply` or `/opsx:apply`).
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
-{{region: templates/sdd/en/skills/shared.md#validation-hints}}
+{{ unit("skills/sdd-commands") }}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/en/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}

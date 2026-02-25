@@ -22,7 +22,7 @@ This is a manual, reproducible protocol.
    llman sdd validate --specs --strict --no-interactive
    ```
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
-{{region: templates/sdd/en/skills/shared.md#validation-hints}}
+{{ unit("skills/sdd-commands") }}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

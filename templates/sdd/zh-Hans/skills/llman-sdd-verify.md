@@ -21,6 +21,6 @@ metadata:
 4. 运行仓库的验证命令（tests/lint 等，视项目而定）。
 5. 若一致且验证通过，建议归档：`llman sdd archive <id>`。
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

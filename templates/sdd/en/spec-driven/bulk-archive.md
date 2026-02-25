@@ -67,4 +67,4 @@ Archived:
 - Stop on the first failure and report it
 - Prefer validating before archiving
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

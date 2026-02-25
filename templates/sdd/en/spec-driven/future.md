@@ -23,4 +23,4 @@ Use this note to track deferred and branching ideas for a change.
 - Explicitly excluded item:
   - Why out of scope:
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

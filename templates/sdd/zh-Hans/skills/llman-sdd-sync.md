@@ -22,7 +22,7 @@ metadata:
    llman sdd validate --specs --strict --no-interactive
    ```
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#sdd-commands}}
-{{region: templates/sdd/zh-Hans/skills/shared.md#validation-hints}}
+{{ unit("skills/sdd-commands") }}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

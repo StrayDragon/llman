@@ -25,8 +25,8 @@ metadata:
    - 校验：`llman sdd validate <id> --strict --no-interactive`
    - 归档（准备好后）：`llman sdd archive <id>`
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#sdd-commands}}
-{{region: templates/sdd/zh-Hans/skills/shared.md#validation-hints}}
+{{ unit("skills/sdd-commands") }}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/zh-Hans/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}

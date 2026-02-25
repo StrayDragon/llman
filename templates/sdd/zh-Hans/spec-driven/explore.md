@@ -100,5 +100,5 @@ llman sdd list --json
 
 准备开始行动时，建议：`/opsx:new` 或 `/opsx:ff`。
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/zh-Hans/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}

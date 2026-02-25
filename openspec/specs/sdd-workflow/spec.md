@@ -93,15 +93,19 @@ Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmansp
 - **THEN** 生成的 `llman-sdd-archive` 与 `llman-sdd-explore` 等技能均包含统一结构化章节
 
 ### Requirement: SDD 模板区域复用
-SDD 模板与 skills MUST 支持 `{{region: <path>#<name>}}` 引用，系统 MUST 使用源文件中与文件类型匹配的 `region` 块替换占位符内容。若 region 缺失或重复，命令 MUST 报错并中止。
+SDD 模板与 skills MUST 使用基于 MiniJinja 的模板单元注入机制进行复用。系统 MUST 通过显式模板单元标识符完成注入渲染，并在缺失单元、重复注册或渲染失败时报错并中止。
 
-#### Scenario: 引用 Markdown region
-- **WHEN** 模板包含 `{{region: docs/sdd.md#overview}}` 且目标文件存在 `<!-- region: overview -->` 块
-- **THEN** 生成结果中替换为对应 region 内容
+#### Scenario: 引用模板单元并成功渲染
+- **WHEN** 模板声明注入一个已注册的共享单元
+- **THEN** 生成结果中包含该单元的渲染内容且无未解析占位符
 
-#### Scenario: region 缺失
-- **WHEN** 模板引用的 region 在目标文件中不存在
+#### Scenario: 模板单元缺失
+- **WHEN** 模板声明的单元标识符在当前 locale 与回退链中都不存在
 - **THEN** 命令报错并退出非零
+
+#### Scenario: 模板单元注册冲突
+- **WHEN** 同一渲染上下文中存在重复的单元标识符定义
+- **THEN** 命令报错并拒绝继续渲染
 
 ### Requirement: SDD 命令范围
 `llman sdd` MUST 仅暴露 OpenSpec 工作流的核心命令：`init`、`update`、`update-skills`、`list`、`show`、`validate`、`archive`。在 SDD 子命令组中 MUST 不提供 `change`、`spec`、`view`、`completion`、`config` 等额外子命令。

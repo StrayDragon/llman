@@ -62,5 +62,5 @@
 - 工件保持最小化、与用户请求紧密一致
 - 不要擅自扩大范围；不确定就先问
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/zh-Hans/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}

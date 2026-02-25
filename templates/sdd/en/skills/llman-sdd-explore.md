@@ -36,7 +36,7 @@ When the user is ready to implement, suggest:
 - `/opsx:ff` or `llman-sdd-ff` (create all artifacts quickly)
 - `llman-sdd-apply` (implement tasks)
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/en/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}
