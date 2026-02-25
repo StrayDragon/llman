@@ -20,5 +20,10 @@ Use this skill to archive multiple changes (one-by-one) and then run a full vali
    ```bash
    llman sdd validate --strict --no-interactive
    ```
+5. If archive directories are too many, optionally freeze in one batch:
+   - Preview: `llman sdd archive freeze --dry-run`
+   - Freeze: `llman sdd archive freeze --keep-recent <N>`
 
 {{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}

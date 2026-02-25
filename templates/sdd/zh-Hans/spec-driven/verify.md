@@ -53,3 +53,5 @@
 **护栏**
 - 不要编造证据：引用具体文件路径与观察结果
 - 建议保持小而可执行
+
+{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}

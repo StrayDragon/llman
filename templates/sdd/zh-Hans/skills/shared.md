@@ -6,7 +6,10 @@
 - `llman sdd show <id>`（查看 change/spec）
 - `llman sdd validate <id>`（校验变更或 spec）
 - `llman sdd validate --all`（批量校验）
-- `llman sdd archive <id>`（归档变更）
+- `llman sdd archive run <id>`（归档变更）
+- `llman sdd archive <id>`（`archive run` 的兼容别名）
+- `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（将已归档目录冻结到单一冷备文件）
+- `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备文件恢复目录）
 <!-- endregion -->
 
 <!-- region: opsx-quickstart -->
@@ -63,4 +66,43 @@ The system MUST ...
 - **WHEN** ...
 - **THEN** ...
 ```
+<!-- endregion -->
+
+<!-- region: structured-protocol -->
+## Context
+- 执行前先确认当前 change/spec 状态。
+
+## Goal
+- 明确本次命令/skill 要达成的可验证结果。
+
+## Constraints
+- 变更保持最小化且范围明确。
+- 标识符或意图不明确时禁止猜测。
+
+## Workflow
+- 以 `llman sdd` 命令结果为事实来源。
+- 涉及文件/规范变更时执行校验。
+
+## Decision Policy
+- 高影响歧义必须先澄清。
+- 已知校验错误下禁止强行继续。
+
+## Output Contract
+- 汇总已执行动作。
+- 给出结果路径与校验状态。
+<!-- endregion -->
+
+<!-- region: future-planning -->
+## Future 到执行的规划
+- 将 `llmanspec/changes/<id>/future.md` 视为候选待办池，而不是静态备注。
+- 审查 `Deferred Items`、`Branch Options`、`Triggers to Reopen`，并把每项归类为：
+  - `now`（需要立即转化为可执行工作）
+  - `later`（保留在 future.md，补充明确触发信号）
+  - `drop`（移除或标记拒绝并说明原因）
+- 对每个 `now` 项，产出明确落地路径：
+  - 后续 change id（`add-...`、`update-...`、`refactor-...`）
+  - 受影响 capability/spec 路径
+  - 第一条可执行动作（`/opsx:new`、`/opsx:continue`、`/opsx:ff` 或 `llman-sdd-apply`）
+- 保持可追溯性：在新 proposal/design/tasks 中引用来源 future 条目。
+- 若存在高不确定性，先暂停并提问，再创建新变更工件。
 <!-- endregion -->

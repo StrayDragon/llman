@@ -212,6 +212,9 @@ fn test_sdd_archive_help_hides_force() {
     let stderr = String::from_utf8_lossy(&help_output.stderr);
     assert!(!stdout.contains("--force"));
     assert!(!stderr.contains("--force"));
+    assert!(stdout.contains("run"));
+    assert!(stdout.contains("freeze"));
+    assert!(stdout.contains("thaw"));
 }
 
 #[test]
@@ -410,7 +413,252 @@ fn test_sdd_update_skills_writes_codex_skills_without_opsx_prompts() {
 
     let skill_path = output_dir.join("llman-sdd-onboard").join("SKILL.md");
     assert!(skill_path.exists());
+    let compact_skill_path = output_dir.join("llman-sdd-specs-compact").join("SKILL.md");
+    assert!(compact_skill_path.exists());
+    let compact_skill = fs::read_to_string(&compact_skill_path).expect("read specs compact skill");
+    assert!(!compact_skill.contains("先调用某外部技能"));
+    assert!(
+        !compact_skill
+            .to_lowercase()
+            .contains("ison-prompt-optimizer-zh")
+    );
+    let archive_skill_path = output_dir.join("llman-sdd-archive").join("SKILL.md");
+    assert!(archive_skill_path.exists());
+    let archive_skill = fs::read_to_string(&archive_skill_path).expect("read archive skill");
+    assert!(archive_skill.contains("llman sdd archive freeze"));
+    assert!(archive_skill.contains("llman sdd archive thaw"));
+    let explore_skill_path = output_dir.join("llman-sdd-explore").join("SKILL.md");
+    assert!(explore_skill_path.exists());
+    let explore_skill = fs::read_to_string(&explore_skill_path).expect("read explore skill");
+    assert!(explore_skill.contains("Future-to-Execution Planning"));
+    assert!(explore_skill.contains("llmanspec/changes/<id>/future.md"));
 
     let codex_prompts = work_dir.join(".codex/prompts");
     assert!(!codex_prompts.exists());
+}
+
+#[test]
+fn test_sdd_archive_freeze_and_thaw_single_file_flow() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let archive_root = work_dir.join("llmanspec").join("changes").join("archive");
+    let archived_a = archive_root.join("2026-01-01-alpha");
+    let archived_b = archive_root.join("2026-01-02-beta");
+    fs::create_dir_all(&archived_a).expect("create archived a");
+    fs::create_dir_all(&archived_b).expect("create archived b");
+    fs::write(archived_a.join("a.txt"), "alpha").expect("write a");
+    fs::write(archived_b.join("b.txt"), "beta").expect("write b");
+
+    let freeze_output = run_llman(&["sdd", "archive", "freeze"], work_dir, work_dir);
+    assert_success(&freeze_output);
+
+    let freeze_file = archive_root.join("freezed_changes.7z.archived");
+    assert!(freeze_file.exists());
+    assert!(!archived_a.exists());
+    assert!(!archived_b.exists());
+
+    let thaw_output = run_llman(&["sdd", "archive", "thaw"], work_dir, work_dir);
+    assert_success(&thaw_output);
+    assert!(archive_root.join(".thawed/2026-01-01-alpha/a.txt").exists());
+    assert!(archive_root.join(".thawed/2026-01-02-beta/b.txt").exists());
+}
+
+#[test]
+fn test_sdd_archive_thaw_supports_change_filter_and_dest() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let archive_root = work_dir.join("llmanspec").join("changes").join("archive");
+    let archived_a = archive_root.join("2026-01-03-alpha");
+    let archived_b = archive_root.join("2026-01-04-beta");
+    fs::create_dir_all(&archived_a).expect("create archived a");
+    fs::create_dir_all(&archived_b).expect("create archived b");
+    fs::write(archived_a.join("a.txt"), "alpha").expect("write a");
+    fs::write(archived_b.join("b.txt"), "beta").expect("write b");
+
+    let freeze_output = run_llman(&["sdd", "archive", "freeze"], work_dir, work_dir);
+    assert_success(&freeze_output);
+
+    let custom_dest = work_dir.join("restore-target");
+    let thaw_output = run_llman(
+        &[
+            "sdd",
+            "archive",
+            "thaw",
+            "--change",
+            "2026-01-03-alpha",
+            "--dest",
+            custom_dest.to_str().expect("dest"),
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&thaw_output);
+
+    assert!(custom_dest.join("2026-01-03-alpha/a.txt").exists());
+    assert!(!custom_dest.join("2026-01-04-beta").exists());
+}
+
+#[test]
+fn test_sdd_archive_freeze_dry_run_does_not_write() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let archive_root = work_dir.join("llmanspec").join("changes").join("archive");
+    let archived = archive_root.join("2026-01-05-alpha");
+    fs::create_dir_all(&archived).expect("create archived dir");
+    fs::write(archived.join("a.txt"), "alpha").expect("write file");
+
+    let dry_run_output = run_llman(
+        &["sdd", "archive", "freeze", "--dry-run"],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&dry_run_output);
+
+    assert!(archived.exists());
+    assert!(!archive_root.join("freezed_changes.7z.archived").exists());
+}
+
+#[test]
+fn test_sdd_archive_freeze_failure_keeps_source_dirs() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let archive_root = work_dir.join("llmanspec").join("changes").join("archive");
+    let archived = archive_root.join("2026-01-06-alpha");
+    fs::create_dir_all(&archived).expect("create archived dir");
+    fs::write(archived.join("a.txt"), "alpha").expect("write file");
+
+    let freeze_file_dir = archive_root.join("freezed_changes.7z.archived");
+    fs::create_dir_all(&freeze_file_dir).expect("create conflicting freeze path");
+
+    let freeze_output = run_llman(&["sdd", "archive", "freeze"], work_dir, work_dir);
+    assert!(!freeze_output.status.success());
+    assert!(archived.exists());
+}
+
+#[test]
+fn test_sdd_archive_freeze_second_run_preserves_first_run_content() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let archive_root = work_dir.join("llmanspec").join("changes").join("archive");
+    let first = archive_root.join("2026-01-07-first");
+    fs::create_dir_all(&first).expect("create first dir");
+    fs::write(first.join("one.txt"), "one").expect("write first file");
+    assert_success(&run_llman(
+        &["sdd", "archive", "freeze"],
+        work_dir,
+        work_dir,
+    ));
+
+    let second = archive_root.join("2026-01-08-second");
+    fs::create_dir_all(&second).expect("create second dir");
+    fs::write(second.join("two.txt"), "two").expect("write second file");
+    assert_success(&run_llman(
+        &["sdd", "archive", "freeze"],
+        work_dir,
+        work_dir,
+    ));
+
+    let thaw_dest = work_dir.join("thaw-all");
+    assert_success(&run_llman(
+        &[
+            "sdd",
+            "archive",
+            "thaw",
+            "--dest",
+            thaw_dest.to_str().expect("dest"),
+        ],
+        work_dir,
+        work_dir,
+    ));
+
+    assert!(thaw_dest.join("2026-01-07-first/one.txt").exists());
+    assert!(thaw_dest.join("2026-01-08-second/two.txt").exists());
+}
+
+#[test]
+fn test_sdd_validate_change_without_future_md_still_succeeds() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let llmanspec_dir = work_dir.join("llmanspec");
+    let change_dir = llmanspec_dir.join("changes").join("no-future");
+    let change_specs_dir = change_dir.join("specs").join("sample");
+    fs::create_dir_all(&change_specs_dir).expect("create change spec dir");
+    fs::write(
+        change_dir.join("proposal.md"),
+        "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n",
+    )
+    .expect("write proposal");
+    fs::write(change_dir.join("tasks.md"), "## 1. Tasks\n- [ ] 1.1 Do\n").expect("write tasks");
+    let delta_spec = r#"## ADDED Requirements
+### Requirement: Added behavior
+System MUST support the added behavior.
+
+#### Scenario: added
+- **WHEN** a new action is taken
+- **THEN** the new behavior happens
+"#;
+    fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
+
+    let validate_output = run_llman(
+        &[
+            "sdd",
+            "validate",
+            "no-future",
+            "--type",
+            "change",
+            "--strict",
+            "--no-interactive",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&validate_output);
 }

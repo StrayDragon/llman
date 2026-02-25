@@ -48,3 +48,5 @@
 **护栏**
 - 不要在 sync 中归档 change（归档使用 `/opsx:archive`）
 - 任何不确定之处都应先暂停并询问用户
+
+{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}

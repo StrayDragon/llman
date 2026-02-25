@@ -28,3 +28,6 @@ Use this skill to create **all** artifacts for a new change quickly (proposal â†
 
 {{region: templates/sdd/en/skills/shared.md#sdd-commands}}
 {{region: templates/sdd/en/skills/shared.md#validation-hints}}
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{region: templates/sdd/en/skills/shared.md#future-planning}}

@@ -102,3 +102,6 @@ Offer; don't auto-capture.
 - **Do visualize** - A good diagram is worth many paragraphs
 
 When ready to act, suggest: `/opsx:new` or `/opsx:ff`.
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{region: templates/sdd/en/skills/shared.md#future-planning}}

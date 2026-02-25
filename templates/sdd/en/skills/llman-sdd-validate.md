@@ -17,3 +17,5 @@ Use this skill to validate change/spec format and staleness.
 {{region: templates/sdd/en/skills/shared.md#sdd-commands}}
 
 {{region: templates/sdd/en/skills/shared.md#validation-hints}}
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}

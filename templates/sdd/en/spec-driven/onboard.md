@@ -112,3 +112,5 @@ llman sdd validate --strict --no-interactive
 - Explain decisions briefly; avoid long lectures
 - Do not skip validation steps
 - Keep edits minimal and scoped to the tasks
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}

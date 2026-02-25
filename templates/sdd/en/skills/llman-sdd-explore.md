@@ -37,3 +37,6 @@ When the user is ready to implement, suggest:
 - `llman-sdd-apply` (implement tasks)
 
 {{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{region: templates/sdd/en/skills/shared.md#future-planning}}

@@ -50,3 +50,5 @@ This is a manual, reproducible protocol: read delta specs under `llmanspec/chang
 **Guardrails**
 - Preserve existing content not mentioned in the delta unless the user asks otherwise
 - If anything is unclear, ask before editing main specs
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}

@@ -22,3 +22,5 @@ metadata:
 5. 若一致且验证通过，建议归档：`llman sdd archive <id>`。
 
 {{region: templates/sdd/zh-Hans/skills/shared.md#sdd-commands}}
+
+{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}

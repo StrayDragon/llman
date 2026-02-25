@@ -82,85 +82,15 @@ Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmansp
 - **AND** CLI 输出仍保持英文
 
 ### Requirement: SDD Skills 生成与更新
-`llman sdd update-skills` MUST 支持为 Claude Code 与 Codex 生成/更新 workflow skills，并在支持命令绑定的工具上生成 OPSX 命令绑定，用于把用户入口统一到新的 `/opsx:*` 动作工作流。
+`llman sdd update-skills` 生成的 workflow skills 集 MUST 新增 `llman-sdd-specs-compact`，并在现有 `llman-sdd-*` skills 中使用统一结构化提示协议（见 `sdd-structured-skill-prompts` capability）。
 
-- 默认行为 MUST 生成 skills，并在支持命令绑定的工具上生成 OPSX commands。
-- `--skills-only` MUST 仅生成 skills（不生成 OPSX commands）。
-- `--commands-only` MUST 仅生成 OPSX commands（不生成 skills）；若所选工具均不支持 OPSX commands，命令 MUST 返回非零错误并给出可操作提示。
+#### Scenario: 生成包含 specs-compact skill
+- **WHEN** 用户执行 `llman sdd update-skills --no-interactive --tool codex`
+- **THEN** 目标路径下存在 `llman-sdd-specs-compact/SKILL.md`
 
-默认 skills 输出路径来自 `llmanspec/config.yaml`；交互模式允许输入覆盖路径；非交互模式必须通过 `--all` 或 `--tool` 指定目标，并可选 `--path` 覆盖 skills 输出路径（仅对 skills 生效）。若目标技能已存在，命令 MUST 刷新托管内容以保持一致性。
-
-生成的 skills MUST 包含完整工作流技能（含 OPSX 动作覆盖）：
-- `llman-sdd-onboard`
-- `llman-sdd-new-change`
-- `llman-sdd-archive`
-- `llman-sdd-explore`
-- `llman-sdd-continue`
-- `llman-sdd-ff`
-- `llman-sdd-apply`
-- `llman-sdd-verify`
-- `llman-sdd-sync`
-- `llman-sdd-bulk-archive`
-
-（`llman-sdd-show` 与 `llman-sdd-validate` MAY 保留作为辅助技能，但不作为 OPSX commands 的必需绑定目标。）
-
-生成的 OPSX commands MUST 仅包含新的 OPSX 命令集合：
-- `explore`
-- `onboard`
-- `new`
-- `continue`
-- `ff`
-- `apply`
-- `verify`
-- `sync`
-- `archive`
-- `bulk-archive`
-
-命令绑定输出位置（V1）MUST 为：
-- Claude Code：`.claude/commands/opsx/<command>.md`（命令语法 `/opsx:<command>`）
-
-对 Codex，`llman sdd update-skills` MUST NOT 生成或刷新 `.codex/prompts/opsx-<command>.md` 这类 slash command/custom prompt 绑定文件。Codex 在本能力下 MUST 仅生成 workflow skills。
-
-#### Scenario: 交互式技能生成
-- **WHEN** 用户在可交互终端执行 `llman sdd update-skills`
-- **THEN** 可选择 Claude Code 或 Codex，并使用默认路径或输入自定义路径生成 skills
-
-#### Scenario: 非交互技能生成
-- **WHEN** 用户执行 `llman sdd update-skills --no-interactive --tool claude`
-- **THEN** 命令在 Claude Code 技能路径下生成/更新 skills
-
-#### Scenario: 非交互更新全部
+#### Scenario: 结构化协议在已生成技能中可见
 - **WHEN** 用户执行 `llman sdd update-skills --no-interactive --all`
-- **THEN** 命令生成/更新 Claude Code 与 Codex 的 skills
-
-#### Scenario: 更新已有技能
-- **WHEN** 目标路径中存在同名技能目录
-- **THEN** `SKILL.md` 被托管内容刷新
-
-#### Scenario: 默认模式仅为 Claude 生成 OPSX commands
-- **WHEN** 用户执行 `llman sdd update-skills --no-interactive --all`
-- **THEN** `.claude/commands/opsx/` 下生成/刷新与 OPSX 动作集合一致的命令文件
-- **AND** 命令 MUST NOT 写入 `.codex/prompts/opsx-*.md`
-
-#### Scenario: 仅生成 OPSX commands（非交互）
-- **WHEN** 用户执行 `llman sdd update-skills --no-interactive --tool claude --commands-only`
-- **THEN** `.claude/commands/opsx/` 下生成/刷新 OPSX 命令文件，且 MUST NOT 写入 `.claude/skills/`
-
-#### Scenario: 仅生成 skills（非交互）
-- **WHEN** 用户执行 `llman sdd update-skills --no-interactive --tool claude --skills-only`
-- **THEN** `.claude/skills/` 下生成/刷新 workflow skills，且 MUST NOT 写入 `.claude/commands/opsx/`
-
-#### Scenario: Codex commands-only 被拒绝
-- **WHEN** 用户执行 `llman sdd update-skills --no-interactive --tool codex --commands-only`
-- **THEN** 命令返回非零错误并提示 Codex 不支持 OPSX commands，建议改用 `--skills-only` 或改选 Claude
-
-#### Scenario: legacy commands 迁移（交互）
-- **WHEN** 工作区存在 legacy 命令绑定（例如 `.claude/commands/openspec/` 或 `.codex/prompts/openspec-*.md`），且用户在可交互终端执行 `llman sdd update-skills`
-- **THEN** 命令展示将被迁移/删除的 legacy 路径并要求二次确认；确认后删除 legacy 并生成 OPSX commands
-
-#### Scenario: legacy commands 迁移（非交互）
-- **WHEN** 工作区存在 legacy 命令绑定且用户执行 `llman sdd update-skills --no-interactive ...`
-- **THEN** 命令 MUST 报错并提示改用交互模式完成迁移，且 MUST NOT 删除任何 legacy 文件
+- **THEN** 生成的 `llman-sdd-archive` 与 `llman-sdd-explore` 等技能均包含统一结构化章节
 
 ### Requirement: SDD 模板区域复用
 SDD 模板与 skills MUST 支持 `{{region: <path>#<name>}}` 引用，系统 MUST 使用源文件中与文件类型匹配的 `region` 块替换占位符内容。若 region 缺失或重复，命令 MUST 报错并中止。
@@ -350,27 +280,23 @@ SDD 模板与 skills MUST 支持 `{{region: <path>#<name>}}` 引用，系统 MUS
 - **THEN** staleness 记录为 `WARN`，`--strict` 时视为错误
 
 ### Requirement: SDD 归档流程
-`llman sdd archive` MUST 将 delta 合并到 `llmanspec/specs` 并将变更目录移动到 `llmanspec/changes/archive/YYYY-MM-DD-<change-id>`。当目标 spec 不存在时 MUST 创建包含默认 frontmatter 与 Purpose 占位的 skeleton，且仅允许 `ADDED` requirements。命令 MUST 支持 `--skip-specs` 以在不更新 specs 的情况下归档；当 MODIFIED/REMOVED/RENAMED 引用不存在的 requirement 时 MUST 报错并中止。
+`llman sdd archive` MUST 支持子命令组工作流，并保持兼容入口可用：
+- 兼容入口：`llman sdd archive <change-id>`（等价于 `llman sdd archive run <change-id>`）
+- 标准入口：`llman sdd archive run <change-id>`
 
-#### Scenario: 归档并更新 specs
-- **WHEN** 用户执行 `llman sdd archive <change-id>`
-- **THEN** specs 被 delta 更新且变更目录被移动到 archive
+`archive run` MUST 延续当前行为：将 delta 合并到 `llmanspec/specs`，并将 change 移动到 `llmanspec/changes/archive/YYYY-MM-DD-<change-id>`；`--skip-specs`、`--dry-run`、隐藏 `--force` 行为 MUST 保持一致。
 
-#### Scenario: 新 spec 创建
-- **WHEN** 归档的 delta 指向不存在的 spec 且仅包含 `ADDED` requirements
-- **THEN** 归档创建包含默认 frontmatter 与 Purpose 占位文本的 spec skeleton
+#### Scenario: 兼容入口仍可归档
+- **WHEN** 用户执行 `llman sdd archive add-sample`
+- **THEN** 命令成功归档并与 `llman sdd archive run add-sample` 结果一致
 
-#### Scenario: 新 spec 含非 ADDED
-- **WHEN** 归档的 delta 指向不存在的 spec 且包含 `MODIFIED`/`REMOVED`/`RENAMED`
-- **THEN** 归档失败并输出错误提示
+#### Scenario: run 子命令行为与历史一致
+- **WHEN** 用户执行 `llman sdd archive run <change-id> --skip-specs`
+- **THEN** 仅移动目录到 archive 且不修改主 specs
 
-#### Scenario: 仅归档目录
-- **WHEN** 用户执行 `llman sdd archive <change-id> --skip-specs`
-- **THEN** 变更目录被移动到 archive 且 specs 不被修改
-
-#### Scenario: 缺失 requirement 报错
-- **WHEN** MODIFIED/REMOVED/RENAMED 指向不存在的 requirement
-- **THEN** 归档失败并输出错误提示
+#### Scenario: force 仍保持隐藏
+- **WHEN** 用户执行 `llman sdd archive --help` 或 `llman sdd archive run --help`
+- **THEN** 帮助文本不显示 `--force`
 
 ### Requirement: SDD 归档 dry-run
 `llman sdd archive --dry-run` MUST 输出将要修改/移动的文件与目标路径，并 MUST 不进行任何文件写入。
@@ -378,6 +304,32 @@ SDD 模板与 skills MUST 支持 `{{region: <path>#<name>}}` 引用，系统 MUS
 #### Scenario: 归档 dry-run
 - **WHEN** 用户执行 `llman sdd archive <change-id> --dry-run`
 - **THEN** 输出预览信息且文件系统无任何改动
+
+### Requirement: SDD 归档冻结与解冻
+`llman sdd archive freeze` MUST 将 `llmanspec/changes/archive/` 下符合 `YYYY-MM-DD-*` 的目录合并写入单一冷备文件 `llmanspec/changes/archive/freezed_changes.7z.archived`，并在成功后移除本次冻结源目录。`llman sdd archive thaw` MUST 从该冷备文件恢复归档目录到默认 `.thawed/`（或 `--dest` 指定目录），并支持 `--change` 选择性恢复。
+
+#### Scenario: 单文件冻结
+- **WHEN** 用户执行 `llman sdd archive freeze`
+- **THEN** 生成或更新 `freezed_changes.7z.archived`
+- **AND** 被冻结目录从 `archive/` 下移除
+
+#### Scenario: 冻结 dry-run
+- **WHEN** 用户执行 `llman sdd archive freeze --dry-run`
+- **THEN** 仅输出候选与目标文件
+- **AND** 不写入冷备文件且不删除源目录
+
+#### Scenario: 冻结失败保护
+- **WHEN** 冻结写入冷备文件失败
+- **THEN** 命令返回非零
+- **AND** 源归档目录保持不变
+
+#### Scenario: 解冻默认目录
+- **WHEN** 用户执行 `llman sdd archive thaw`
+- **THEN** 内容恢复到 `llmanspec/changes/archive/.thawed/`
+
+#### Scenario: 解冻过滤与目标目录
+- **WHEN** 用户执行 `llman sdd archive thaw --change <id> --dest <path>`
+- **THEN** 仅恢复所选目录到 `<path>`
 
 ### Requirement: SDD 模板版本元信息
 SDD locale 模板 MUST 包含 `llman-template-version` 元信息。对于带 YAML frontmatter 的模板，frontmatter MUST 在 `metadata` 字段中包含 `llman-template-version` 键；其他模板 MUST 在第一行使用 `<!-- llman-template-version: N -->` 形式。相同相对路径的不同 locale 模板 MUST 使用相同的版本值。仓库 MUST 提供维护者检查命令以验证版本一致性与模板集合一致性。
@@ -434,6 +386,30 @@ SDD locale 模板 MUST 包含 `llman-template-version` 元信息。对于带 YAM
 #### Scenario: skills 不包含 --force
 - **WHEN** 维护者运行 `llman sdd update-skills`
 - **THEN** 生成的 SKILL.md 不提及 `--force`
+
+### Requirement: SDD Future 记录文件为可选
+`llmanspec/changes/<change-id>/future.md` MUST 作为可选记录文件存在，用于承载延期项与分叉路线。缺失该文件 MUST NOT 阻塞 `llman sdd validate` 或 `llman sdd archive`。
+
+与 future 相关的 `skills/*.md` 与 `spec-driven/{new,continue,ff,explore}.md` 模板 MUST 提供“future 到执行”的注入式引导：将 future 条目分类为 `now|later|drop`，并为 `now` 条目映射后续 change 与首个可执行动作（如 `/opsx:new`、`/opsx:continue`、`/opsx:ff`、`llman-sdd-apply`）。
+
+#### Scenario: 缺失 future 不阻塞
+- **WHEN** change 不包含 `future.md`
+- **THEN** `llman sdd validate <change-id> --type change` 仍可通过
+
+#### Scenario: future 条目可转执行
+- **WHEN** 生成后的 skill/template 处理 `future.md` 中的延期或分叉条目
+- **THEN** 输出包含 `now|later|drop` 分类与后续落地动作建议
+
+### Requirement: SDD 模板结构化提示协议
+`templates/sdd/{locale}/skills/*.md` 与 `templates/sdd/{locale}/spec-driven/*.md` MUST 提供统一结构化章节（或等价命名）：`Context`、`Goal`、`Constraints`、`Workflow`、`Decision Policy`、`Output Contract`。模板 MUST 为自包含规则，不得要求先调用外部技能作为前置步骤。
+
+#### Scenario: skills 模板包含结构化章节
+- **WHEN** 维护者运行 `llman sdd update-skills`
+- **THEN** 生成技能中可见结构化章节
+
+#### Scenario: 模板无外部技能硬依赖
+- **WHEN** 检查生成的 `SKILL.md`
+- **THEN** 不存在“先调用外部技能再执行”的硬依赖描述
 
 ### Requirement: SDD 重构保持行为一致
 SDD 模块重构 MUST 保持所有 `llman sdd` 子命令的行为、输出与退出码一致，并且不得改变模板内容与配置生成路径。

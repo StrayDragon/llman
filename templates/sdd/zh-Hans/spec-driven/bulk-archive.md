@@ -66,3 +66,5 @@ Archived:
 - 没有明确确认的 change ids，不要归档
 - 遇到失败立刻停止并报告
 - 归档前优先做校验
+
+{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}

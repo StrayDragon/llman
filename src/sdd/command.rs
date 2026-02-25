@@ -1,4 +1,5 @@
 use crate::sdd::change::archive;
+use crate::sdd::change::freeze;
 use crate::sdd::project::{init, update, update_skills};
 use crate::sdd::shared::{list, show, validate};
 use anyhow::Result;
@@ -117,8 +118,28 @@ pub enum SddCommands {
         #[arg(long)]
         no_interactive: bool,
     },
-    /// Archive a change and update main specs
+    /// Archive workflow commands
     Archive {
+        /// Legacy: change id (equivalent to `archive run <change-id>`)
+        change: Option<String>,
+        /// Legacy: skip updating specs
+        #[arg(long)]
+        skip_specs: bool,
+        /// Legacy: dry run mode
+        #[arg(long)]
+        dry_run: bool,
+        /// Legacy: force archive even if validation fails
+        #[arg(long, hide = true)]
+        force: bool,
+        #[command(subcommand)]
+        command: Option<ArchiveSubcommand>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ArchiveSubcommand {
+    /// Archive a change and update main specs
+    Run {
         /// Change id
         change: Option<String>,
         /// Skip updating specs
@@ -130,6 +151,27 @@ pub enum SddCommands {
         /// Force archive even if validation fails
         #[arg(long, hide = true)]
         force: bool,
+    },
+    /// Freeze archived change directories into a single cold-backup archive
+    Freeze {
+        /// Freeze entries older than this date (YYYY-MM-DD)
+        #[arg(long)]
+        before: Option<String>,
+        /// Keep N most recent candidates unfrozen
+        #[arg(long, default_value_t = 0)]
+        keep_recent: usize,
+        /// Dry run mode
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Thaw archived changes from the cold-backup archive
+    Thaw {
+        /// Restore only these archived change directories (repeatable)
+        #[arg(long)]
+        change: Vec<String>,
+        /// Override thaw destination path
+        #[arg(long)]
+        dest: Option<PathBuf>,
     },
 }
 
@@ -213,11 +255,38 @@ pub fn run(args: &SddArgs) -> Result<()> {
             skip_specs,
             dry_run,
             force,
-        } => archive::run(archive::ArchiveArgs {
-            change: change.clone(),
-            skip_specs: *skip_specs,
-            dry_run: *dry_run,
-            force: *force,
-        }),
+            command,
+        } => match command {
+            Some(ArchiveSubcommand::Run {
+                change,
+                skip_specs,
+                dry_run,
+                force,
+            }) => archive::run(archive::ArchiveArgs {
+                change: change.clone(),
+                skip_specs: *skip_specs,
+                dry_run: *dry_run,
+                force: *force,
+            }),
+            Some(ArchiveSubcommand::Freeze {
+                before,
+                keep_recent,
+                dry_run,
+            }) => freeze::run_freeze(freeze::FreezeArgs {
+                before: before.clone(),
+                keep_recent: *keep_recent,
+                dry_run: *dry_run,
+            }),
+            Some(ArchiveSubcommand::Thaw { change, dest }) => freeze::run_thaw(freeze::ThawArgs {
+                change: change.clone(),
+                dest: dest.clone(),
+            }),
+            None => archive::run(archive::ArchiveArgs {
+                change: change.clone(),
+                skip_specs: *skip_specs,
+                dry_run: *dry_run,
+                force: *force,
+            }),
+        },
     }
 }

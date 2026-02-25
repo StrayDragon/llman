@@ -6,7 +6,10 @@ Common commands:
 - `llman sdd show <id>` (show change/spec)
 - `llman sdd validate <id>` (validate a change or spec)
 - `llman sdd validate --all` (bulk validate)
-- `llman sdd archive <id>` (archive a change)
+- `llman sdd archive run <id>` (archive a change)
+- `llman sdd archive <id>` (legacy alias of `archive run`)
+- `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]` (freeze archived dirs into one cold-backup file)
+- `llman sdd archive thaw [--change <id> ...] [--dest <path>]` (restore from cold-backup file)
 <!-- endregion -->
 
 <!-- region: opsx-quickstart -->
@@ -63,4 +66,43 @@ The system MUST ...
 - **WHEN** ...
 - **THEN** ...
 ```
+<!-- endregion -->
+
+<!-- region: structured-protocol -->
+## Context
+- Gather the current change/spec state before acting.
+
+## Goal
+- State the concrete outcome for this command/skill execution.
+
+## Constraints
+- Keep changes minimal and scoped.
+- Avoid guessing when identifiers or intent are ambiguous.
+
+## Workflow
+- Use `llman sdd` commands as the source of truth.
+- Validate outcomes when files or specs are updated.
+
+## Decision Policy
+- Ask for clarification when a high-impact ambiguity remains.
+- Stop instead of forcing through known validation errors.
+
+## Output Contract
+- Summarize actions taken.
+- Provide resulting paths and validation status.
+<!-- endregion -->
+
+<!-- region: future-planning -->
+## Future-to-Execution Planning
+- Treat `llmanspec/changes/<id>/future.md` as a candidate backlog, not passive notes.
+- Review `Deferred Items`, `Branch Options`, and `Triggers to Reopen`; classify each item as:
+  - `now` (must be converted into executable work now)
+  - `later` (keep in future.md with explicit trigger/signal)
+  - `drop` (remove or mark rejected with rationale)
+- For each `now` item, propose a concrete landing path:
+  - follow-up change id (`add-...`, `update-...`, `refactor-...`)
+  - affected capability/spec path
+  - first executable action (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, or `llman-sdd-apply`)
+- Keep traceability: reference source future item in the new proposal/design/tasks notes.
+- When uncertainty is high, pause and ask before creating new change artifacts.
 <!-- endregion -->

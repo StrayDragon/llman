@@ -22,3 +22,5 @@ Use this skill to verify that the implementation matches the change’s artifact
 5. If everything aligns, suggest archive: `llman sdd archive <id>`.
 
 {{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}

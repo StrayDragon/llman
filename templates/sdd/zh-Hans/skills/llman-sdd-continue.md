@@ -27,3 +27,6 @@ metadata:
 
 {{region: templates/sdd/zh-Hans/skills/shared.md#sdd-commands}}
 {{region: templates/sdd/zh-Hans/skills/shared.md#validation-hints}}
+
+{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
+{{region: templates/sdd/zh-Hans/skills/shared.md#future-planning}}

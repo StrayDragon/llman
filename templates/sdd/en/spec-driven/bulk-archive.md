@@ -66,3 +66,5 @@ Archived:
 - Never archive without explicitly confirmed change ids
 - Stop on the first failure and report it
 - Prefer validating before archiving
+
+{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
