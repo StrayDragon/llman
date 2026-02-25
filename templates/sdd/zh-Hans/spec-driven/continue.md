@@ -69,5 +69,5 @@
 - 如果上下文不清楚，在创建之前询问用户
 - 在写入之前验证工件文件是否存在，然后再标记进度
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/zh-Hans/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}

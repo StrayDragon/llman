@@ -43,5 +43,5 @@
 - 不要创建任何变更工件（proposal/specs/design/tasks）——交给 `/opsx:continue` 或 `/opsx:ff`
 - 如果 id 无效（非 kebab-case），请询问有效 id
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/zh-Hans/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}

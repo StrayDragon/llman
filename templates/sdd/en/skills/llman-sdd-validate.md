@@ -14,8 +14,8 @@ Use this skill to validate change/spec format and staleness.
 2. Validate all: `llman sdd validate --all` (or `--changes` / `--specs`).
 3. Use `--strict` and `--no-interactive` for CI-like checks.
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/en/skills/shared.md#validation-hints}}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

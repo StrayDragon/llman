@@ -38,8 +38,8 @@ metadata:
 - 包含：keep/merge/remove 决策及理由。
 - 包含验证命令与预期结果。
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#validation-hints}}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

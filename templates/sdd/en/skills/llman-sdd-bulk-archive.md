@@ -24,6 +24,6 @@ Use this skill to archive multiple changes (one-by-one) and then run a full vali
    - Preview: `llman sdd archive freeze --dry-run`
    - Freeze: `llman sdd archive freeze --keep-recent <N>`
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

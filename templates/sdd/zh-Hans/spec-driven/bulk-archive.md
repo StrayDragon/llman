@@ -67,4 +67,4 @@ Archived:
 - 遇到失败立刻停止并报告
 - 归档前优先做校验
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

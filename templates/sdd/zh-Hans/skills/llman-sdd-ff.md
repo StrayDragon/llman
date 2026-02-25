@@ -26,8 +26,8 @@ metadata:
    ```
 5. 给出简短状态总结，并建议下一步（`llman-sdd-apply` 或 `/opsx:apply`）。
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#sdd-commands}}
-{{region: templates/sdd/zh-Hans/skills/shared.md#validation-hints}}
+{{ unit("skills/sdd-commands") }}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/zh-Hans/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}

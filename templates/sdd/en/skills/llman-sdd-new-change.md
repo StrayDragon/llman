@@ -20,9 +20,9 @@ Use this skill when you need to introduce a new capability, breaking change, or 
    - at least one `#### Scenario:` per requirement
 4. Validate: `llman sdd validate <change-id> --strict --no-interactive`.
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/en/skills/shared.md#validation-hints}}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/en/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}

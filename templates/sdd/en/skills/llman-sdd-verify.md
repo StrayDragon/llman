@@ -21,6 +21,6 @@ Use this skill to verify that the implementation matches the change’s artifact
 4. Run the repo’s verification commands as appropriate (tests, lint, etc).
 5. If everything aligns, suggest archive: `llman sdd archive <id>`.
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

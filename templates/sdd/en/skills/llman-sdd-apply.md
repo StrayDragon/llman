@@ -27,6 +27,6 @@ Use this skill to implement `tasks.md` for a change.
    llman sdd validate <id> --strict --no-interactive
    ```
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

@@ -14,13 +14,13 @@ Use this skill to onboard to llman SDD in a repository.
 2. Check current changes and specs.
 3. Follow the proposal -> implement -> archive workflow.
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
 ## Notes
 - `llmanspec/config.yaml` controls locale and skills paths.
 - Locale affects templates/skills only; CLI stays English.
 - Refresh skills with `llman sdd update-skills`.
 
-{{region: templates/sdd/en/skills/shared.md#validation-hints}}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

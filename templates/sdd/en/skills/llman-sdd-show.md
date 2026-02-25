@@ -15,8 +15,8 @@ Use this skill to inspect changes, specs, and JSON output.
 3. Disambiguate with `--type change|spec` when needed.
 4. Use `--json` for structured output.
 
-{{region: templates/sdd/en/skills/shared.md#sdd-commands}}
+{{ unit("skills/sdd-commands") }}
 
-{{region: templates/sdd/en/skills/shared.md#validation-hints}}
+{{ unit("skills/validation-hints") }}
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

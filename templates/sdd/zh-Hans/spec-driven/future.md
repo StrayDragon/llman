@@ -23,4 +23,4 @@
 - 明确不在本次范围的事项：
   - 不纳入原因：
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

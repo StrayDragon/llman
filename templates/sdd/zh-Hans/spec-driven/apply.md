@@ -59,4 +59,4 @@
 - 修改保持最小化，一次只专注一个任务
 - 每完成一个任务就立刻更新 checkbox，保持进度真实
 
-{{region: templates/sdd/zh-Hans/skills/shared.md#structured-protocol}}
+{{ unit("skills/structured-protocol") }}

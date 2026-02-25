@@ -60,5 +60,5 @@ Fast-forward through planning — generate all artifacts needed to start impleme
 - Keep artifacts minimal and consistent with the requested change
 - Ask before making breaking-scope assumptions
 
-{{region: templates/sdd/en/skills/shared.md#structured-protocol}}
-{{region: templates/sdd/en/skills/shared.md#future-planning}}
+{{ unit("skills/structured-protocol") }}
+{{ unit("skills/future-planning") }}
