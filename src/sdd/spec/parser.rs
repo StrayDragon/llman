@@ -1,7 +1,8 @@
 use crate::sdd::change::delta::{DeltaPlan, RequirementBlock, parse_delta_spec};
+use crate::sdd::spec::ison::{parse_ison_document, split_frontmatter};
 use anyhow::{Result, anyhow};
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize)]
@@ -74,21 +75,61 @@ pub struct Delta {
     pub rename: Option<RenamePair>,
 }
 
-pub fn parse_spec(content: &str, name: &str) -> Result<Spec> {
-    let purpose = extract_section(content, "Purpose")
-        .ok_or_else(|| anyhow!("Spec must have a Purpose section"))?;
-    let requirements_section = extract_section(content, "Requirements")
-        .ok_or_else(|| anyhow!("Spec must have a Requirements section"))?;
+#[derive(Debug, Deserialize)]
+struct RawSpecDocument {
+    version: Option<String>,
+    kind: Option<String>,
+    name: Option<String>,
+    purpose: String,
+    requirements: Vec<RawRequirement>,
+}
 
-    let requirements = parse_requirement_blocks(&requirements_section);
+#[derive(Debug, Deserialize)]
+struct RawRequirement {
+    statement: String,
+    scenarios: Vec<RawScenario>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawScenario {
+    text: String,
+}
+
+pub fn parse_spec(content: &str, name: &str) -> Result<Spec> {
+    let (_, body) = split_frontmatter(content);
+    let raw: RawSpecDocument = parse_ison_document(&body, "spec")?;
+
+    if let Some(kind) = raw.kind.as_ref()
+        && kind != "llman.sdd.spec"
+    {
+        return Err(anyhow!(
+            "spec kind must be `llman.sdd.spec`, got `{}`",
+            kind
+        ));
+    }
+
+    let requirements = raw
+        .requirements
+        .into_iter()
+        .map(|item| Requirement {
+            text: item.statement.trim().to_string(),
+            scenarios: item
+                .scenarios
+                .into_iter()
+                .map(|scenario| Scenario {
+                    raw_text: scenario.text.trim().to_string(),
+                })
+                .collect(),
+        })
+        .collect();
 
     Ok(Spec {
-        name: name.to_string(),
-        overview: purpose.trim().to_string(),
+        name: raw.name.unwrap_or_else(|| name.to_string()),
+        overview: raw.purpose.trim().to_string(),
         requirements,
         metadata: SpecMetadata {
-            version: "1.0.0".to_string(),
-            format: "openspec".to_string(),
+            version: raw.version.unwrap_or_else(|| "1.0.0".to_string()),
+            format: "llman-sdd-ison".to_string(),
         },
     })
 }
@@ -153,7 +194,7 @@ fn convert_plan_to_deltas(spec_name: &str, plan: &DeltaPlan) -> Vec<Delta> {
         deltas.push(Delta {
             spec: spec_name.to_string(),
             operation: DeltaOperation::Added,
-            description: format!("Add requirement: {}", requirement.text),
+            description: format!("Add requirement: {}", block.name),
             requirement: Some(requirement.clone()),
             requirements: Some(vec![requirement]),
             rename: None,
@@ -164,21 +205,25 @@ fn convert_plan_to_deltas(spec_name: &str, plan: &DeltaPlan) -> Vec<Delta> {
         deltas.push(Delta {
             spec: spec_name.to_string(),
             operation: DeltaOperation::Modified,
-            description: format!("Modify requirement: {}", requirement.text),
+            description: format!("Modify requirement: {}", block.name),
             requirement: Some(requirement.clone()),
             requirements: Some(vec![requirement]),
             rename: None,
         });
     }
-    for name in &plan.removed {
+    for removed in &plan.removed {
+        let text = removed
+            .name
+            .clone()
+            .unwrap_or_else(|| removed.req_id.clone());
         let requirement = Requirement {
-            text: name.clone(),
+            text: text.clone(),
             scenarios: Vec::new(),
         };
         deltas.push(Delta {
             spec: spec_name.to_string(),
             operation: DeltaOperation::Removed,
-            description: format!("Remove requirement: {}", name),
+            description: format!("Remove requirement: {}", text),
             requirement: Some(requirement.clone()),
             requirements: Some(vec![requirement]),
             rename: None,
@@ -205,51 +250,16 @@ fn convert_plan_to_deltas(spec_name: &str, plan: &DeltaPlan) -> Vec<Delta> {
 }
 
 fn requirement_from_block(block: &RequirementBlock) -> Requirement {
-    let mut requirement_text = block.name.clone();
-    let lines: Vec<&str> = block.raw.lines().collect();
-    let mut body_lines = Vec::new();
-    for line in lines.iter().skip(1) {
-        if line.trim_start().starts_with('#') {
-            break;
-        }
-        body_lines.push(*line);
-    }
-    let direct_content = body_lines.join("\n").trim().to_string();
-    if let Some(first_line) = direct_content.lines().find(|l| !l.trim().is_empty()) {
-        requirement_text = first_line.trim().to_string();
-    }
-
-    let scenarios = parse_scenarios_from_block(&lines);
-
     Requirement {
-        text: requirement_text,
-        scenarios,
+        text: block.statement.clone(),
+        scenarios: block
+            .scenarios
+            .iter()
+            .map(|scenario| Scenario {
+                raw_text: scenario.text.clone(),
+            })
+            .collect(),
     }
-}
-
-fn parse_scenarios_from_block(lines: &[&str]) -> Vec<Scenario> {
-    let mut scenarios = Vec::new();
-    let mut current: Vec<String> = Vec::new();
-    for line in lines.iter().skip(1) {
-        if line.trim_start().starts_with("#### ") {
-            if !current.is_empty() {
-                scenarios.push(Scenario {
-                    raw_text: current.join("\n").trim().to_string(),
-                });
-                current.clear();
-            }
-            continue;
-        }
-        if !line.trim().is_empty() {
-            current.push((*line).to_string());
-        }
-    }
-    if !current.is_empty() {
-        scenarios.push(Scenario {
-            raw_text: current.join("\n").trim().to_string(),
-        });
-    }
-    scenarios
 }
 
 fn parse_simple_deltas(what_changes: &str) -> Vec<Delta> {
@@ -314,48 +324,4 @@ fn extract_section(content: &str, title: &str) -> Option<String> {
         collected.push(*line);
     }
     Some(collected.join("\n").trim().to_string())
-}
-
-fn parse_requirement_blocks(section_body: &str) -> Vec<Requirement> {
-    let lines: Vec<&str> = section_body.lines().collect();
-    let mut requirements = Vec::new();
-    let mut i = 0;
-    let header_re = Regex::new(r"^###\s*Requirement:\s*(.+)\s*$").expect("regex");
-
-    while i < lines.len() {
-        let line = lines[i];
-        let caps = match header_re.captures(line) {
-            Some(caps) => caps,
-            None => {
-                i += 1;
-                continue;
-            }
-        };
-        let name = caps
-            .get(1)
-            .map(|m| m.as_str().trim())
-            .unwrap_or("")
-            .to_string();
-        i += 1;
-
-        let mut block_lines = vec![line.to_string()];
-        while i < lines.len() {
-            if header_re.is_match(lines[i]) || lines[i].trim_start().starts_with("## ") {
-                break;
-            }
-            block_lines.push(lines[i].to_string());
-            i += 1;
-        }
-
-        let block_refs: Vec<&str> = block_lines.iter().map(|l| l.as_str()).collect();
-        let block = RequirementBlock {
-            header_line: block_refs[0].to_string(),
-            name: name.clone(),
-            raw: block_lines.join("\n").trim_end().to_string(),
-        };
-        let requirement = requirement_from_block(&block);
-        requirements.push(requirement);
-    }
-
-    requirements
 }

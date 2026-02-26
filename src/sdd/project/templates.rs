@@ -4,7 +4,7 @@ use anyhow::{Context, Result, anyhow};
 use minijinja::{Environment, ErrorKind, UndefinedBehavior};
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub struct TemplateFile {
     pub name: &'static str,
@@ -14,6 +14,21 @@ pub struct TemplateFile {
 pub struct SkillTemplate {
     pub name: &'static str,
     pub content: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TemplateStyle {
+    New,
+    Legacy,
+}
+
+impl TemplateStyle {
+    fn templates_root(self) -> &'static str {
+        match self {
+            Self::New => "templates/sdd",
+            Self::Legacy => "templates/sdd-legacy",
+        }
+    }
 }
 
 const SPEC_DRIVEN_FILES: &[&str] = &[
@@ -26,7 +41,6 @@ const SPEC_DRIVEN_FILES: &[&str] = &[
     "verify.md",
     "sync.md",
     "archive.md",
-    "bulk-archive.md",
     "future.md",
 ];
 
@@ -39,24 +53,14 @@ const SKILL_FILES: &[&str] = &[
     "llman-sdd-apply.md",
     "llman-sdd-verify.md",
     "llman-sdd-sync.md",
-    "llman-sdd-bulk-archive.md",
     "llman-sdd-show.md",
     "llman-sdd-validate.md",
     "llman-sdd-archive.md",
     "llman-sdd-specs-compact.md",
 ];
 
-const OPSX_COMMAND_IDS: &[&str] = &[
-    "explore",
-    "onboard",
-    "new",
-    "continue",
-    "ff",
-    "apply",
-    "verify",
-    "sync",
-    "archive",
-    "bulk-archive",
+const LLMAN_SDD_COMMAND_IDS: &[&str] = &[
+    "explore", "onboard", "new", "continue", "ff", "apply", "verify", "sync", "archive",
 ];
 
 const UNIT_FILES: &[&str] = &[
@@ -82,35 +86,47 @@ impl TemplateUnitRegistry {
     }
 }
 
-pub fn spec_driven_templates(config: &SddConfig, root: &Path) -> Result<Vec<TemplateFile>> {
+pub fn spec_driven_templates(
+    config: &SddConfig,
+    root: &Path,
+    style: TemplateStyle,
+) -> Result<Vec<TemplateFile>> {
     let mut files = Vec::new();
     for name in SPEC_DRIVEN_FILES {
-        let content = load_template(config, root, &format!("spec-driven/{}", name))?;
+        let content = load_template(config, root, style, &format!("spec-driven/{}", name))?;
         files.push(TemplateFile { name, content });
     }
     files.sort_by_key(|f| f.name);
     Ok(files)
 }
 
-pub fn skill_templates(config: &SddConfig, root: &Path) -> Result<Vec<SkillTemplate>> {
+pub fn skill_templates(
+    config: &SddConfig,
+    root: &Path,
+    style: TemplateStyle,
+) -> Result<Vec<SkillTemplate>> {
     let mut files = Vec::new();
     for name in SKILL_FILES {
-        let content = load_template(config, root, &format!("skills/{}", name))?;
+        let content = load_template(config, root, style, &format!("skills/{}", name))?;
         files.push(SkillTemplate { name, content });
     }
     Ok(files)
 }
 
-pub struct OpsxTemplate {
+pub struct WorkflowCommandTemplate {
     pub id: &'static str,
     pub content: String,
 }
 
-pub fn opsx_templates(config: &SddConfig, root: &Path) -> Result<Vec<OpsxTemplate>> {
+pub fn workflow_command_templates(
+    config: &SddConfig,
+    root: &Path,
+    style: TemplateStyle,
+) -> Result<Vec<WorkflowCommandTemplate>> {
     let mut templates = Vec::new();
-    for id in OPSX_COMMAND_IDS {
-        let content = load_template(config, root, &format!("spec-driven/{id}.md"))?;
-        templates.push(OpsxTemplate { id, content });
+    for id in LLMAN_SDD_COMMAND_IDS {
+        let content = load_template(config, root, style, &format!("spec-driven/{id}.md"))?;
+        templates.push(WorkflowCommandTemplate { id, content });
     }
     Ok(templates)
 }
@@ -119,8 +135,9 @@ pub fn render_project_template(
     project_name: &str,
     config: &SddConfig,
     root: &Path,
+    style: TemplateStyle,
 ) -> Result<String> {
-    let units = load_template_units(config, root)?;
+    let units = load_template_units(config, root, style)?;
     let mut vars = BTreeMap::new();
     vars.insert("projectName".to_string(), project_name.to_string());
     vars.insert(
@@ -131,39 +148,53 @@ pub fn render_project_template(
         "techStack".to_string(),
         "TODO: List key technologies".to_string(),
     );
-    load_template_with_context(config, root, "project.md", &units, &vars)
+    load_template_with_context(config, root, style, "project.md", &units, &vars)
 }
 
-pub fn managed_block_content(config: &SddConfig, root: &Path) -> Result<String> {
-    load_template(config, root, "agents.md")
+pub fn managed_block_content(
+    config: &SddConfig,
+    root: &Path,
+    style: TemplateStyle,
+) -> Result<String> {
+    load_template(config, root, style, "agents.md")
 }
 
-pub fn root_stub_content(config: &SddConfig, root: &Path) -> Result<String> {
-    load_template(config, root, "agents-root-stub.md")
+pub fn root_stub_content(config: &SddConfig, root: &Path, style: TemplateStyle) -> Result<String> {
+    load_template(config, root, style, "agents-root-stub.md")
 }
 
-pub fn default_agents_file(config: &SddConfig, root: &Path) -> Result<String> {
-    let block = managed_block_content(config, root)?;
+pub fn default_agents_file(
+    config: &SddConfig,
+    root: &Path,
+    style: TemplateStyle,
+) -> Result<String> {
+    let block = managed_block_content(config, root, style)?;
     Ok(format!(
         "{}\n{}\n{}\n\n## Project Notes\n\n- Add project-specific guidance here.\n",
         LLMANSPEC_MARKERS.start, block, LLMANSPEC_MARKERS.end
     ))
 }
 
-fn load_template(config: &SddConfig, root: &Path, relative_path: &str) -> Result<String> {
-    let units = load_template_units(config, root)?;
-    load_template_with_context(config, root, relative_path, &units, &BTreeMap::new())
+fn load_template(
+    config: &SddConfig,
+    root: &Path,
+    style: TemplateStyle,
+    relative_path: &str,
+) -> Result<String> {
+    let units = load_template_units(config, root, style)?;
+    load_template_with_context(config, root, style, relative_path, &units, &BTreeMap::new())
 }
 
 fn load_template_with_context(
     config: &SddConfig,
     root: &Path,
+    style: TemplateStyle,
     relative_path: &str,
     units: &TemplateUnitRegistry,
     vars: &BTreeMap<String, String>,
 ) -> Result<String> {
     for locale in locale_fallbacks(&config.locale) {
-        if let Some(raw) = load_locale_resource(root, &locale, relative_path)? {
+        if let Some(raw) = load_locale_resource(root, style, &locale, relative_path)? {
             return render_template(&raw, units, vars)
                 .with_context(|| format!("render template {}", relative_path));
         }
@@ -172,7 +203,11 @@ fn load_template_with_context(
     Err(anyhow!(t!("sdd.templates.not_found", path = relative_path)))
 }
 
-fn load_template_units(config: &SddConfig, root: &Path) -> Result<TemplateUnitRegistry> {
+fn load_template_units(
+    config: &SddConfig,
+    root: &Path,
+    style: TemplateStyle,
+) -> Result<TemplateUnitRegistry> {
     let mut registry = TemplateUnitRegistry::default();
 
     for locale in locale_fallbacks(&config.locale) {
@@ -182,7 +217,7 @@ fn load_template_units(config: &SddConfig, root: &Path) -> Result<TemplateUnitRe
                 continue;
             }
             let relative_path = format!("units/{}", unit_file);
-            if let Some(content) = load_locale_resource(root, &locale, &relative_path)? {
+            if let Some(content) = load_locale_resource(root, style, &locale, &relative_path)? {
                 registry.register(id, content)?;
             }
         }
@@ -191,18 +226,35 @@ fn load_template_units(config: &SddConfig, root: &Path) -> Result<TemplateUnitRe
     Ok(registry)
 }
 
-fn load_locale_resource(root: &Path, locale: &str, relative_path: &str) -> Result<Option<String>> {
-    let path = format!("templates/sdd/{}/{}", locale, relative_path);
+fn load_locale_resource(
+    root: &Path,
+    style: TemplateStyle,
+    locale: &str,
+    relative_path: &str,
+) -> Result<Option<String>> {
+    let path = format!("{}/{}/{}", style.templates_root(), locale, relative_path);
+    for base in candidate_template_roots(root) {
+        let full_path = base.join(&path);
+        if !full_path.exists() {
+            continue;
+        }
+        let content = fs::read_to_string(&full_path)
+            .map_err(|err| anyhow!(t!("sdd.templates.read_failed", path = path, error = err)))?;
+        return Ok(Some(content));
+    }
     if let Some(content) = embedded_template(&path) {
         return Ok(Some(content.to_string()));
     }
-    let full_path = root.join(&path);
-    if !full_path.exists() {
-        return Ok(None);
+    Ok(None)
+}
+
+fn candidate_template_roots(root: &Path) -> Vec<PathBuf> {
+    let mut roots = vec![root.to_path_buf()];
+    let manifest_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    if manifest_root != *root {
+        roots.push(manifest_root);
     }
-    let content = fs::read_to_string(&full_path)
-        .map_err(|err| anyhow!(t!("sdd.templates.read_failed", path = path, error = err)))?;
-    Ok(Some(content))
+    roots
 }
 
 fn render_template(
@@ -286,10 +338,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/llman-sdd-sync.md"
         ))),
-        "templates/sdd/en/skills/llman-sdd-bulk-archive.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/skills/llman-sdd-bulk-archive.md"
-        ))),
         "templates/sdd/en/skills/llman-sdd-show.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/llman-sdd-show.md"
@@ -341,10 +389,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/en/spec-driven/archive.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/spec-driven/archive.md"
-        ))),
-        "templates/sdd/en/spec-driven/bulk-archive.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/spec-driven/bulk-archive.md"
         ))),
         "templates/sdd/en/spec-driven/future.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -420,10 +464,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/skills/llman-sdd-sync.md"
         ))),
-        "templates/sdd/zh-Hans/skills/llman-sdd-bulk-archive.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/zh-Hans/skills/llman-sdd-bulk-archive.md"
-        ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-show.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/skills/llman-sdd-show.md"
@@ -475,10 +515,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/zh-Hans/spec-driven/archive.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/spec-driven/archive.md"
-        ))),
-        "templates/sdd/zh-Hans/spec-driven/bulk-archive.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/zh-Hans/spec-driven/bulk-archive.md"
         ))),
         "templates/sdd/zh-Hans/spec-driven/future.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

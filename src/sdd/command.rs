@@ -1,15 +1,21 @@
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
-use crate::sdd::project::{init, interop, update, update_skills};
+use crate::sdd::project::{init, interop, migrate, update, update_skills};
 use crate::sdd::shared::{list, show, validate};
 use anyhow::Result;
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Args)]
 pub struct SddArgs {
     #[command(subcommand)]
     pub command: SddCommands,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum SddStyleArg {
+    New,
+    Legacy,
 }
 
 #[derive(Subcommand)]
@@ -26,13 +32,16 @@ pub enum SddCommands {
     Update {
         /// Target path (default: current directory)
         path: Option<PathBuf>,
+        /// Template style: new (default) or legacy
+        #[arg(long, value_enum, default_value_t = SddStyleArg::New)]
+        style: SddStyleArg,
     },
     /// Generate or update llman sdd skills
     UpdateSkills {
-        /// Generate skills for all tools (OPSX commands only for Claude)
+        /// Generate skills for all tools (llman sdd workflow commands only for Claude)
         #[arg(long)]
         all: bool,
-        /// Tool to generate skills for: claude,codex (repeatable; OPSX commands only for claude)
+        /// Tool to generate skills for: claude,codex (repeatable; workflow commands only for claude)
         #[arg(long, value_delimiter = ',')]
         tool: Vec<String>,
         /// Override output path for generated skills
@@ -41,12 +50,15 @@ pub enum SddCommands {
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
-        /// Generate only OPSX slash commands for Claude (no skills)
+        /// Generate only llman sdd workflow commands for Claude (no skills)
         #[arg(long, conflicts_with = "skills_only")]
         commands_only: bool,
-        /// Generate only skills (no OPSX slash commands)
+        /// Generate only skills (no llman sdd workflow commands)
         #[arg(long, conflicts_with = "commands_only")]
         skills_only: bool,
+        /// Template style for generated skills: new (default) or legacy
+        #[arg(long, value_enum, default_value_t = SddStyleArg::New)]
+        style: SddStyleArg,
     },
     /// List changes or specs
     List {
@@ -91,6 +103,9 @@ pub enum SddCommands {
         /// Spec-only: show specific requirement by ID (1-based)
         #[arg(short = 'r', long)]
         requirement: Option<usize>,
+        /// Output style context: new (default) or legacy
+        #[arg(long, value_enum, default_value_t = SddStyleArg::New)]
+        style: SddStyleArg,
     },
     /// Validate changes and specs
     Validate {
@@ -117,6 +132,12 @@ pub enum SddCommands {
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
+        /// Validation style context: new (default) or legacy
+        #[arg(long, value_enum, default_value_t = SddStyleArg::New)]
+        style: SddStyleArg,
+        /// Emit old-vs-new style A/B evaluation report
+        #[arg(long)]
+        ab_report: bool,
     },
     /// Archive workflow commands
     Archive {
@@ -147,6 +168,18 @@ pub enum SddCommands {
         /// Source/target style (currently only: openspec)
         #[arg(long)]
         style: String,
+        /// Project root path (default: current directory)
+        path: Option<PathBuf>,
+    },
+    /// Migrate llmanspec specs to ISON payload containers
+    #[command(hide = true)]
+    Migrate {
+        /// Execute migration to ISON containers
+        #[arg(long)]
+        to_ison: bool,
+        /// Preview migrations without writing files
+        #[arg(long)]
+        dry_run: bool,
         /// Project root path (default: current directory)
         path: Option<PathBuf>,
     },
@@ -197,9 +230,10 @@ pub fn run(args: &SddArgs) -> Result<()> {
             path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
             lang.as_deref(),
         ),
-        SddCommands::Update { path } => {
-            update::run(path.as_deref().unwrap_or_else(|| std::path::Path::new(".")))
-        }
+        SddCommands::Update { path, style } => update::run(
+            path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
+            (*style).into(),
+        ),
         SddCommands::UpdateSkills {
             all,
             tool,
@@ -207,6 +241,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             no_interactive,
             commands_only,
             skills_only,
+            style,
         } => update_skills::run(update_skills::UpdateSkillsArgs {
             all: *all,
             tool: tool.clone(),
@@ -214,6 +249,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             no_interactive: *no_interactive,
             commands_only: *commands_only,
             skills_only: *skills_only,
+            style: (*style).into(),
         }),
         SddCommands::List {
             specs,
@@ -236,6 +272,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             requirements,
             no_scenarios,
             requirement,
+            style,
         } => show::run(show::ShowArgs {
             item: item.clone(),
             json: *json,
@@ -246,6 +283,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             requirements: *requirements,
             no_scenarios: *no_scenarios,
             requirement: *requirement,
+            style: (*style).into(),
         }),
         SddCommands::Validate {
             item,
@@ -256,6 +294,8 @@ pub fn run(args: &SddArgs) -> Result<()> {
             strict,
             json,
             no_interactive,
+            style,
+            ab_report,
         } => validate::run(validate::ValidateArgs {
             item: item.clone(),
             all: *all,
@@ -265,6 +305,8 @@ pub fn run(args: &SddArgs) -> Result<()> {
             strict: *strict,
             json: *json,
             no_interactive: *no_interactive,
+            style: (*style).into(),
+            ab_report: *ab_report,
         }),
         SddCommands::Archive {
             change,
@@ -312,5 +354,23 @@ pub fn run(args: &SddArgs) -> Result<()> {
             style: style.clone(),
             path: path.clone(),
         }),
+        SddCommands::Migrate {
+            to_ison,
+            dry_run,
+            path,
+        } => migrate::run(migrate::MigrateArgs {
+            to_ison: *to_ison,
+            dry_run: *dry_run,
+            path: path.clone(),
+        }),
+    }
+}
+
+impl From<SddStyleArg> for crate::sdd::project::templates::TemplateStyle {
+    fn from(value: SddStyleArg) -> Self {
+        match value {
+            SddStyleArg::New => Self::New,
+            SddStyleArg::Legacy => Self::Legacy,
+        }
     }
 }

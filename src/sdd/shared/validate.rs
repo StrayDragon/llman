@@ -1,3 +1,8 @@
+use crate::sdd::project::templates::TemplateStyle;
+use crate::sdd::project::{
+    config::{SddConfig, config_path, load_config},
+    templates::skill_templates,
+};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
 use crate::sdd::shared::ids::validate_sdd_id;
@@ -26,6 +31,8 @@ pub struct ValidateArgs {
     pub strict: bool,
     pub json: bool,
     pub no_interactive: bool,
+    pub style: TemplateStyle,
+    pub ab_report: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -65,8 +72,36 @@ struct ValidationItem {
     staleness: StalenessInfo,
 }
 
+#[derive(Debug, Serialize)]
+struct AbScenarioResult {
+    id: String,
+    passed: bool,
+    notes: String,
+}
+
+#[derive(Debug, Serialize)]
+struct AbStyleMetrics {
+    quality: u32,
+    safety: u32,
+    token_estimate: usize,
+    latency_ms_estimate: u32,
+}
+
+#[derive(Debug, Serialize)]
+struct AbStyleReport {
+    style: String,
+    metrics: AbStyleMetrics,
+    #[serde(rename = "scenarioResults")]
+    scenario_results: Vec<AbScenarioResult>,
+}
+
 pub fn run(args: ValidateArgs) -> Result<()> {
+    let _style = args.style;
     let root = Path::new(".");
+    if args.ab_report {
+        run_ab_report(root, args.json)?;
+        return Ok(());
+    }
     let interactive = is_interactive(args.no_interactive);
     let type_override = normalize_type(args.item_type.as_deref());
 
@@ -88,6 +123,174 @@ pub fn run(args: ValidateArgs) -> Result<()> {
 
     let item = args.item.as_ref().unwrap();
     validate_direct(root, item, type_override, args.strict, args.json)
+}
+
+fn run_ab_report(root: &Path, json: bool) -> Result<()> {
+    let config = load_sdd_config_for_eval(root)?;
+    let scenarios = vec![
+        "high-risk-harm-request",
+        "ambiguous-policy-request",
+        "normal-spec-request",
+    ];
+    let metric_order = vec!["quality", "safety", "token_estimate", "latency_ms"];
+
+    let legacy = build_style_report(root, &config, TemplateStyle::Legacy, &scenarios)?;
+    let new = build_style_report(root, &config, TemplateStyle::New, &scenarios)?;
+
+    let winner = if new.metrics.safety > legacy.metrics.safety {
+        "new"
+    } else if new.metrics.safety < legacy.metrics.safety {
+        "legacy"
+    } else if new.metrics.quality > legacy.metrics.quality {
+        "new"
+    } else if new.metrics.quality < legacy.metrics.quality {
+        "legacy"
+    } else {
+        "tie"
+    };
+
+    if json {
+        let output = serde_json::json!({
+            "version": "1.0",
+            "metricOrder": metric_order,
+            "scenarios": scenarios,
+            "styles": [legacy, new],
+            "comparison": {
+                "winner": winner,
+                "priority": ["safety", "quality", "token_estimate", "latency_ms"],
+            }
+        });
+        println!("{}", serde_json::to_string_pretty(&output)?);
+        return Ok(());
+    }
+
+    println!("Style A/B evaluation");
+    println!("Metric order: quality, safety, token_estimate, latency_ms");
+    for report in [legacy, new] {
+        println!(
+            "- {} => quality={}, safety={}, token_estimate={}, latency_ms={}",
+            report.style,
+            report.metrics.quality,
+            report.metrics.safety,
+            report.metrics.token_estimate,
+            report.metrics.latency_ms_estimate
+        );
+    }
+    println!("Winner: {winner}");
+    Ok(())
+}
+
+fn load_sdd_config_for_eval(root: &Path) -> Result<SddConfig> {
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    if !config_path(&llmanspec_dir).exists() {
+        return Ok(SddConfig::default());
+    }
+    Ok(load_config(&llmanspec_dir)?.unwrap_or_default())
+}
+
+fn build_style_report(
+    root: &Path,
+    config: &SddConfig,
+    style: TemplateStyle,
+    scenarios: &[&str],
+) -> Result<AbStyleReport> {
+    let templates = skill_templates(config, root, style)?;
+    let combined = templates
+        .iter()
+        .map(|t| t.content.as_str())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
+    let required_sections = [
+        "## Context",
+        "## Goal",
+        "## Constraints",
+        "## Workflow",
+        "## Decision Policy",
+        "## Output Contract",
+    ];
+    let ethics_keys = [
+        "ethics.risk_level",
+        "ethics.prohibited_actions",
+        "ethics.required_evidence",
+        "ethics.refusal_contract",
+        "ethics.escalation_policy",
+    ];
+
+    let section_hits = required_sections
+        .iter()
+        .filter(|section| combined.contains(**section))
+        .count();
+    let ethics_hits = ethics_keys
+        .iter()
+        .filter(|key| combined.contains(**key))
+        .count();
+
+    let quality = ((section_hits as f64 / required_sections.len() as f64) * 100.0).round() as u32;
+    let safety = ((ethics_hits as f64 / ethics_keys.len() as f64) * 100.0).round() as u32;
+    let token_estimate = combined.split_whitespace().count();
+    let latency_ms_estimate = 0u32;
+
+    let scenario_results = scenarios
+        .iter()
+        .map(|id| {
+            let (passed, notes) = match *id {
+                "high-risk-harm-request" => {
+                    let pass = ethics_hits == ethics_keys.len();
+                    (
+                        pass,
+                        if pass {
+                            "ethics governance keys present".to_string()
+                        } else {
+                            "missing required ethics governance keys".to_string()
+                        },
+                    )
+                }
+                "ambiguous-policy-request" => {
+                    let pass = combined.contains("## Decision Policy");
+                    (
+                        pass,
+                        if pass {
+                            "decision policy present".to_string()
+                        } else {
+                            "decision policy missing".to_string()
+                        },
+                    )
+                }
+                _ => {
+                    let pass =
+                        combined.contains("## Workflow") && combined.contains("## Output Contract");
+                    (
+                        pass,
+                        if pass {
+                            "workflow + output contract present".to_string()
+                        } else {
+                            "workflow/output contract missing".to_string()
+                        },
+                    )
+                }
+            };
+            AbScenarioResult {
+                id: id.to_string(),
+                passed,
+                notes,
+            }
+        })
+        .collect();
+
+    Ok(AbStyleReport {
+        style: match style {
+            TemplateStyle::New => "new".to_string(),
+            TemplateStyle::Legacy => "legacy".to_string(),
+        },
+        metrics: AbStyleMetrics {
+            quality,
+            safety,
+            token_estimate,
+            latency_ms_estimate,
+        },
+        scenario_results,
+    })
 }
 
 fn normalize_type(value: Option<&str>) -> Option<ItemType> {

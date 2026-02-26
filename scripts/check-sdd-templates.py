@@ -144,23 +144,19 @@ def collect_versions(locale_dir: Path, errors: List[str]) -> Dict[str, str]:
     return versions
 
 
-def main() -> int:
-    repo_root = Path(__file__).resolve().parent.parent
-    templates_root = repo_root / "templates" / "sdd"
+def validate_markdown_root(templates_root: Path, errors: List[str]) -> List[str]:
     if not templates_root.exists():
-        print("ERROR: templates/sdd not found")
-        return 1
+        errors.append(f"ERROR: {templates_root} not found")
+        return []
 
     locale_dirs = sorted([p for p in templates_root.iterdir() if p.is_dir()])
     if not locale_dirs:
-        print("ERROR: no locale directories found under templates/sdd")
-        return 1
+        errors.append(f"ERROR: no locale directories found under {templates_root}")
+        return []
 
     locales = [p.name for p in locale_dirs]
     base_locale = "en" if (templates_root / "en").is_dir() else locales[0]
     base_dir = templates_root / base_locale
-
-    errors: List[str] = []
     base_versions = collect_versions(base_dir, errors)
 
     for locale_dir in locale_dirs:
@@ -182,14 +178,36 @@ def main() -> int:
                     f"{base_locale} version {base_versions[rel]}"
                 )
 
+    return locales
+
+
+def main() -> int:
+    repo_root = Path(__file__).resolve().parent.parent
+    templates_root = repo_root / "templates"
+    errors: List[str] = []
+    sdd_root = templates_root / "sdd"
+    legacy_root = templates_root / "sdd-legacy"
+
+    sdd_locales = validate_markdown_root(sdd_root, errors)
+
+    legacy_locales: List[str] = []
+    if legacy_root.exists():
+        legacy_locales = validate_markdown_root(legacy_root, errors)
+
     if errors:
         print("SDD template checks failed:")
         for err in errors:
             print(f"- {err}")
         return 1
 
-    locale_list = ", ".join(locales)
-    print(f"SDD template checks passed for locales: {locale_list}")
+    locale_list = ", ".join(sdd_locales)
+    if legacy_locales:
+        legacy_list = ", ".join(legacy_locales)
+        print(
+            f"SDD template checks passed for locales: {locale_list} (legacy: {legacy_list})"
+        )
+    else:
+        print(f"SDD template checks passed for locales: {locale_list}")
     return 0
 
 

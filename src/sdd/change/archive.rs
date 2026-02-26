@@ -1,13 +1,16 @@
 use crate::sdd::change::delta::{RequirementBlock, normalize_requirement_name, parse_delta_spec};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
+use crate::sdd::spec::ison::{
+    compose_with_frontmatter, parse_ison_document, render_ison_code_block, split_frontmatter,
+};
 use crate::sdd::spec::staleness::evaluate_staleness_with_override;
 use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, validate_spec_content_with_frontmatter,
 };
 use anyhow::{Result, anyhow};
 use chrono::Utc;
-use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -35,12 +38,27 @@ struct SpecUpdate {
     target_exists: bool,
 }
 
-struct RequirementsSection {
-    before: String,
-    header_line: String,
-    preamble: String,
-    body_blocks: Vec<RequirementBlock>,
-    after: String,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ArchiveSpecDocument {
+    version: String,
+    kind: String,
+    name: String,
+    purpose: String,
+    requirements: Vec<ArchiveRequirement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ArchiveRequirement {
+    req_id: String,
+    title: String,
+    statement: String,
+    scenarios: Vec<ArchiveScenario>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ArchiveScenario {
+    id: String,
+    text: String,
 }
 
 pub fn run(args: ArchiveArgs) -> Result<()> {
@@ -226,19 +244,27 @@ fn build_updated_spec(update: &SpecUpdate, change_name: &str) -> Result<(String,
         )));
     }
 
-    let target_content = if update.target_exists {
-        fs::read_to_string(&update.target)?
+    let (frontmatter_yaml, target_doc) = if update.target_exists {
+        let target_content = fs::read_to_string(&update.target)?;
+        let (frontmatter_yaml, body) = split_frontmatter(&target_content);
+        let doc: ArchiveSpecDocument = parse_ison_document(
+            &body,
+            &format!("spec `{}` during archive merge", update.capability),
+        )?;
+        (frontmatter_yaml, doc)
     } else {
-        build_spec_skeleton(&update.capability, change_name)
+        (
+            Some(default_frontmatter_yaml(change_name)),
+            build_spec_skeleton(&update.capability, change_name),
+        )
     };
 
-    let section = extract_requirements_section(&target_content)?;
     let mut order: Vec<String> = Vec::new();
-    let mut map: HashMap<String, RequirementBlock> = HashMap::new();
-    for block in &section.body_blocks {
-        let key = normalize_requirement_name(&block.name);
+    let mut map: HashMap<String, ArchiveRequirement> = HashMap::new();
+    for requirement in &target_doc.requirements {
+        let key = normalize_requirement_name(&requirement.req_id);
         order.push(key.clone());
-        map.insert(key, block.clone());
+        map.insert(key, requirement.clone());
     }
 
     let counts = ApplyCounts {
@@ -249,43 +275,42 @@ fn build_updated_spec(update: &SpecUpdate, change_name: &str) -> Result<(String,
     };
 
     for rename in &plan.renamed {
-        let from = normalize_requirement_name(&rename.from);
-        let to = normalize_requirement_name(&rename.to);
-        if !map.contains_key(&from) {
+        let req_id = normalize_requirement_name(&rename.req_id);
+        if !map.contains_key(&req_id) {
             return Err(anyhow!(t!(
                 "sdd.archive.rename_missing",
                 spec = update.capability,
-                name = rename.from
+                name = rename.req_id
             )));
         }
-        if map.contains_key(&to) {
+        if map.values().any(|req| req.title.trim() == rename.to.trim()) {
             return Err(anyhow!(t!(
                 "sdd.archive.rename_exists",
                 spec = update.capability,
                 name = rename.to
             )));
         }
-        let mut block = map.remove(&from).expect("rename block");
-        let new_header = format!("### Requirement: {}", rename.to);
-        let mut lines: Vec<&str> = block.raw.lines().collect();
-        if !lines.is_empty() {
-            lines[0] = &new_header;
+        let requirement = map.get_mut(&req_id).expect("rename requirement");
+        if !rename.from.trim().is_empty() && requirement.title.trim() != rename.from.trim() {
+            return Err(anyhow!(
+                "Rename source mismatch for spec `{}` requirement `{}`: expected `{}`, found `{}`",
+                update.capability,
+                rename.req_id,
+                rename.from,
+                requirement.title
+            ));
         }
-        block.raw = lines.join("\n");
-        block.name = rename.to.clone();
-        block.header_line = new_header;
-        map.insert(to.clone(), block);
-        order.retain(|key| key != &from);
-        order.push(to);
+        requirement.title = rename.to.trim().to_string();
     }
 
-    for name in &plan.removed {
-        let key = normalize_requirement_name(name);
+    for removed in &plan.removed {
+        let key = normalize_requirement_name(&removed.req_id);
         if !map.contains_key(&key) {
+            let missing_name = removed.name.as_deref().unwrap_or(&removed.req_id);
             return Err(anyhow!(t!(
                 "sdd.archive.remove_missing",
                 spec = update.capability,
-                name = name
+                name = missing_name
             )));
         }
         map.remove(&key);
@@ -293,164 +318,76 @@ fn build_updated_spec(update: &SpecUpdate, change_name: &str) -> Result<(String,
     }
 
     for block in &plan.modified {
-        let key = normalize_requirement_name(&block.name);
+        let key = normalize_requirement_name(&block.req_id);
         if !map.contains_key(&key) {
             return Err(anyhow!(t!(
                 "sdd.archive.modify_missing",
                 spec = update.capability,
-                name = block.name
+                name = block.req_id
             )));
         }
-        if !header_matches(block, &key) {
-            return Err(anyhow!(t!(
-                "sdd.archive.modify_header_mismatch",
-                spec = update.capability,
-                name = block.name
-            )));
-        }
-        map.insert(key, block.clone());
+        map.insert(key, archive_requirement_from_block(block));
     }
 
     for block in &plan.added {
-        let key = normalize_requirement_name(&block.name);
+        let key = normalize_requirement_name(&block.req_id);
         if map.contains_key(&key) {
             return Err(anyhow!(t!(
                 "sdd.archive.add_exists",
                 spec = update.capability,
-                name = block.name
+                name = block.req_id
             )));
         }
         order.push(key.clone());
-        map.insert(key, block.clone());
+        map.insert(key, archive_requirement_from_block(block));
     }
 
-    let mut ordered_blocks = Vec::new();
+    let mut requirements = Vec::new();
     for key in &order {
-        if let Some(block) = map.get(key) {
-            ordered_blocks.push(block.clone());
+        if let Some(requirement) = map.get(key) {
+            requirements.push(requirement.clone());
         }
     }
 
-    let rebuilt = rebuild_spec(&section, &ordered_blocks);
+    let mut rebuilt_doc = target_doc;
+    rebuilt_doc.requirements = requirements;
+    let body = render_ison_code_block(&rebuilt_doc)?;
+    let rebuilt = compose_with_frontmatter(frontmatter_yaml.as_deref(), &body);
     Ok((rebuilt, counts))
 }
 
-fn extract_requirements_section(content: &str) -> Result<RequirementsSection> {
-    let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
-    let lines: Vec<&str> = normalized.lines().collect();
-    let header_re = Regex::new(r"^##\s+Requirements\s*$").expect("regex");
-    let mut header_index = None;
-
-    for (idx, line) in lines.iter().enumerate() {
-        if header_re.is_match(line.trim()) {
-            header_index = Some(idx);
-            break;
-        }
+fn archive_requirement_from_block(block: &RequirementBlock) -> ArchiveRequirement {
+    ArchiveRequirement {
+        req_id: block.req_id.clone(),
+        title: block.name.clone(),
+        statement: block.statement.clone(),
+        scenarios: block
+            .scenarios
+            .iter()
+            .map(|scenario| ArchiveScenario {
+                id: scenario.scenario_id.clone(),
+                text: scenario.text.clone(),
+            })
+            .collect(),
     }
-
-    let header_index =
-        header_index.ok_or_else(|| anyhow!(t!("sdd.archive.requirements_missing")))?;
-    let header_line = lines[header_index].to_string();
-    let before = lines[..header_index].join("\n");
-
-    let mut end_index = lines.len();
-    for (idx, line) in lines.iter().enumerate().skip(header_index + 1) {
-        if line.trim_start().starts_with("## ") {
-            end_index = idx;
-            break;
-        }
-    }
-
-    let section_lines = &lines[header_index + 1..end_index];
-    let (preamble, body_blocks) = parse_requirement_blocks(section_lines);
-    let after = lines[end_index..].join("\n");
-
-    Ok(RequirementsSection {
-        before,
-        header_line,
-        preamble,
-        body_blocks,
-        after,
-    })
 }
 
-fn parse_requirement_blocks(lines: &[&str]) -> (String, Vec<RequirementBlock>) {
-    let header_re = Regex::new(r"^###\s*Requirement:\s*(.+)\s*$").expect("regex");
-    let mut i = 0;
-    let mut preamble_lines = Vec::new();
-
-    while i < lines.len() && !header_re.is_match(lines[i]) {
-        preamble_lines.push(lines[i]);
-        i += 1;
+fn build_spec_skeleton(spec_name: &str, change_name: &str) -> ArchiveSpecDocument {
+    ArchiveSpecDocument {
+        version: "1.0.0".to_string(),
+        kind: "llman.sdd.spec".to_string(),
+        name: spec_name.to_string(),
+        purpose: format!(
+            "TBD - created by archiving change {change}. Update purpose after archive.",
+            change = change_name
+        ),
+        requirements: Vec::new(),
     }
-
-    let mut blocks = Vec::new();
-    while i < lines.len() {
-        if !header_re.is_match(lines[i]) {
-            i += 1;
-            continue;
-        }
-        let header_line = lines[i].to_string();
-        let name = header_re
-            .captures(lines[i])
-            .and_then(|caps| caps.get(1))
-            .map(|m| normalize_requirement_name(m.as_str()))
-            .unwrap_or_default();
-        i += 1;
-        let mut buffer = vec![header_line.clone()];
-        while i < lines.len() && !header_re.is_match(lines[i]) {
-            buffer.push(lines[i].to_string());
-            i += 1;
-        }
-        blocks.push(RequirementBlock {
-            header_line,
-            name,
-            raw: buffer.join("\n").trim_end().to_string(),
-        });
-    }
-
-    (preamble_lines.join("\n").trim_end().to_string(), blocks)
 }
 
-fn rebuild_spec(section: &RequirementsSection, blocks: &[RequirementBlock]) -> String {
-    let mut body_parts = Vec::new();
-    if !section.preamble.trim().is_empty() {
-        body_parts.push(section.preamble.trim_end().to_string());
-    }
-    for block in blocks {
-        body_parts.push(block.raw.trim_end().to_string());
-    }
-    let body = body_parts.join("\n\n").trim_end().to_string();
-
-    let mut parts = Vec::new();
-    if !section.before.trim().is_empty() {
-        parts.push(section.before.trim_end().to_string());
-    }
-    parts.push(section.header_line.clone());
-    if !body.is_empty() {
-        parts.push(body);
-    }
-    if !section.after.trim().is_empty() {
-        parts.push(section.after.trim_start().to_string());
-    }
-    parts.join("\n")
-}
-
-fn header_matches(block: &RequirementBlock, key: &str) -> bool {
-    let header_re = Regex::new(r"^###\s*Requirement:\s*(.+)\s*$").expect("regex");
-    let header = block.raw.lines().next().unwrap_or("").trim();
-    let name = header_re
-        .captures(header)
-        .and_then(|caps| caps.get(1))
-        .map(|m| normalize_requirement_name(m.as_str()))
-        .unwrap_or_default();
-    name == key
-}
-
-fn build_spec_skeleton(spec_name: &str, change_name: &str) -> String {
+fn default_frontmatter_yaml(change_name: &str) -> String {
     format!(
-        "---\nllman_spec_valid_scope:\n  - src/\n  - tests/\nllman_spec_valid_commands:\n  - cargo test\nllman_spec_evidence:\n  - \"Archived from change {change}\"\n---\n\n# {spec} Specification\n\n## Purpose\nTBD - created by archiving change {change}. Update Purpose after archive.\n\n## Requirements\n",
-        spec = spec_name,
+        "llman_spec_valid_scope:\n  - src/\n  - tests/\nllman_spec_valid_commands:\n  - cargo test\nllman_spec_evidence:\n  - \"Archived from change {change}\"",
         change = change_name
     )
 }
@@ -573,13 +510,26 @@ mod tests {
     fn builds_new_spec_with_added_requirement() {
         let dir = tempdir().expect("tempdir");
         let change_spec = dir.path().join("changes/add-thing/specs/foo/spec.md");
-        let delta = r#"## ADDED Requirements
-### Requirement: New capability
-System MUST support the new capability.
-
-#### Scenario: New capability
-- **WHEN** a request arrives
-- **THEN** it succeeds
+        let delta = r#"```ison
+{
+  "version": "1.0.0",
+  "kind": "llman.sdd.delta",
+  "ops": [
+    {
+      "op": "add_requirement",
+      "req_id": "new-capability",
+      "title": "New capability",
+      "statement": "System MUST support the new capability.",
+      "scenarios": [
+        {
+          "id": "new-capability",
+          "text": "- **WHEN** a request arrives\n- **THEN** it succeeds"
+        }
+      ]
+    }
+  ]
+}
+```
 "#;
         write_file(&change_spec, delta);
 
@@ -591,7 +541,8 @@ System MUST support the new capability.
         };
 
         let result = build_updated_spec(&update, "add-thing").expect("build spec");
-        assert!(result.0.contains("### Requirement: New capability"));
+        assert!(result.0.contains("\"kind\": \"llman.sdd.spec\""));
+        assert!(result.0.contains("\"title\": \"New capability\""));
         assert!(result.0.contains("System MUST support the new capability."));
         assert!(result.0.contains("llman_spec_valid_scope"));
         assert!(result.0.contains("llman_spec_valid_commands"));
@@ -602,8 +553,19 @@ System MUST support the new capability.
     fn errors_on_removed_requirement_for_new_spec() {
         let dir = tempdir().expect("tempdir");
         let change_spec = dir.path().join("changes/remove-thing/specs/foo/spec.md");
-        let delta = r#"## REMOVED Requirements
-### Requirement: Old capability
+        let delta = r#"```ison
+{
+  "version": "1.0.0",
+  "kind": "llman.sdd.delta",
+  "ops": [
+    {
+      "op": "remove_requirement",
+      "req_id": "old-capability",
+      "name": "Old capability"
+    }
+  ]
+}
+```
 "#;
         write_file(&change_spec, delta);
 
@@ -622,28 +584,59 @@ System MUST support the new capability.
     fn errors_on_missing_modified_requirement() {
         let dir = tempdir().expect("tempdir");
         let change_spec = dir.path().join("changes/update-thing/specs/foo/spec.md");
-        let delta = r#"## MODIFIED Requirements
-### Requirement: Beta
-System MUST update beta.
-
-#### Scenario: Beta
-- **WHEN** beta changes
-- **THEN** it is updated
+        let delta = r#"```ison
+{
+  "version": "1.0.0",
+  "kind": "llman.sdd.delta",
+  "ops": [
+    {
+      "op": "modify_requirement",
+      "req_id": "beta",
+      "title": "Beta",
+      "statement": "System MUST update beta.",
+      "scenarios": [
+        {
+          "id": "beta",
+          "text": "- **WHEN** beta changes\n- **THEN** it is updated"
+        }
+      ]
+    }
+  ]
+}
+```
 "#;
         write_file(&change_spec, delta);
 
-        let existing_spec = r#"# Foo Specification
+        let existing_spec = r#"---
+llman_spec_valid_scope:
+  - src
+llman_spec_valid_commands:
+  - cargo test
+llman_spec_evidence:
+  - tests
+---
 
-## Purpose
-Test spec.
-
-## Requirements
-### Requirement: Alpha
-System MUST support alpha.
-
-#### Scenario: Alpha
-- **WHEN** alpha is used
-- **THEN** it works
+```ison
+{
+  "version": "1.0.0",
+  "kind": "llman.sdd.spec",
+  "name": "foo",
+  "purpose": "Test spec.",
+  "requirements": [
+    {
+      "req_id": "alpha",
+      "title": "Alpha",
+      "statement": "System MUST support alpha.",
+      "scenarios": [
+        {
+          "id": "alpha",
+          "text": "- **WHEN** alpha is used\n- **THEN** it works"
+        }
+      ]
+    }
+  ]
+}
+```
 "#;
         let target = dir.path().join("llmanspec/specs/foo/spec.md");
         write_file(&target, existing_spec);

@@ -108,8 +108,8 @@ SDD 模板与 skills MUST 使用基于 MiniJinja 的模板单元注入机制进�
 - **THEN** 命令报错并拒绝继续渲染
 
 ### Requirement: SDD 命令范围
-`llman sdd` MUST 暴露以下命令集合：`init`、`update`、`update-skills`、`list`、`show`、`validate`、`archive`、`import`、`export`。  
-其中 `import` 与 `export` MUST 作为 `llmanspec` 与外部规范目录互转的唯一入口。实现 MUST NOT 暴露 `migrate --from/--to` 兼容别名。  
+`llman sdd` MUST 暴露以下命令集合：`init`、`update`、`update-skills`、`list`、`show`、`validate`、`archive`、`import`、`export`。
+其中 `import` 与 `export` MUST 作为 `llmanspec` 与外部规范目录互转的唯一入口。实现 MUST NOT 暴露 `migrate --from/--to` 兼容别名。
 在 SDD 子命令组中 MUST 不提供 `change`、`spec`、`view`、`completion`、`config` 等额外子命令。
 
 #### Scenario: 帮助文本包含 import/export
@@ -464,7 +464,7 @@ SDD locale 模板 MUST 包含 `llman-template-version` 元信息。对于带 YAM
 ### Requirement: SDD Future 记录文件为可选
 `llmanspec/changes/<change-id>/future.md` MUST 作为可选记录文件存在，用于承载延期项与分叉路线。缺失该文件 MUST NOT 阻塞 `llman sdd validate` 或 `llman sdd archive`。
 
-与 future 相关的 `skills/*.md` 与 `spec-driven/{new,continue,ff,explore}.md` 模板 MUST 提供“future 到执行”的注入式引导：将 future 条目分类为 `now|later|drop`，并为 `now` 条目映射后续 change 与首个可执行动作（如 `/opsx:new`、`/opsx:continue`、`/opsx:ff`、`llman-sdd-apply`）。
+与 future 相关的 `skills/*.md` 与 `spec-driven/{new,continue,ff,explore}.md` 模板 MUST 提供“future 到执行”的注入式引导：将 future 条目分类为 `now|later|drop`，并为 `now` 条目映射后续 change 与首个可执行动作（如 `/llman-sdd:new`、`/llman-sdd:continue`、`/llman-sdd:ff`、`llman-sdd-apply`）。
 
 #### Scenario: 缺失 future 不阻塞
 - **WHEN** change 不包含 `future.md`
@@ -513,40 +513,40 @@ SDD 模块重构 MUST 保持所有 `llman sdd` 子命令的行为、输出与退
 - **WHEN** 用户运行 `llman sdd update-skills --no-interactive --all --path ./skills-out`
 - **THEN** 命令以非零退出并解释如何安全地按 tool 生成（避免覆盖）
 
-### Requirement: SDD OPSX Slash Command Bindings
-SDD MUST 提供 OPSX slash commands 的工具适配文件，并由 `llman sdd update-skills` 负责生成/刷新。命令绑定内容 MUST 引导用户进入 llman sdd 的工作流（`llmanspec/`）并与 skills 的动作集合保持一致。命令绑定 MUST 仅包含 OPSX 命令集合，不得生成 legacy commands（例如旧式 `/openspec:*` 体系）。
+### Requirement: SDD Workflow Command Bindings
+SDD MUST 提供 llman sdd workflow commands 的工具适配文件，并由 `llman sdd update-skills` 负责生成/刷新。命令绑定内容 MUST 引导用户进入 llman sdd 的工作流（`llmanspec/`）并与 skills 的动作集合保持一致。命令绑定 MUST 仅包含 workflow 命令集合，不得生成 legacy commands（例如旧式 `/openspec:*` 体系）。
 
-当前版本中，OPSX slash command bindings MUST 仅为 Claude Code 生成。实现 MUST NOT 为 Codex 生成 `.codex/prompts/opsx-*.md` 绑定文件。
+当前版本中，workflow command bindings MUST 仅为 Claude Code 生成。实现 MUST NOT 为 Codex 生成 `.codex/prompts/llman-sdd-*.md` 绑定文件。
 
-#### Scenario: 仅生成 OPSX commands
+#### Scenario: 仅生成 workflow commands
 - **WHEN** 用户执行 `llman sdd update-skills --no-interactive --tool claude --commands-only`
-- **THEN** `.claude/commands/opsx/` 下仅存在 OPSX 命令文件（`new/continue/ff/apply/verify/sync/archive/bulk-archive/explore/onboard`）
+- **THEN** `.claude/commands/llman-sdd/` 下仅存在命令文件（`new/continue/ff/apply/verify/sync/archive/explore/onboard`）
 
 #### Scenario: 命令绑定指向 llman sdd 工作流
-- **WHEN** 用户调用任一 `/opsx:<command>` 触发对应命令绑定
+- **WHEN** 用户调用任一 `/llman-sdd:<command>` 触发对应命令绑定
 - **THEN** 命令绑定文本引导其在 `llmanspec/` 下执行对应动作（创建 artifacts / 实施 tasks / 归档等），并引用 `llman sdd` 命令用于验证闭环
 
-#### Scenario: Codex 不生成 OPSX prompts
+#### Scenario: Codex 不生成 command prompts
 - **WHEN** 用户执行 `llman sdd update-skills --no-interactive --tool codex`
-- **THEN** 命令仅生成/刷新 Codex skills，且 MUST NOT 在 `.codex/prompts/` 下生成 `opsx-*.md`
+- **THEN** 命令仅生成/刷新 Codex skills，且 MUST NOT 在 `.codex/prompts/` 下生成 `llman-sdd-*.md`
 
-### Requirement: SDD Bulk-Archive Skill
-`llman-sdd-bulk-archive` skill MUST 提供批量归档协议：列出活动 changes、让用户选择要归档的 change IDs、按顺序执行归档，并在完成后运行一次全量校验。批量归档 MUST 默认遵循与单个归档一致的护栏（需要确认目标、失败时停止并报告）。
+### Requirement: SDD Archive Skill Supports Batch
+`llman-sdd-archive` skill MUST 同时覆盖单个与批量归档协议：列出活动 changes、让用户确认一个或多个 change IDs、按顺序执行归档，并在完成后运行一次全量校验。批量归档 MUST 默认遵循与单个归档一致的护栏（需要确认目标、失败时停止并报告）。
 
 #### Scenario: 批量归档多个变更
-- **WHEN** 用户调用 `llman-sdd-bulk-archive` 并提供多个 change IDs
-- **THEN** skill 指导依次运行 `llman sdd archive <id>`，并在结束后运行 `llman sdd validate --strict --no-interactive`
+- **WHEN** 用户调用 `llman-sdd-archive` 并提供多个 change IDs
+- **THEN** skill 指导依次运行 `llman sdd archive run <id>`（或兼容入口 `llman sdd archive <id>`），并在结束后运行 `llman sdd validate --strict --no-interactive`
 
 ### Requirement: SDD Explore 模式 Skill
 `llman-sdd-explore` skill MUST 提供探索模式指导，允许 AI 助手在问题分析、设计思考阶段提供帮助。探索模式 MUST 明确禁止直接实现代码，仅允许阅读代码、创建 artifacts、提出问题。skill 内容 MUST 包含：stance 定义、可执行的操作列表、与 llmanspec 的交互方式、结束探索的引导。
 
 #### Scenario: 探索模式进入
-- **WHEN** 用户调用 `llman-sdd-explore`（或通过 `/opsx:explore` 进入）
+- **WHEN** 用户调用 `llman-sdd-explore`（或通过 `/llman-sdd:explore` 进入）
 - **THEN** AI 助手进入探索模式，可阅读代码和创建 artifacts，但不实现功能
 
 #### Scenario: 探索模式退出
 - **WHEN** 用户在探索模式中准备开始实现
-- **THEN** skill 引导用户使用 `llman-sdd-new-change`、`llman-sdd-ff` 或 `/opsx:new` 开始正式工作流
+- **THEN** skill 引导用户使用 `llman-sdd-new-change`、`llman-sdd-ff` 或 `/llman-sdd:new` 开始正式工作流
 
 ### Requirement: SDD Continue Skill
 `llman-sdd-continue` skill MUST 指导 AI 助手继续未完成的变更，创建下一个待完成的 artifact。skill MUST 检查当前变更状态，识别已完成和待创建的 artifacts，按依赖顺序创建下一个 artifact。若所有 artifacts 已完成，skill MUST 引导用户进入 apply 阶段或 archive。
@@ -611,3 +611,24 @@ SDD MUST 提供 OPSX slash commands 的工具适配文件，并由 `llman sdd up
 - **WHEN** delta specs 已合并到主 specs
 - **THEN** skill 运行 `llman sdd validate --specs` 验证合并结果
 
+### Requirement: Style Routing for SDD Commands
+`llman sdd` command flows MUST support explicit style selection for new vs legacy tracks.
+
+#### Scenario: Update commands accept style selection
+- **WHEN** a user runs `llman sdd update` or `llman sdd update-skills` with style selector
+- **THEN** the command routes template loading and output generation through the selected style track
+
+### Requirement: Default Style Is New
+The default SDD style MUST be new when style selector is omitted.
+
+#### Scenario: Show and validate default to new style
+- **WHEN** a user runs `llman sdd show` or `llman sdd validate` without style selector
+- **THEN** the command evaluates and displays new style outputs by default
+
+### Requirement: Archive Merge Emits ISON Spec Payload
+`llman sdd archive` MUST merge delta changes into main specs using structured ISON semantics and emit ISON payload output.
+
+#### Scenario: Archive applies ops and writes merged ISON
+- **WHEN** a change contains delta spec ops and a user runs `llman sdd archive <change>`
+- **THEN** archive applies add/modify/remove/rename operations over requirement ids
+- **AND** the resulting `llmanspec/specs/<capability>/spec.md` contains merged ISON payload as canonical spec content

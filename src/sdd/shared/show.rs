@@ -1,3 +1,4 @@
+use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
 use crate::sdd::shared::ids::validate_sdd_id;
@@ -21,6 +22,7 @@ pub struct ShowArgs {
     pub requirements: bool,
     pub no_scenarios: bool,
     pub requirement: Option<usize>,
+    pub style: TemplateStyle,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -49,6 +51,7 @@ impl fmt::Display for ItemType {
 }
 
 pub fn run(args: ShowArgs) -> Result<()> {
+    let _style = args.style;
     let root = Path::new(".");
     let interactive = is_interactive(args.no_interactive);
     let type_override = normalize_type(args.item_type.as_deref());

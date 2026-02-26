@@ -2,7 +2,6 @@ use crate::sdd::change::delta::{
     DeltaPlan, RequirementBlock, normalize_requirement_name, parse_delta_spec,
 };
 use crate::sdd::spec::parser::{Requirement, parse_spec};
-use regex::Regex;
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
@@ -75,21 +74,10 @@ pub fn validate_spec_content_with_frontmatter(
             }
         }
         Err(err) => {
-            let missing = missing_sections(&body);
-            let message = if missing.is_empty() {
-                err.to_string()
-            } else {
-                let sections = missing.join(", ");
-                format!(
-                    "{}\n{}",
-                    t!("sdd.validate.sections_missing", sections = sections),
-                    t!("sdd.validate.sections_example")
-                )
-            };
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
                 path: "file".to_string(),
-                message,
+                message: err.to_string(),
             });
             SpecValidation {
                 report: build_report(issues, strict),
@@ -409,57 +397,63 @@ fn validate_delta_plan(spec_name: &str, plan: &DeltaPlan) -> Vec<ValidationIssue
 
     let mut added_names = Vec::new();
     let mut modified_names = Vec::new();
-    let mut removed_names = Vec::new();
-    let mut renamed_from = Vec::new();
-    let mut renamed_to = Vec::new();
+    let mut removed_req_ids = Vec::new();
+    let mut renamed_req_ids = Vec::new();
 
     for block in &plan.added {
         issues.extend(validate_requirement_block(&entry_path, "ADDED", block));
-        added_names.push(normalize_requirement_name(&block.name));
+        added_names.push(normalize_requirement_name(&block.req_id));
     }
     for block in &plan.modified {
         issues.extend(validate_requirement_block(&entry_path, "MODIFIED", block));
-        modified_names.push(normalize_requirement_name(&block.name));
+        modified_names.push(normalize_requirement_name(&block.req_id));
     }
-    for name in &plan.removed {
-        removed_names.push(normalize_requirement_name(name));
+    for removed in &plan.removed {
+        removed_req_ids.push(normalize_requirement_name(&removed.req_id));
     }
     for pair in &plan.renamed {
-        renamed_from.push(normalize_requirement_name(&pair.from));
-        renamed_to.push(normalize_requirement_name(&pair.to));
+        renamed_req_ids.push(normalize_requirement_name(&pair.req_id));
     }
 
     issues.extend(check_duplicates(&entry_path, "ADDED", &added_names));
     issues.extend(check_duplicates(&entry_path, "MODIFIED", &modified_names));
-    issues.extend(check_duplicates(&entry_path, "REMOVED", &removed_names));
-    issues.extend(check_duplicates(&entry_path, "RENAMED FROM", &renamed_from));
-    issues.extend(check_duplicates(&entry_path, "RENAMED TO", &renamed_to));
+    issues.extend(check_duplicates(&entry_path, "REMOVED", &removed_req_ids));
+    issues.extend(check_duplicates(
+        &entry_path,
+        "RENAMED REQUIREMENT",
+        &renamed_req_ids,
+    ));
 
     for name in &modified_names {
-        if removed_names.contains(name) || added_names.contains(name) {
+        if removed_req_ids.contains(name) || added_names.contains(name) {
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
                 path: entry_path.clone(),
-                message: format!("Requirement present in multiple sections: {}", name),
+                message: format!("Requirement id present in multiple operations: {}", name),
             });
         }
     }
     for name in &added_names {
-        if removed_names.contains(name) {
+        if removed_req_ids.contains(name) {
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
                 path: entry_path.clone(),
-                message: format!("Requirement present in multiple sections: {}", name),
+                message: format!("Requirement id present in multiple operations: {}", name),
             });
         }
     }
 
-    if plan.section_presence.renamed && plan.renamed.is_empty() {
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Error,
-            path: entry_path.clone(),
-            message: "RENAMED section must include FROM/TO pairs".to_string(),
-        });
+    for pair in &plan.renamed {
+        if pair.from.trim().is_empty() || pair.to.trim().is_empty() {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: entry_path.clone(),
+                message: format!(
+                    "RENAME op for requirement id `{}` must include non-empty from/to titles",
+                    pair.req_id
+                ),
+            });
+        }
     }
 
     issues
@@ -471,23 +465,19 @@ fn validate_requirement_block(
     block: &RequirementBlock,
 ) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
-    if let Some(text) = extract_requirement_text(&block.raw) {
-        if !contains_shall_or_must(&text) {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: path.to_string(),
-                message: format!("{} \"{}\" must contain SHALL or MUST", section, block.name),
-            });
-        }
-    } else {
+    if !contains_shall_or_must(&block.statement) {
         issues.push(ValidationIssue {
             level: ValidationLevel::Error,
             path: path.to_string(),
-            message: format!("{} \"{}\" is missing requirement text", section, block.name),
+            message: format!("{} \"{}\" must contain SHALL or MUST", section, block.name),
         });
     }
 
-    let scenario_count = count_scenarios(&block.raw);
+    let scenario_count = block
+        .scenarios
+        .iter()
+        .filter(|scenario| !scenario.text.trim().is_empty())
+        .count();
     if scenario_count < 1 {
         issues.push(ValidationIssue {
             level: ValidationLevel::Error,
@@ -504,47 +494,8 @@ fn validate_requirement_block(
     issues
 }
 
-fn extract_requirement_text(raw: &str) -> Option<String> {
-    let mut lines = raw.lines();
-    lines.next();
-    let mut text_lines = Vec::new();
-    for line in lines {
-        if line.trim_start().starts_with("#### ") {
-            break;
-        }
-        text_lines.push(line);
-    }
-    let text = text_lines.join("\n").trim().to_string();
-    if text.is_empty() { None } else { Some(text) }
-}
-
-fn count_scenarios(raw: &str) -> usize {
-    let re = Regex::new(r"^####\s+Scenario:").expect("regex");
-    raw.lines()
-        .filter(|line| re.is_match(line.trim_start()))
-        .count()
-}
-
 fn contains_shall_or_must(text: &str) -> bool {
     text.contains("SHALL") || text.contains("MUST")
-}
-
-fn missing_sections(content: &str) -> Vec<&'static str> {
-    let mut missing = Vec::new();
-    if !has_section(content, "Purpose") {
-        missing.push("## Purpose");
-    }
-    if !has_section(content, "Requirements") {
-        missing.push("## Requirements");
-    }
-    missing
-}
-
-fn has_section(content: &str, name: &str) -> bool {
-    let prefix = format!("## {}", name);
-    content
-        .lines()
-        .any(|line| line.trim_start().starts_with(&prefix))
 }
 
 fn scenario_missing_message() -> String {
