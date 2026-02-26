@@ -28,3 +28,17 @@ llman SDD 的技能模板与 spec-driven 模板 MUST 采用统一结构化提示
 #### Scenario: 生成内容不引用外部技能作为必需步骤
 - **WHEN** 用户执行 `llman sdd update-skills --all`
 - **THEN** 生成的 `SKILL.md` 不包含“先调用外部技能再执行”的硬依赖指令
+
+### Requirement: Structured Protocol Includes Ethics Governance Fields
+The structured skill prompt protocol for new style MUST include enforceable ethics governance fields.
+
+#### Scenario: New style structured protocol includes governance block
+- **WHEN** new style SDD skills are generated
+- **THEN** generated content includes governance fields for risk level, prohibited actions, required evidence, refusal contract, and escalation policy
+
+### Requirement: Missing Governance Fields Fail New-Style Validation
+New-style validation MUST fail when required ethics governance fields are missing.
+
+#### Scenario: Validation fails on missing governance key
+- **WHEN** a new style skill/protocol artifact omits a required ethics governance field
+- **THEN** validation returns non-zero with explicit missing-field diagnostics

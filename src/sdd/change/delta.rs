@@ -1,35 +1,64 @@
-use anyhow::Result;
-use regex::Regex;
+use crate::sdd::spec::ison::parse_ison_document;
+use anyhow::{Result, anyhow};
+use serde::Deserialize;
+
+#[derive(Debug, Clone)]
+pub struct ScenarioBlock {
+    pub scenario_id: String,
+    pub text: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct RequirementBlock {
-    pub header_line: String,
+    pub req_id: String,
     pub name: String,
-    pub raw: String,
+    pub statement: String,
+    pub scenarios: Vec<ScenarioBlock>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemovedRequirement {
+    pub req_id: String,
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct DeltaPlan {
     pub added: Vec<RequirementBlock>,
     pub modified: Vec<RequirementBlock>,
-    pub removed: Vec<String>,
+    pub removed: Vec<RemovedRequirement>,
     pub renamed: Vec<RenamePair>,
-    pub section_presence: SectionPresence,
 }
 
 #[derive(Debug, Clone)]
 pub struct RenamePair {
+    pub req_id: String,
     pub from: String,
     pub to: String,
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct SectionPresence {
-    pub added: bool,
-    pub modified: bool,
-    pub removed: bool,
-    pub renamed: bool,
+#[derive(Debug, Deserialize)]
+struct RawDeltaDocument {
+    kind: Option<String>,
+    ops: Vec<RawDeltaOp>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawScenario {
+    id: String,
+    text: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawDeltaOp {
+    op: String,
+    req_id: Option<String>,
+    title: Option<String>,
+    statement: Option<String>,
+    scenarios: Option<Vec<RawScenario>>,
+    from: Option<String>,
+    to: Option<String>,
+    name: Option<String>,
 }
 
 pub fn normalize_requirement_name(name: &str) -> String {
@@ -37,170 +66,90 @@ pub fn normalize_requirement_name(name: &str) -> String {
 }
 
 pub fn parse_delta_spec(content: &str) -> Result<DeltaPlan> {
-    let normalized = normalize_line_endings(content);
-    let sections = split_top_level_sections(&normalized);
+    let raw: RawDeltaDocument = parse_ison_document(content, "delta spec")?;
 
-    let added_section = get_section_case_insensitive(&sections, "ADDED Requirements");
-    let modified_section = get_section_case_insensitive(&sections, "MODIFIED Requirements");
-    let removed_section = get_section_case_insensitive(&sections, "REMOVED Requirements");
-    let renamed_section = get_section_case_insensitive(&sections, "RENAMED Requirements");
+    if let Some(kind) = raw.kind.as_ref()
+        && kind != "llman.sdd.delta"
+    {
+        return Err(anyhow!(
+            "delta spec kind must be `llman.sdd.delta`, got `{}`",
+            kind
+        ));
+    }
 
-    let added = parse_requirement_blocks_from_section(&added_section.body);
-    let modified = parse_requirement_blocks_from_section(&modified_section.body);
-    let removed = parse_removed_names(&removed_section.body);
-    let renamed = parse_renamed_pairs(&renamed_section.body);
+    let mut added = Vec::new();
+    let mut modified = Vec::new();
+    let mut removed = Vec::new();
+    let mut renamed = Vec::new();
+
+    for (index, op) in raw.ops.into_iter().enumerate() {
+        let op_name = op.op.trim().to_ascii_lowercase();
+        match op_name.as_str() {
+            "add_requirement" | "added" | "add" => {
+                added.push(parse_requirement_op(op, index, "add_requirement")?);
+            }
+            "modify_requirement" | "modified" | "modify" | "update" => {
+                modified.push(parse_requirement_op(op, index, "modify_requirement")?);
+            }
+            "remove_requirement" | "removed" | "remove" => {
+                let req_id = required_field(op.req_id, index, "remove_requirement.req_id")?;
+                removed.push(RemovedRequirement {
+                    req_id,
+                    name: op.name.map(|v| normalize_requirement_name(&v)),
+                });
+            }
+            "rename_requirement" | "renamed" | "rename" => {
+                renamed.push(RenamePair {
+                    req_id: required_field(op.req_id, index, "rename_requirement.req_id")?,
+                    from: required_field(op.from, index, "rename_requirement.from")?,
+                    to: required_field(op.to, index, "rename_requirement.to")?,
+                });
+            }
+            _ => {
+                return Err(anyhow!(
+                    "delta spec op[{}]: unsupported op `{}`",
+                    index,
+                    op.op
+                ));
+            }
+        }
+    }
 
     Ok(DeltaPlan {
         added,
         modified,
         removed,
         renamed,
-        section_presence: SectionPresence {
-            added: added_section.found,
-            modified: modified_section.found,
-            removed: removed_section.found,
-            renamed: renamed_section.found,
-        },
     })
 }
 
-fn normalize_line_endings(content: &str) -> String {
-    content.replace("\r\n", "\n").replace("\r", "\n")
+fn parse_requirement_op(op: RawDeltaOp, index: usize, op_name: &str) -> Result<RequirementBlock> {
+    let req_id = required_field(op.req_id, index, &format!("{op_name}.req_id"))?;
+    let title = required_field(op.title, index, &format!("{op_name}.title"))?;
+    let statement = required_field(op.statement, index, &format!("{op_name}.statement"))?;
+
+    let scenarios = op
+        .scenarios
+        .unwrap_or_default()
+        .into_iter()
+        .map(|raw| ScenarioBlock {
+            scenario_id: raw.id.trim().to_string(),
+            text: raw.text.trim().to_string(),
+        })
+        .collect();
+
+    Ok(RequirementBlock {
+        req_id,
+        name: normalize_requirement_name(&title),
+        statement: statement.trim().to_string(),
+        scenarios,
+    })
 }
 
-fn split_top_level_sections(content: &str) -> Vec<(String, String)> {
-    let lines: Vec<&str> = content.lines().collect();
-    let mut headers: Vec<(String, usize)> = Vec::new();
-
-    for (idx, line) in lines.iter().enumerate() {
-        if let Some(title) = line.trim().strip_prefix("## ") {
-            headers.push((title.trim().to_string(), idx));
-        }
-    }
-
-    let mut sections = Vec::new();
-    for i in 0..headers.len() {
-        let (title, start_idx) = &headers[i];
-        let end_idx = if i + 1 < headers.len() {
-            headers[i + 1].1
-        } else {
-            lines.len()
-        };
-        let body = lines[(start_idx + 1)..end_idx].join("\n");
-        sections.push((title.clone(), body));
-    }
-
-    sections
-}
-
-struct SectionLookup {
-    body: String,
-    found: bool,
-}
-
-fn get_section_case_insensitive(sections: &[(String, String)], desired: &str) -> SectionLookup {
-    for (title, body) in sections {
-        if title.eq_ignore_ascii_case(desired) {
-            return SectionLookup {
-                body: body.to_string(),
-                found: true,
-            };
-        }
-    }
-    SectionLookup {
-        body: String::new(),
-        found: false,
-    }
-}
-
-fn parse_requirement_blocks_from_section(section_body: &str) -> Vec<RequirementBlock> {
-    if section_body.trim().is_empty() {
-        return Vec::new();
-    }
-    let normalized = normalize_line_endings(section_body);
-    let lines: Vec<&str> = normalized.lines().collect();
-    let mut blocks = Vec::new();
-    let header_re = Regex::new(r"^###\s*Requirement:\s*(.+)\s*$").expect("regex");
-    let mut i = 0;
-    while i < lines.len() {
-        while i < lines.len() && !header_re.is_match(lines[i]) {
-            i += 1;
-        }
-        if i >= lines.len() {
-            break;
-        }
-        let header_line = lines[i];
-        let name = header_re
-            .captures(header_line)
-            .and_then(|c| c.get(1))
-            .map(|m| m.as_str().trim())
-            .unwrap_or("");
-        let mut buffer = vec![header_line.to_string()];
-        i += 1;
-        while i < lines.len()
-            && !header_re.is_match(lines[i])
-            && !lines[i].trim_start().starts_with("## ")
-        {
-            buffer.push(lines[i].to_string());
-            i += 1;
-        }
-        let raw = buffer.join("\n").trim_end().to_string();
-        blocks.push(RequirementBlock {
-            header_line: header_line.to_string(),
-            name: normalize_requirement_name(name),
-            raw,
-        });
-    }
-    blocks
-}
-
-fn parse_removed_names(section_body: &str) -> Vec<String> {
-    if section_body.trim().is_empty() {
-        return Vec::new();
-    }
-    let mut names = Vec::new();
-    let normalized = normalize_line_endings(section_body);
-    let lines: Vec<&str> = normalized.lines().collect();
-    let header_re = Regex::new(r"^###\s*Requirement:\s*(.+)\s*$").expect("regex");
-    let bullet_re = Regex::new(r"^\s*-\s*`?###\s*Requirement:\s*(.+?)`?\s*$").expect("regex");
-
-    for line in lines {
-        if let Some(caps) = header_re.captures(line) {
-            if let Some(m) = caps.get(1) {
-                names.push(normalize_requirement_name(m.as_str()));
-            }
-            continue;
-        }
-        if let Some(m) = bullet_re.captures(line).and_then(|caps| caps.get(1)) {
-            names.push(normalize_requirement_name(m.as_str()));
-        }
-    }
-    names
-}
-
-fn parse_renamed_pairs(section_body: &str) -> Vec<RenamePair> {
-    if section_body.trim().is_empty() {
-        return Vec::new();
-    }
-    let normalized = normalize_line_endings(section_body);
-    let lines: Vec<&str> = normalized.lines().collect();
-    let from_re =
-        Regex::new(r"^\s*-?\s*FROM:\s*`?###\s*Requirement:\s*(.+?)`?\s*$").expect("regex");
-    let to_re = Regex::new(r"^\s*-?\s*TO:\s*`?###\s*Requirement:\s*(.+?)`?\s*$").expect("regex");
-    let mut current_from: Option<String> = None;
-    let mut pairs = Vec::new();
-
-    for line in lines {
-        if let Some(caps) = from_re.captures(line) {
-            current_from = caps.get(1).map(|m| normalize_requirement_name(m.as_str()));
-            continue;
-        }
-        if let Some(caps) = to_re.captures(line) {
-            let to = caps.get(1).map(|m| normalize_requirement_name(m.as_str()));
-            if let (Some(from), Some(to)) = (current_from.take(), to) {
-                pairs.push(RenamePair { from, to });
-            }
-        }
-    }
-    pairs
+fn required_field(value: Option<String>, index: usize, field_name: &str) -> Result<String> {
+    let value = value
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| anyhow!("delta spec op[{index}] missing required field `{field_name}`"))?;
+    Ok(value)
 }

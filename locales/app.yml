@@ -1468,11 +1468,11 @@ sdd:
     multi_tool_path_conflict:
       en: "Cannot use --path when generating multiple tools. Run per tool (e.g. --tool claude --path ...) or omit --path."
     commands_only_requires_claude:
-      en: "No selected tool supports OPSX commands. Use --tool claude for commands, or switch to --skills-only for Codex."
+      en: "No selected tool supports llman sdd workflow commands. Use --tool claude for commands, or switch to --skills-only for Codex."
     legacy_requires_interactive:
-      en: "Legacy OpenSpec command bindings detected. Re-run without --no-interactive to migrate to /opsx:*."
+      en: "Legacy OpenSpec command bindings detected. Re-run without --no-interactive to migrate to /llman-sdd:*."
     legacy_detected:
-      en: "Legacy OpenSpec command bindings detected (will be removed and replaced by /opsx:*):\n- %{paths}"
+      en: "Legacy OpenSpec command bindings detected (will be removed and replaced by /llman-sdd:*):\n- %{paths}"
     legacy_confirm:
       en: "Migrate now and remove the legacy bindings?"
     legacy_aborted:
@@ -1483,8 +1483,8 @@ sdd:
       en: "Type %{phrase} to confirm migration:"
     legacy_phrase_mismatch:
       en: "Confirmation phrase mismatch. Migration canceled."
-    missing_opsx_template:
-      en: "Missing OPSX template for %{id}."
+    missing_workflow_command_template:
+      en: "Missing llman sdd workflow command template for %{id}."
 
   import:
     style_only:
@@ -1699,32 +1699,36 @@ sdd:
     frontmatter_value_invalid:
       en: "Spec frontmatter key %{key} must be a string or list of strings"
     sections_missing:
-      en: "Spec is missing required sections: %{sections}."
+      en: "Spec is missing required ISON fields: %{sections}."
     sections_example:
       en: |
         Example:
-        ```markdown
-        ## Purpose
-        <State the goal in one sentence>
-
-        ## Requirements
-        ### Requirement: <name>
-        The system MUST ...
-
-        #### Scenario: <happy path>
-        - **WHEN** ...
-        - **THEN** ...
+        ```ison
+        {
+          "version": "1.0.0",
+          "kind": "llman.sdd.spec",
+          "name": "sample",
+          "purpose": "State the goal in one sentence.",
+          "requirements": [
+            {
+              "req_id": "sample-requirement",
+              "title": "Sample requirement",
+              "statement": "The system MUST ...",
+              "scenarios": [
+                { "id": "happy-path", "text": "- **WHEN** ...\n- **THEN** ..." }
+              ]
+            }
+          ]
+        }
         ```
 
     scenario_missing:
-      en: "Requirement must include at least one `#### Scenario:` block."
+      en: "Requirement must include at least one scenario object in `scenarios`."
     scenario_example:
       en: |
         Example:
-        ```markdown
-        #### Scenario: <name>
-        - **WHEN** ...
-        - **THEN** ...
+        ```ison
+        { "id": "sample-scenario", "text": "- **WHEN** ...\n- **THEN** ..." }
         ```
 
     delta_missing:
@@ -1732,27 +1736,35 @@ sdd:
     delta_example:
       en: |
         Example:
-        ```markdown
-        ## ADDED Requirements
-        ### Requirement: <name>
-        The system MUST ...
-
-        #### Scenario: <name>
-        - **WHEN** ...
-        - **THEN** ...
+        ```ison
+        {
+          "version": "1.0.0",
+          "kind": "llman.sdd.delta",
+          "ops": [
+            {
+              "op": "add_requirement",
+              "req_id": "sample-requirement",
+              "title": "Sample requirement",
+              "statement": "The system MUST ...",
+              "scenarios": [
+                { "id": "sample-scenario", "text": "- **WHEN** ...\n- **THEN** ..." }
+              ]
+            }
+          ]
+        }
         ```
     next_steps:
       en: "Next steps:"
     change_step_1:
-      en: "- Ensure change has deltas in specs/: use headers ## ADDED/MODIFIED/REMOVED/RENAMED Requirements"
+      en: "- Ensure change has deltas in specs/: define ISON `ops` with add/modify/remove/rename operations"
     change_step_2:
-      en: "- Each requirement MUST include at least one #### Scenario: block"
+      en: "- Each add/modify requirement op MUST include at least one scenario object"
     change_step_3:
       en: "- Debug parsed deltas: llman sdd show <id> --json --deltas-only"
     spec_step_1:
-      en: "- Ensure spec includes ## Purpose and ## Requirements sections"
+      en: "- Ensure spec ISON includes `purpose` and `requirements`"
     spec_step_2:
-      en: "- Each requirement MUST include at least one #### Scenario: block"
+      en: "- Each requirement MUST include at least one scenario object"
     spec_step_3:
       en: "- Re-run with --json to see structured report"
     bulk_ok:

@@ -20,3 +20,10 @@
 ## Output Contract
 - Summarize actions taken.
 - Provide resulting paths and validation status.
+
+## Ethics Governance
+- `ethics.risk_level`: classify risk as `low|medium|high|critical`.
+- `ethics.prohibited_actions`: list actions that MUST NOT be performed.
+- `ethics.required_evidence`: list required evidence before high-impact output.
+- `ethics.refusal_contract`: define when to refuse and safe alternative response.
+- `ethics.escalation_policy`: define when to escalate to user confirmation/review.

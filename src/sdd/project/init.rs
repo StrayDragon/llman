@@ -1,7 +1,8 @@
 use super::config::{SddConfig, config_with_locale, write_config};
 use super::fs_utils::update_file_with_markers;
 use super::templates::{
-    default_agents_file, render_project_template, root_stub_content, spec_driven_templates,
+    TemplateStyle, default_agents_file, render_project_template, root_stub_content,
+    spec_driven_templates,
 };
 use crate::sdd::shared::constants::{
     LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS, SPEC_DRIVEN_TEMPLATE_DIR,
@@ -21,10 +22,10 @@ pub fn run(target: &Path, locale: Option<&str>) -> Result<()> {
     create_structure(&llmanspec_path)?;
     let config = config_with_locale(locale);
     write_config(&llmanspec_path, &config)?;
-    write_project_file(&llmanspec_path, target, &config)?;
-    write_agents_file(&llmanspec_path, target, &config)?;
-    write_root_agents_file(target, &config)?;
-    write_spec_driven_templates(&llmanspec_path, target, &config)?;
+    write_project_file(&llmanspec_path, target, &config, TemplateStyle::New)?;
+    write_agents_file(&llmanspec_path, target, &config, TemplateStyle::New)?;
+    write_root_agents_file(target, &config, TemplateStyle::New)?;
+    write_spec_driven_templates(&llmanspec_path, target, &config, TemplateStyle::New)?;
 
     Ok(())
 }
@@ -47,20 +48,30 @@ fn create_structure(llmanspec_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn write_project_file(llmanspec_path: &Path, target: &Path, config: &SddConfig) -> Result<()> {
+fn write_project_file(
+    llmanspec_path: &Path,
+    target: &Path,
+    config: &SddConfig,
+    style: TemplateStyle,
+) -> Result<()> {
     let project_name = target
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("Project");
-    let content = render_project_template(project_name, config, target)?;
+    let content = render_project_template(project_name, config, target, style)?;
     let path = llmanspec_path.join("project.md");
     fs::write(path, content)?;
     Ok(())
 }
 
-fn write_agents_file(llmanspec_path: &Path, target: &Path, config: &SddConfig) -> Result<()> {
+fn write_agents_file(
+    llmanspec_path: &Path,
+    target: &Path,
+    config: &SddConfig,
+    style: TemplateStyle,
+) -> Result<()> {
     let agents_path = llmanspec_path.join("AGENTS.md");
-    let content = default_agents_file(config, target)?;
+    let content = default_agents_file(config, target, style)?;
     fs::write(&agents_path, content)?;
     Ok(())
 }
@@ -69,18 +80,19 @@ fn write_spec_driven_templates(
     llmanspec_path: &Path,
     target: &Path,
     config: &SddConfig,
+    style: TemplateStyle,
 ) -> Result<()> {
     let template_dir = llmanspec_path.join(SPEC_DRIVEN_TEMPLATE_DIR);
-    for template in spec_driven_templates(config, target)? {
+    for template in spec_driven_templates(config, target, style)? {
         let path = template_dir.join(template.name);
         fs::write(path, template.content)?;
     }
     Ok(())
 }
 
-fn write_root_agents_file(target: &Path, config: &SddConfig) -> Result<()> {
+fn write_root_agents_file(target: &Path, config: &SddConfig, style: TemplateStyle) -> Result<()> {
     let agents_path = target.join("AGENTS.md");
-    let content = root_stub_content(config, target)?;
+    let content = root_stub_content(config, target, style)?;
     update_file_with_markers(
         &agents_path,
         &content,
