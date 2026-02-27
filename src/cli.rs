@@ -15,7 +15,7 @@ use anyhow::{Result, anyhow};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -163,10 +163,7 @@ pub fn run() -> Result<()> {
     // Determine and set config directory
     let config_dir = determine_config_dir(cli.config_dir.as_ref())?;
 
-    // Set LLMAN_CONFIG_DIR environment variable for all subcommands
-    unsafe {
-        env::set_var(ENV_CONFIG_DIR, &config_dir);
-    }
+    set_config_dir_env(&config_dir);
     ensure_global_sample_config(&config_dir)?;
 
     match cli.command.as_ref().expect("command is present") {
@@ -177,6 +174,16 @@ pub fn run() -> Result<()> {
         Commands::X(args) => handle_x_command(args),
         Commands::Tool(args) => handle_tool_command(args),
         Commands::SelfCommand(args) => crate::self_command::run(args),
+    }
+}
+
+fn set_config_dir_env(config_dir: &Path) {
+    // SAFETY: Setting env vars is a process-global mutation that can be unsound if other threads
+    // concurrently access environment variables. We do this at CLI startup before spawning any
+    // background work, and only to pass config context to subcommands. If llman grows concurrent
+    // startup behavior, refactor to pass config_dir through an explicit context instead.
+    unsafe {
+        env::set_var(ENV_CONFIG_DIR, config_dir);
     }
 }
 
@@ -203,17 +210,24 @@ fn determine_config_dir(cli_config_dir: Option<&PathBuf>) -> Result<PathBuf> {
 
 /// Check if current directory is an llman development project
 fn is_llman_dev_project() -> bool {
-    if let Ok(current_dir) = env::current_dir() {
-        let cargo_toml = current_dir.join("Cargo.toml");
-
-        // Check for Cargo.toml with llman package name
-        if cargo_toml.exists()
-            && let Ok(content) = fs::read_to_string(&cargo_toml)
-        {
-            return content.contains("name = \"llman\"");
-        }
+    let Ok(current_dir) = env::current_dir() else {
+        return false;
+    };
+    let cargo_toml = current_dir.join("Cargo.toml");
+    if !cargo_toml.exists() {
+        return false;
     }
-    false
+    let Ok(content) = fs::read_to_string(&cargo_toml) else {
+        return false;
+    };
+    let Ok(parsed) = toml::from_str::<toml::Value>(&content) else {
+        return false;
+    };
+    parsed
+        .get("package")
+        .and_then(|pkg| pkg.get("name"))
+        .and_then(|name| name.as_str())
+        == Some("llman")
 }
 
 fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
@@ -297,6 +311,8 @@ fn handle_tool_command(args: &ToolArgs) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use crate::config::resolve_config_dir_with;
+    use crate::test_utils::TestProcess;
+    use std::fs;
     use tempfile::TempDir;
 
     #[test]
@@ -307,5 +323,43 @@ mod tests {
         let cli_dir = cli_temp.path().to_path_buf();
         let resolved = resolve_config_dir_with(Some(&cli_dir), env_dir.to_str()).unwrap();
         assert_eq!(resolved, cli_dir);
+    }
+
+    #[test]
+    fn test_is_llman_dev_project_does_not_match_comments() {
+        let temp = TempDir::new().expect("temp dir");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            r#"
+[package]
+name = "not-llman" # name = "llman"
+version = "0.1.0"
+"#,
+        )
+        .expect("write Cargo.toml");
+
+        let mut proc = TestProcess::new();
+        proc.chdir(temp.path()).expect("chdir");
+
+        assert!(!super::is_llman_dev_project());
+    }
+
+    #[test]
+    fn test_is_llman_dev_project_matches_package_name() {
+        let temp = TempDir::new().expect("temp dir");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            r#"
+[package]
+name = "llman"
+version = "0.1.0"
+"#,
+        )
+        .expect("write Cargo.toml");
+
+        let mut proc = TestProcess::new();
+        proc.chdir(temp.path()).expect("chdir");
+
+        assert!(super::is_llman_dev_project());
     }
 }

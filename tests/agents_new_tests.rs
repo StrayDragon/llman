@@ -77,6 +77,46 @@ fn agents_new_creates_skill_and_manifest() {
 }
 
 #[test]
+fn agents_new_rejects_path_traversal_id() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    let config_dir = root.join("config");
+    let skills_root = root.join("skills");
+
+    let output = run_llman(
+        &[
+            "agents",
+            "new",
+            "../evil",
+            "--skills-dir",
+            skills_root.to_str().unwrap(),
+        ],
+        root,
+        &config_dir,
+    );
+    assert!(
+        !output.status.success(),
+        "expected failure, got success:\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("invalid agent id"),
+        "expected error message to mention invalid agent id:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    assert!(
+        !root.join("evil").exists(),
+        "unexpected write outside skills root"
+    );
+    assert!(
+        !config_dir.join("agents").join("evil").exists(),
+        "unexpected write outside config dir"
+    );
+}
+
+#[test]
 fn agents_new_fails_when_already_exists_without_force() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

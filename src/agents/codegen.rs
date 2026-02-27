@@ -1,6 +1,7 @@
 use crate::agents::command::FrameworkArg;
 use crate::agents::manifest::load_agent_manifest_v1;
 use crate::config::resolve_config_dir;
+use crate::path_utils::validate_path_segment;
 use crate::skills::catalog::types::SkillsPaths;
 use crate::skills::cli::interactive::is_interactive;
 use anyhow::{Context, Result, anyhow};
@@ -17,29 +18,28 @@ pub fn run_gen_code(
     force: bool,
     skills_dir_override: Option<&Path>,
 ) -> Result<()> {
-    if id.trim().is_empty() {
-        return Err(anyhow!("agent id is required"));
-    }
+    let agent_id =
+        validate_path_segment(id, "agent id").map_err(|e| anyhow!("invalid agent id: {e}"))?;
 
     let interactive = is_interactive();
     let config_dir = resolve_config_dir(None)?;
     let paths = SkillsPaths::resolve_with_override(skills_dir_override)?;
 
-    let agent_skill_file = paths.root.join(id).join("SKILL.md");
+    let agent_skill_file = paths.root.join(&agent_id).join("SKILL.md");
     if !agent_skill_file.exists() {
         return Err(anyhow!(
             "Missing agent-skill file: {} (run `llman agents new {}` first)",
             agent_skill_file.display(),
-            id
+            agent_id
         ));
     }
 
-    let manifest_file = config_dir.join("agents").join(id).join("agent.toml");
+    let manifest_file = config_dir.join("agents").join(&agent_id).join("agent.toml");
     if !manifest_file.exists() {
         return Err(anyhow!(
             "Missing agent manifest: {} (run `llman agents new {}` first)",
             manifest_file.display(),
-            id
+            agent_id
         ));
     }
 
@@ -86,7 +86,7 @@ pub fn run_gen_code(
         .context("get agent.py template")?;
     let rendered = tmpl
         .render(context! {
-            agent_id => id,
+            agent_id => agent_id,
             system_prompt_json => system_prompt_json,
             includes => manifest.includes,
             skills_meta => manifest.skills,

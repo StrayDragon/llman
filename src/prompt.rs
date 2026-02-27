@@ -2,7 +2,7 @@ use crate::config::{
     CLAUDE_CODE_APP, CODEX_APP, CURSOR_APP, CURSOR_EXTENSION, Config, DEFAULT_EXTENSION,
     TARGET_CURSOR_RULES_DIR,
 };
-use crate::path_utils::{safe_parent_for_creation, validate_path_str};
+use crate::path_utils::{safe_parent_for_creation, validate_path_segment, validate_path_str};
 use crate::sdd::project::fs_utils::update_file_with_markers;
 use crate::skills::cli::interactive::is_interactive;
 use crate::skills::shared::git::find_git_root;
@@ -122,17 +122,21 @@ impl PromptCommand {
         target_dir: Option<&Path>,
     ) -> Result<()> {
         self.validate_app(app)?;
+        let template_name = validate_path_segment(template_name, "template name")
+            .map_err(|e| anyhow!("invalid template name: {e}"))?;
+        let output_name = validate_path_segment(output_name, "prompt name")
+            .map_err(|e| anyhow!("invalid prompt name: {e}"))?;
 
         let interactive = is_interactive();
 
-        let content = self.get_template_content(app, template_name)?;
+        let content = self.get_template_content(app, &template_name)?;
 
         match app {
             CURSOR_APP => {
                 if self.project_root(force, interactive)?.is_none() {
                     return Ok(());
                 }
-                let target_path = self.get_target_path(app, output_name, target_dir)?;
+                let target_path = self.get_target_path(app, &output_name, target_dir)?;
                 if target_path.exists() && !force {
                     let overwrite = confirm_overwrite(&target_path, interactive)?;
                     if !overwrite {
@@ -151,7 +155,7 @@ impl PromptCommand {
                 Ok(())
             }
             CODEX_APP => {
-                self.write_codex_prompt_files(output_name, scope, force, interactive, &content)
+                self.write_codex_prompt_files(&output_name, scope, force, interactive, &content)
             }
             CLAUDE_CODE_APP => {
                 self.write_claude_memory_files(scope, force, interactive, &content)?;
@@ -211,6 +215,8 @@ impl PromptCommand {
         file: Option<&str>,
     ) -> Result<()> {
         self.validate_app(app)?;
+        let name = validate_path_segment(name, "prompt name")
+            .map_err(|e| anyhow!("invalid prompt name: {e}"))?;
         self.config.ensure_app_dir(app)?;
 
         let rule_content = if let Some(content) = content {
@@ -221,7 +227,7 @@ impl PromptCommand {
             return Err(anyhow!(t!("messages.content_or_file_required")));
         };
 
-        let rule_path = self.config.rule_file_path(app, name);
+        let rule_path = self.config.rule_file_path(app, &name);
         fs::write(&rule_path, rule_content)?;
 
         println!("{}", t!("messages.rule_saved", path = rule_path.display()));
@@ -230,8 +236,10 @@ impl PromptCommand {
 
     pub fn remove_rule(&self, app: &str, name: &str, yes: bool, interactive: bool) -> Result<()> {
         self.validate_app(app)?;
+        let name = validate_path_segment(name, "prompt name")
+            .map_err(|e| anyhow!("invalid prompt name: {e}"))?;
 
-        let rule_path = self.config.rule_file_path(app, name);
+        let rule_path = self.config.rule_file_path(app, &name);
 
         if !rule_path.exists() {
             return Err(anyhow!(t!("errors.rule_not_found", name = name)));
@@ -316,7 +324,9 @@ impl PromptCommand {
     }
 
     fn get_template_content(&self, app: &str, template: &str) -> Result<String> {
-        let template_path = self.config.rule_file_path(app, template);
+        let template = validate_path_segment(template, "template name")
+            .map_err(|e| anyhow!("invalid template name: {e}"))?;
+        let template_path = self.config.rule_file_path(app, &template);
 
         if template_path.exists() {
             Ok(fs::read_to_string(template_path)?)
@@ -624,6 +634,40 @@ mod tests {
         let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
         command.validate_app(CODEX_APP).unwrap();
         command.validate_app(CLAUDE_CODE_APP).unwrap();
+    }
+
+    #[test]
+    fn test_upsert_rule_rejects_path_like_name() {
+        let temp_dir = temp_config_dir("invalid_name");
+        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+
+        let err = command
+            .upsert_rule(CURSOR_APP, "../evil", Some("content"), None)
+            .expect_err("should reject invalid prompt name");
+        assert!(err.to_string().contains("invalid prompt name"));
+
+        let escaped = command
+            .config
+            .app_dir(CURSOR_APP)
+            .parent()
+            .expect("prompt dir")
+            .join("evil.mdc");
+        assert!(
+            !escaped.exists(),
+            "unexpected write to {}",
+            escaped.display()
+        );
+    }
+
+    #[test]
+    fn test_generate_rules_rejects_path_like_template_name() {
+        let temp_dir = temp_config_dir("invalid_template");
+        let command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+
+        let err = command
+            .generate_rules(CURSOR_APP, "../evil", None, super::PromptScope::User, true)
+            .expect_err("should reject invalid template name");
+        assert!(err.to_string().contains("invalid template name"));
     }
 
     #[test]

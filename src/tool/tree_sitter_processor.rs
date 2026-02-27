@@ -147,11 +147,20 @@ impl TreeSitterProcessor {
             while let Some(mat) = matches.next() {
                 for capture in mat.captures {
                     let node = capture.node;
-                    let range = (node.byte_range().start, node.byte_range().end);
+                    let start_byte = node.byte_range().start;
+                    let end_byte = node.byte_range().end;
+                    let range = (start_byte, end_byte);
                     if !seen_ranges.insert(range) {
                         continue;
                     }
-                    let comment_text = &content[node.byte_range()];
+                    let comment_text = content.get(start_byte..end_byte).ok_or_else(|| {
+                        anyhow!(
+                            "Invalid UTF-8 byte range for comment in {}: {}..{}",
+                            file_path.display(),
+                            start_byte,
+                            end_byte
+                        )
+                    })?;
 
                     comments.push(CommentInfo {
                         text: comment_text.to_string(),
@@ -159,8 +168,8 @@ impl TreeSitterProcessor {
                         start_col: node.start_position().column,
                         end_line: node.end_position().row + 1,
                         end_col: node.end_position().column,
-                        start_byte: node.byte_range().start,
-                        end_byte: node.byte_range().end,
+                        start_byte,
+                        end_byte,
                         kind: self.classify_comment(node, comment_text, &lang_name),
                     });
                 }
@@ -188,8 +197,12 @@ impl TreeSitterProcessor {
         seen_ranges: &mut HashSet<(usize, usize)>,
     ) {
         if node.kind().contains("comment") {
-            let comment_text = &content[node.byte_range()];
-            let range = (node.byte_range().start, node.byte_range().end);
+            let start_byte = node.byte_range().start;
+            let end_byte = node.byte_range().end;
+            let Some(comment_text) = content.get(start_byte..end_byte) else {
+                return;
+            };
+            let range = (start_byte, end_byte);
             if !seen_ranges.insert(range) {
                 return;
             }
@@ -199,8 +212,8 @@ impl TreeSitterProcessor {
                 start_col: node.start_position().column,
                 end_line: node.end_position().row + 1,
                 end_col: node.end_position().column,
-                start_byte: node.byte_range().start,
-                end_byte: node.byte_range().end,
+                start_byte,
+                end_byte,
                 kind: self.classify_comment(node, comment_text, lang_name),
             });
         }
@@ -278,7 +291,8 @@ impl TreeSitterProcessor {
         comment: &CommentInfo,
         rules: &LanguageSpecificRules,
     ) -> bool {
-        let preserve_regexes = compile_preserve_regexes(rules.preserve_patterns.as_deref());
+        let (preserve_regexes, _invalid) =
+            compile_preserve_regexes(rules.preserve_patterns.as_deref());
         self.should_remove_comment_with_regexes(comment, rules, &preserve_regexes)
     }
 
@@ -337,13 +351,24 @@ impl TreeSitterProcessor {
         file_path: &Path,
         rules: &LanguageSpecificRules,
     ) -> Result<(String, Vec<CommentInfo>)> {
+        let (preserve_regexes, _invalid) =
+            compile_preserve_regexes(rules.preserve_patterns.as_deref());
+        self.remove_comments_from_content_with_regexes(content, file_path, rules, &preserve_regexes)
+    }
+
+    pub fn remove_comments_from_content_with_regexes(
+        &mut self,
+        content: &str,
+        file_path: &Path,
+        rules: &LanguageSpecificRules,
+        preserve_regexes: &[regex::Regex],
+    ) -> Result<(String, Vec<CommentInfo>)> {
         let comments = self.extract_comments(content, file_path)?;
-        let preserve_regexes = compile_preserve_regexes(rules.preserve_patterns.as_deref());
 
         let mut comments_to_remove: Vec<_> = comments
             .iter()
             .filter(|comment| {
-                self.should_remove_comment_with_regexes(comment, rules, &preserve_regexes)
+                self.should_remove_comment_with_regexes(comment, rules, preserve_regexes)
             })
             .filter(|comment| {
                 comment.start_byte <= comment.end_byte && comment.end_byte <= content.len()
@@ -378,12 +403,28 @@ impl TreeSitterProcessor {
     // Comment removal uses byte ranges from tree-sitter; no heuristic lookup needed.
 }
 
-fn compile_preserve_regexes(patterns: Option<&[String]>) -> Vec<regex::Regex> {
+#[derive(Debug, Clone)]
+pub(crate) struct InvalidPreservePattern {
+    pub pattern: String,
+    pub error: String,
+}
+
+pub(crate) fn compile_preserve_regexes(
+    patterns: Option<&[String]>,
+) -> (Vec<regex::Regex>, Vec<InvalidPreservePattern>) {
     let patterns = patterns.unwrap_or_default();
-    patterns
-        .iter()
-        .filter_map(|pattern| regex::Regex::new(pattern).ok())
-        .collect()
+    let mut compiled = Vec::new();
+    let mut invalid = Vec::new();
+    for pattern in patterns {
+        match regex::Regex::new(pattern) {
+            Ok(regex) => compiled.push(regex),
+            Err(e) => invalid.push(InvalidPreservePattern {
+                pattern: pattern.clone(),
+                error: e.to_string(),
+            }),
+        }
+    }
+    (compiled, invalid)
 }
 
 fn normalize_comment_spans(mut comments: Vec<CommentInfo>) -> Vec<CommentInfo> {
@@ -478,6 +519,24 @@ def hello():
         assert_eq!(comments.len(), 2);
         assert!(comments[0].text.contains("This is a comment"));
         assert!(comments[1].text.contains("Another comment"));
+    }
+
+    #[test]
+    fn test_extract_python_comments_with_multibyte_content() {
+        let mut processor = TreeSitterProcessor::new().unwrap();
+        let content = r#"
+# 中文注释 🚀
+def hello():
+    # 另一个注释 ✅
+    pass
+"#;
+
+        let comments = processor
+            .extract_comments(content, Path::new("test.py"))
+            .unwrap();
+        assert_eq!(comments.len(), 2);
+        assert!(comments[0].text.contains("中文注释"));
+        assert!(comments[1].text.contains("另一个注释"));
     }
 
     #[test]

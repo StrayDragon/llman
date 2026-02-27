@@ -1,5 +1,6 @@
 //! Path validation and utility functions
 
+use anyhow::{Result as AnyhowResult, bail};
 use std::path::{Path, PathBuf};
 
 /// Validates that a path string is not empty or just whitespace
@@ -25,6 +26,66 @@ pub fn safe_parent_for_creation(path: &Path) -> Option<&Path> {
 /// Checks if a path looks like a filename (no directory components)
 pub fn is_just_filename(path: &Path) -> bool {
     path.parent().is_some_and(|p| p.as_os_str().is_empty())
+}
+
+/// Validates that a string is safe to use as a single path segment (e.g. an id or file stem).
+///
+/// Returns the trimmed segment on success.
+pub fn validate_path_segment(segment: &str, what: &str) -> AnyhowResult<String> {
+    let trimmed = segment.trim();
+    if trimmed.is_empty() {
+        bail!("{what} is required");
+    }
+
+    if trimmed.chars().count() > 128 {
+        bail!("{what} is too long (max 128 characters)");
+    }
+
+    if trimmed == "." || trimmed == ".." {
+        bail!("{what} must not be '.' or '..'");
+    }
+
+    if trimmed.contains('\0') {
+        bail!("{what} must not contain NUL");
+    }
+
+    if trimmed.contains('/') || trimmed.contains('\\') {
+        bail!("{what} must not contain path separators");
+    }
+
+    #[cfg(windows)]
+    {
+        if trimmed.ends_with('.') {
+            bail!("{what} must not end with '.'");
+        }
+
+        const INVALID_CHARS: &[char] = &['<', '>', ':', '"', '|', '?', '*'];
+        if trimmed.chars().any(|ch| INVALID_CHARS.contains(&ch)) {
+            bail!("{what} contains invalid characters");
+        }
+
+        let stem = trimmed.split('.').next().unwrap_or(trimmed);
+        let stem_upper = stem.to_ascii_uppercase();
+
+        const RESERVED: &[&str] = &["CON", "PRN", "AUX", "NUL"];
+        if RESERVED.contains(&stem_upper.as_str()) {
+            bail!("{what} uses a reserved device name");
+        }
+
+        if let Some(num) = stem_upper.strip_prefix("COM") {
+            if matches!(num, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9") {
+                bail!("{what} uses a reserved device name");
+            }
+        }
+
+        if let Some(num) = stem_upper.strip_prefix("LPT") {
+            if matches!(num, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9") {
+                bail!("{what} uses a reserved device name");
+            }
+        }
+    }
+
+    Ok(trimmed.to_string())
 }
 
 #[cfg(test)]
@@ -68,5 +129,30 @@ mod tests {
         assert!(is_just_filename(Path::new("config.yaml")));
         assert!(!is_just_filename(Path::new("dir/config.yaml")));
         assert!(!is_just_filename(Path::new("/tmp/config.yaml")));
+    }
+
+    #[test]
+    fn test_validate_path_segment_basic() {
+        assert!(validate_path_segment("", "name").is_err());
+        assert!(validate_path_segment("   ", "name").is_err());
+        assert!(validate_path_segment(".", "name").is_err());
+        assert!(validate_path_segment("..", "name").is_err());
+        assert!(validate_path_segment("a/b", "name").is_err());
+        assert!(validate_path_segment("a\\b", "name").is_err());
+        assert_eq!(validate_path_segment(" foo ", "name").unwrap(), "foo");
+        assert_eq!(validate_path_segment("foo-bar", "name").unwrap(), "foo-bar");
+        assert_eq!(validate_path_segment("draftpr", "name").unwrap(), "draftpr");
+        assert_eq!(validate_path_segment("中文", "name").unwrap(), "中文");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_validate_path_segment_windows_reserved_names() {
+        assert!(validate_path_segment("con", "name").is_err());
+        assert!(validate_path_segment("con.txt", "name").is_err());
+        assert!(validate_path_segment("COM1", "name").is_err());
+        assert!(validate_path_segment("LPT9.log", "name").is_err());
+        assert!(validate_path_segment("bad:name", "name").is_err());
+        assert!(validate_path_segment("trailing.", "name").is_err());
     }
 }
