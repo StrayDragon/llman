@@ -394,10 +394,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/spec-driven/future.md"
         ))),
-        "templates/sdd/en/skills/shared.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/skills/shared.md"
-        ))),
         "templates/sdd/en/units/skills/sdd-commands.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/units/skills/sdd-commands.md"
@@ -519,10 +515,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/zh-Hans/spec-driven/future.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/spec-driven/future.md"
-        ))),
-        "templates/sdd/zh-Hans/skills/shared.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/zh-Hans/skills/shared.md"
         ))),
         "templates/sdd/zh-Hans/units/skills/sdd-commands.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
