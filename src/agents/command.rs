@@ -1,6 +1,7 @@
 use crate::agents::builder::AgentPresetBuildOutput;
 use crate::agents::manifest::AgentManifestV1;
 use crate::config::resolve_config_dir;
+use crate::path_utils::validate_path_segment;
 use crate::skills::catalog::scan::discover_skills;
 use crate::skills::catalog::types::SkillsPaths;
 use crate::skills::cli::interactive::is_interactive;
@@ -75,18 +76,17 @@ pub fn run(args: &AgentsArgs) -> Result<()> {
 }
 
 fn run_new(id: &str, force: bool, ai: bool, skills_dir_override: Option<&Path>) -> Result<()> {
-    if id.trim().is_empty() {
-        return Err(anyhow!("agent id is required"));
-    }
+    let agent_id =
+        validate_path_segment(id, "agent id").map_err(|e| anyhow!("invalid agent id: {e}"))?;
 
     let interactive = is_interactive();
     let config_dir = resolve_config_dir(None)?;
     let paths = SkillsPaths::resolve_with_override(skills_dir_override)?;
     paths.ensure_dirs()?;
 
-    let agent_skill_dir = paths.root.join(id);
+    let agent_skill_dir = paths.root.join(&agent_id);
     let agent_skill_file = agent_skill_dir.join("SKILL.md");
-    let agent_manifest_dir = config_dir.join("agents").join(id);
+    let agent_manifest_dir = config_dir.join("agents").join(&agent_id);
     let agent_manifest_file = agent_manifest_dir.join("agent.toml");
 
     if !force && (agent_skill_dir.exists() || agent_manifest_dir.exists()) {
@@ -102,11 +102,11 @@ fn run_new(id: &str, force: bool, ai: bool, skills_dir_override: Option<&Path>) 
     let mut ai_output: Option<AgentPresetBuildOutput> = None;
     let mut includes = Vec::<String>::new();
     if ai {
-        let output = run_ai_builder(id, &discovered)?;
+        let output = run_ai_builder(&agent_id, &discovered)?;
         includes = output.includes.clone();
         ai_output = Some(output);
     } else if interactive {
-        let picked = pick_includes_tui(id, &paths.root, &discovered)?;
+        let picked = pick_includes_tui(&agent_id, &paths.root, &discovered)?;
         let Some(picked) = picked else {
             println!("{}", t!("messages.operation_cancelled"));
             return Ok(());
@@ -114,7 +114,7 @@ fn run_new(id: &str, force: bool, ai: bool, skills_dir_override: Option<&Path>) 
         includes = picked.into_iter().collect::<Vec<_>>();
     }
 
-    includes.retain(|skill_id| skill_id != id);
+    includes.retain(|skill_id| skill_id != &agent_id);
     includes.sort();
     includes.dedup();
 
@@ -122,7 +122,7 @@ fn run_new(id: &str, force: bool, ai: bool, skills_dir_override: Option<&Path>) 
         // TUI already handled cancellation; allow empty selection
     }
 
-    let mut manifest = AgentManifestV1::new(id.to_string(), includes);
+    let mut manifest = AgentManifestV1::new(agent_id.clone(), includes);
     if let Some(output) = &ai_output {
         manifest.description = Some(output.description.clone());
     }
@@ -130,10 +130,10 @@ fn run_new(id: &str, force: bool, ai: bool, skills_dir_override: Option<&Path>) 
 
     let skill_md = match &ai_output {
         Some(output) => format!(
-            "---\nname: {id}\n---\n\n{}\n",
+            "---\nname: {agent_id}\n---\n\n{}\n",
             output.system_prompt_md.trim_end()
         ),
-        None => default_agent_skill_markdown(id),
+        None => default_agent_skill_markdown(&agent_id),
     };
 
     // Commit writes only after selection is complete (cancel-safe).

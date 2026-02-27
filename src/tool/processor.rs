@@ -1,6 +1,6 @@
 use crate::tool::command::CleanUselessCommentsArgs;
 use crate::tool::config::Config;
-use crate::tool::tree_sitter_processor::TreeSitterProcessor;
+use crate::tool::tree_sitter_processor::{TreeSitterProcessor, compile_preserve_regexes};
 use anyhow::{Result, anyhow};
 use glob::Pattern;
 use ignore::WalkBuilder;
@@ -335,7 +335,7 @@ impl CommentProcessor {
 
         if let Some(lang_rules) = self.get_language_rules(language, &clean_config.lang_rules) {
             let (new_content, comments_removed) =
-                self.remove_comments_with_tree_sitter(&content, file_path, lang_rules)?;
+                self.remove_comments_with_tree_sitter(&content, file_path, language, lang_rules)?;
 
             let has_changes = new_content != content;
 
@@ -532,6 +532,7 @@ impl CommentProcessor {
         &mut self,
         content: &str,
         file_path: &Path,
+        language: Option<&str>,
         rules: &crate::tool::config::LanguageSpecificRules,
     ) -> Result<(String, u32)> {
         let tree_sitter_processor = self.tree_sitter_processor.as_mut().ok_or_else(|| {
@@ -541,7 +542,28 @@ impl CommentProcessor {
             ))
         })?;
 
-        match tree_sitter_processor.remove_comments_from_content(content, file_path, rules) {
+        let (preserve_regexes, invalid_patterns) =
+            compile_preserve_regexes(rules.preserve_patterns.as_deref());
+        if self.args.verbose && !invalid_patterns.is_empty() {
+            let lang = language.unwrap_or("unknown");
+            let key = format!("tools.clean-useless-comments.lang-rules.{lang}.preserve-patterns");
+            for invalid in invalid_patterns {
+                eprintln!(
+                    "Warning: invalid regex in {} for {}: {} ({})",
+                    key,
+                    file_path.display(),
+                    invalid.pattern,
+                    invalid.error
+                );
+            }
+        }
+
+        match tree_sitter_processor.remove_comments_from_content_with_regexes(
+            content,
+            file_path,
+            rules,
+            &preserve_regexes,
+        ) {
             Ok((new_content, removed_comments)) => {
                 let comments_removed = removed_comments.len() as u32;
                 Ok((new_content, comments_removed))

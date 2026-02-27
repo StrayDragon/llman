@@ -273,8 +273,17 @@ fn remove_path(path: &Path) -> Result<()> {
     let meta = fs::symlink_metadata(path)?;
     if meta.file_type().is_symlink() || meta.is_file() {
         fs::remove_file(path)?;
-    } else if meta.is_dir() {
-        fs::remove_dir_all(path)?;
+        return Ok(());
+    }
+    if meta.is_dir() {
+        let mut entries = fs::read_dir(path)?;
+        if entries.next().is_some() {
+            return Err(anyhow!(
+                "Refusing to delete non-empty directory: {}",
+                path.display()
+            ));
+        }
+        fs::remove_dir(path)?;
     }
     Ok(())
 }
@@ -376,6 +385,53 @@ mod tests {
         assert!(meta.file_type().is_symlink());
         let target = fs::read_link(&link_path).expect("read link");
         assert_eq!(target, skill_dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_overwrite_conflict_refuses_non_empty_directory() {
+        let temp = TempDir::new().expect("temp dir");
+        let skills_root = temp.path().join("skills");
+        let skill_dir = skills_root.join("skill");
+        fs::create_dir_all(&skill_dir).expect("create skill dir");
+        fs::write(skill_dir.join("SKILL.md"), "# skill").expect("write skill");
+
+        let target_root = temp.path().join("targets");
+        fs::create_dir_all(&target_root).expect("create target root");
+        let conflict_path = target_root.join("skill");
+        fs::create_dir_all(&conflict_path).expect("create conflict");
+        fs::write(conflict_path.join("keep.txt"), "keep").expect("write keep");
+
+        let skill = SkillCandidate {
+            skill_id: "skill".to_string(),
+            skill_dir: skill_dir.clone(),
+        };
+        let target = ConfigEntry {
+            id: "claude_user".to_string(),
+            agent: "claude".to_string(),
+            scope: "user".to_string(),
+            path: target_root.clone(),
+            enabled: true,
+            mode: TargetMode::Link,
+        };
+        let config = SkillsConfig {
+            targets: vec![target],
+        };
+        let desired_by_target = HashMap::new();
+
+        let err = apply_target_links(
+            &skill,
+            &config,
+            &desired_by_target,
+            false,
+            Some(TargetConflictStrategy::Overwrite),
+        )
+        .expect_err("should refuse deleting non-empty directory");
+        assert!(
+            err.to_string()
+                .contains("Refusing to delete non-empty directory")
+        );
+        assert!(conflict_path.join("keep.txt").exists());
     }
 
     #[cfg(unix)]

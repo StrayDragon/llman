@@ -1,5 +1,5 @@
 use crate::config::{CLAUDE_CODE_APP, CODEX_APP, Config as LlmanConfig};
-use crate::path_utils::safe_parent_for_creation;
+use crate::path_utils::{safe_parent_for_creation, validate_path_segment};
 use crate::x::arena::paths::ArenaPaths;
 use anyhow::{Result, anyhow};
 use clap::Args;
@@ -129,9 +129,8 @@ pub fn validate_contest(cfg: &ContestConfigV1) -> Result<()> {
         if p.id.trim().is_empty() {
             return Err(anyhow!("Prompt id is required"));
         }
-        if p.prompt_name.trim().is_empty() {
-            return Err(anyhow!("Prompt name is required"));
-        }
+        validate_path_segment(&p.prompt_name, "prompt name")
+            .map_err(|e| anyhow!("invalid prompt name: {e}"))?;
     }
     if let Some(top_p) = cfg.top_p
         && !(0.0..=1.0).contains(&top_p)
@@ -155,12 +154,14 @@ pub fn validate_contest(cfg: &ContestConfigV1) -> Result<()> {
     // Ensure referenced prompts exist (best-effort validation up front).
     let llman = LlmanConfig::new()?;
     for p in &cfg.prompts {
-        let path = llman.rule_file_path(&cfg.app, &p.prompt_name);
+        let prompt_name = validate_path_segment(&p.prompt_name, "prompt name")
+            .map_err(|e| anyhow!("invalid prompt name: {e}"))?;
+        let path = llman.rule_file_path(&cfg.app, &prompt_name);
         if !path.exists() {
             return Err(anyhow!(
                 "Prompt not found for app={}: {} (expected file: {})",
                 cfg.app,
-                p.prompt_name,
+                prompt_name,
                 path.display()
             ));
         }
