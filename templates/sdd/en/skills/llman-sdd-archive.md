@@ -2,7 +2,7 @@
 name: "llman-sdd-archive"
 description: "Archive one or multiple changes and merge deltas into specs."
 metadata:
-  llman-template-version: 1
+  llman-template-version: 2
 ---
 
 # LLMAN SDD Archive
@@ -14,6 +14,7 @@ Use this skill to archive completed changes.
 2. Determine target IDs:
    - Single mode: one `<change-id>`.
    - Batch mode: multiple IDs (from user input or `llman sdd list --json`).
+   - Always announce: "Archiving IDs: <id1>, <id2>, ...".
 3. Validate each target first: `llman sdd validate <id> --strict --no-interactive`.
 4. Optionally preview each archive: `llman sdd archive <id> --dry-run`.
 5. Archive sequentially:

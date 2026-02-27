@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 <!-- source: OpenSpec templates/en/llman-sdd/sync.md (copied 2026-02-09) -->
 
 Sync delta specs from an active change into main specs **without archiving** the change.
@@ -12,6 +12,7 @@ This is a manual, reproducible protocol: read delta specs under `llmanspec/chang
 1. **Select the change**
 
    If an id is provided, use it. Otherwise run `llman sdd list --json` and ask the user which change to sync.
+   Always announce: "Using change: <id>" and how to override (e.g., `/llman-sdd:sync <other>`).
 
 2. **Find delta specs**
 

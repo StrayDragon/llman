@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 <!-- source: OpenSpec templates/en/llman-sdd/continue.md (copied 2026-02-09) -->
 
 Continue working on a change by creating the next artifact in `llmanspec/changes/<id>/`.
@@ -12,6 +12,7 @@ Continue working on a change by creating the next artifact in `llmanspec/changes
    If a change id is provided, use it. Otherwise:
    - If the conversation clearly references a single change id, use it.
    - Else run `llman sdd list --json`, show the top 3–4 most recently modified changes, and ask the user which one to continue.
+   Always announce: "Using change: <id>" and how to override (e.g., `/llman-sdd:continue <other>`).
 
 2. **Verify the change exists**
 
@@ -57,6 +58,7 @@ After each invocation, show:
 - Create ONE artifact per invocation
 - Read existing artifacts before writing a new one
 - If anything is unclear, ask before creating the artifact
+- Do NOT implement application code in continue mode
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

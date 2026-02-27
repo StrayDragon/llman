@@ -53,22 +53,22 @@
   - 以及 legacy 对应文件
   - 目标：移除 “Options/<option>” 等占位、去除重复 guardrails、统一 STOP/澄清/校验表达
 
-- [ ] 4.2 优化 `new`：
+- [x] 4.2 优化 `new`：
   - `templates/sdd/*/spec-driven/new.md`
   - `templates/sdd/*/skills/llman-sdd-new-change.md`
   - 以及 legacy 对应文件
 
-- [ ] 4.3 优化 `verify`：
+- [x] 4.3 优化 `verify`：
   - `templates/sdd/*/spec-driven/verify.md`
   - `templates/sdd/*/skills/llman-sdd-verify.md`
   - 以及 legacy 对应文件
 
-- [ ] 4.4 优化 `explore`：
+- [x] 4.4 优化 `explore`：
   - `templates/sdd/*/spec-driven/explore.md`
   - `templates/sdd/*/skills/llman-sdd-explore.md`
   - 以及 legacy 对应文件
 
-- [ ] 4.5 收尾：其余入口（continue/ff/sync/archive/show/validate/specs-compact）按重复度与失败率排序逐个处理。
+- [x] 4.5 收尾：其余入口（continue/ff/sync/archive/show/validate/specs-compact）按重复度与失败率排序逐个处理。
 
 ## 5. 回归门禁与验收记录
 

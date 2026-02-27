@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 <!-- source: llman sdd workflow templates/zh-Hans/archive.md -->
 
 在 llman SDD 中归档已完成的 changes。
@@ -13,6 +13,7 @@
    - 否则运行 `llman sdd list --json`，让用户明确选择 IDs。
 
    **重要**：不要猜。没有明确确认的 IDs 就不要归档。
+   始终说明："归档 IDs：<id1>, <id2>, ..."。
 
 2. **（推荐）先逐个校验**
 

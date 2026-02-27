@@ -2,7 +2,7 @@
 name: "llman-sdd-explore"
 description: "进入 llman SDD 探索模式（仅思考；不做实现）。"
 metadata:
-  llman-template-version: 1
+  llman-template-version: 2
 ---
 
 # LLMAN SDD Explore
@@ -21,10 +21,11 @@ metadata:
 - 同时保留多个选项与权衡
 
 ## 建议动作
-1. 先看上下文：`llman sdd list --json`
-2. 如果某个 change id 相关，阅读 `llmanspec/changes/<id>/` 下的 artifacts。
-3. 提出 1-3 个澄清问题，然后讨论选项与权衡。
-4. 当结论逐渐清晰时，建议用户把它记录下来（不要自动写入）：
+1. 澄清目标与约束（问 1–3 个问题）。
+2. 先看上下文：`llman sdd list --json`
+3. 如果某个 change id 相关，阅读 `llmanspec/changes/<id>/` 下的 artifacts。
+4. 探索 2–3 个选项与权衡。
+5. 当结论逐渐清晰时，建议用户把它记录下来（不要自动写入）：
    - 范围变化 → `proposal.md`
    - 需求变化 → `llmanspec/changes/<id>/specs/<capability>/spec.md`
    - 设计决策 → `design.md`
@@ -35,6 +36,7 @@ metadata:
 - `/llman-sdd:new` 或 `llman-sdd-new-change`（创建 change）
 - `/llman-sdd:ff` 或 `llman-sdd-ff`（一次性创建所有 artifacts）
 - `llman-sdd-apply`（按 tasks 实施）
+若用户在探索模式中要求你开始实现，STOP 并提醒其先退出探索模式。
 
 {{ unit("skills/sdd-commands") }}
 

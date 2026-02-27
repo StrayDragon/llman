@@ -2,7 +2,7 @@
 name: "llman-sdd-sync"
 description: "手动把 delta specs 同步到主 specs（不归档 change）。"
 metadata:
-  llman-template-version: 1
+  llman-template-version: 2
 ---
 
 # LLMAN SDD Sync
@@ -13,6 +13,7 @@ metadata:
 
 ## 步骤
 1. 确定 change id（不明确时让用户选择）。
+   - 始终说明："使用变更：<id>"。
 2. 对每个 delta spec：`llmanspec/changes/<id>/specs/<capability>/spec.md`
    - 阅读 delta
    - 阅读（或创建）主 spec：`llmanspec/specs/<capability>/spec.md`
@@ -21,6 +22,7 @@ metadata:
    ```bash
    llman sdd validate --specs --strict --no-interactive
    ```
+4. sync 不负责归档；准备好后使用 `/llman-sdd:archive`。
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints") }}

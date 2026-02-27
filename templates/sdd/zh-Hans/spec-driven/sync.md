@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 <!-- source: OpenSpec templates/zh-Hans/llman-sdd/sync.md (copied 2026-02-09; adapted for llman) -->
 
 将活动 change 中的 delta specs 同步到主 specs，**但不归档**该 change。
@@ -12,6 +12,7 @@
 1. **选择 change**
 
    如果提供了 id，直接使用。否则运行 `llman sdd list --json` 并让用户选择要同步的 change。
+   始终说明："使用变更：<id>"，并告知如何覆盖（例如 `/llman-sdd:sync <other>`）。
 
 2. **查找 delta specs**
 
