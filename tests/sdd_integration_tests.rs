@@ -64,6 +64,22 @@ fn git_commit_all(work_dir: &Path, message: &str) {
     assert_success(&commit_output);
 }
 
+fn assert_no_disallowed_prompt_markers(path: &Path, content: &str) {
+    const DISALLOWED: &[&str] = &[
+        "Options:",
+        "<option",
+        "What would you like to do?",
+        "{{ unit(",
+    ];
+    for snippet in DISALLOWED {
+        assert!(
+            !content.contains(snippet),
+            "generated content contains disallowed snippet {snippet:?}: {}",
+            path.display()
+        );
+    }
+}
+
 #[test]
 fn test_sdd_init_and_list_specs_json() {
     let env = TestEnvironment::new();
@@ -561,6 +577,20 @@ fn test_sdd_update_skills_writes_codex_skills_without_workflow_prompts() {
     assert!(explore_skill.contains("Future-to-Execution Planning"));
     assert!(explore_skill.contains("llmanspec/changes/<id>/future.md"));
 
+    for entry in fs::read_dir(&output_dir).expect("read skills output dir") {
+        let entry = entry.expect("skills entry");
+        let file_type = entry.file_type().expect("skills entry file type");
+        if !file_type.is_dir() {
+            continue;
+        }
+        let skill_md = entry.path().join("SKILL.md");
+        if !skill_md.exists() {
+            continue;
+        }
+        let content = fs::read_to_string(&skill_md).expect("read generated SKILL.md");
+        assert_no_disallowed_prompt_markers(&skill_md, &content);
+    }
+
     let codex_prompts = work_dir.join(".codex/prompts");
     assert!(!codex_prompts.exists());
 }
@@ -601,6 +631,20 @@ fn test_sdd_update_skills_legacy_style_routes_legacy_templates() {
         compact_skill.contains("legacy-track"),
         "legacy style should render legacy unit marker"
     );
+
+    for entry in fs::read_dir(&output_dir).expect("read legacy skills output dir") {
+        let entry = entry.expect("legacy skills entry");
+        let file_type = entry.file_type().expect("legacy skills entry file type");
+        if !file_type.is_dir() {
+            continue;
+        }
+        let skill_md = entry.path().join("SKILL.md");
+        if !skill_md.exists() {
+            continue;
+        }
+        let content = fs::read_to_string(&skill_md).expect("read legacy generated SKILL.md");
+        assert_no_disallowed_prompt_markers(&skill_md, &content);
+    }
 }
 
 #[test]

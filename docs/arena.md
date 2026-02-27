@@ -19,6 +19,7 @@ Model discovery and OpenAI-compatible generation use `OPENAI_*`:
 - `OPENAI_BASE_URL` (optional, defaults to `https://api.openai.com`)
   - `OPENAI_API_BASE` is also accepted
   - `/v1` is appended automatically if missing
+  - Note: the upstream `async-openai` crate reads `OPENAI_BASE_URL` (and does not read an `OPENAI_API_BASE` env var). If you want one setting that works across tools, set `OPENAI_BASE_URL` (optionally also set `OPENAI_API_BASE` to the same value).
 
 ## Data layout
 

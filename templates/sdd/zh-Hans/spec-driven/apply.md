@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 <!-- source: OpenSpec templates/zh-Hans/llman-sdd/apply.md (copied 2026-02-09) -->
 
 为 `llmanspec/changes/<id>/` 的变更实施任务。
@@ -25,11 +25,11 @@
 
 3. **阅读上下文工件**
 
-   阅读：
-   - `llmanspec/changes/<id>/proposal.md`（如果存在）
-   - `llmanspec/changes/<id>/specs/*/spec.md`（所有 delta specs）
-   - `llmanspec/changes/<id>/design.md`（如果存在）
-   - `llmanspec/changes/<id>/tasks.md`
+   阅读 `llmanspec/changes/<id>/` 下实际存在的内容：
+   - `proposal.md`（如存在）
+   - `specs/*/spec.md`（所有 delta specs）
+   - `design.md`（如存在）
+   - `tasks.md`
 
 4. **展示当前进度**
 
@@ -44,19 +44,30 @@
    - 做必要的代码修改（范围最小、聚焦）
    - 完成后立即在 `tasks.md` 勾选：`- [ ]` → `- [x]`
 
-   遇到以下情况必须暂停：
-   - 任务不清楚 → 先问用户再继续
+   遇到以下情况必须 STOP 并询问：
+   - 任务不清楚或缺上下文 → 先问用户再继续
    - 实现发现与 specs/design 不一致 → 建议先更新工件
    - 遇到错误/阻塞 → 汇报并请求指示
 
 6. **全部完成后**
 
    当所有任务都勾选完成：
+   - 运行 `llman sdd validate <id> --strict --no-interactive`
    - 建议 `/llman-sdd:verify <id>`（可选但推荐）
    - 建议 `/llman-sdd:archive <id>` 归档并更新主 specs
 
+**输出**
+
+总结：
+- 使用的变更 id
+- 本次会话完成的任务
+- 尚未完成的任务（如有）与建议的下一步
+
 **护栏**
 - 修改保持最小化，一次只专注一个任务
+- 改动前总是先阅读当前工件（proposal/specs/design/tasks）
+- 不要臆造证据：引用文件路径与具体观察
+- 使用仓库中实际存在的路径，不要假设文件名
 - 每完成一个任务就立刻更新 checkbox，保持进度真实
 
 {{ unit("skills/structured-protocol") }}

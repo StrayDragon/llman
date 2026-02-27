@@ -1,0 +1,30 @@
+version = 1
+name = "sdd_apply_v1"
+
+# Which prompt store to use: "codex" or "claude-code"
+app = "codex"
+
+# Models to participate.
+#
+# 推荐通过评估入口脚本基于 `OPENAI_DEFAULT_MODEL` 动态覆盖该值，
+# 以避免“忘记改模型”导致的不可比结果。
+models = ["gpt-5.2"]
+
+temperature = 0.0
+top_p = 1.0
+max_output_tokens = 900
+timeout_secs = 180
+retries = 1
+
+structured_output = false
+repair_retries = 0
+
+verify = ["true"]
+
+[[prompts]]
+id = "baseline"
+prompt_name = "sdd_apply_v1_baseline"
+
+[[prompts]]
+id = "candidate"
+prompt_name = "sdd_apply_v1_candidate"
