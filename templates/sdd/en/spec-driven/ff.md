@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 <!-- source: OpenSpec templates/en/llman-sdd/ff.md (copied 2026-02-09) -->
 
 Fast-forward through planning — generate all artifacts needed to start implementation in llman SDD.
@@ -12,7 +12,7 @@ Fast-forward through planning — generate all artifacts needed to start impleme
    Ask:
    > "What change do you want to work on? Describe what you want to build or fix."
 
-   Derive a kebab-case id (e.g., "add user authentication" → `add-user-auth`).
+   Derive a kebab-case id (e.g., "add user authentication" → `add-user-auth`) and confirm it with the user before creating any directories.
 
 2. **Ensure the project is initialized**
 
@@ -25,6 +25,7 @@ Fast-forward through planning — generate all artifacts needed to start impleme
    If the change already exists, ask whether to:
    - Continue and fill missing artifacts (recommended), or
    - Use a different id.
+   Do NOT overwrite existing artifacts without explicit confirmation.
 
 4. **Create artifacts (spec-driven)**
 

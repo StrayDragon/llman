@@ -2,7 +2,7 @@
 name: "llman-sdd-specs-compact"
 description: "压缩并重构 llman SDD specs，同时保持规范行为不变。"
 metadata:
-  llman-template-version: 1
+  llman-template-version: 2
 ---
 
 # LLMAN SDD Specs Compact
@@ -29,7 +29,7 @@ metadata:
    - 预览：`llman sdd archive freeze --dry-run`
    - 执行：`llman sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
 3. 识别跨 capability 的重叠项。
-4. 产出保留/合并/迁移方案。
+4. 产出压缩计划（canonical requirements + keep/merge/remove 决策 + 迁移说明）。
 5. 执行并验证（`llman sdd validate --specs --strict --no-interactive`）。
 
 ## Decision Policy

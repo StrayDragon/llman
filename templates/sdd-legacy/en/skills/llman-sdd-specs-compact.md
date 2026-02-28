@@ -2,7 +2,7 @@
 name: "llman-sdd-specs-compact"
 description: "Compact and refactor llman SDD specs while preserving normative behavior."
 metadata:
-  llman-template-version: 1
+  llman-template-version: 2
 ---
 
 # LLMAN SDD Specs Compact
@@ -29,7 +29,7 @@ Use this skill to reduce specs bloat while preserving MUST/Scenario behavior.
    - preview: `llman sdd archive freeze --dry-run`
    - execute: `llman sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
 3. Map overlap candidates across capabilities.
-4. Propose canonical requirements and migration notes.
+4. Propose a compaction plan (canonical requirements + keep/merge/remove decisions + migration notes).
 5. Validate impacted specs (`llman sdd validate --specs --strict --no-interactive`).
 
 ## Decision Policy

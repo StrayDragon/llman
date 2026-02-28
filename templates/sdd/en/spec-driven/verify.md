@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 <!-- source: OpenSpec templates/en/llman-sdd/verify.md (copied 2026-02-09) -->
 
 Verify that the implementation matches the change artifacts (specs, tasks, design) before archiving.
@@ -21,24 +21,31 @@ Verify that the implementation matches the change artifacts (specs, tasks, desig
    - `design.md` (if present)
    - `tasks.md` (if present)
 
-3. **Check Completeness**
+3. **Run validation first (fast signal)**
+
+   Run:
+   - `llman sdd validate <id> --strict --no-interactive`
+
+   If validation fails, record it as **CRITICAL** (with the exact error/output).
+
+4. **Check Completeness**
 
    - If `tasks.md` exists, list any unchecked tasks (`- [ ]`) as **CRITICAL**.
    - If no delta specs exist, record **CRITICAL**: "No delta specs found under specs/ (cannot verify requirements)."
 
-4. **Check Correctness**
+5. **Check Correctness**
 
    For each requirement and scenario in delta specs:
    - Find implementation evidence (files/symbols) and note it
    - Flag likely mismatches as **WARNING** with a concrete recommendation
    - If scenarios are untested, recommend adding tests (or explain why tests are out-of-scope)
 
-5. **Check Coherence**
+6. **Check Coherence**
 
    - If `design.md` exists, verify implementation follows the key decisions. If not, recommend updating code or updating `design.md` to match reality.
    - Check that changes follow repo conventions (structure, naming, error handling).
 
-6. **Produce a short verification report**
+7. **Produce a short verification report**
 
    Output:
    - **CRITICAL** issues (must fix before archive)
@@ -52,5 +59,6 @@ Verify that the implementation matches the change artifacts (specs, tasks, desig
 **Guardrails**
 - Don’t invent evidence — cite file paths and concrete observations
 - Keep recommendations small and actionable
+- Prefer reporting + next actions over implementing fixes in verify mode
 
 {{ unit("skills/structured-protocol") }}

@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 <!-- source: OpenSpec templates/zh-Hans/llman-sdd/continue.md (copied 2026-02-09) -->
 
 通过创建下一个工件来继续处理某个变更（位于 `llmanspec/changes/<id>/`）。
@@ -13,6 +13,7 @@
    - 否则：
      - 若对话上下文明确指向单个变更 id，则使用它。
      - 否则运行 `llman sdd list --json`，展示最近修改的 3–4 个变更，让用户选择继续哪一个。
+   始终说明："使用变更：<id>"，并告知如何覆盖（例如 `/llman-sdd:continue <other>`）。
 
 2. **确认变更存在**
 
@@ -58,16 +59,7 @@
 - 每次只创建一个工件
 - 写之前先读已有工件
 - 任何不明确之处先问清楚再写
-- **specs/*.md**：为提案中列出的每个功能创建一个规范。使用 `specs/<capability-name>/spec.md` 路径。
-- **design.md**：记录技术决策、架构和实施方法。
-- **tasks.md**：根据规范和设计将实施分解为带复选框的任务。
-
-**护栏**
-- 每次调用创建一个工件
-- 在创建新工件之前始终阅读依赖项工件
-- 永远不要跳过工件或乱序创建
-- 如果上下文不清楚，在创建之前询问用户
-- 在写入之前验证工件文件是否存在，然后再标记进度
+- continue 模式不要实现应用代码
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

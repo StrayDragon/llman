@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 <!-- source: OpenSpec templates/zh-Hans/llman-sdd/ff.md (copied 2026-02-09) -->
 
 快速推进规划工件创建——在 llman SDD 中生成开始实施所需的一切。
@@ -12,7 +12,7 @@
    询问：
    > "你想做什么变更？描述你想要构建或修复的内容。"
 
-   根据描述派生 kebab-case 的 id（例如："add user authentication" → `add-user-auth`）。
+   根据描述派生 kebab-case 的 id（例如："add user authentication" → `add-user-auth`），并在创建任何目录前让用户确认。
 
 2. **确保项目已初始化**
 
@@ -27,6 +27,7 @@
    如果变更已存在，询问用户是否：
    - 继续补齐缺失工件（推荐），或
    - 改用其他 id。
+   不要在未明确确认的情况下覆盖已有工件。
 
 4. **创建规划工件（spec-driven）**
 

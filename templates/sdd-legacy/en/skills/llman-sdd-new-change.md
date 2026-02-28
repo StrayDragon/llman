@@ -2,23 +2,29 @@
 name: "llman-sdd-new-change"
 description: "Create a new change proposal and delta specs."
 metadata:
-  llman-template-version: 1
+  llman-template-version: 2
 ---
 
 # LLMAN SDD New Change
 
-Use this skill when you need to introduce a new capability, breaking change, or architecture shift.
+Create a new change with planning artifacts (proposal + delta specs + tasks; design optional).
 
 ## Steps
-1. Pick a unique change id (kebab-case, verb prefix: `add-`, `update-`, `remove-`, `refactor-`).
-2. Create `llmanspec/changes/<change-id>/` with:
-   - `proposal.md`
-   - `tasks.md`
-   - optional `design.md`
-3. For each affected capability, add `specs/<capability>/spec.md` using:
-   - `## ADDED|MODIFIED|REMOVED|RENAMED Requirements`
-   - at least one `#### Scenario:` per requirement
-4. Validate: `llman sdd validate <change-id> --strict --no-interactive`.
+1. Determine the change id and scope (kebab-case, verb prefix: `add-`, `update-`, `remove-`, `refactor-`).
+   - If the user only gave a description, ask 1–3 clarifying questions, then propose an id and confirm it.
+2. Ensure the project is initialized:
+   - `llmanspec/` must exist; if missing, tell the user to run `llman sdd init`, then STOP.
+3. Create `llmanspec/changes/<change-id>/` and `llmanspec/changes/<change-id>/specs/`.
+   - If the change already exists, STOP and suggest `llman-sdd-continue` (or `/llman-sdd:continue <id>`).
+4. Create artifacts under `llmanspec/changes/<change-id>/`:
+   - `proposal.md` (Why / What Changes / Capabilities / Impact)
+   - `specs/<capability>/spec.md` for each capability using:
+     - `## ADDED|MODIFIED|REMOVED|RENAMED Requirements`
+     - at least one `#### Scenario:` per requirement
+   - `design.md` only when tradeoffs/migrations matter
+   - `tasks.md` as an ordered checklist (include validation commands)
+5. Validate: `llman sdd validate <change-id> --strict --no-interactive`.
+6. Hand off to implementation: suggest `llman-sdd-apply` (or `/llman-sdd:apply <id>`).
 
 {{ unit("skills/sdd-commands") }}
 

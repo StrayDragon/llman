@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 <!-- source: llman sdd workflow templates/en/archive.md -->
 
 Archive completed changes in llman SDD.
@@ -13,6 +13,7 @@ Archive completed changes in llman SDD.
    - Otherwise, run `llman sdd list --json` and ask the user to pick explicit IDs.
 
    **IMPORTANT**: Do NOT guess. Never archive without confirmed IDs.
+   Always announce: "Archiving IDs: <id1>, <id2>, ...".
 
 2. **(Recommended) Validate each target first**
 
