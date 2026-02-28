@@ -1,4 +1,6 @@
-use crate::usage_stats::tui::{ScanFn, ScanMessage, ScanProgress, StatsTuiScanRequest, run_stats_tui};
+use crate::usage_stats::tui::{
+    ScanFn, ScanMessage, ScanProgress, StatsTuiScanRequest, run_stats_tui,
+};
 use crate::usage_stats::{
     OutputFormat, RenderOptions, SessionId, SessionRecord, StatsCliArgs, StatsJsonOutput,
     StatsQuery, StatsViewResult, ToolKind, ViewKind, build_session_detail_view,
@@ -61,8 +63,12 @@ pub fn run_stats(args: &CursorStatsArgs) -> Result<()> {
                 }));
             };
 
-            let sessions =
-                load_cursor_sessions(&scan_workspace_db, &scan_global_db, &request.cwd, Some(&mut report))?;
+            let sessions = load_cursor_sessions(
+                &scan_workspace_db,
+                &scan_global_db,
+                &request.cwd,
+                Some(&mut report),
+            )?;
 
             let time_range = parse_time_range(&request.range, Utc::now())?;
             let query = StatsQuery {
@@ -102,7 +108,9 @@ pub fn run_stats(args: &CursorStatsArgs) -> Result<()> {
     let view = match query.view {
         ViewKind::Summary => StatsViewResult::Summary(build_summary_view(&sessions)),
         ViewKind::Trend => StatsViewResult::Trend(build_trend_view(&sessions, query.group_by)),
-        ViewKind::Sessions => StatsViewResult::Sessions(build_sessions_view(&sessions, query.limit)),
+        ViewKind::Sessions => {
+            StatsViewResult::Sessions(build_sessions_view(&sessions, query.limit))
+        }
         ViewKind::Session => {
             let id = query.id.as_ref().expect("validated");
             let Some(view) = build_session_detail_view(&sessions, id) else {
@@ -128,6 +136,7 @@ pub fn run_stats(args: &CursorStatsArgs) -> Result<()> {
                 &output,
                 &RenderOptions {
                     verbose_paths: args.stats.verbose,
+                    color: args.stats.color,
                 },
             );
             print!("{table}");
@@ -137,7 +146,10 @@ pub fn run_stats(args: &CursorStatsArgs) -> Result<()> {
     Ok(())
 }
 
-fn resolve_workspace_db_path(override_path: Option<&std::path::Path>, cwd: &std::path::Path) -> Result<PathBuf> {
+fn resolve_workspace_db_path(
+    override_path: Option<&std::path::Path>,
+    cwd: &std::path::Path,
+) -> Result<PathBuf> {
     if let Some(path) = override_path {
         return Ok(path.to_path_buf());
     }
@@ -185,8 +197,12 @@ fn load_cursor_sessions(
             progress(CursorScanProgress::Composers { done, total });
         }
 
-        let (token_usage, start_ts, end_ts) =
-            read_composer_usage(&mut global_conn, &composer.composer_id, composer.created_at, composer.last_updated_at)?;
+        let (token_usage, start_ts, end_ts) = read_composer_usage(
+            &mut global_conn,
+            &composer.composer_id,
+            composer.created_at,
+            composer.last_updated_at,
+        )?;
 
         let Some(end_ts) = end_ts else {
             continue;
@@ -226,11 +242,10 @@ fn read_composer_data(workspace_db: &std::path::Path) -> Result<ComposerData> {
     let mut conn = connect_sqlite_ro(workspace_db)
         .with_context(|| format!("open Cursor workspace db: {}", workspace_db.display()))?;
 
-    let rows: Vec<ItemRow> = sql_query(
-        "SELECT value FROM ItemTable WHERE key = 'composer.composerData' LIMIT 1",
-    )
-    .load(&mut conn)
-    .context("query composer.composerData")?;
+    let rows: Vec<ItemRow> =
+        sql_query("SELECT value FROM ItemTable WHERE key = 'composer.composerData' LIMIT 1")
+            .load(&mut conn)
+            .context("query composer.composerData")?;
 
     let Some(raw) = rows.into_iter().next().and_then(|row| row.value) else {
         return Ok(ComposerData {
@@ -318,23 +333,24 @@ impl TokenAccum {
     }
 }
 
+type CursorComposerUsage = (
+    crate::usage_stats::TokenUsage,
+    Option<DateTime<Utc>>,
+    Option<DateTime<Utc>>,
+);
+
 fn read_composer_usage(
     conn: &mut SqliteConnection,
     composer_id: &str,
     composer_created_at_ms: i64,
     composer_last_updated_at_ms: Option<i64>,
-) -> Result<(
-    crate::usage_stats::TokenUsage,
-    Option<DateTime<Utc>>,
-    Option<DateTime<Utc>>,
-)> {
+) -> Result<CursorComposerUsage> {
     let pattern = format!("bubbleId:{composer_id}:%");
-    let rows: Vec<BubbleRow> = sql_query(
-        "SELECT rowid, key, value FROM cursorDiskKV WHERE key LIKE ?1 ORDER BY rowid",
-    )
-    .bind::<diesel::sql_types::Text, _>(&pattern)
-    .load(conn)
-    .with_context(|| format!("query cursorDiskKV bubbles for composer: {composer_id}"))?;
+    let rows: Vec<BubbleRow> =
+        sql_query("SELECT rowid, key, value FROM cursorDiskKV WHERE key LIKE ?1 ORDER BY rowid")
+            .bind::<diesel::sql_types::Text, _>(&pattern)
+            .load(conn)
+            .with_context(|| format!("query cursorDiskKV bubbles for composer: {composer_id}"))?;
 
     let mut tokens = TokenAccum::default();
     let mut min_ts: Option<DateTime<Utc>> = None;
@@ -407,9 +423,11 @@ mod tests {
     fn create_global_db(path: &std::path::Path, rows: Vec<(&str, &str)>) {
         let mut conn =
             SqliteConnection::establish(&path.to_string_lossy()).expect("establish sqlite");
-        diesel::sql_query("CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);")
-            .execute(&mut conn)
-            .expect("create cursorDiskKV");
+        diesel::sql_query(
+            "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);",
+        )
+        .execute(&mut conn)
+        .expect("create cursorDiskKV");
         for (key, json) in rows {
             diesel::sql_query("INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2);")
                 .bind::<diesel::sql_types::Text, _>(key)

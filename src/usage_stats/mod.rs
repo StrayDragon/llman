@@ -12,8 +12,8 @@ pub use aggregate::{
 };
 pub use model::{SessionId, SessionRecord, TokenUsage, ToolKind};
 pub use query::{
-    GroupBy, OutputFormat, StatsCliArgs, StatsQuery, TimeRange, TimeRangeArgs, TimeRangeMode,
-    ViewKind, parse_time_range, validate_stats_cli_args,
+    ColorMode, GroupBy, OutputFormat, StatsCliArgs, StatsQuery, TimeRange, TimeRangeArgs,
+    TimeRangeMode, ViewKind, parse_time_range, validate_stats_cli_args,
 };
 pub use render::{
     RenderOptions, StatsJsonOutput, StatsViewResult, render_stats_json, render_stats_table,

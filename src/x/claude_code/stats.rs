@@ -90,7 +90,9 @@ pub fn run_stats(args: &ClaudeCodeStatsArgs) -> Result<()> {
     let view = match query.view {
         ViewKind::Summary => StatsViewResult::Summary(build_summary_view(&sessions)),
         ViewKind::Trend => StatsViewResult::Trend(build_trend_view(&sessions, query.group_by)),
-        ViewKind::Sessions => StatsViewResult::Sessions(build_sessions_view(&sessions, query.limit)),
+        ViewKind::Sessions => {
+            StatsViewResult::Sessions(build_sessions_view(&sessions, query.limit))
+        }
         ViewKind::Session => {
             let id = query.id.as_ref().expect("validated");
             let Some(view) = build_session_detail_view(&sessions, id) else {
@@ -116,6 +118,7 @@ pub fn run_stats(args: &ClaudeCodeStatsArgs) -> Result<()> {
                 &output,
                 &RenderOptions {
                     verbose_paths: args.stats.verbose,
+                    color: args.stats.color,
                 },
             );
             print!("{table}");
@@ -218,11 +221,9 @@ impl UsageAccum {
 
         let mut total_sum = 0u64;
         let mut any = false;
-        for v in [input, output, cache] {
-            if let Some(v) = v {
-                any = true;
-                total_sum = total_sum.saturating_add(v);
-            }
+        for v in [input, output, cache].into_iter().flatten() {
+            any = true;
+            total_sum = total_sum.saturating_add(v);
         }
 
         crate::usage_stats::TokenUsage {
@@ -242,12 +243,8 @@ fn load_claude_sessions(
 ) -> Result<Vec<SessionRecord>> {
     let mut sessions = Vec::new();
 
-    let entries = fs::read_dir(projects_dir).with_context(|| {
-        format!(
-            "read Claude projects directory: {}",
-            projects_dir.display()
-        )
-    })?;
+    let entries = fs::read_dir(projects_dir)
+        .with_context(|| format!("read Claude projects directory: {}", projects_dir.display()))?;
 
     for entry in entries {
         let Ok(entry) = entry else {
@@ -317,15 +314,15 @@ fn load_claude_sessions(
     Ok(sessions)
 }
 
-fn parse_session_jsonl(
-    path: &Path,
-) -> Result<(
+type ClaudeSessionParseResult = (
     crate::usage_stats::TokenUsage,
     Option<DateTime<Utc>>,
     Option<DateTime<Utc>>,
-)> {
-    let file =
-        File::open(path).with_context(|| format!("open Claude session jsonl: {}", path.display()))?;
+);
+
+fn parse_session_jsonl(path: &Path) -> Result<ClaudeSessionParseResult> {
+    let file = File::open(path)
+        .with_context(|| format!("open Claude session jsonl: {}", path.display()))?;
     let reader = BufReader::new(file);
 
     let mut usage = UsageAccum::default();

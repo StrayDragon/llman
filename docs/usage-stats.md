@@ -25,6 +25,11 @@ All tools support:
   - `--since <TIME>` / `--until <TIME>` (`RFC3339` or `YYYY-MM-DD` local)
 - `--limit <N>` (sessions view only; default `200`; `0` = unlimited)
 - `--format table|json` (default `table`)
+- `--color auto|always|never` (table only; default `auto`)
+  - `auto`: enable ANSI only when stdout is a TTY and `NO_COLOR` is not set
+  - `always`: enable ANSI even when stdout is not a TTY
+  - `never`: disable ANSI
+  - JSON output is never colored
 - `--tui` (open interactive TUI instead of printing output)
 - `--verbose` (show full absolute paths in table/TUI)
 
@@ -53,6 +58,11 @@ Summary:
 - `llman x cc stats`
 - `llman x cursor stats`
 
+Color control:
+
+- `llman x codex stats --color always` (force ANSI even when piped)
+- `NO_COLOR=1 llman x codex stats` (disable ANSI in auto mode)
+
 Trend:
 
 - `llman x cc stats --view trend --last 30d --group-by week`
@@ -72,9 +82,30 @@ JSON output:
 
 - `llman x codex stats --format json`
 
+## Table Output
+
+The default output (`--format table`) is intended for human readability (use JSON for scripts).
+
+Example (summary):
+
+```text
+┌─────────────────┐
+│ Tool    codex   │
+│ Range   last 7d │
+│ View    summary │
+└─────────────────┘
+
+┌──────────────────────────────┐
+│ Metric                  Value │
+╞══════════════════════════════╡
+│ Sessions (total)            3 │
+│ Sessions (known tokens)     3 │
+│ Tokens (known-only total)  12 │
+└──────────────────────────────┘
+```
+
 ## Read-Only + Safety
 
 - Reads only local on-disk state for each tool (SQLite / JSONL); no network requests.
 - SQLite sources are opened in read-only mode.
 - Output is usage metadata only (tokens/timestamps/ids/paths); the implementation avoids printing full conversation bodies.
-
