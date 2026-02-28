@@ -23,6 +23,12 @@ pub struct TokenTotals {
     pub tokens_reasoning_known: Option<u64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SidechainTotals {
+    pub primary: TokenTotals,
+    pub sidechain: TokenTotals,
+}
+
 #[derive(Default)]
 struct TokenTotalsAccum {
     total: u64,
@@ -76,6 +82,8 @@ pub struct SummaryView {
     pub coverage: Coverage,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest_end_ts: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sidechain_totals: Option<SidechainTotals>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -85,6 +93,8 @@ pub struct StatsBucket {
     pub end_local_exclusive: String,
     pub totals: TokenTotals,
     pub coverage: Coverage,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sidechain_totals: Option<SidechainTotals>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,10 +149,23 @@ pub fn build_summary_view(sessions: &[SessionRecord]) -> SummaryView {
     };
 
     let mut totals = TokenTotalsAccum::default();
+    let mut sidechain_primary = TokenTotalsAccum::default();
+    let mut sidechain_sidechain = TokenTotalsAccum::default();
+    let mut has_sidechain_marker = false;
     let mut latest: Option<DateTime<Utc>> = None;
 
     for session in sessions {
         totals.add(&session.token_usage);
+
+        if let Some(is_sidechain) = session.is_sidechain {
+            has_sidechain_marker = true;
+            if is_sidechain {
+                sidechain_sidechain.add(&session.token_usage);
+            } else {
+                sidechain_primary.add(&session.token_usage);
+            }
+        }
+
         latest = match latest {
             None => Some(session.end_ts),
             Some(current) => Some(current.max(session.end_ts)),
@@ -153,6 +176,10 @@ pub fn build_summary_view(sessions: &[SessionRecord]) -> SummaryView {
         totals: totals.build(),
         coverage,
         latest_end_ts: latest,
+        sidechain_totals: has_sidechain_marker.then_some(SidechainTotals {
+            primary: sidechain_primary.build(),
+            sidechain: sidechain_sidechain.build(),
+        }),
     }
 }
 
@@ -184,8 +211,19 @@ fn build_bucket(start: NaiveDate, group_by: GroupBy, sessions: Vec<&SessionRecor
     };
 
     let mut totals = TokenTotalsAccum::default();
+    let mut sidechain_primary = TokenTotalsAccum::default();
+    let mut sidechain_sidechain = TokenTotalsAccum::default();
+    let mut has_sidechain_marker = false;
     for session in sessions {
         totals.add(&session.token_usage);
+        if let Some(is_sidechain) = session.is_sidechain {
+            has_sidechain_marker = true;
+            if is_sidechain {
+                sidechain_sidechain.add(&session.token_usage);
+            } else {
+                sidechain_primary.add(&session.token_usage);
+            }
+        }
     }
 
     StatsBucket {
@@ -194,6 +232,10 @@ fn build_bucket(start: NaiveDate, group_by: GroupBy, sessions: Vec<&SessionRecor
         end_local_exclusive: end_exclusive.format("%Y-%m-%d").to_string(),
         totals: totals.build(),
         coverage,
+        sidechain_totals: has_sidechain_marker.then_some(SidechainTotals {
+            primary: sidechain_primary.build(),
+            sidechain: sidechain_sidechain.build(),
+        }),
     }
 }
 

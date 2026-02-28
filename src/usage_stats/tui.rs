@@ -414,6 +414,13 @@ impl StatsTuiApp {
             "Tokens (known-only): {}",
             summary.totals.tokens_total_known
         ));
+        if let Some(sidechain) = &summary.sidechain_totals {
+            summary_lines.push(format!("  primary: {}", sidechain.primary.tokens_total_known));
+            summary_lines.push(format!(
+                "  sidechain: {}",
+                sidechain.sidechain.tokens_total_known
+            ));
+        }
         if let Some(v) = summary.totals.tokens_input_known {
             summary_lines.push(format!("  input: {v}"));
         }
@@ -428,15 +435,44 @@ impl StatsTuiApp {
         }
 
         let mut trend_lines = Vec::new();
-        trend_lines.push("bucket\tknown_tokens\tsessions(known/total)".to_string());
-        for bucket in trend.buckets {
-            trend_lines.push(format!(
-                "{}\t{}\t{}/{}",
-                bucket.label,
-                bucket.totals.tokens_total_known,
-                bucket.coverage.known_token_sessions,
-                bucket.coverage.total_sessions
-            ));
+        let has_sidechain = trend
+            .buckets
+            .iter()
+            .any(|bucket| bucket.sidechain_totals.is_some());
+        if has_sidechain {
+            trend_lines.push("bucket\toverall\tprimary\tsidechain\tsessions(known/total)".to_string());
+            for bucket in trend.buckets {
+                let (primary, sidechain) = bucket
+                    .sidechain_totals
+                    .as_ref()
+                    .map(|totals| {
+                        (
+                            totals.primary.tokens_total_known.to_string(),
+                            totals.sidechain.tokens_total_known.to_string(),
+                        )
+                    })
+                    .unwrap_or_else(|| ("-".to_string(), "-".to_string()));
+                trend_lines.push(format!(
+                    "{}\t{}\t{}\t{}\t{}/{}",
+                    bucket.label,
+                    bucket.totals.tokens_total_known,
+                    primary,
+                    sidechain,
+                    bucket.coverage.known_token_sessions,
+                    bucket.coverage.total_sessions
+                ));
+            }
+        } else {
+            trend_lines.push("bucket\tknown_tokens\tsessions(known/total)".to_string());
+            for bucket in trend.buckets {
+                trend_lines.push(format!(
+                    "{}\t{}\t{}/{}",
+                    bucket.label,
+                    bucket.totals.tokens_total_known,
+                    bucket.coverage.known_token_sessions,
+                    bucket.coverage.total_sessions
+                ));
+            }
         }
 
         ScanResultCache {
