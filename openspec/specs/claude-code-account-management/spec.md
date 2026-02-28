@@ -27,7 +27,7 @@ When opening the configuration file for editing, the command MUST support `$VISU
 - **THEN** the executed command is `code --wait <claude-code.toml-path>`; if the editor exits non-zero the command returns an error
 
 ### Requirement: Config path resolution follows LLMAN_CONFIG_DIR
-The command MUST open the configuration file at `<LLMAN_CONFIG_DIR>/claude-code.toml` (when `LLMAN_CONFIG_DIR` is set). Otherwise, it MUST use the platform default resolved by ProjectDirs for llman.
+The command MUST open the configuration file at `<LLMAN_CONFIG_DIR>/claude-code.toml` (when `LLMAN_CONFIG_DIR` is set). Otherwise, it MUST resolve the default llman config directory (see `config-paths`) and open `<config-dir>/claude-code.toml`.
 
 #### Scenario: LLMAN_CONFIG_DIR override
 - **WHEN** `LLMAN_CONFIG_DIR` is set to `/tmp/llman-test-config` and the user runs `llman x claude-code account edit`
@@ -102,4 +102,3 @@ If `<GROUP>` does not exist, the command MUST exit non-zero and MUST indicate th
 #### Scenario: Group not found
 - **WHEN** the user runs `llman x claude-code account env does-not-exist`
 - **THEN** the command exits non-zero and reports that the group does not exist
-

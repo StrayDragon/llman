@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 #[command(arg_required_else_help = true)]
 pub struct Cli {
     /// Configuration directory for llman (default: ~/.config/llman)
+    /// macOS: legacy configs under ~/Library/Application Support/... are still supported (with a migration warning)
     /// Required when running within llman project for development
     #[arg(short = 'C', long = "config-dir", global = true)]
     pub config_dir: Option<PathBuf>,

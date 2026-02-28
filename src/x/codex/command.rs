@@ -416,7 +416,7 @@ env_key = "OPENAI_API_KEY"
                 .collect(),
         };
 
-        // We can't easily test upsert_to_codex_config because it uses dirs::home_dir,
+        // We can't easily test upsert_to_codex_config because it resolves the user home directory,
         // but we can test the building blocks
         let table = provider_to_codex_table(&provider);
         assert!(table.is_table());

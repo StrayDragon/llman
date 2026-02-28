@@ -11,5 +11,6 @@
 
 ## Docs
 
+- Configuration directory: `docs/config.md`
 - Skills 分组推断说明（实时计算）：`docs/skills-registry-presets.md`
 - Arena prompt/model challenge（实验性）：`docs/arena.md`

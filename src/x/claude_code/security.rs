@@ -7,8 +7,6 @@ use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use dirs;
-
 /// Represents a security warning for dangerous Claude Code settings
 #[derive(Debug, Clone)]
 pub struct SecurityWarning {
@@ -402,7 +400,7 @@ impl SecurityChecker {
     /// Resolve settings file path from pattern (handles ~ expansion)
     fn resolve_settings_file_path(&self, file_pattern: &str) -> Option<PathBuf> {
         let path = if let Some(stripped) = file_pattern.strip_prefix("~/") {
-            if let Some(home_dir) = dirs::home_dir() {
+            if let Some(home_dir) = crate::config::try_home_dir() {
                 home_dir.join(stripped)
             } else {
                 PathBuf::from(file_pattern)

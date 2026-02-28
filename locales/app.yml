@@ -155,6 +155,9 @@ messages:
   content_or_file_required:
     en: "Must provide content or file path"
 
+  macos_legacy_config_dir_warning:
+    en: "Warning: using legacy llman config directory on macOS: %{legacy_path}. Please migrate to ~/.config/llman."
+
 # Errors
 errors:
   unknown_subcommand:

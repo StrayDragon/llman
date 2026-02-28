@@ -203,7 +203,7 @@ fn parse_target_mode(raw: Option<&str>) -> Result<TargetMode> {
 
 fn default_targets() -> Result<Vec<ConfigEntry>> {
     let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let home_dir = dirs::home_dir();
+    let home_dir = crate::config::try_home_dir();
     let claude_home = env::var("CLAUDE_HOME").ok().map(PathBuf::from);
     let codex_home = env::var("CODEX_HOME").ok().map(PathBuf::from);
     default_targets_with(
@@ -332,7 +332,7 @@ fn expand_tilde_with(path: &str, home_dir: Option<&Path>) -> Result<String> {
     if path == "~" || path.starts_with("~/") {
         let home = home_dir
             .map(Path::to_path_buf)
-            .or_else(dirs::home_dir)
+            .or_else(crate::config::try_home_dir)
             .ok_or_else(|| anyhow!(t!("skills.config.home_missing")))?;
         if path == "~" {
             return Ok(home.to_string_lossy().to_string());

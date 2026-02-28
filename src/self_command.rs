@@ -201,7 +201,7 @@ fn completion_block(shell: CompletionShell) -> String {
 }
 
 fn shell_profile_path(shell: CompletionShell) -> Result<PathBuf> {
-    let home = dirs::home_dir().ok_or_else(|| anyhow!(t!("errors.home_dir_missing")))?;
+    let home = crate::config::home_dir()?;
     match shell {
         CompletionShell::Bash => Ok(bash_profile_path(&home)),
         CompletionShell::Zsh => Ok(home.join(".zshrc")),
