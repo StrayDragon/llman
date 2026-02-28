@@ -4,6 +4,7 @@ version = "0.0.22"
 # Project is pinned to a nightly toolchain in rust-toolchain.toml
 # CI must use the same pinned nightly baseline
 edition = "2024"
+default-run = "llman"
 authors = ["L8ng <straydragonl@foxmail.com>"]
 description = "A tool for managing LLM application rules(prompts) ..."
 license = "MIT"
@@ -52,6 +53,7 @@ glob = "0.3.3"
 ignore = "0.4.25"
 futures = "0.3.31"
 tokio = { version = "1.47.1", features = ["rt-multi-thread", "time"] }
+tokio-util = { version = "0.7.16", features = ["compat"] }
 reqwest = { version = "0.12.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 tempfile = "3.24.0"
 
@@ -75,6 +77,8 @@ llm_json = "1.0.2"
 regex = "1.12.3"
 serde_yaml = "0.9.34"
 sevenz-rust2 = "0.20.2"
+agent-client-protocol = "0.9.4"
+async-trait = "0.1.89"
 
 [dev-dependencies]
 expectrl = "0.5.2"

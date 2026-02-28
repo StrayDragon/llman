@@ -15,6 +15,8 @@ fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path, editor_raw: &str
         .args([
             "run",
             "--quiet",
+            "--bin",
+            "llman",
             "--manifest-path",
             manifest_path().to_str().expect("manifest path"),
             "--",
@@ -85,6 +87,8 @@ fn claude_code_account_edit_appends_config_path_last() {
         .args([
             "run",
             "--quiet",
+            "--bin",
+            "llman",
             "--manifest-path",
             manifest_path().to_str().expect("manifest path"),
             "--",
