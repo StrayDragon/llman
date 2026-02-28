@@ -169,3 +169,195 @@ fn codex_stats_session_json_with_breakdown() {
     assert_eq!(v["result"]["session"]["token_usage"]["output"], 3);
     assert_eq!(v["result"]["session"]["token_usage"]["reasoning"], 4);
 }
+
+#[test]
+fn codex_stats_table_color_auto_has_no_ansi_when_captured() {
+    let temp = TempDir::new().expect("temp dir");
+    let work_dir = temp.path().join("work");
+    fs::create_dir_all(&work_dir).expect("mkdir work");
+    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
+    let config_dir = temp.path().join("config");
+    fs::create_dir_all(&config_dir).expect("mkdir config");
+
+    let db_path = temp.path().join("state_1.sqlite");
+    create_state_db(&db_path);
+
+    {
+        let database_url = db_path.to_string_lossy().to_string();
+        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
+        insert_thread(&mut conn, "t1", &work_dir.to_string_lossy(), 9, None);
+    }
+
+    let output = run_llman(
+        &[
+            "x",
+            "codex",
+            "stats",
+            "--state-db",
+            db_path.to_str().unwrap(),
+            "--format",
+            "table",
+            "--color",
+            "auto",
+        ],
+        &work_dir,
+        &config_dir,
+    );
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !output.stdout.windows(2).any(|w| w == b"\x1b["),
+        "expected no ANSI escape sequences in captured output, got:\n{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn codex_stats_table_color_always_includes_ansi_when_captured() {
+    let temp = TempDir::new().expect("temp dir");
+    let work_dir = temp.path().join("work");
+    fs::create_dir_all(&work_dir).expect("mkdir work");
+    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
+    let config_dir = temp.path().join("config");
+    fs::create_dir_all(&config_dir).expect("mkdir config");
+
+    let db_path = temp.path().join("state_1.sqlite");
+    create_state_db(&db_path);
+
+    {
+        let database_url = db_path.to_string_lossy().to_string();
+        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
+        insert_thread(&mut conn, "t1", &work_dir.to_string_lossy(), 9, None);
+    }
+
+    let output = run_llman(
+        &[
+            "x",
+            "codex",
+            "stats",
+            "--state-db",
+            db_path.to_str().unwrap(),
+            "--format",
+            "table",
+            "--color",
+            "always",
+        ],
+        &work_dir,
+        &config_dir,
+    );
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        output.stdout.windows(2).any(|w| w == b"\x1b["),
+        "expected ANSI escape sequences with --color always, got:\n{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn codex_stats_json_is_never_colored() {
+    let temp = TempDir::new().expect("temp dir");
+    let work_dir = temp.path().join("work");
+    fs::create_dir_all(&work_dir).expect("mkdir work");
+    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
+    let config_dir = temp.path().join("config");
+    fs::create_dir_all(&config_dir).expect("mkdir config");
+
+    let db_path = temp.path().join("state_1.sqlite");
+    create_state_db(&db_path);
+
+    {
+        let database_url = db_path.to_string_lossy().to_string();
+        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
+        insert_thread(&mut conn, "t1", &work_dir.to_string_lossy(), 9, None);
+    }
+
+    let output = run_llman(
+        &[
+            "x",
+            "codex",
+            "stats",
+            "--state-db",
+            db_path.to_str().unwrap(),
+            "--format",
+            "json",
+            "--color",
+            "always",
+        ],
+        &work_dir,
+        &config_dir,
+    );
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !output.stdout.windows(2).any(|w| w == b"\x1b["),
+        "expected no ANSI escape sequences in json output, got:\n{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let v: Value = serde_json::from_slice(&output.stdout).expect("parse json");
+    assert_eq!(v["tool"], "codex");
+}
+
+#[test]
+#[cfg(unix)]
+fn codex_stats_table_no_color_env_disables_ansi_in_tty_auto_mode() {
+    use expectrl::{Session, WaitStatus};
+    use std::io::Read;
+
+    let temp = TempDir::new().expect("temp dir");
+    let work_dir = temp.path().join("work");
+    fs::create_dir_all(&work_dir).expect("mkdir work");
+    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
+    let config_dir = temp.path().join("config");
+    fs::create_dir_all(&config_dir).expect("mkdir config");
+
+    let db_path = temp.path().join("state_1.sqlite");
+    create_state_db(&db_path);
+
+    {
+        let database_url = db_path.to_string_lossy().to_string();
+        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
+        insert_thread(&mut conn, "t1", &work_dir.to_string_lossy(), 9, None);
+    }
+
+    let mut cmd = Command::new(llman_bin());
+    cmd.env("NO_COLOR", "1")
+        .args(["--config-dir", config_dir.to_str().expect("config dir")])
+        .args([
+            "x",
+            "codex",
+            "stats",
+            "--state-db",
+            db_path.to_str().unwrap(),
+            "--format",
+            "table",
+            "--color",
+            "auto",
+        ])
+        .current_dir(&work_dir);
+
+    let mut session = Session::spawn(cmd).expect("spawn llman in pty");
+    let mut buf = Vec::new();
+    session.read_to_end(&mut buf).expect("read stdout");
+    assert_eq!(
+        session.wait().expect("wait"),
+        WaitStatus::Exited(session.pid(), 0)
+    );
+    assert!(
+        !buf.windows(2).any(|w| w == b"\x1b["),
+        "expected no ANSI escape sequences with NO_COLOR=1 in tty auto mode, got:\n{}",
+        String::from_utf8_lossy(&buf)
+    );
+}

@@ -132,6 +132,7 @@ pub fn run_stats(args: &CodexStatsArgs) -> Result<()> {
                 &output,
                 &RenderOptions {
                     verbose_paths: args.stats.verbose,
+                    color: args.stats.color,
                 },
             );
             print!("{table}");

@@ -9,7 +9,9 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Tabs, Wrap};
+use ratatui::widgets::{
+    Block, Borders, Cell, Clear, Gauge, Paragraph, Row, Sparkline, Table, TableState, Tabs, Wrap,
+};
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
@@ -278,16 +280,41 @@ impl FilterFormState {
 struct ScanResultCache {
     sessions_all: Vec<SessionRecord>,
     sessions_list: Vec<SessionRecord>,
-    summary_lines: Vec<String>,
-    trend_lines: Vec<String>,
+    summary: crate::usage_stats::SummaryView,
+    trend: crate::usage_stats::TrendView,
 }
 
 #[derive(Clone, Debug)]
 enum ScanStatus {
     Idle,
     Scanning(Option<ScanProgress>),
-    Ready(ScanResultCache),
+    Ready(Box<ScanResultCache>),
     Error(String),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TrendMetric {
+    Overall,
+    Primary,
+    Sidechain,
+}
+
+impl TrendMetric {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Overall => "overall",
+            Self::Primary => "primary",
+            Self::Sidechain => "sidechain",
+        }
+    }
+
+    fn next(self) -> Self {
+        match self {
+            Self::Overall => Self::Primary,
+            Self::Primary => Self::Sidechain,
+            Self::Sidechain => Self::Overall,
+        }
+    }
 }
 
 struct TerminalRestoreGuard;
@@ -338,7 +365,9 @@ struct StatsTuiApp {
     status: ScanStatus,
     filter_open: bool,
     filter: FilterFormState,
-    sessions_selected: Option<usize>,
+    sessions_table_state: TableState,
+    trend_metric: TrendMetric,
+    trend_table_state: TableState,
     session_detail_id: Option<SessionId>,
 }
 
@@ -354,7 +383,9 @@ impl StatsTuiApp {
             status: ScanStatus::Idle,
             filter_open: false,
             filter,
-            sessions_selected: Some(0),
+            sessions_table_state: TableState::default(),
+            trend_metric: TrendMetric::Overall,
+            trend_table_state: TableState::default(),
             session_detail_id: None,
         }
     }
@@ -389,8 +420,14 @@ impl StatsTuiApp {
                     self.status = ScanStatus::Scanning(Some(progress));
                 }
                 ScanMessage::Done(sessions) => {
-                    self.status = ScanStatus::Ready(self.build_cache(&sessions));
-                    self.sessions_selected = Some(0);
+                    let cache = self.build_cache(&sessions);
+                    self.sessions_table_state
+                        .select((!cache.sessions_list.is_empty()).then_some(0));
+                    self.trend_table_state.select(
+                        (!cache.trend.buckets.is_empty())
+                            .then_some(cache.trend.buckets.len().saturating_sub(1)),
+                    );
+                    self.status = ScanStatus::Ready(Box::new(cache));
                     self.session_detail_id = None;
                 }
                 ScanMessage::Error(message) => {
@@ -405,81 +442,11 @@ impl StatsTuiApp {
         let trend = build_trend_view(sessions, self.request.group_by);
         let sessions_view = build_sessions_view(sessions, self.request.limit);
 
-        let mut summary_lines = Vec::new();
-        summary_lines.push(format!(
-            "Sessions: {} (known tokens: {})",
-            summary.coverage.total_sessions, summary.coverage.known_token_sessions
-        ));
-        summary_lines.push(format!(
-            "Tokens (known-only): {}",
-            summary.totals.tokens_total_known
-        ));
-        if let Some(sidechain) = &summary.sidechain_totals {
-            summary_lines.push(format!("  primary: {}", sidechain.primary.tokens_total_known));
-            summary_lines.push(format!(
-                "  sidechain: {}",
-                sidechain.sidechain.tokens_total_known
-            ));
-        }
-        if let Some(v) = summary.totals.tokens_input_known {
-            summary_lines.push(format!("  input: {v}"));
-        }
-        if let Some(v) = summary.totals.tokens_output_known {
-            summary_lines.push(format!("  output: {v}"));
-        }
-        if let Some(v) = summary.totals.tokens_cache_known {
-            summary_lines.push(format!("  cache: {v}"));
-        }
-        if let Some(v) = summary.totals.tokens_reasoning_known {
-            summary_lines.push(format!("  reasoning: {v}"));
-        }
-
-        let mut trend_lines = Vec::new();
-        let has_sidechain = trend
-            .buckets
-            .iter()
-            .any(|bucket| bucket.sidechain_totals.is_some());
-        if has_sidechain {
-            trend_lines.push("bucket\toverall\tprimary\tsidechain\tsessions(known/total)".to_string());
-            for bucket in trend.buckets {
-                let (primary, sidechain) = bucket
-                    .sidechain_totals
-                    .as_ref()
-                    .map(|totals| {
-                        (
-                            totals.primary.tokens_total_known.to_string(),
-                            totals.sidechain.tokens_total_known.to_string(),
-                        )
-                    })
-                    .unwrap_or_else(|| ("-".to_string(), "-".to_string()));
-                trend_lines.push(format!(
-                    "{}\t{}\t{}\t{}\t{}/{}",
-                    bucket.label,
-                    bucket.totals.tokens_total_known,
-                    primary,
-                    sidechain,
-                    bucket.coverage.known_token_sessions,
-                    bucket.coverage.total_sessions
-                ));
-            }
-        } else {
-            trend_lines.push("bucket\tknown_tokens\tsessions(known/total)".to_string());
-            for bucket in trend.buckets {
-                trend_lines.push(format!(
-                    "{}\t{}\t{}/{}",
-                    bucket.label,
-                    bucket.totals.tokens_total_known,
-                    bucket.coverage.known_token_sessions,
-                    bucket.coverage.total_sessions
-                ));
-            }
-        }
-
         ScanResultCache {
             sessions_all: sessions.to_vec(),
             sessions_list: sessions_view.sessions,
-            summary_lines,
-            trend_lines,
+            summary,
+            trend,
         }
     }
 
@@ -493,9 +460,18 @@ impl StatsTuiApp {
             KeyCode::Tab => self.tab = self.tab.next(),
             KeyCode::BackTab => self.tab = self.tab.prev(),
             KeyCode::Char('f') => self.open_filter(),
-            KeyCode::Up | KeyCode::Char('k') => self.sessions_move(-1),
-            KeyCode::Down | KeyCode::Char('j') => self.sessions_move(1),
+            KeyCode::Up | KeyCode::Char('k') => match self.tab {
+                StatsTab::Sessions => self.sessions_move(-1),
+                StatsTab::Trend => self.trend_move(-1),
+                _ => {}
+            },
+            KeyCode::Down | KeyCode::Char('j') => match self.tab {
+                StatsTab::Sessions => self.sessions_move(1),
+                StatsTab::Trend => self.trend_move(1),
+                _ => {}
+            },
             KeyCode::Enter => self.sessions_enter(),
+            KeyCode::Char('c') => self.trend_cycle_metric(),
             _ => {}
         }
         Ok(false)
@@ -569,12 +545,38 @@ impl StatsTuiApp {
             return;
         };
         if cache.sessions_list.is_empty() {
-            self.sessions_selected = None;
+            self.sessions_table_state.select(None);
             return;
         }
-        let current = self.sessions_selected.unwrap_or(0) as isize;
+        let current = self.sessions_table_state.selected().unwrap_or(0) as isize;
         let next = (current + delta).clamp(0, cache.sessions_list.len().saturating_sub(1) as isize);
-        self.sessions_selected = Some(next as usize);
+        self.sessions_table_state.select(Some(next as usize));
+    }
+
+    fn trend_move(&mut self, delta: isize) {
+        if self.tab != StatsTab::Trend {
+            return;
+        }
+        let ScanStatus::Ready(cache) = &self.status else {
+            return;
+        };
+        if cache.trend.buckets.is_empty() {
+            self.trend_table_state.select(None);
+            return;
+        }
+        let current = self.trend_table_state.selected().unwrap_or(0) as isize;
+        let next = (current + delta).clamp(0, cache.trend.buckets.len().saturating_sub(1) as isize);
+        self.trend_table_state.select(Some(next as usize));
+    }
+
+    fn trend_cycle_metric(&mut self) {
+        if self.tab != StatsTab::Trend {
+            return;
+        }
+        if self.tool != ToolKind::ClaudeCode {
+            return;
+        }
+        self.trend_metric = self.trend_metric.next();
     }
 
     fn sessions_enter(&mut self) {
@@ -584,7 +586,7 @@ impl StatsTuiApp {
         let ScanStatus::Ready(cache) = &self.status else {
             return;
         };
-        let Some(idx) = self.sessions_selected else {
+        let Some(idx) = self.sessions_table_state.selected() else {
             return;
         };
         let Some(session) = cache.sessions_list.get(idx) else {
@@ -598,11 +600,19 @@ impl StatsTuiApp {
         let area = frame.area();
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
+            .constraints(
+                [
+                    Constraint::Length(3),
+                    Constraint::Min(1),
+                    Constraint::Length(1),
+                ]
+                .as_ref(),
+            )
             .split(area);
 
         self.draw_tabs(frame, chunks[0]);
         self.draw_body(frame, chunks[1]);
+        self.draw_help(frame, chunks[2]);
 
         if self.filter_open {
             self.draw_filter_modal(frame, area);
@@ -633,16 +643,191 @@ impl StatsTuiApp {
                     .borders(Borders::ALL)
                     .title(tool_title(self.tool)),
             )
-            .highlight_style(
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            )
+            .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
             .select(selected);
         frame.render_widget(tabs, area);
     }
 
-    fn draw_body(&self, frame: &mut ratatui::Frame, area: Rect) {
+    fn draw_help(&self, frame: &mut ratatui::Frame, area: Rect) {
+        let help = "Tab/Shift+Tab switch · ↑↓/j/k move · Enter drilldown · f filter · c cycle(trend/Claude) · q quit";
+        frame.render_widget(
+            Paragraph::new(Line::from(help)).style(Style::default().fg(Color::DarkGray)),
+            area,
+        );
+    }
+
+    fn draw_overview(
+        frame: &mut ratatui::Frame,
+        area: Rect,
+        summary: &crate::usage_stats::SummaryView,
+    ) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+            .split(area);
+
+        let top = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+            .split(chunks[0]);
+        let bottom = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+            .split(chunks[1]);
+
+        let mut token_lines = Vec::new();
+        token_lines.push(Line::from(Span::styled(
+            format_u64_count(summary.totals.tokens_total_known),
+            Style::default().add_modifier(Modifier::BOLD),
+        )));
+        if let Some(sidechain) = &summary.sidechain_totals {
+            token_lines.push(Line::from(format!(
+                "primary {} · side {}",
+                format_u64_count(sidechain.primary.tokens_total_known),
+                format_u64_count(sidechain.sidechain.tokens_total_known)
+            )));
+        }
+        frame.render_widget(
+            Paragraph::new(token_lines)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("Tokens (known-only)"),
+                )
+                .wrap(Wrap { trim: true }),
+            top[0],
+        );
+
+        let sessions_total = summary.coverage.total_sessions;
+        let sessions_known = summary.coverage.known_token_sessions;
+        let sessions_lines = vec![
+            Line::from(Span::styled(
+                format_usize_count(sessions_total),
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Line::from(format!(
+                "known tokens: {}",
+                format_usize_count(sessions_known)
+            )),
+        ];
+        frame.render_widget(
+            Paragraph::new(sessions_lines)
+                .block(Block::default().borders(Borders::ALL).title("Sessions"))
+                .wrap(Wrap { trim: true }),
+            top[1],
+        );
+
+        let coverage_percent = (sessions_known.saturating_mul(100))
+            .checked_div(sessions_total)
+            .unwrap_or(0)
+            .min(100) as u16;
+        let coverage_label = format!(
+            "{}/{} ({}%)",
+            format_usize_count(sessions_known),
+            format_usize_count(sessions_total),
+            coverage_percent
+        );
+        frame.render_widget(
+            Gauge::default()
+                .block(Block::default().borders(Borders::ALL).title("Coverage"))
+                .gauge_style(Style::default().fg(Color::Green))
+                .label(coverage_label)
+                .percent(coverage_percent),
+            bottom[0],
+        );
+
+        let latest = summary
+            .latest_end_ts
+            .map(|ts| {
+                ts.with_timezone(&chrono::Local)
+                    .format("%Y-%m-%d %H:%M:%S")
+                    .to_string()
+            })
+            .unwrap_or_else(|| "-".to_string());
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                latest,
+                Style::default().add_modifier(Modifier::BOLD),
+            )))
+            .block(Block::default().borders(Borders::ALL).title("Latest"))
+            .wrap(Wrap { trim: true }),
+            bottom[1],
+        );
+    }
+
+    fn draw_trend(
+        frame: &mut ratatui::Frame,
+        area: Rect,
+        trend: &crate::usage_stats::TrendView,
+        tool: ToolKind,
+        metric: TrendMetric,
+        table_state: &mut TableState,
+    ) {
+        let values = trend
+            .buckets
+            .iter()
+            .map(|bucket| bucket_tokens(bucket, metric).unwrap_or(0))
+            .collect::<Vec<_>>();
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(7), Constraint::Min(1)].as_ref())
+            .split(area);
+
+        let title = if tool == ToolKind::ClaudeCode {
+            format!("Tokens ({})", metric.label())
+        } else {
+            "Tokens".to_string()
+        };
+        frame.render_widget(
+            Sparkline::default()
+                .block(Block::default().borders(Borders::ALL).title(title))
+                .data(values)
+                .style(Style::default().fg(Color::Cyan)),
+            chunks[0],
+        );
+
+        let header = Row::new(["Bucket", "Tokens", "Sessions (known/total)"]).style(
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        );
+        let rows = trend
+            .buckets
+            .iter()
+            .map(|bucket| {
+                let tokens = bucket_tokens(bucket, metric)
+                    .map(format_u64_count)
+                    .unwrap_or_else(|| "-".to_string());
+                Row::new(vec![
+                    Cell::new(bucket.label.clone()),
+                    Cell::new(tokens),
+                    Cell::new(format!(
+                        "{}/{}",
+                        format_usize_count(bucket.coverage.known_token_sessions),
+                        format_usize_count(bucket.coverage.total_sessions)
+                    )),
+                ])
+            })
+            .collect::<Vec<_>>();
+
+        let table = Table::new(
+            rows,
+            [
+                Constraint::Length(12),
+                Constraint::Length(12),
+                Constraint::Min(20),
+            ],
+        )
+        .header(header)
+        .block(Block::default().borders(Borders::ALL).title("Buckets"))
+        .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+        .highlight_symbol("> ");
+
+        frame.render_stateful_widget(table, chunks[1], table_state);
+    }
+
+    fn draw_body(&mut self, frame: &mut ratatui::Frame, area: Rect) {
         match &self.status {
             ScanStatus::Idle => {
                 frame.render_widget(
@@ -673,29 +858,45 @@ impl StatsTuiApp {
             }
             ScanStatus::Ready(cache) => match self.tab {
                 StatsTab::Overview => {
-                    frame.render_widget(
-                        Paragraph::new(cache.summary_lines.join("\n"))
-                            .block(Block::default().borders(Borders::ALL))
-                            .wrap(Wrap { trim: true }),
-                        area,
-                    );
+                    Self::draw_overview(frame, area, &cache.summary);
                 }
                 StatsTab::Trend => {
-                    frame.render_widget(
-                        Paragraph::new(cache.trend_lines.join("\n"))
-                            .block(Block::default().borders(Borders::ALL))
-                            .wrap(Wrap { trim: false }),
+                    let metric = if self.tool == ToolKind::ClaudeCode {
+                        self.trend_metric
+                    } else {
+                        TrendMetric::Overall
+                    };
+                    Self::draw_trend(
+                        frame,
                         area,
+                        &cache.trend,
+                        self.tool,
+                        metric,
+                        &mut self.trend_table_state,
                     );
                 }
                 StatsTab::Sessions => {
-                    let items = cache
+                    let is_claude = self.tool == ToolKind::ClaudeCode;
+                    let header = if is_claude {
+                        Row::new(["End", "Known", "Id", "SC", "Cwd", "Title"])
+                    } else {
+                        Row::new(["End", "Known", "Id", "Cwd", "Title"])
+                    }
+                    .style(
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD),
+                    );
+
+                    let rows = cache
                         .sessions_list
                         .iter()
-                        .enumerate()
-                        .map(|(idx, session)| {
-                            let end = session.end_ts.with_timezone(&chrono::Local);
-                            let end = end.format("%Y-%m-%d %H:%M").to_string();
+                        .map(|session| {
+                            let end = session
+                                .end_ts
+                                .with_timezone(&chrono::Local)
+                                .format("%Y-%m-%d %H:%M")
+                                .to_string();
                             let tokens = session
                                 .token_usage
                                 .total
@@ -707,31 +908,59 @@ impl StatsTuiApp {
                                 self.request.verbose_paths,
                             );
                             let title = session.title.as_deref().unwrap_or("-");
-                            let row = format!("{end}\t{tokens}\t{}\t{cwd}\t{title}", session.id);
 
-                            let style = if self.sessions_selected == Some(idx) {
-                                Style::default()
-                                    .fg(Color::Yellow)
-                                    .add_modifier(Modifier::BOLD)
+                            if is_claude {
+                                let sidechain = match session.is_sidechain {
+                                    Some(true) => "S",
+                                    Some(false) => "",
+                                    None => "-",
+                                };
+                                Row::new(vec![
+                                    Cell::new(end),
+                                    Cell::new(tokens),
+                                    Cell::new(session.id.to_string()),
+                                    Cell::new(sidechain),
+                                    Cell::new(cwd),
+                                    Cell::new(title.to_string()),
+                                ])
                             } else {
-                                Style::default()
-                            };
-                            ListItem::new(Line::from(Span::styled(row, style)))
+                                Row::new(vec![
+                                    Cell::new(end),
+                                    Cell::new(tokens),
+                                    Cell::new(session.id.to_string()),
+                                    Cell::new(cwd),
+                                    Cell::new(title.to_string()),
+                                ])
+                            }
                         })
                         .collect::<Vec<_>>();
 
-                    let list = List::new(items)
-                        .block(
-                            Block::default()
-                                .borders(Borders::ALL)
-                                .title("end\tknown_tokens\tid\tcwd\ttitle"),
-                        )
-                        .highlight_style(
-                            Style::default()
-                                .fg(Color::Yellow)
-                                .add_modifier(Modifier::BOLD),
-                        );
-                    frame.render_widget(list, area);
+                    let widths = if is_claude {
+                        vec![
+                            Constraint::Length(16),
+                            Constraint::Length(10),
+                            Constraint::Length(24),
+                            Constraint::Length(2),
+                            Constraint::Min(24),
+                            Constraint::Min(20),
+                        ]
+                    } else {
+                        vec![
+                            Constraint::Length(16),
+                            Constraint::Length(10),
+                            Constraint::Length(24),
+                            Constraint::Min(24),
+                            Constraint::Min(20),
+                        ]
+                    };
+
+                    let table = Table::new(rows, widths)
+                        .header(header)
+                        .block(Block::default().borders(Borders::ALL).title("Sessions"))
+                        .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+                        .highlight_symbol("> ");
+
+                    frame.render_stateful_widget(table, area, &mut self.sessions_table_state);
                 }
                 StatsTab::SessionDetail => {
                     let Some(id) = &self.session_detail_id else {
@@ -899,6 +1128,37 @@ fn tool_title(tool: ToolKind) -> &'static str {
     }
 }
 
+fn format_u64_count(value: u64) -> String {
+    let s = value.to_string();
+    let mut out = String::with_capacity(s.len().saturating_add(s.len() / 3));
+    for (idx, ch) in s.chars().enumerate() {
+        out.push(ch);
+        let remaining = s.len().saturating_sub(idx).saturating_sub(1);
+        if remaining > 0 && remaining % 3 == 0 {
+            out.push(',');
+        }
+    }
+    out
+}
+
+fn format_usize_count(value: usize) -> String {
+    format_u64_count(value as u64)
+}
+
+fn bucket_tokens(bucket: &crate::usage_stats::StatsBucket, metric: TrendMetric) -> Option<u64> {
+    match metric {
+        TrendMetric::Overall => Some(bucket.totals.tokens_total_known),
+        TrendMetric::Primary => bucket
+            .sidechain_totals
+            .as_ref()
+            .map(|totals| totals.primary.tokens_total_known),
+        TrendMetric::Sidechain => bucket
+            .sidechain_totals
+            .as_ref()
+            .map(|totals| totals.sidechain.tokens_total_known),
+    }
+}
+
 fn line_field(active: bool, text: String) -> Line<'static> {
     if active {
         Line::from(Span::styled(
@@ -941,6 +1201,8 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+    use std::path::PathBuf;
 
     #[test]
     fn filter_form_last_7d_builds_last_args() {
@@ -982,5 +1244,102 @@ mod tests {
         assert_eq!(range.since.as_deref(), Some("2026-02-01"));
         assert_eq!(range.until.as_deref(), Some("2026-03-01"));
         assert!(range.last.is_none());
+    }
+
+    fn make_app(tool: ToolKind) -> StatsTuiApp {
+        let request = StatsTuiScanRequest {
+            cwd: PathBuf::from("/p"),
+            group_by: GroupBy::Day,
+            range: TimeRangeArgs::default(),
+            limit: 200,
+            verbose_paths: false,
+            with_breakdown: false,
+            include_sidechain: true,
+        };
+        let scan_fn: ScanFn = Arc::new(|_request, _tx| Ok(vec![]));
+        StatsTuiApp::new(tool, request, scan_fn)
+    }
+
+    fn make_session(id: &str, end_ts: chrono::DateTime<chrono::Utc>) -> SessionRecord {
+        SessionRecord {
+            tool: ToolKind::Codex,
+            id: SessionId(id.to_string()),
+            cwd: PathBuf::from("/p"),
+            title: None,
+            start_ts: None,
+            end_ts,
+            token_usage: crate::usage_stats::TokenUsage {
+                total: Some(1),
+                ..crate::usage_stats::TokenUsage::default()
+            },
+            is_sidechain: None,
+        }
+    }
+
+    #[test]
+    fn trend_metric_cycles_for_claude_in_trend_tab() {
+        let mut app = make_app(ToolKind::ClaudeCode);
+        app.tab = StatsTab::Trend;
+        assert_eq!(app.trend_metric, TrendMetric::Overall);
+        app.trend_cycle_metric();
+        assert_eq!(app.trend_metric, TrendMetric::Primary);
+        app.trend_cycle_metric();
+        assert_eq!(app.trend_metric, TrendMetric::Sidechain);
+        app.trend_cycle_metric();
+        assert_eq!(app.trend_metric, TrendMetric::Overall);
+    }
+
+    #[test]
+    fn trend_move_updates_table_selection() {
+        let mut app = make_app(ToolKind::Codex);
+        app.tab = StatsTab::Trend;
+
+        let sessions = vec![
+            make_session(
+                "t1",
+                chrono::Utc.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap(),
+            ),
+            make_session(
+                "t2",
+                chrono::Utc.with_ymd_and_hms(2026, 1, 10, 12, 0, 0).unwrap(),
+            ),
+        ];
+        let cache = app.build_cache(&sessions);
+        app.status = ScanStatus::Ready(Box::new(cache));
+        app.trend_table_state.select(Some(0));
+
+        app.trend_move(1);
+        assert_eq!(app.trend_table_state.selected(), Some(1));
+        app.trend_move(1);
+        assert_eq!(app.trend_table_state.selected(), Some(1));
+        app.trend_move(-1);
+        assert_eq!(app.trend_table_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn sessions_move_updates_table_selection() {
+        let mut app = make_app(ToolKind::Codex);
+        app.tab = StatsTab::Sessions;
+
+        let sessions = vec![
+            make_session(
+                "t1",
+                chrono::Utc.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap(),
+            ),
+            make_session(
+                "t2",
+                chrono::Utc.with_ymd_and_hms(2026, 1, 2, 12, 0, 0).unwrap(),
+            ),
+        ];
+        let cache = app.build_cache(&sessions);
+        app.status = ScanStatus::Ready(Box::new(cache));
+        app.sessions_table_state.select(Some(0));
+
+        app.sessions_move(1);
+        assert_eq!(app.sessions_table_state.selected(), Some(1));
+        app.sessions_move(1);
+        assert_eq!(app.sessions_table_state.selected(), Some(1));
+        app.sessions_move(-1);
+        assert_eq!(app.sessions_table_state.selected(), Some(0));
     }
 }

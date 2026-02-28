@@ -294,4 +294,3 @@ fn claude_code_stats_since_filters_by_end_ts() {
     assert_eq!(v["result"]["coverage"]["total_sessions"], 1);
     assert_eq!(v["result"]["totals"]["tokens_total_known"], 4);
 }
-

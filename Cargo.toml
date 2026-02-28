@@ -39,6 +39,7 @@ clap_complete = "4.5.65"
 inquire = { version = "0.9.3", features = ["editor"] }
 crossterm = "0.29.0"
 ratatui = "0.30.0"
+comfy-table = "7.2.2"
 thiserror = "2.0.18"
 rust-i18n = "3.1.5"
 serde = { version = "1.0.228", features = ["derive"] }

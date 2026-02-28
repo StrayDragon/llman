@@ -174,4 +174,3 @@ fn cursor_stats_session_json_by_id() {
     assert_eq!(v["result"]["session"]["token_usage"]["input"], 1);
     assert_eq!(v["result"]["session"]["token_usage"]["output"], 2);
 }
-
