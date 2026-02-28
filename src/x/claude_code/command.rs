@@ -7,6 +7,7 @@ use crate::x::claude_code::env_injection::{
 };
 use crate::x::claude_code::interactive;
 use crate::x::claude_code::security::{SecurityChecker, SecurityWarning};
+use crate::x::claude_code::stats::ClaudeCodeStatsArgs;
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
@@ -58,6 +59,8 @@ pub enum ClaudeCodeCommands {
         )]
         args: Vec<String>,
     },
+    /// View local usage statistics (tokens + time)
+    Stats(ClaudeCodeStatsArgs),
 }
 
 #[derive(Subcommand)]
@@ -129,6 +132,7 @@ pub fn run(args: &ClaudeCodeArgs) -> Result<()> {
         }) => {
             handle_run_command(*interactive, group.as_deref(), args.clone())?;
         }
+        Some(ClaudeCodeCommands::Stats(stats)) => crate::x::claude_code::stats::run_stats(stats)?,
         None => {
             handle_main_command()?;
         }

@@ -9,32 +9,32 @@ Phase 4 (TUI + polish + docs): 6.x + 7.x
 
 ## 1. Shared core (query/model/aggregation/render) — Phase 1
 
-- [ ] 1.1 Create `src/usage_stats/` core module skeleton and public interfaces (compiles; no tool wiring yet)
-- [ ] 1.2 Define core model types (`TokenUsage`, `SessionRecord`, `SessionId`, coverage fields) with serde support for JSON output
-- [ ] 1.3 Implement time range parsing: `--since/--until` (RFC3339 + `YYYY-MM-DD` local) and `--last <Nd>` (days only; mutually exclusive) + unit tests
-- [ ] 1.4 Implement v1 filtering: cwd exact-match + end_ts time filtering; ensure unknown token fields remain unknown (not coerced)
-- [ ] 1.5 Implement bucketing for `day|week|month` in local timezone, with Monday week start + unit tests for boundaries
-- [ ] 1.6 Implement view builders: `summary` (with coverage), `trend` (with per-bucket coverage), `sessions` (sorted), `session` (requires id in non-TUI)
-- [ ] 1.7 Implement renderers: `--format table|json`; JSON output must be stable and machine-readable + tests that parse JSON
-- [ ] 1.8 Implement path display shortening for table/TUI (repo-relative when possible else last-2-segments) + `--verbose` full paths + unit tests
+- [x] 1.1 Create `src/usage_stats/` core module skeleton and public interfaces (compiles; no tool wiring yet)
+- [x] 1.2 Define core model types (`TokenUsage`, `SessionRecord`, `SessionId`, coverage fields) with serde support for JSON output
+- [x] 1.3 Implement time range parsing: `--since/--until` (RFC3339 + `YYYY-MM-DD` local) and `--last <Nd>` (days only; mutually exclusive) + unit tests
+- [x] 1.4 Implement v1 filtering: cwd exact-match + end_ts time filtering; ensure unknown token fields remain unknown (not coerced)
+- [x] 1.5 Implement bucketing for `day|week|month` in local timezone, with Monday week start + unit tests for boundaries
+- [x] 1.6 Implement view builders: `summary` (with coverage), `trend` (with per-bucket coverage), `sessions` (sorted), `session` (requires id in non-TUI)
+- [x] 1.7 Implement renderers: `--format table|json`; JSON output must be stable and machine-readable + tests that parse JSON
+- [x] 1.8 Implement path display shortening for table/TUI (repo-relative when possible else last-2-segments) + `--verbose` full paths + unit tests
 
 ## 2. CLI wiring (commands/args) — Phase 1
 
-- [ ] 2.1 Add `stats` subcommand to `x codex`, `x claude-code` (`x cc`), `x cursor` with shared args: `--view`, `--group-by`, `--since/--until/--last`, `--format`, `--tui`, `--verbose`
-- [ ] 2.2 Implement view-specific CLI args: `--id` (required for `--view session` when not `--tui`), `--limit` for `--view sessions` (default 200; `0` = unlimited)
-- [ ] 2.3 Add tool-specific flags + path overrides:
+- [x] 2.1 Add `stats` subcommand to `x codex`, `x claude-code` (`x cc`), `x cursor` with shared args: `--view`, `--group-by`, `--since/--until/--last`, `--format`, `--tui`, `--verbose`
+- [x] 2.2 Implement view-specific CLI args: `--id` (required for `--view session` when not `--tui`), `--limit` for `--view sessions` (default 200; `0` = unlimited)
+- [x] 2.3 Add tool-specific flags + path overrides:
   - Codex: `--state-db <PATH>`, `--with-breakdown`
   - Claude: `--projects-dir <PATH>`, `--no-sidechain`
   - Cursor: `--db-path <PATH>`, `--global-db-path <PATH>`
-- [ ] 2.4 Add CLI-level integration tests for `--format json` (TempDir fixtures + `TestProcess` env isolation; never read real home state)
+- [x] 2.4 Add CLI-level integration tests for `--format json` (TempDir fixtures + `TestProcess` env isolation; never read real home state)
 
 ## 3. Codex source — Phase 1
 
-- [ ] 3.1 Implement Codex state DB discovery (`~/.codex/state_*.sqlite` choose highest) and `--state-db` override; open SQLite in read-only mode
-- [ ] 3.2 Map Codex `threads` rows to `SessionRecord` (stable id = `threads.id`; end_ts = `updated_at`; token total = `tokens_used`)
-- [ ] 3.3 Implement `--with-breakdown`: parse `rollout_path` JSONL to populate input/output/cache/reasoning when available; ignore malformed lines safely; never write back
-- [ ] 3.4 Add unit tests with minimal sqlite + rollout jsonl fixtures (cover: missing rollout_path, missing rate_limits, partial breakdown)
-- [ ] 3.5 Add Codex CLI JSON integration tests using fixture overrides (`--state-db`, optional breakdown)
+- [x] 3.1 Implement Codex state DB discovery (`~/.codex/state_*.sqlite` choose highest) and `--state-db` override; open SQLite in read-only mode
+- [x] 3.2 Map Codex `threads` rows to `SessionRecord` (stable id = `threads.id`; end_ts = `updated_at`; token total = `tokens_used`)
+- [x] 3.3 Implement `--with-breakdown`: parse `rollout_path` JSONL to populate input/output/cache/reasoning when available; ignore malformed lines safely; never write back
+- [x] 3.4 Add unit tests with minimal sqlite + rollout jsonl fixtures (cover: missing rollout_path, missing rate_limits, partial breakdown)
+- [x] 3.5 Add Codex CLI JSON integration tests using fixture overrides (`--state-db`, optional breakdown)
 
 ## 4. Claude Code source — Phase 2
 
@@ -54,10 +54,10 @@ Phase 4 (TUI + polish + docs): 6.x + 7.x
 
 ## 6. TUI (ratatui) — Phase 4
 
-- [ ] 6.1 Build shared stats TUI with tabs (Overview/Trend/Sessions/Session Detail) and a filter-form modal (All/7d/30d/90d presets; stateless across runs)
-- [ ] 6.2 Wire TUI to core view builders; implement “submit form → rerun query” flow; ensure `session` drilldown works without needing CLI `--id`
-- [ ] 6.3 Add progress reporting hooks for long scans; in particular show breakdown parsing progress for Codex `--with-breakdown`
-- [ ] 6.4 Add minimal TUI state tests (pure state transitions; no terminal snapshot dependencies)
+- [x] 6.1 Build shared stats TUI with tabs (Overview/Trend/Sessions/Session Detail) and a filter-form modal (All/7d/30d/90d presets; stateless across runs)
+- [x] 6.2 Wire TUI to core view builders; implement “submit form → rerun query” flow; ensure `session` drilldown works without needing CLI `--id`
+- [x] 6.3 Add progress reporting hooks for long scans; in particular show breakdown parsing progress for Codex `--with-breakdown`
+- [x] 6.4 Add minimal TUI state tests (pure state transitions; no terminal snapshot dependencies)
 
 ## 7. Docs, safety, and robustness — Phase 4
 
