@@ -3,6 +3,7 @@ use crate::x::cursor::database::CursorDatabase;
 use crate::x::cursor::models::{
     ConversationExport, ConversationKey, ConversationSummary, ConversationType,
 };
+use crate::x::cursor::stats::CursorStatsArgs;
 use anyhow::{Result, anyhow};
 use chrono::Utc;
 use clap::{Args, Subcommand};
@@ -26,6 +27,8 @@ pub struct CursorArgs {
 pub enum CursorCommands {
     /// Export conversations from Cursor
     Export(ExportArgs),
+    /// View local usage statistics (tokens + time)
+    Stats(CursorStatsArgs),
 }
 
 #[derive(Args)]
@@ -70,6 +73,7 @@ pub fn run(args: &CursorArgs) -> Result<()> {
                 export_non_interactive(export_args)
             }
         }
+        CursorCommands::Stats(stats) => crate::x::cursor::stats::run_stats(stats),
     }
 }
 

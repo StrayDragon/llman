@@ -18,6 +18,7 @@ pub mod sdd;
 pub mod self_command;
 pub mod skills;
 pub mod tool;
+pub mod usage_stats;
 pub mod x;
 
 #[cfg(test)]
