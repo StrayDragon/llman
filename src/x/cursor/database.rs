@@ -591,7 +591,7 @@ impl CursorDatabase {
     }
 
     /// 获取全局数据库路径
-    fn get_global_db_path() -> Result<PathBuf> {
+    pub fn get_global_db_path() -> Result<PathBuf> {
         let home_dir = crate::config::try_home_dir().ok_or_else(|| {
             crate::error::LlmanError::Custom(t!("cursor.database.home_dir_error").to_string())
         })?;

@@ -3,3 +3,4 @@ pub mod config;
 pub mod env_injection;
 pub mod interactive;
 pub mod security;
+pub mod stats;
