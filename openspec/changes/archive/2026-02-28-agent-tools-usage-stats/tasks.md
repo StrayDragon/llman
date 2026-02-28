@@ -38,19 +38,19 @@ Phase 4 (TUI + polish + docs): 6.x + 7.x
 
 ## 4. Claude Code source — Phase 2
 
-- [ ] 4.1 Implement Claude session discovery by scanning `--projects-dir` (default `~/.claude/projects`) for session JSONL; stable id = `sessionId`
-- [ ] 4.2 Aggregate per-session token usage from `message.usage.*`; treat missing usage as unknown; compute end_ts as max message timestamp
-- [ ] 4.3 Include sidechain sessions by default and surface them as separate `SessionRecord`s; implement `--no-sidechain` to exclude them
-- [ ] 4.4 Ensure summary/trend show primary vs sidechain vs overall known-only totals + coverage fields
-- [ ] 4.5 Add unit + CLI JSON integration tests using jsonl fixtures (primary + sidechain + missing usage + time filters)
+- [x] 4.1 Implement Claude session discovery by scanning `--projects-dir` (default `~/.claude/projects`) for session JSONL; stable id = `sessionId`
+- [x] 4.2 Aggregate per-session token usage from `message.usage.*`; treat missing usage as unknown; compute end_ts as max message timestamp
+- [x] 4.3 Include sidechain sessions by default and surface them as separate `SessionRecord`s; implement `--no-sidechain` to exclude them
+- [x] 4.4 Ensure summary/trend show primary vs sidechain vs overall known-only totals + coverage fields
+- [x] 4.5 Add unit + CLI JSON integration tests using jsonl fixtures (primary + sidechain + missing usage + time filters)
 
 ## 5. Cursor source — Phase 3
 
-- [ ] 5.1 Extend Cursor read layer to fetch bubble JSON from `cursorDiskKV` and parse `tokenCount` + `createdAt` (string RFC3339 or epoch ms); ignore unparseable bubbles for timestamps
-- [ ] 5.2 Define Cursor session mapping (v1): one session per composer conversation; stable id `composer:<id>`; compute start/end from bubble createdAt
-- [ ] 5.3 Implement `--db-path/--global-db-path` overrides without touching real user state; ensure all SQLite connections are read-only
-- [ ] 5.4 Add unit tests with minimal vscdb fixtures (include both createdAt formats; missing tokenCount; empty conversations)
-- [ ] 5.5 Add Cursor CLI JSON integration tests using fixture overrides
+- [x] 5.1 Extend Cursor read layer to fetch bubble JSON from `cursorDiskKV` and parse `tokenCount` + `createdAt` (string RFC3339 or epoch ms); ignore unparseable bubbles for timestamps
+- [x] 5.2 Define Cursor session mapping (v1): one session per composer conversation; stable id `composer:<id>`; compute start/end from bubble createdAt
+- [x] 5.3 Implement `--db-path/--global-db-path` overrides without touching real user state; ensure all SQLite connections are read-only
+- [x] 5.4 Add unit tests with minimal vscdb fixtures (include both createdAt formats; missing tokenCount; empty conversations)
+- [x] 5.5 Add Cursor CLI JSON integration tests using fixture overrides
 
 ## 6. TUI (ratatui) — Phase 4
 
@@ -61,6 +61,6 @@ Phase 4 (TUI + polish + docs): 6.x + 7.x
 
 ## 7. Docs, safety, and robustness — Phase 4
 
-- [ ] 7.1 Harden error handling (missing dirs/files, permission errors, malformed jsonl/sqlite records) with user-facing errors; never panic on bad data
-- [ ] 7.2 Ensure outputs never print secrets; keep all operations read-only; document read-only guarantees
-- [ ] 7.3 Document the new `stats` commands (examples for summary/trend/sessions/session; `--last`; `--with-breakdown`; path overrides; JSON output)
+- [x] 7.1 Harden error handling (missing dirs/files, permission errors, malformed jsonl/sqlite records) with user-facing errors; never panic on bad data
+- [x] 7.2 Ensure outputs never print secrets; keep all operations read-only; document read-only guarantees
+- [x] 7.3 Document the new `stats` commands (examples for summary/trend/sessions/session; `--last`; `--with-breakdown`; path overrides; JSON output)

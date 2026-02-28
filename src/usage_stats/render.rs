@@ -55,6 +55,14 @@ pub fn render_stats_table(output: &StatsJsonOutput, options: &RenderOptions) -> 
                 "Tokens (known-only): total={}",
                 view.totals.tokens_total_known
             );
+            if let Some(sidechain) = &view.sidechain_totals {
+                let _ = writeln!(out, "  primary={}", sidechain.primary.tokens_total_known);
+                let _ = writeln!(
+                    out,
+                    "  sidechain={}",
+                    sidechain.sidechain.tokens_total_known
+                );
+            }
             if let Some(v) = view.totals.tokens_input_known {
                 let _ = writeln!(out, "  input={v}");
             }
@@ -74,16 +82,49 @@ pub fn render_stats_table(output: &StatsJsonOutput, options: &RenderOptions) -> 
         StatsViewResult::Trend(view) => {
             let _ = writeln!(out, "View: trend");
             let _ = writeln!(out, "Group-by: {}", group_by_label(view.group_by));
-            let _ = writeln!(out, "bucket\tknown_tokens\tsessions(known/total)");
-            for bucket in &view.buckets {
+            let has_sidechain = view
+                .buckets
+                .iter()
+                .any(|bucket| bucket.sidechain_totals.is_some());
+            if has_sidechain {
                 let _ = writeln!(
                     out,
-                    "{}\t{}\t{}/{}",
-                    bucket.label,
-                    bucket.totals.tokens_total_known,
-                    bucket.coverage.known_token_sessions,
-                    bucket.coverage.total_sessions
+                    "bucket\toverall\tprimary\tsidechain\tsessions(known/total)"
                 );
+                for bucket in &view.buckets {
+                    let (primary, sidechain) = bucket
+                        .sidechain_totals
+                        .as_ref()
+                        .map(|totals| {
+                            (
+                                totals.primary.tokens_total_known.to_string(),
+                                totals.sidechain.tokens_total_known.to_string(),
+                            )
+                        })
+                        .unwrap_or_else(|| ("-".to_string(), "-".to_string()));
+                    let _ = writeln!(
+                        out,
+                        "{}\t{}\t{}\t{}\t{}/{}",
+                        bucket.label,
+                        bucket.totals.tokens_total_known,
+                        primary,
+                        sidechain,
+                        bucket.coverage.known_token_sessions,
+                        bucket.coverage.total_sessions
+                    );
+                }
+            } else {
+                let _ = writeln!(out, "bucket\tknown_tokens\tsessions(known/total)");
+                for bucket in &view.buckets {
+                    let _ = writeln!(
+                        out,
+                        "{}\t{}\t{}/{}",
+                        bucket.label,
+                        bucket.totals.tokens_total_known,
+                        bucket.coverage.known_token_sessions,
+                        bucket.coverage.total_sessions
+                    );
+                }
             }
         }
         StatsViewResult::Sessions(view) => {
@@ -93,7 +134,12 @@ pub fn render_stats_table(output: &StatsJsonOutput, options: &RenderOptions) -> 
                 "Sessions: returned={} total={}",
                 view.returned_sessions, view.total_sessions
             );
-            let _ = writeln!(out, "end\tknown_tokens\tid\tcwd\ttitle");
+            let is_claude = output.tool == ToolKind::ClaudeCode;
+            if is_claude {
+                let _ = writeln!(out, "end\tknown_tokens\tid\tsidechain\tcwd\ttitle");
+            } else {
+                let _ = writeln!(out, "end\tknown_tokens\tid\tcwd\ttitle");
+            }
             for session in &view.sessions {
                 let end = format_dt_local(session.end_ts);
                 let tokens = session
@@ -103,12 +149,26 @@ pub fn render_stats_table(output: &StatsJsonOutput, options: &RenderOptions) -> 
                     .unwrap_or_else(|| "-".to_string());
                 let cwd = display_path(&session.cwd, &output.query.cwd, options.verbose_paths);
                 let title = session.title.as_deref().unwrap_or("-");
-                let _ = writeln!(
-                    out,
-                    "{end}\t{tokens}\t{}\t{cwd}\t{}",
-                    session.id,
-                    truncate(title, 48)
-                );
+                if is_claude {
+                    let sidechain = match session.is_sidechain {
+                        Some(true) => "yes",
+                        Some(false) => "no",
+                        None => "-",
+                    };
+                    let _ = writeln!(
+                        out,
+                        "{end}\t{tokens}\t{}\t{sidechain}\t{cwd}\t{}",
+                        session.id,
+                        truncate(title, 48)
+                    );
+                } else {
+                    let _ = writeln!(
+                        out,
+                        "{end}\t{tokens}\t{}\t{cwd}\t{}",
+                        session.id,
+                        truncate(title, 48)
+                    );
+                }
             }
         }
         StatsViewResult::Session(view) => {
@@ -118,6 +178,11 @@ pub fn render_stats_table(output: &StatsJsonOutput, options: &RenderOptions) -> 
             let _ = writeln!(out, "End: {}", format_dt_local(session.end_ts));
             if let Some(start) = session.start_ts {
                 let _ = writeln!(out, "Start: {}", format_dt_local(start));
+            }
+            if output.tool == ToolKind::ClaudeCode {
+                if let Some(is_sidechain) = session.is_sidechain {
+                    let _ = writeln!(out, "Sidechain: {}", if is_sidechain { "yes" } else { "no" });
+                }
             }
             let cwd = display_path(&session.cwd, &output.query.cwd, options.verbose_paths);
             let _ = writeln!(out, "Cwd: {cwd}");
@@ -246,6 +311,7 @@ mod tests {
                     known_token_sessions: 1,
                 },
                 latest_end_ts: None,
+                sidechain_totals: None,
             }),
         };
 
