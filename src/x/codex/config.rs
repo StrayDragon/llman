@@ -1,6 +1,5 @@
 use crate::path_utils::safe_parent_for_creation;
 use anyhow::{Context, Result, anyhow};
-use directories::ProjectDirs;
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -66,12 +65,7 @@ impl Config {
     }
 
     pub fn config_file_path() -> Result<PathBuf> {
-        if let Ok(config_dir) = std::env::var("LLMAN_CONFIG_DIR") {
-            return Ok(PathBuf::from(config_dir).join("codex.toml"));
-        }
-        let project_dirs = ProjectDirs::from("com", "StrayDragon", "llman")
-            .ok_or_else(|| anyhow!(t!("codex.error.project_dir_not_found")))?;
-        Ok(project_dirs.config_dir().join("codex.toml"))
+        Ok(crate::config::resolve_config_dir(None)?.join("codex.toml"))
     }
 
     pub fn save(&self) -> Result<()> {
@@ -188,7 +182,7 @@ pub fn upsert_to_codex_config(provider_key: &str, provider: &ProviderConfig) -> 
 
 /// Get the path to `~/.codex/config.toml`.
 fn codex_config_path() -> Result<PathBuf> {
-    let home = dirs::home_dir().context(t!("codex.error.home_dir_failed"))?;
+    let home = crate::config::home_dir().context(t!("codex.error.home_dir_failed"))?;
     Ok(home.join(".codex").join("config.toml"))
 }
 

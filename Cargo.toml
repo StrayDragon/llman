@@ -36,7 +36,6 @@ clap = { version = "4.5.57", features = [
     "derive",
 ] }
 clap_complete = "4.5.65"
-directories = "6.0.0"
 inquire = { version = "0.9.3", features = ["editor"] }
 crossterm = "0.29.0"
 ratatui = "0.30.0"
@@ -48,7 +47,6 @@ toml = "0.9.11"
 minijinja = "2.16.0"
 diesel = { version = "2.3.6", features = ["sqlite", "chrono"] }
 chrono = { version = "0.4.43", features = ["serde"] }
-dirs = "6.0.0"
 glob = "0.3.3"
 ignore = "0.4.25"
 futures = "0.3.31"

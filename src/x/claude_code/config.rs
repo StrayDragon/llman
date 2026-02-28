@@ -1,6 +1,5 @@
 use crate::path_utils::safe_parent_for_creation;
-use anyhow::{Context, Result, anyhow};
-use directories::ProjectDirs;
+use anyhow::{Context, Result};
 use llm_json::{RepairOptions, loads};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
@@ -156,14 +155,7 @@ impl Config {
     }
 
     pub fn config_file_path() -> Result<PathBuf> {
-        // Check if LLMAN_CONFIG_DIR environment variable is set
-        if let Ok(config_dir) = std::env::var("LLMAN_CONFIG_DIR") {
-            return Ok(PathBuf::from(config_dir).join("claude-code.toml"));
-        }
-
-        let project_dirs = ProjectDirs::from("com", "StrayDragon", "llman")
-            .ok_or_else(|| anyhow!(t!("claude_code.config.project_dir_not_found")))?;
-        Ok(project_dirs.config_dir().join("claude-code.toml"))
+        Ok(crate::config::resolve_config_dir(None)?.join("claude-code.toml"))
     }
 
     pub fn save(&self) -> Result<()> {

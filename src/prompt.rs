@@ -397,8 +397,8 @@ impl PromptCommand {
 
     fn ensure_not_home_dir(&self) -> Result<()> {
         let current_dir = self.cwd()?;
-        if let Some(user_dir) = directories::UserDirs::new()
-            && current_dir == user_dir.home_dir().to_path_buf()
+        if let Some(home_dir) = crate::config::try_home_dir()
+            && current_dir == home_dir
         {
             return Err(anyhow!(t!("errors.home_directory_not_allowed")));
         }
@@ -436,7 +436,7 @@ impl PromptCommand {
         if let Ok(home) = env::var("CODEX_HOME") {
             return Ok(PathBuf::from(home));
         }
-        let home = dirs::home_dir().ok_or_else(|| anyhow!(t!("errors.home_dir_missing")))?;
+        let home = crate::config::home_dir()?;
         Ok(home.join(".codex"))
     }
 
@@ -447,7 +447,7 @@ impl PromptCommand {
         if let Ok(home) = env::var("CLAUDE_HOME") {
             return Ok(PathBuf::from(home));
         }
-        let home = dirs::home_dir().ok_or_else(|| anyhow!(t!("errors.home_dir_missing")))?;
+        let home = crate::config::home_dir()?;
         Ok(home.join(".claude"))
     }
 
