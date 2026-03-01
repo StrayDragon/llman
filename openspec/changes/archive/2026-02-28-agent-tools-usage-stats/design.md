@@ -166,7 +166,7 @@ CLI 提供：
 
 本节面向“用户侧操作”，描述 v1 `agent-tools-usage-stats` 的 CLI/TUI 体验预览与默认口径。
 
-> v1 范围限制：只统计“记录的 cwd == 当前工作目录”的数据（不支持 repo/all）。更广范围见 v2 change：`openspec/changes/agent-tools-usage-stats-v2/`。
+> v1 范围限制：只统计“记录的 cwd == 当前工作目录”的数据（不支持 repo/all）。更广范围能力尚未实现。
 >
 > Cursor v1 范围限制：仅统计 Composer sessions（传统 chat tabs 暂不覆盖，计划在 v2/后续补齐）。
 
