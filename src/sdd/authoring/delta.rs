@@ -3,7 +3,7 @@ use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::spec::ison_table::render_ison_fence;
 use crate::sdd::spec::ison_v1::{
-    CanonicalDelta, DeltaMeta, DeltaOpRow, ScenarioRow, DELTA_KIND, dump_delta_payload,
+    CanonicalDelta, DELTA_KIND, DeltaMeta, DeltaOpRow, ScenarioRow, dump_delta_payload,
     parse_delta_body,
 };
 use anyhow::{Result, anyhow};
@@ -116,7 +116,11 @@ pub fn run_add_op(root: &Path, args: DeltaAddOpArgs, style: TemplateStyle) -> Re
     Ok(())
 }
 
-pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs, style: TemplateStyle) -> Result<()> {
+pub fn run_add_scenario(
+    root: &Path,
+    args: DeltaAddScenarioArgs,
+    style: TemplateStyle,
+) -> Result<()> {
     ensure_new_style(style)?;
     validate_sdd_id(&args.change_id, "change")?;
     validate_sdd_id(&args.capability, "spec")?;
@@ -162,9 +166,11 @@ pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs, style: Template
         ));
     }
 
-    if delta.scenarios.iter().any(|row| {
-        row.req_id.trim() == req_id && row.id.trim() == args.scenario_id.trim()
-    }) {
+    if delta
+        .scenarios
+        .iter()
+        .any(|row| row.req_id.trim() == req_id && row.id.trim() == args.scenario_id.trim())
+    {
         return Err(anyhow!(
             "{context}: scenario already exists: (req_id, id) = (`{}`, `{}`)",
             args.req_id,
@@ -205,7 +211,12 @@ fn delta_path(root: &Path, change_id: &str, capability: &str) -> PathBuf {
         .join("spec.md")
 }
 
-fn build_op_row(context: &str, op: &str, req_id: &str, args: &DeltaAddOpArgs) -> Result<DeltaOpRow> {
+fn build_op_row(
+    context: &str,
+    op: &str,
+    req_id: &str,
+    args: &DeltaAddOpArgs,
+) -> Result<DeltaOpRow> {
     match op {
         "add_requirement" | "modify_requirement" => {
             let title = args

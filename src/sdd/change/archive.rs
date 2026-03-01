@@ -839,8 +839,8 @@ mod tests {
             target_exists: false,
         };
 
-        let result =
-            build_updated_spec(&update, "add-thing", TemplateStyle::Legacy, false).expect("build spec");
+        let result = build_updated_spec(&update, "add-thing", TemplateStyle::Legacy, false)
+            .expect("build spec");
         assert!(result.0.contains("\"kind\": \"llman.sdd.spec\""));
         assert!(result.0.contains("\"title\": \"New capability\""));
         assert!(result.0.contains("System MUST support the new capability."));
