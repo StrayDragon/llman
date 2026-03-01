@@ -52,7 +52,6 @@ Alternatives considered:
 Inside the ` ```ison ` payload for `llmanspec/specs/<capability>/spec.md`, define canonical blocks:
 
 - `object.spec` (exactly 1 row; fields: `kind name purpose`)
-  - Optional legacy compatibility: a `version` column MAY be present, but new-style authoring SHOULD omit it.
 - `table.requirements` (fields: `req_id title statement`)
 - `table.scenarios` (fields: `req_id id given when then`)
 
@@ -61,7 +60,6 @@ Block names MUST be strictly fixed to the identifiers above (no aliases), becaus
 Validation contract:
 - `kind` MUST be `llman.sdd.spec`
 - `name` MUST match `<capability>` in strict mode
-- Optional legacy compatibility: if `object.spec.version` is present, it MUST be `"1.0.0"` (v1)
 - each requirement MUST have ≥1 scenario row
 - `(req_id, id)` MUST be unique in scenarios
 - `given` MAY be an empty string (`""`)
@@ -160,7 +158,6 @@ existing baseline "" "run sample" "behavior is preserved"
 Inside the ` ```ison ` payload for `llmanspec/changes/<change>/specs/<capability>/spec.md`, define canonical blocks:
 
 - `object.delta` (exactly 1 row; fields: `kind`, kind = `llman.sdd.delta`)
-  - Optional legacy compatibility: a `version` column MAY be present, but new-style authoring SHOULD omit it.
 - `table.ops` (fixed fields to keep dumps stable):
   - `op req_id title statement from to name`
   - unused fields MUST be `~` (null)
@@ -173,7 +170,6 @@ Frontmatter policy:
 
 Validation contract:
 - `kind` MUST be `llman.sdd.delta`
-- Optional legacy compatibility: if `object.delta.version` is present, it MUST be `"1.0.0"` (v1)
 - `op` must be one of: `add_requirement`, `modify_requirement`, `remove_requirement`, `rename_requirement` (case-insensitive)
 - add/modify MUST provide `req_id/title/statement` and may have scenarios via `table.op_scenarios`
 - remove MUST provide `req_id` and may provide `name` (optional)
@@ -351,14 +347,13 @@ Rollback strategy:
 - Users can temporarily use `llman sdd-legacy` if table ISON parsing has unexpected edge cases.
 - Deterministic dumps ensure users do not experience churn when rewriting or editing table/object ISON payloads.
 
-### 8) Delta specs omit YAML frontmatter (v1)
+### 8) Delta specs omit YAML frontmatter
 - Delta spec skeleton generation MUST omit YAML frontmatter.
 
-### 9) Main spec CRUD is included in v1
+### 9) Main spec CRUD is included
 - The first iteration MUST include main spec authoring helpers (`spec add-requirement` and `spec add-scenario`) in addition to delta CRUD.
 
-### 10) Schema evolution is conservative (no author-facing version)
-- New-style authoring omits a schema `version` field; llman treats the canonical table/object ISON schema as the implicit v1 contract.
-- Optional legacy compatibility: `object.spec.version` / `object.delta.version` MAY appear, but if present it MUST be `"1.0.0"`.
+### 10) Schema evolution is explicit (no author-facing schema marker)
+- Specs/deltas MUST NOT carry a schema marker field.
 - Unknown canonical block names, missing blocks, or unexpected columns are errors.
-- Any schema evolution that changes required blocks/columns MUST be handled explicitly in `llman sdd` + templates (for example by introducing new blocks/columns and updating validators), rather than relying on a user-authored version field.
+- Any schema evolution that changes required blocks/columns MUST be handled explicitly in `llman sdd` + templates (for example by introducing new blocks/columns and updating validators), rather than relying on a user-authored schema marker.

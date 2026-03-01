@@ -1,17 +1,15 @@
 use crate::sdd::spec::ison_table::{
-    dumps_canonical, expect_fields, expect_fields_any_of, extract_all_ison_fences,
-    get_optional_string, get_required_string, parse_and_merge_fences,
+    dumps_canonical, expect_fields, extract_all_ison_fences, get_optional_string,
+    get_required_string, parse_and_merge_fences,
 };
 use anyhow::{Result, anyhow};
 use ison_rs::{Block, Document, FieldInfo, Row, Value};
 
-pub const V1_VERSION: &str = "1.0.0";
 pub const SPEC_KIND: &str = "llman.sdd.spec";
 pub const DELTA_KIND: &str = "llman.sdd.delta";
 
 #[derive(Debug, Clone)]
 pub struct SpecMeta {
-    pub version: String,
     pub kind: String,
     pub name: String,
     pub purpose: String,
@@ -42,7 +40,6 @@ pub struct CanonicalSpec {
 
 #[derive(Debug, Clone)]
 pub struct DeltaMeta {
-    pub version: String,
     pub kind: String,
 }
 
@@ -92,14 +89,7 @@ Use `llman sdd-legacy ...` or rewrite to canonical table/object ISON blocks.",
     let meta_block = merged
         .get("object", "spec")
         .ok_or_else(|| anyhow!("{context}: missing required block `object.spec`"))?;
-    expect_fields_any_of(
-        meta_block,
-        &[
-            &["version", "kind", "name", "purpose"][..],
-            &["kind", "name", "purpose"][..],
-        ],
-        context,
-    )?;
+    expect_fields(meta_block, &["kind", "name", "purpose"], context)?;
     if meta_block.rows.len() != 1 {
         return Err(anyhow!(
             "{context}: `object.spec` must have exactly 1 row, got {}",
@@ -107,10 +97,6 @@ Use `llman sdd-legacy ...` or rewrite to canonical table/object ISON blocks.",
         ));
     }
     let meta_row = &meta_block.rows[0];
-    let version = get_optional_string(meta_row, "version", context)?
-        .map(|v| v.trim().to_string())
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| V1_VERSION.to_string());
     let kind = get_required_string(meta_row, "kind", context, false)?
         .trim()
         .to_string();
@@ -121,13 +107,6 @@ Use `llman sdd-legacy ...` or rewrite to canonical table/object ISON blocks.",
         .trim()
         .to_string();
 
-    if version != V1_VERSION {
-        return Err(anyhow!(
-            "{context}: spec version must be `{}`, got `{}`",
-            V1_VERSION,
-            version
-        ));
-    }
     if kind != SPEC_KIND {
         return Err(anyhow!(
             "{context}: spec kind must be `{}`, got `{}`",
@@ -222,7 +201,6 @@ Use `llman sdd-legacy ...` or rewrite to canonical table/object ISON blocks.",
 
     Ok(CanonicalSpec {
         meta: SpecMeta {
-            version,
             kind,
             name,
             purpose,
@@ -260,11 +238,7 @@ Use `llman sdd-legacy ...` or rewrite to canonical table/object ISON blocks.",
     let meta_block = merged
         .get("object", "delta")
         .ok_or_else(|| anyhow!("{context}: missing required block `object.delta`"))?;
-    expect_fields_any_of(
-        meta_block,
-        &[&["version", "kind"][..], &["kind"][..]],
-        context,
-    )?;
+    expect_fields(meta_block, &["kind"], context)?;
     if meta_block.rows.len() != 1 {
         return Err(anyhow!(
             "{context}: `object.delta` must have exactly 1 row, got {}",
@@ -272,20 +246,9 @@ Use `llman sdd-legacy ...` or rewrite to canonical table/object ISON blocks.",
         ));
     }
     let meta_row = &meta_block.rows[0];
-    let version = get_optional_string(meta_row, "version", context)?
-        .map(|v| v.trim().to_string())
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| V1_VERSION.to_string());
     let kind = get_required_string(meta_row, "kind", context, false)?
         .trim()
         .to_string();
-    if version != V1_VERSION {
-        return Err(anyhow!(
-            "{context}: delta version must be `{}`, got `{}`",
-            V1_VERSION,
-            version
-        ));
-    }
     if kind != DELTA_KIND {
         return Err(anyhow!(
             "{context}: delta kind must be `{}`, got `{}`",
@@ -368,7 +331,7 @@ Use `llman sdd-legacy ...` or rewrite to canonical table/object ISON blocks.",
     }
 
     Ok(CanonicalDelta {
-        meta: DeltaMeta { version, kind },
+        meta: DeltaMeta { kind },
         ops,
         scenarios,
     })
