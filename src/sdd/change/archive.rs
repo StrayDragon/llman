@@ -1,4 +1,5 @@
 use crate::sdd::change::delta::{RequirementBlock, normalize_requirement_name, parse_delta_spec};
+use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::spec::ison::{
@@ -176,7 +177,12 @@ fn prepare_updates(
 }
 
 fn validate_rebuilt_spec(update: &SpecUpdate, content: &str, root: &Path) -> Result<()> {
-    let validation = validate_spec_content_with_frontmatter(&update.target, content, true);
+    let validation = validate_spec_content_with_frontmatter(
+        &update.target,
+        content,
+        TemplateStyle::Legacy,
+        true,
+    );
     let mut issues = validation.report.issues;
 
     if let Some(frontmatter) = validation.frontmatter.as_ref() {
@@ -224,7 +230,11 @@ fn format_issues(issues: &[ValidationIssue]) -> String {
 
 fn build_updated_spec(update: &SpecUpdate, change_name: &str) -> Result<(String, ApplyCounts)> {
     let change_content = fs::read_to_string(&update.source)?;
-    let plan = parse_delta_spec(&change_content)?;
+    let plan = parse_delta_spec(
+        &change_content,
+        TemplateStyle::Legacy,
+        &format!("delta spec `{}`", update.capability),
+    )?;
 
     let delta_count =
         plan.added.len() + plan.modified.len() + plan.removed.len() + plan.renamed.len();

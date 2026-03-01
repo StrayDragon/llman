@@ -97,7 +97,7 @@ struct AbStyleReport {
 }
 
 pub fn run(args: ValidateArgs) -> Result<()> {
-    let _style = args.style;
+    let style = args.style;
     let root = Path::new(".");
     if args.ab_report {
         run_ab_report(root, args.json, args.compact_json)?;
@@ -113,6 +113,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
             root,
             do_changes,
             do_specs,
+            style,
             args.strict,
             args.json,
             args.compact_json,
@@ -122,7 +123,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
 
     if args.item.is_none() {
         if interactive {
-            run_interactive_selector(root, args.strict, args.json, args.compact_json)?;
+            run_interactive_selector(root, style, args.strict, args.json, args.compact_json)?;
             return Ok(());
         }
         print_non_interactive_hint();
@@ -134,6 +135,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
         root,
         item,
         type_override,
+        style,
         args.strict,
         args.json,
         args.compact_json,
@@ -319,6 +321,7 @@ fn normalize_type(value: Option<&str>) -> Option<ItemType> {
 
 fn run_interactive_selector(
     root: &Path,
+    style: TemplateStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -335,15 +338,15 @@ fn run_interactive_selector(
     .prompt()?;
 
     if choice == t!("sdd.validate.option_all") {
-        run_bulk_validation(root, true, true, strict, json, compact_json)?;
+        run_bulk_validation(root, true, true, style, strict, json, compact_json)?;
         return Ok(());
     }
     if choice == t!("sdd.validate.option_changes") {
-        run_bulk_validation(root, true, false, strict, json, compact_json)?;
+        run_bulk_validation(root, true, false, style, strict, json, compact_json)?;
         return Ok(());
     }
     if choice == t!("sdd.validate.option_specs") {
-        run_bulk_validation(root, false, true, strict, json, compact_json)?;
+        run_bulk_validation(root, false, true, style, strict, json, compact_json)?;
         return Ok(());
     }
 
@@ -358,7 +361,7 @@ fn run_interactive_selector(
     }
     let picked = Select::new(&t!("sdd.validate.pick_item"), items).prompt()?;
     let (item_type, id) = parse_prefixed_item(&picked)?;
-    validate_by_type(root, item_type, &id, strict, json, compact_json)
+    validate_by_type(root, item_type, &id, style, strict, json, compact_json)
 }
 
 fn parse_prefixed_item(value: &str) -> Result<(ItemType, String)> {
@@ -377,6 +380,7 @@ fn validate_direct(
     root: &Path,
     item: &str,
     type_override: Option<ItemType>,
+    style: TemplateStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -443,6 +447,7 @@ fn validate_direct(
         root,
         resolved_type.expect("resolved type"),
         item,
+        style,
         strict,
         json,
         compact_json,
@@ -453,6 +458,7 @@ fn validate_by_type(
     root: &Path,
     item_type: ItemType,
     id: &str,
+    style: TemplateStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -462,7 +468,7 @@ fn validate_by_type(
         ItemType::Change => {
             validate_sdd_id(id, "change")?;
             let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(id);
-            let report = validate_change_delta_specs(&change_dir, strict);
+            let report = validate_change_delta_specs(&change_dir, style, strict);
             (report, StalenessInfo::not_applicable())
         }
         ItemType::Spec => {
@@ -475,7 +481,7 @@ fn validate_by_type(
             match fs::read_to_string(&spec_path) {
                 Ok(content) => {
                     let validation =
-                        validate_spec_content_with_frontmatter(&spec_path, &content, strict);
+                        validate_spec_content_with_frontmatter(&spec_path, &content, style, strict);
                     let staleness =
                         evaluate_staleness(root, id, &spec_path, validation.frontmatter.as_ref());
                     let mut issues = validation.report.issues.clone();
@@ -633,6 +639,7 @@ fn run_bulk_validation(
     root: &Path,
     validate_changes: bool,
     validate_specs: bool,
+    style: TemplateStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -654,6 +661,7 @@ fn run_bulk_validation(
         validate_sdd_id(&id, "change")?;
         let report = validate_change_delta_specs(
             &root.join(LLMANSPEC_DIR_NAME).join("changes").join(&id),
+            style,
             strict,
         );
         items.push(ValidationItem {
@@ -674,10 +682,10 @@ fn run_bulk_validation(
             .join("specs")
             .join(&id)
             .join("spec.md");
-        match fs::read_to_string(&spec_path) {
-            Ok(content) => {
-                let validation =
-                    validate_spec_content_with_frontmatter(&spec_path, &content, strict);
+            match fs::read_to_string(&spec_path) {
+                Ok(content) => {
+                    let validation =
+                        validate_spec_content_with_frontmatter(&spec_path, &content, style, strict);
                 let staleness = staleness_evaluator
                     .as_ref()
                     .expect("staleness evaluator")

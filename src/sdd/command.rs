@@ -266,6 +266,7 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
             sort: sort.clone(),
             json: *json,
             compact_json: *compact_json,
+            style,
         }),
         SddCommands::Show {
             item,

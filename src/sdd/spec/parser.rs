@@ -1,5 +1,9 @@
 use crate::sdd::change::delta::{DeltaPlan, RequirementBlock, parse_delta_spec};
+use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::spec::ison::{parse_ison_document, split_frontmatter};
+use crate::sdd::spec::ison_table::{
+    expect_fields, extract_all_ison_fences, get_required_string, parse_and_merge_fences,
+};
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -95,7 +99,14 @@ struct RawScenario {
     text: String,
 }
 
-pub fn parse_spec(content: &str, name: &str) -> Result<Spec> {
+pub fn parse_spec(content: &str, name: &str, style: TemplateStyle) -> Result<Spec> {
+    match style {
+        TemplateStyle::Legacy => parse_spec_legacy_json(content, name),
+        TemplateStyle::New => parse_spec_table_object(content, name),
+    }
+}
+
+fn parse_spec_legacy_json(content: &str, name: &str) -> Result<Spec> {
     let (_, body) = split_frontmatter(content);
     let raw: RawSpecDocument = parse_ison_document(&body, "spec")?;
 
@@ -134,13 +145,196 @@ pub fn parse_spec(content: &str, name: &str) -> Result<Spec> {
     })
 }
 
-pub fn parse_change(content: &str, name: &str, change_dir: &Path) -> Result<Change> {
+fn parse_spec_table_object(content: &str, name: &str) -> Result<Spec> {
+    let context = format!("spec `{}`", name);
+    let (_, body) = split_frontmatter(content);
+    let fences = extract_all_ison_fences(&body, &context)?;
+
+    for fence in &fences {
+        let trimmed = fence.payload.trim_start();
+        if trimmed.starts_with('{') || trimmed.starts_with('[') {
+            return Err(anyhow!(
+                "{context}: legacy JSON detected in ```ison payload at line {}. \
+`llman sdd` only supports canonical table/object ISON; try `llman sdd-legacy ...` or rewrite the payload to `object.spec` + `table.requirements` + `table.scenarios`.",
+                fence.start_line
+            ));
+        }
+    }
+
+    let merged = parse_and_merge_fences(&fences, &context)?;
+    let allowed_blocks = ["object.spec", "table.requirements", "table.scenarios"];
+    for key in merged.blocks().keys() {
+        if !allowed_blocks.contains(&key.as_str()) {
+            return Err(anyhow!(
+                "{context}: unknown canonical block `{}` (expected: {})",
+                key,
+                allowed_blocks.join(", ")
+            ));
+        }
+    }
+
+    let meta = merged
+        .get("object", "spec")
+        .ok_or_else(|| anyhow!("{context}: missing required block `object.spec`"))?;
+    expect_fields(meta, &["version", "kind", "name", "purpose"], &context)?;
+    if meta.rows.len() != 1 {
+        return Err(anyhow!(
+            "{context}: `object.spec` must have exactly 1 row, got {}",
+            meta.rows.len()
+        ));
+    }
+    let meta_row = &meta.rows[0];
+    let version = get_required_string(meta_row, "version", &context, false)?
+        .trim()
+        .to_string();
+    let kind = get_required_string(meta_row, "kind", &context, false)?
+        .trim()
+        .to_string();
+    let feature_id = get_required_string(meta_row, "name", &context, false)?
+        .trim()
+        .to_string();
+    let purpose = get_required_string(meta_row, "purpose", &context, false)?
+        .trim()
+        .to_string();
+
+    if kind != "llman.sdd.spec" {
+        return Err(anyhow!(
+            "{context}: spec kind must be `llman.sdd.spec`, got `{}`",
+            kind
+        ));
+    }
+
+    let requirements_block = merged
+        .get("table", "requirements")
+        .ok_or_else(|| anyhow!("{context}: missing required block `table.requirements`"))?;
+    expect_fields(
+        requirements_block,
+        &["req_id", "title", "statement"],
+        &context,
+    )?;
+
+    let mut req_id_order: Vec<String> = Vec::new();
+    let mut req_id_seen = std::collections::HashSet::new();
+    let mut req_statement_by_id: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    for (idx, row) in requirements_block.rows.iter().enumerate() {
+        let row_ctx = format!("{context}: table.requirements row {}", idx + 1);
+        let req_id = get_required_string(row, "req_id", &row_ctx, false)?
+            .trim()
+            .to_string();
+        let statement = get_required_string(row, "statement", &row_ctx, false)?
+            .trim()
+            .to_string();
+        if !req_id_seen.insert(req_id.clone()) {
+            return Err(anyhow!(
+                "{context}: duplicate requirement `req_id` `{}`",
+                req_id
+            ));
+        }
+        req_id_order.push(req_id.clone());
+        req_statement_by_id.insert(req_id, statement);
+    }
+
+    let scenarios_block = merged
+        .get("table", "scenarios")
+        .ok_or_else(|| anyhow!("{context}: missing required block `table.scenarios`"))?;
+    expect_fields(
+        scenarios_block,
+        &["req_id", "id", "given", "when", "then"],
+        &context,
+    )?;
+
+    let mut scenario_seen = std::collections::HashSet::new();
+    let mut scenarios_by_req: std::collections::HashMap<String, Vec<Scenario>> =
+        std::collections::HashMap::new();
+    for (idx, row) in scenarios_block.rows.iter().enumerate() {
+        let row_ctx = format!("{context}: table.scenarios row {}", idx + 1);
+        let req_id = get_required_string(row, "req_id", &row_ctx, false)?
+            .trim()
+            .to_string();
+        if !req_id_seen.contains(&req_id) {
+            return Err(anyhow!(
+                "{context}: scenario references unknown requirement `req_id` `{}`",
+                req_id
+            ));
+        }
+        let scenario_id = get_required_string(row, "id", &row_ctx, false)?
+            .trim()
+            .to_string();
+        let key = format!("{}::{}", req_id, scenario_id);
+        if !scenario_seen.insert(key) {
+            return Err(anyhow!(
+                "{context}: duplicate scenario `(req_id, id)` = (`{}`, `{}`)",
+                req_id,
+                scenario_id
+            ));
+        }
+
+        let given = get_required_string(row, "given", &row_ctx, true)?
+            .trim()
+            .to_string();
+        let when = get_required_string(row, "when", &row_ctx, false)?
+            .trim()
+            .to_string();
+        let then = get_required_string(row, "then", &row_ctx, false)?
+            .trim()
+            .to_string();
+
+        let raw_text = if given.is_empty() {
+            format!("WHEN: {when}\nTHEN: {then}")
+        } else {
+            format!("GIVEN: {given}\nWHEN: {when}\nTHEN: {then}")
+        };
+
+        scenarios_by_req
+            .entry(req_id)
+            .or_default()
+            .push(Scenario { raw_text });
+    }
+
+    let requirements = req_id_order
+        .into_iter()
+        .map(|req_id| Requirement {
+            text: req_statement_by_id
+                .remove(&req_id)
+                .unwrap_or_default()
+                .trim()
+                .to_string(),
+            scenarios: scenarios_by_req.remove(&req_id).unwrap_or_default(),
+        })
+        .collect();
+
+    Ok(Spec {
+        name: if feature_id.is_empty() {
+            name.to_string()
+        } else {
+            feature_id
+        },
+        overview: purpose,
+        requirements,
+        metadata: SpecMetadata {
+            version: if version.is_empty() {
+                "1.0.0".to_string()
+            } else {
+                version
+            },
+            format: "llman-sdd-ison".to_string(),
+        },
+    })
+}
+
+pub fn parse_change(
+    content: &str,
+    name: &str,
+    change_dir: &Path,
+    style: TemplateStyle,
+) -> Result<Change> {
     let why =
         extract_section(content, "Why").ok_or_else(|| anyhow!("Change must have a Why section"))?;
     let what_changes = extract_section(content, "What Changes")
         .ok_or_else(|| anyhow!("Change must have a What Changes section"))?;
 
-    let deltas = parse_change_deltas(&what_changes, change_dir)?;
+    let deltas = parse_change_deltas(&what_changes, change_dir, style)?;
 
     Ok(Change {
         name: name.to_string(),
@@ -154,15 +348,19 @@ pub fn parse_change(content: &str, name: &str, change_dir: &Path) -> Result<Chan
     })
 }
 
-fn parse_change_deltas(what_changes: &str, change_dir: &Path) -> Result<Vec<Delta>> {
-    let spec_deltas = parse_delta_specs(change_dir)?;
+fn parse_change_deltas(
+    what_changes: &str,
+    change_dir: &Path,
+    style: TemplateStyle,
+) -> Result<Vec<Delta>> {
+    let spec_deltas = parse_delta_specs(change_dir, style)?;
     if !spec_deltas.is_empty() {
         return Ok(spec_deltas);
     }
     Ok(parse_simple_deltas(what_changes))
 }
 
-pub fn parse_delta_specs(change_dir: &Path) -> Result<Vec<Delta>> {
+pub fn parse_delta_specs(change_dir: &Path, style: TemplateStyle) -> Result<Vec<Delta>> {
     let mut deltas = Vec::new();
     let specs_dir = change_dir.join("specs");
     if !specs_dir.exists() {
@@ -180,7 +378,7 @@ pub fn parse_delta_specs(change_dir: &Path) -> Result<Vec<Delta>> {
             continue;
         }
         let content = std::fs::read_to_string(spec_file)?;
-        let plan = parse_delta_spec(&content)?;
+        let plan = parse_delta_spec(&content, style, &format!("delta spec `{}`", spec_name))?;
         deltas.extend(convert_plan_to_deltas(&spec_name, &plan));
     }
 
