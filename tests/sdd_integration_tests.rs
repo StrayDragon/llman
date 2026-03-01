@@ -130,8 +130,8 @@ llman_spec_evidence:
 
 ```ison
 object.spec
-version kind name purpose
-"1.0.0" "llman.sdd.spec" sample "Describe sample behavior."
+kind name purpose
+"llman.sdd.spec" sample "Describe sample behavior."
 
 table.requirements
 req_id title statement
@@ -161,8 +161,8 @@ Need a sample change.
     .expect("write tasks");
     let delta_spec = r#"```ison
 object.delta
-version kind
-"1.0.0" "llman.sdd.delta"
+kind
+"llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name
@@ -306,8 +306,8 @@ fn test_sdd_show_change_json_uses_delta_specs() {
     .expect("write proposal");
     let delta_spec = r#"```ison
 object.delta
-version kind
-"1.0.0" "llman.sdd.delta"
+kind
+"llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name
@@ -357,8 +357,8 @@ fn test_sdd_validate_change_json_succeeds() {
     .expect("write proposal");
     let delta_spec = r#"```ison
 object.delta
-version kind
-"1.0.0" "llman.sdd.delta"
+kind
+"llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name
@@ -959,8 +959,8 @@ fn test_sdd_validate_change_without_future_md_still_succeeds() {
     fs::write(change_dir.join("tasks.md"), "## 1. Tasks\n- [ ] 1.1 Do\n").expect("write tasks");
     let delta_spec = r#"```ison
 object.delta
-version kind
-"1.0.0" "llman.sdd.delta"
+kind
+"llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name

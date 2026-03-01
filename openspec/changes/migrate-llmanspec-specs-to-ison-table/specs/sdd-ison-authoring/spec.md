@@ -4,13 +4,14 @@
 `llmanspec/specs/<capability>/spec.md` MUST embed canonical semantic content using table/object ISON inside one or more fenced ` ```ison ` code blocks.
 
 The ISON payload MUST provide these blocks with strictly fixed names and columns:
-- `object.spec` (exactly 1 row): `version kind name purpose`
+- `object.spec` (exactly 1 row): `kind name purpose`
+  - Optional legacy compatibility: a `version` column MAY be present, but new-style authoring SHOULD omit it.
 - `table.requirements`: `req_id title statement`
 - `table.scenarios`: `req_id id given when then`
 
 Validation MUST enforce:
-- `object.spec.version` equals `"1.0.0"` (v1)
 - `object.spec.kind` equals `llman.sdd.spec`
+- Optional legacy compatibility: if `object.spec.version` is present, it MUST equal `"1.0.0"` (v1)
 - in strict mode: `object.spec.name` equals `<capability>`
 - every requirement has at least one scenario row
 - `(req_id, id)` is unique across scenarios
@@ -41,8 +42,8 @@ llman_spec_valid_commands:
 
 ```ison
 object.spec
-version kind name purpose
-"1.0.0" "llman.sdd.spec" sample "Describe sample behavior."
+kind name purpose
+"llman.sdd.spec" sample "Describe sample behavior."
 ```
 
 ```ison
@@ -61,8 +62,8 @@ existing baseline "" "run sample" "behavior is preserved"
 
 ```ison
 object.delta
-version kind
-"1.0.0" "llman.sdd.delta"
+kind
+"llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name
@@ -86,13 +87,14 @@ existing updated_1 "" "run sample" "behavior is preserved\nand no errors are rep
 `llmanspec/changes/<change-id>/specs/<capability>/spec.md` MUST embed delta semantics using table/object ISON inside one or more fenced ` ```ison ` code blocks.
 
 The ISON payload MUST provide these blocks with strictly fixed names and columns:
-- `object.delta` (exactly 1 row): `version kind` (kind = `llman.sdd.delta`)
+- `object.delta` (exactly 1 row): `kind` (kind = `llman.sdd.delta`)
+  - Optional legacy compatibility: a `version` column MAY be present, but new-style authoring SHOULD omit it.
 - `table.ops`: `op req_id title statement from to name`
 - `table.op_scenarios`: `req_id id given when then`
 
 Validation MUST enforce:
-- `object.delta.version` equals `"1.0.0"` (v1)
 - `object.delta.kind` equals `llman.sdd.delta`
+- Optional legacy compatibility: if `object.delta.version` is present, it MUST equal `"1.0.0"` (v1)
 
 Unused fields in `table.ops` MUST be represented as `~` (null).
 

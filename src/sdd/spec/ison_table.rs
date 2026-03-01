@@ -416,8 +416,8 @@ mod tests {
 ## A
 ```ison
 object.spec
-version kind name purpose
-"1.0.0" "llman.sdd.spec" sample "x"
+kind name purpose
+"llman.sdd.spec" sample "x"
 ```
 
 ## B

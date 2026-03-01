@@ -51,16 +51,17 @@ Alternatives considered:
 ### 3) Canonical block schema for main specs
 Inside the ` ```ison ` payload for `llmanspec/specs/<capability>/spec.md`, define canonical blocks:
 
-- `object.spec` (exactly 1 row; fields: `version kind name purpose`)
+- `object.spec` (exactly 1 row; fields: `kind name purpose`)
+  - Optional legacy compatibility: a `version` column MAY be present, but new-style authoring SHOULD omit it.
 - `table.requirements` (fields: `req_id title statement`)
 - `table.scenarios` (fields: `req_id id given when then`)
 
 Block names MUST be strictly fixed to the identifiers above (no aliases), because they are part of the normative authoring/CRUD contract.
 
 Validation contract:
-- `version` MUST be `"1.0.0"` (v1)
 - `kind` MUST be `llman.sdd.spec`
 - `name` MUST match `<capability>` in strict mode
+- Optional legacy compatibility: if `object.spec.version` is present, it MUST be `"1.0.0"` (v1)
 - each requirement MUST have ≥1 scenario row
 - `(req_id, id)` MUST be unique in scenarios
 - `given` MAY be an empty string (`""`)
@@ -69,7 +70,7 @@ Validation contract:
 
 Value encoding (normative, `ison-rs` compatible):
 - `given`, `when`, and `then` are string values. When quoting is required (spaces, punctuation, escapes), they MUST use **double quotes** (`"..."`).
-- Canonical llman write paths SHOULD follow `ison-rs` quoting rules for all string fields (notably: strings containing `.` will be quoted, so `version` and `kind` values are typically written as `"1.0.0"` / `"llman.sdd.spec"`).
+- Canonical llman write paths SHOULD follow `ison-rs` quoting rules for all string fields (notably: strings containing `.` will be quoted, so `kind` values are typically written as `"llman.sdd.spec"`).
 - Newlines (when needed) MUST be represented using `\n` escapes (no multi-line string syntaxes).
 - Writers MUST emit null values as `~` (and MUST NOT emit `null`) to keep dumps deterministic.
   - Note: `ison-rs` accepts both `~` and `null`, but its serializer emits `null`; llman write paths MUST normalize emitted null tokens to `~` for consistency and token efficiency.
@@ -89,8 +90,8 @@ Minimal example (main spec canonical blocks; these may be split across multiple 
 
 ```ison
 object.spec
-version kind name purpose
-"1.0.0" "llman.sdd.spec" sample "Describe sample behavior."
+kind name purpose
+"llman.sdd.spec" sample "Describe sample behavior."
 ```
 
 ```ison
@@ -111,8 +112,8 @@ More examples (main specs):
 
 ```ison
 object.spec
-version kind name purpose
-"1.0.0" "llman.sdd.spec" auth "Authentication behavior."
+kind name purpose
+"llman.sdd.spec" auth "Authentication behavior."
 ```
 
 ```ison
@@ -136,8 +137,8 @@ lockout after_3 "user exists: alice" "user fails login 3 times" "account is lock
 ## Meta
 ```ison
 object.spec
-version kind name purpose
-"1.0.0" "llman.sdd.spec" sample "Describe sample behavior."
+kind name purpose
+"llman.sdd.spec" sample "Describe sample behavior."
 ```
 
 ## Requirements
@@ -158,7 +159,8 @@ existing baseline "" "run sample" "behavior is preserved"
 ### 4) Canonical block schema for delta specs (ops + op_scenarios)
 Inside the ` ```ison ` payload for `llmanspec/changes/<change>/specs/<capability>/spec.md`, define canonical blocks:
 
-- `object.delta` (exactly 1 row; fields: `version kind`, kind = `llman.sdd.delta`)
+- `object.delta` (exactly 1 row; fields: `kind`, kind = `llman.sdd.delta`)
+  - Optional legacy compatibility: a `version` column MAY be present, but new-style authoring SHOULD omit it.
 - `table.ops` (fixed fields to keep dumps stable):
   - `op req_id title statement from to name`
   - unused fields MUST be `~` (null)
@@ -170,8 +172,8 @@ Frontmatter policy:
 - Newly generated delta spec skeletons MUST omit YAML frontmatter.
 
 Validation contract:
-- `version` MUST be `"1.0.0"` (v1)
 - `kind` MUST be `llman.sdd.delta`
+- Optional legacy compatibility: if `object.delta.version` is present, it MUST be `"1.0.0"` (v1)
 - `op` must be one of: `add_requirement`, `modify_requirement`, `remove_requirement`, `rename_requirement` (case-insensitive)
 - add/modify MUST provide `req_id/title/statement` and may have scenarios via `table.op_scenarios`
 - remove MUST provide `req_id` and may provide `name` (optional)
@@ -188,8 +190,8 @@ Minimal example (delta spec canonical blocks):
 
 ```ison
 object.delta
-version kind
-"1.0.0" "llman.sdd.delta"
+kind
+"llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name
@@ -206,8 +208,8 @@ More examples (delta specs):
 
 ```ison
 object.delta
-version kind
-"1.0.0" "llman.sdd.delta"
+kind
+"llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name
@@ -228,8 +230,8 @@ existing baseline "" "run sample" "behavior is preserved\nand no errors are repo
 ## Ops
 ```ison
 object.delta
-version kind
-"1.0.0" "llman.sdd.delta"
+kind
+"llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name
@@ -355,7 +357,8 @@ Rollback strategy:
 ### 9) Main spec CRUD is included in v1
 - The first iteration MUST include main spec authoring helpers (`spec add-requirement` and `spec add-scenario`) in addition to delta CRUD.
 
-### 10) Schema evolution is major-versioned
-- v1 requires `"1.0.0"` for both `object.spec.version` and `object.delta.version`.
-- Unknown canonical block names, missing blocks, or unexpected columns are errors in v1.
-- Any schema evolution that changes blocks/columns MUST bump the major version and update `llman sdd` accordingly (v1 does not attempt forward compatibility).
+### 10) Schema evolution is conservative (no author-facing version)
+- New-style authoring omits a schema `version` field; llman treats the canonical table/object ISON schema as the implicit v1 contract.
+- Optional legacy compatibility: `object.spec.version` / `object.delta.version` MAY appear, but if present it MUST be `"1.0.0"`.
+- Unknown canonical block names, missing blocks, or unexpected columns are errors.
+- Any schema evolution that changes required blocks/columns MUST be handled explicitly in `llman sdd` + templates (for example by introducing new blocks/columns and updating validators), rather than relying on a user-authored version field.
