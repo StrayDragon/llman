@@ -354,10 +354,7 @@ fn parse_delta_spec_table_object(content: &str, context: &str) -> Result<DeltaPl
             format!("GIVEN: {given}\nWHEN: {when}\nTHEN: {then}")
         };
 
-        let scenario = ScenarioBlock {
-            scenario_id,
-            text,
-        };
+        let scenario = ScenarioBlock { scenario_id, text };
 
         if let Some(target) = added.iter_mut().find(|b| b.req_id == req_id) {
             target.scenarios.push(scenario);

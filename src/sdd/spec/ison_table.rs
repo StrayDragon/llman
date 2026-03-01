@@ -90,7 +90,18 @@ pub fn parse_and_merge_fences(fences: &[IsonFence], context: &str) -> Result<Mer
     let mut merged = MergedIsonDocument::default();
 
     for (idx, fence) in fences.iter().enumerate() {
-        let doc = parse_ison_document(&fence.payload).map_err(|err| {
+        // NOTE: ison-rs v1.0.1 has a buggy "new block" heuristic: it ends a block when a line
+        // starts with an alphabetic character and contains any '.' anywhere on the line, even if
+        // the '.' is inside a quoted string value. This breaks the canonical table/object ISON
+        // examples where statements/purpose end with '.'.
+        //
+        // Work around it by quoting the first token of any data row line that:
+        // - starts with an alphabetic character, and
+        // - contains a '.' somewhere on the line, and
+        // - is not itself a block header line (kind.name).
+        let payload = workaround_ison_rs_block_boundary_heuristic(&fence.payload);
+
+        let doc = parse_ison_document(&payload).map_err(|err| {
             anyhow!(
                 "{context}: failed to parse ISON payload (block #{}) starting at line {}: {}",
                 idx + 1,
@@ -114,13 +125,208 @@ pub fn parse_and_merge_fences(fences: &[IsonFence], context: &str) -> Result<Mer
     Ok(merged)
 }
 
+fn workaround_ison_rs_block_boundary_heuristic(payload: &str) -> String {
+    payload
+        .lines()
+        .map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                return line.to_string();
+            }
+            if trimmed.starts_with('#') {
+                return line.to_string();
+            }
+            if is_block_header_line(trimmed) {
+                return line.to_string();
+            }
+
+            let starts_alpha = trimmed
+                .chars()
+                .next()
+                .map(|c| c.is_alphabetic())
+                .unwrap_or(false);
+            if !starts_alpha || !trimmed.contains('.') {
+                return line.to_string();
+            }
+
+            quote_first_token(trimmed)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn is_block_header_line(line: &str) -> bool {
+    if line.contains(' ') || line.contains('\t') {
+        return false;
+    }
+    let Some(dot_index) = line.find('.') else {
+        return false;
+    };
+    let kind = &line[..dot_index];
+    let name = &line[dot_index + 1..];
+    if kind.is_empty() || name.is_empty() {
+        return false;
+    }
+    if !kind.chars().next().is_some_and(|c| c.is_alphabetic()) {
+        return false;
+    }
+    kind.chars()
+        .chain(name.chars())
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+}
+
+fn quote_first_token(line: &str) -> String {
+    let token_end = line
+        .find(|c: char| [' ', '\t'].contains(&c))
+        .unwrap_or(line.len());
+    let (first, rest) = line.split_at(token_end);
+    if first.starts_with('"') {
+        return line.to_string();
+    }
+    format!("\"{first}\"{rest}")
+}
+
 pub fn dumps_canonical(doc: &Document, align_columns: bool) -> String {
-    let dumped = ison_rs::dumps(doc, align_columns);
-    normalize_null_tokens(&dumped)
+    dump_document(doc, align_columns)
 }
 
 pub fn render_ison_fence(payload: &str) -> String {
     format!("```ison\n{}\n```\n", payload.trim_end())
+}
+
+fn dump_document(doc: &Document, align_columns: bool) -> String {
+    let mut rendered_blocks = Vec::new();
+    for block in &doc.blocks {
+        rendered_blocks.push(dump_block(block, align_columns));
+    }
+    rendered_blocks.join("\n\n").trim_end().to_string()
+}
+
+fn dump_block(block: &Block, align_columns: bool) -> String {
+    let mut lines = Vec::new();
+    lines.push(format!("{}.{}", block.kind, block.name));
+    lines.push(block.fields.join(" "));
+
+    let rows = block
+        .rows
+        .iter()
+        .map(|row| dump_row(row, &block.fields))
+        .collect::<Vec<_>>();
+    let summary_rows = block
+        .summary_rows
+        .iter()
+        .map(|row| dump_row(row, &block.fields))
+        .collect::<Vec<_>>();
+
+    if !align_columns {
+        for row in rows {
+            lines.push(row.join(" "));
+        }
+        if !summary_rows.is_empty() {
+            lines.push("---".to_string());
+            for row in summary_rows {
+                lines.push(row.join(" "));
+            }
+        }
+        return lines.join("\n").trim_end().to_string();
+    }
+
+    let widths = calculate_column_widths(&block.fields, &rows, &summary_rows);
+    for row in rows {
+        lines.push(pad_row(&row, &widths));
+    }
+    if !summary_rows.is_empty() {
+        lines.push("---".to_string());
+        for row in summary_rows {
+            lines.push(pad_row(&row, &widths));
+        }
+    }
+
+    lines.join("\n").trim_end().to_string()
+}
+
+fn dump_row(row: &Row, fields: &[String]) -> Vec<String> {
+    fields
+        .iter()
+        .map(|field| {
+            let value = row.get(field).unwrap_or(&Value::Null);
+            dump_value(value)
+        })
+        .collect()
+}
+
+fn dump_value(value: &Value) -> String {
+    match value {
+        Value::Null => "~".to_string(),
+        Value::Bool(value) => value.to_string(),
+        Value::Int(value) => value.to_string(),
+        Value::Float(value) => value.to_string(),
+        Value::Reference(reference) => reference.to_ison(),
+        Value::String(value) => dump_string(value),
+    }
+}
+
+fn dump_string(value: &str) -> String {
+    let needs_quotes = value.is_empty()
+        || value.contains(' ')
+        || value.contains('\t')
+        || value.contains('\n')
+        || value.contains('\r')
+        || value.contains('"')
+        || value.contains('\\')
+        || value.contains('.') // Avoid confusion with block headers (kind.name)
+        || value == "true"
+        || value == "false"
+        || value == "null"
+        || value.starts_with(':')
+        || value == "~"
+        || value.parse::<f64>().is_ok();
+
+    if !needs_quotes {
+        return value.to_string();
+    }
+
+    let escaped = value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\t', "\\t")
+        .replace('\r', "\\r");
+    format!("\"{escaped}\"")
+}
+
+fn calculate_column_widths(
+    fields: &[String],
+    rows: &[Vec<String>],
+    summary_rows: &[Vec<String>],
+) -> Vec<usize> {
+    let mut widths = fields.iter().map(|f| f.len()).collect::<Vec<_>>();
+    for row in rows.iter().chain(summary_rows.iter()) {
+        for (idx, value) in row.iter().enumerate() {
+            if idx >= widths.len() {
+                continue;
+            }
+            widths[idx] = widths[idx].max(value.len());
+        }
+    }
+    widths
+}
+
+fn pad_row(row: &[String], widths: &[usize]) -> String {
+    let mut out = String::new();
+    for (idx, value) in row.iter().enumerate() {
+        if idx > 0 {
+            out.push(' ');
+        }
+        out.push_str(value);
+        if idx < row.len().saturating_sub(1) {
+            let width = widths.get(idx).copied().unwrap_or(value.len());
+            if value.len() < width {
+                out.extend(std::iter::repeat_n(' ', width - value.len()));
+            }
+        }
+    }
+    out.trim_end().to_string()
 }
 
 pub fn normalize_newlines(input: &str) -> String {
@@ -180,57 +386,6 @@ fn format_ison_error(err: &ISONError) -> String {
     err.to_string()
 }
 
-fn normalize_null_tokens(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-
-    let bytes = input.as_bytes();
-    let mut i = 0usize;
-    let mut in_string = false;
-    let mut escape = false;
-
-    while i < bytes.len() {
-        let ch = bytes[i] as char;
-
-        if in_string {
-            out.push(ch);
-            if escape {
-                escape = false;
-            } else if ch == '\\' {
-                escape = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-            i += 1;
-            continue;
-        }
-
-        if ch == '"' {
-            in_string = true;
-            out.push(ch);
-            i += 1;
-            continue;
-        }
-
-        if input[i..].starts_with("null") {
-            let prev_is_boundary = i == 0 || (bytes[i - 1] as char).is_whitespace();
-            let next_i = i + 4;
-            let next_is_boundary =
-                next_i >= bytes.len() || (bytes[next_i] as char).is_whitespace();
-
-            if prev_is_boundary && next_is_boundary {
-                out.push('~');
-                i += 4;
-                continue;
-            }
-        }
-
-        out.push(ch);
-        i += 1;
-    }
-
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -260,20 +415,32 @@ foo "Foo" "System MUST foo."
     }
 
     #[test]
-    fn dumps_canonical_normalizes_null_to_tilde() {
-        let doc = ison_rs::parse(
-            "table.ops\nop req_id name\nadd_requirement a null\n",
-        )
-        .expect("parse");
-        let dumped = dumps_canonical(&doc, false);
-        assert_eq!(dumped, "table.ops\nop req_id name\nadd_requirement a ~");
+    fn parse_and_merge_fences_allows_dots_inside_quoted_strings() {
+        let content = r#"
+```ison
+table.requirements
+req_id title statement
+existing "Existing behavior" "System MUST preserve existing behavior."
+```
+"#;
+
+        let fences = extract_all_ison_fences(content, "spec").expect("fences");
+        let merged = parse_and_merge_fences(&fences, "spec").expect("merged");
+        let block = merged
+            .get("table", "requirements")
+            .expect("table.requirements");
+        assert_eq!(block.rows.len(), 1);
+        assert_eq!(
+            block.rows[0].get("req_id"),
+            Some(&Value::String("existing".to_string()))
+        );
     }
 
     #[test]
-    fn normalize_null_tokens_does_not_touch_strings() {
-        let dumped = "table.ops\nop req_id name\nadd_requirement a \"null\"\n";
-        let normalized = normalize_null_tokens(dumped);
-        assert_eq!(normalized, dumped);
+    fn dumps_canonical_normalizes_null_to_tilde() {
+        let doc =
+            ison_rs::parse("table.ops\nop req_id name\nadd_requirement a null\n").expect("parse");
+        let dumped = dumps_canonical(&doc, false);
+        assert_eq!(dumped, "table.ops\nop req_id name\nadd_requirement a ~");
     }
 }
-

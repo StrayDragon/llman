@@ -385,7 +385,10 @@ fn build_updated_spec_legacy_json(
     Ok((rebuilt, counts))
 }
 
-fn build_updated_spec_table_object(update: &SpecUpdate, change_name: &str) -> Result<(String, ApplyCounts)> {
+fn build_updated_spec_table_object(
+    update: &SpecUpdate,
+    change_name: &str,
+) -> Result<(String, ApplyCounts)> {
     let delta_content = fs::read_to_string(&update.source)?;
     let delta = ison_v1::parse_delta_body(
         &delta_content,
@@ -437,7 +440,10 @@ fn build_updated_spec_table_object(update: &SpecUpdate, change_name: &str) -> Re
 
     let mut scenarios_by_req: HashMap<String, Vec<ison_v1::ScenarioRow>> = HashMap::new();
     for row in delta.scenarios {
-        scenarios_by_req.entry(row.req_id.clone()).or_default().push(row);
+        scenarios_by_req
+            .entry(row.req_id.clone())
+            .or_default()
+            .push(row);
     }
 
     let mut add_or_modify_ids = std::collections::HashSet::new();
@@ -468,16 +474,19 @@ fn build_updated_spec_table_object(update: &SpecUpdate, change_name: &str) -> Re
             .position(|row| row.req_id == req_id)
             .unwrap_or(scenarios.len());
         scenarios.retain(|row| row.req_id != req_id);
-        scenarios.splice(insert_pos..insert_pos, new_rows.into_iter());
+        scenarios.splice(insert_pos..insert_pos, new_rows);
     }
 
     for op in delta.ops {
         match op.op.as_str() {
             "add_requirement" => {
                 counts.added += 1;
-                let title = op.title.ok_or_else(|| anyhow!("add_requirement missing title"))?;
-                let statement =
-                    op.statement.ok_or_else(|| anyhow!("add_requirement missing statement"))?;
+                let title = op
+                    .title
+                    .ok_or_else(|| anyhow!("add_requirement missing title"))?;
+                let statement = op
+                    .statement
+                    .ok_or_else(|| anyhow!("add_requirement missing statement"))?;
 
                 if spec_doc
                     .requirements
@@ -509,9 +518,12 @@ fn build_updated_spec_table_object(update: &SpecUpdate, change_name: &str) -> Re
             }
             "modify_requirement" => {
                 counts.modified += 1;
-                let title = op.title.ok_or_else(|| anyhow!("modify_requirement missing title"))?;
-                let statement =
-                    op.statement.ok_or_else(|| anyhow!("modify_requirement missing statement"))?;
+                let title = op
+                    .title
+                    .ok_or_else(|| anyhow!("modify_requirement missing title"))?;
+                let statement = op
+                    .statement
+                    .ok_or_else(|| anyhow!("modify_requirement missing statement"))?;
 
                 let Some(req) = spec_doc
                     .requirements
@@ -553,10 +565,18 @@ fn build_updated_spec_table_object(update: &SpecUpdate, change_name: &str) -> Re
             }
             "rename_requirement" => {
                 counts.renamed += 1;
-                let from = op.from.ok_or_else(|| anyhow!("rename_requirement missing from"))?;
-                let to = op.to.ok_or_else(|| anyhow!("rename_requirement missing to"))?;
+                let from = op
+                    .from
+                    .ok_or_else(|| anyhow!("rename_requirement missing from"))?;
+                let to = op
+                    .to
+                    .ok_or_else(|| anyhow!("rename_requirement missing to"))?;
 
-                if spec_doc.requirements.iter().any(|r| r.title.trim() == to.trim()) {
+                if spec_doc
+                    .requirements
+                    .iter()
+                    .any(|r| r.title.trim() == to.trim())
+                {
                     return Err(anyhow!(t!(
                         "sdd.archive.rename_exists",
                         spec = update.capability,
@@ -564,17 +584,17 @@ fn build_updated_spec_table_object(update: &SpecUpdate, change_name: &str) -> Re
                     )));
                 }
 
-                let current_title = match spec_doc.requirements.iter().find(|r| r.req_id == op.req_id)
-                {
-                    Some(req) => req.title.clone(),
-                    None => {
-                        return Err(anyhow!(t!(
-                            "sdd.archive.rename_missing",
-                            spec = update.capability,
-                            name = op.req_id
-                        )));
-                    }
-                };
+                let current_title =
+                    match spec_doc.requirements.iter().find(|r| r.req_id == op.req_id) {
+                        Some(req) => req.title.clone(),
+                        None => {
+                            return Err(anyhow!(t!(
+                                "sdd.archive.rename_missing",
+                                spec = update.capability,
+                                name = op.req_id
+                            )));
+                        }
+                    };
 
                 if !from.trim().is_empty() && current_title.trim() != from.trim() {
                     return Err(anyhow!(
@@ -610,7 +630,11 @@ fn build_updated_spec_table_object(update: &SpecUpdate, change_name: &str) -> Re
     }
 
     if !scenarios_by_req.is_empty() {
-        let keys = scenarios_by_req.keys().cloned().collect::<Vec<_>>().join(", ");
+        let keys = scenarios_by_req
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", ");
         return Err(anyhow!(
             "delta spec `{}`: found op scenarios without matching add/modify ops: {}",
             update.capability,
@@ -929,6 +953,7 @@ llman_spec_evidence:
             skip_specs: true,
             dry_run: true,
             force: false,
+            style: TemplateStyle::New,
         };
         let result = run_with_root(dir.path(), args);
         assert!(result.is_err());

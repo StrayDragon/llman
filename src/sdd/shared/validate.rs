@@ -682,10 +682,10 @@ fn run_bulk_validation(
             .join("specs")
             .join(&id)
             .join("spec.md");
-            match fs::read_to_string(&spec_path) {
-                Ok(content) => {
-                    let validation =
-                        validate_spec_content_with_frontmatter(&spec_path, &content, style, strict);
+        match fs::read_to_string(&spec_path) {
+            Ok(content) => {
+                let validation =
+                    validate_spec_content_with_frontmatter(&spec_path, &content, style, strict);
                 let staleness = staleness_evaluator
                     .as_ref()
                     .expect("staleness evaluator")

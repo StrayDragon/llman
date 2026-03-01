@@ -365,7 +365,8 @@ pub fn dump_spec_payload(spec: &CanonicalSpec, align_columns: bool) -> String {
     let mut doc = Document::new();
     doc.blocks.push(block_object_spec(spec));
     doc.blocks.push(block_requirements(&spec.requirements));
-    doc.blocks.push(block_scenarios("scenarios", &spec.scenarios));
+    doc.blocks
+        .push(block_scenarios("scenarios", &spec.scenarios));
     dumps_canonical(&doc, align_columns)
 }
 
@@ -388,10 +389,16 @@ fn block_with_fields(kind: &str, name: &str, fields: &[&str]) -> Block {
 fn block_object_spec(spec: &CanonicalSpec) -> Block {
     let mut block = block_with_fields("object", "spec", &["version", "kind", "name", "purpose"]);
     let mut row = Row::new();
-    row.insert("version".to_string(), Value::String(spec.meta.version.clone()));
+    row.insert(
+        "version".to_string(),
+        Value::String(spec.meta.version.clone()),
+    );
     row.insert("kind".to_string(), Value::String(spec.meta.kind.clone()));
     row.insert("name".to_string(), Value::String(spec.meta.name.clone()));
-    row.insert("purpose".to_string(), Value::String(spec.meta.purpose.clone()));
+    row.insert(
+        "purpose".to_string(),
+        Value::String(spec.meta.purpose.clone()),
+    );
     block.rows.push(row);
     block
 }
@@ -399,7 +406,10 @@ fn block_object_spec(spec: &CanonicalSpec) -> Block {
 fn block_object_delta(delta: &CanonicalDelta) -> Block {
     let mut block = block_with_fields("object", "delta", &["version", "kind"]);
     let mut row = Row::new();
-    row.insert("version".to_string(), Value::String(delta.meta.version.clone()));
+    row.insert(
+        "version".to_string(),
+        Value::String(delta.meta.version.clone()),
+    );
     row.insert("kind".to_string(), Value::String(delta.meta.kind.clone()));
     block.rows.push(row);
     block
@@ -411,7 +421,10 @@ fn block_requirements(requirements: &[RequirementRow]) -> Block {
         let mut row = Row::new();
         row.insert("req_id".to_string(), Value::String(req.req_id.clone()));
         row.insert("title".to_string(), Value::String(req.title.clone()));
-        row.insert("statement".to_string(), Value::String(req.statement.clone()));
+        row.insert(
+            "statement".to_string(),
+            Value::String(req.statement.clone()),
+        );
         block.rows.push(row);
     }
     block
@@ -421,15 +434,9 @@ fn block_scenarios(name: &str, scenarios: &[ScenarioRow]) -> Block {
     let mut block = block_with_fields("table", name, &["req_id", "id", "given", "when", "then"]);
     for scenario in scenarios {
         let mut row = Row::new();
-        row.insert(
-            "req_id".to_string(),
-            Value::String(scenario.req_id.clone()),
-        );
+        row.insert("req_id".to_string(), Value::String(scenario.req_id.clone()));
         row.insert("id".to_string(), Value::String(scenario.id.clone()));
-        row.insert(
-            "given".to_string(),
-            Value::String(scenario.given.clone()),
-        );
+        row.insert("given".to_string(), Value::String(scenario.given.clone()));
         row.insert("when".to_string(), Value::String(scenario.when.clone()));
         row.insert("then".to_string(), Value::String(scenario.then.clone()));
         block.rows.push(row);
@@ -486,4 +493,3 @@ fn block_ops(ops: &[DeltaOpRow]) -> Block {
     }
     block
 }
-
