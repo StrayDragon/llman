@@ -2,7 +2,7 @@ use crate::agents::command::AgentsArgs;
 use crate::config::{ENV_CONFIG_DIR, resolve_config_dir_with};
 use crate::config_schema::ensure_global_sample_config;
 use crate::prompt::PromptCommand;
-use crate::sdd::command::SddArgs;
+use crate::sdd::command::{SddArgs, SddLegacyArgs};
 use crate::self_command::SelfArgs;
 use crate::skills::cli::command::SkillsArgs;
 use crate::skills::cli::interactive::is_interactive;
@@ -50,7 +50,7 @@ pub enum Commands {
     /// Spec-driven development workflow
     Sdd(SddArgs),
     /// Legacy SDD workflow (JSON-in-` ```ison `)
-    SddLegacy(SddArgs),
+    SddLegacy(SddLegacyArgs),
     /// Experimental commands
     X(XArgs),
     /// Developer tools

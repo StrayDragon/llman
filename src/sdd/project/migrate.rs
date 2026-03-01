@@ -236,7 +236,6 @@ fn migrate_main_spec(path: &Path, content: &str) -> Result<Option<String>> {
         .to_string();
 
     let payload = json!({
-        "version": "1.0.0",
         "kind": "llman.sdd.spec",
         "name": name,
         "purpose": purpose,
@@ -305,7 +304,6 @@ fn migrate_delta_spec(path: &Path, content: &str) -> Result<Option<String>> {
     }
 
     let payload = json!({
-        "version": "1.0.0",
         "kind": "llman.sdd.delta",
         "ops": ops,
     });

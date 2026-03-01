@@ -23,6 +23,7 @@ pub struct ArchiveArgs {
     pub change: Option<String>,
     pub skip_specs: bool,
     pub dry_run: bool,
+    pub pretty_ison: bool,
     pub force: bool,
     pub style: TemplateStyle,
 }
@@ -44,7 +45,6 @@ struct SpecUpdate {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ArchiveSpecDocument {
-    version: String,
     kind: String,
     name: String,
     purpose: String,
@@ -89,8 +89,14 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
         let validate_specs = !args.force;
         let updates = find_spec_updates(&change_dir, root)?;
         if !updates.is_empty() {
-            let prepared =
-                prepare_updates(&updates, change_name, root, validate_specs, args.style)?;
+            let prepared = prepare_updates(
+                &updates,
+                change_name,
+                root,
+                validate_specs,
+                args.style,
+                args.pretty_ison,
+            )?;
             if args.dry_run {
                 print_dry_run_specs(&prepared);
             } else {
@@ -169,10 +175,11 @@ fn prepare_updates(
     root: &Path,
     validate_specs: bool,
     style: TemplateStyle,
+    pretty_ison: bool,
 ) -> Result<Vec<(SpecUpdate, String, ApplyCounts)>> {
     let mut prepared = Vec::new();
     for update in updates {
-        let built = build_updated_spec(update, change_name, style)?;
+        let built = build_updated_spec(update, change_name, style, pretty_ison)?;
         if validate_specs {
             validate_rebuilt_spec(update, &built.0, root, style)?;
         }
@@ -237,10 +244,11 @@ fn build_updated_spec(
     update: &SpecUpdate,
     change_name: &str,
     style: TemplateStyle,
+    pretty_ison: bool,
 ) -> Result<(String, ApplyCounts)> {
     match style {
         TemplateStyle::Legacy => build_updated_spec_legacy_json(update, change_name),
-        TemplateStyle::New => build_updated_spec_table_object(update, change_name),
+        TemplateStyle::New => build_updated_spec_table_object(update, change_name, pretty_ison),
     }
 }
 
@@ -388,6 +396,7 @@ fn build_updated_spec_legacy_json(
 fn build_updated_spec_table_object(
     update: &SpecUpdate,
     change_name: &str,
+    pretty_ison: bool,
 ) -> Result<(String, ApplyCounts)> {
     let delta_content = fs::read_to_string(&update.source)?;
     let delta = ison_v1::parse_delta_body(
@@ -641,7 +650,7 @@ fn build_updated_spec_table_object(
         ));
     }
 
-    let payload = ison_v1::dump_spec_payload(&spec_doc, false);
+    let payload = ison_v1::dump_spec_payload(&spec_doc, pretty_ison);
     let body = render_ison_fence(&payload);
     let rebuilt = compose_with_frontmatter(frontmatter_yaml.as_deref(), &body);
     Ok((rebuilt, counts))
@@ -665,7 +674,6 @@ fn archive_requirement_from_block(block: &RequirementBlock) -> ArchiveRequiremen
 
 fn build_spec_skeleton(spec_name: &str, change_name: &str) -> ArchiveSpecDocument {
     ArchiveSpecDocument {
-        version: "1.0.0".to_string(),
         kind: "llman.sdd.spec".to_string(),
         name: spec_name.to_string(),
         purpose: format!(
@@ -832,7 +840,7 @@ mod tests {
         };
 
         let result =
-            build_updated_spec(&update, "add-thing", TemplateStyle::Legacy).expect("build spec");
+            build_updated_spec(&update, "add-thing", TemplateStyle::Legacy, false).expect("build spec");
         assert!(result.0.contains("\"kind\": \"llman.sdd.spec\""));
         assert!(result.0.contains("\"title\": \"New capability\""));
         assert!(result.0.contains("System MUST support the new capability."));
@@ -868,7 +876,7 @@ mod tests {
             target_exists: false,
         };
 
-        let result = build_updated_spec(&update, "remove-thing", TemplateStyle::Legacy);
+        let result = build_updated_spec(&update, "remove-thing", TemplateStyle::Legacy, false);
         assert!(result.is_err());
     }
 
@@ -940,7 +948,7 @@ llman_spec_evidence:
             target_exists: true,
         };
 
-        let result = build_updated_spec(&update, "update-thing", TemplateStyle::Legacy);
+        let result = build_updated_spec(&update, "update-thing", TemplateStyle::Legacy, false);
         assert!(result.is_err());
     }
 
@@ -951,6 +959,7 @@ llman_spec_evidence:
             change: Some("../oops".to_string()),
             skip_specs: true,
             dry_run: true,
+            pretty_ison: false,
             force: false,
             style: TemplateStyle::New,
         };
