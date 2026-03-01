@@ -5,6 +5,8 @@ use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::spec::ison::{
     compose_with_frontmatter, parse_ison_document, render_ison_code_block, split_frontmatter,
 };
+use crate::sdd::spec::ison_table::render_ison_fence;
+use crate::sdd::spec::ison_v1;
 use crate::sdd::spec::staleness::evaluate_staleness_with_override;
 use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, validate_spec_content_with_frontmatter,
@@ -22,6 +24,7 @@ pub struct ArchiveArgs {
     pub skip_specs: bool,
     pub dry_run: bool,
     pub force: bool,
+    pub style: TemplateStyle,
 }
 
 #[derive(Default)]
@@ -86,7 +89,8 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
         let validate_specs = !args.force;
         let updates = find_spec_updates(&change_dir, root)?;
         if !updates.is_empty() {
-            let prepared = prepare_updates(&updates, change_name, root, validate_specs)?;
+            let prepared =
+                prepare_updates(&updates, change_name, root, validate_specs, args.style)?;
             if args.dry_run {
                 print_dry_run_specs(&prepared);
             } else {
@@ -164,25 +168,26 @@ fn prepare_updates(
     change_name: &str,
     root: &Path,
     validate_specs: bool,
+    style: TemplateStyle,
 ) -> Result<Vec<(SpecUpdate, String, ApplyCounts)>> {
     let mut prepared = Vec::new();
     for update in updates {
-        let built = build_updated_spec(update, change_name)?;
+        let built = build_updated_spec(update, change_name, style)?;
         if validate_specs {
-            validate_rebuilt_spec(update, &built.0, root)?;
+            validate_rebuilt_spec(update, &built.0, root, style)?;
         }
         prepared.push((clone_update(update), built.0, built.1));
     }
     Ok(prepared)
 }
 
-fn validate_rebuilt_spec(update: &SpecUpdate, content: &str, root: &Path) -> Result<()> {
-    let validation = validate_spec_content_with_frontmatter(
-        &update.target,
-        content,
-        TemplateStyle::Legacy,
-        true,
-    );
+fn validate_rebuilt_spec(
+    update: &SpecUpdate,
+    content: &str,
+    root: &Path,
+    style: TemplateStyle,
+) -> Result<()> {
+    let validation = validate_spec_content_with_frontmatter(&update.target, content, style, true);
     let mut issues = validation.report.issues;
 
     if let Some(frontmatter) = validation.frontmatter.as_ref() {
@@ -228,7 +233,21 @@ fn format_issues(issues: &[ValidationIssue]) -> String {
         .join("; ")
 }
 
-fn build_updated_spec(update: &SpecUpdate, change_name: &str) -> Result<(String, ApplyCounts)> {
+fn build_updated_spec(
+    update: &SpecUpdate,
+    change_name: &str,
+    style: TemplateStyle,
+) -> Result<(String, ApplyCounts)> {
+    match style {
+        TemplateStyle::Legacy => build_updated_spec_legacy_json(update, change_name),
+        TemplateStyle::New => build_updated_spec_table_object(update, change_name),
+    }
+}
+
+fn build_updated_spec_legacy_json(
+    update: &SpecUpdate,
+    change_name: &str,
+) -> Result<(String, ApplyCounts)> {
     let change_content = fs::read_to_string(&update.source)?;
     let plan = parse_delta_spec(
         &change_content,
@@ -362,6 +381,245 @@ fn build_updated_spec(update: &SpecUpdate, change_name: &str) -> Result<(String,
     let mut rebuilt_doc = target_doc;
     rebuilt_doc.requirements = requirements;
     let body = render_ison_code_block(&rebuilt_doc)?;
+    let rebuilt = compose_with_frontmatter(frontmatter_yaml.as_deref(), &body);
+    Ok((rebuilt, counts))
+}
+
+fn build_updated_spec_table_object(update: &SpecUpdate, change_name: &str) -> Result<(String, ApplyCounts)> {
+    let delta_content = fs::read_to_string(&update.source)?;
+    let delta = ison_v1::parse_delta_body(
+        &delta_content,
+        &format!("delta spec `{}` during archive merge", update.capability),
+    )?;
+
+    let delta_count = delta.ops.len();
+    if delta_count == 0 {
+        return Err(anyhow!(t!(
+            "sdd.archive.no_deltas",
+            spec = update.capability
+        )));
+    }
+
+    if !update.target_exists {
+        let has_non_add = delta.ops.iter().any(|op| op.op != "add_requirement");
+        if has_non_add {
+            return Err(anyhow!(t!(
+                "sdd.archive.new_spec_only_added",
+                spec = update.capability
+            )));
+        }
+    }
+
+    let (frontmatter_yaml, mut spec_doc) = if update.target_exists {
+        let target_content = fs::read_to_string(&update.target)?;
+        let (frontmatter_yaml, body) = split_frontmatter(&target_content);
+        let spec = ison_v1::parse_spec_body(
+            &body,
+            &format!("spec `{}` during archive merge", update.capability),
+        )?;
+        (frontmatter_yaml, spec)
+    } else {
+        let spec = ison_v1::CanonicalSpec {
+            meta: ison_v1::SpecMeta {
+                version: ison_v1::V1_VERSION.to_string(),
+                kind: ison_v1::SPEC_KIND.to_string(),
+                name: update.capability.clone(),
+                purpose: format!(
+                    "TBD - created by archiving change {change}. Update purpose after archive.",
+                    change = change_name
+                ),
+            },
+            requirements: Vec::new(),
+            scenarios: Vec::new(),
+        };
+        (Some(default_frontmatter_yaml(change_name)), spec)
+    };
+
+    let mut scenarios_by_req: HashMap<String, Vec<ison_v1::ScenarioRow>> = HashMap::new();
+    for row in delta.scenarios {
+        scenarios_by_req.entry(row.req_id.clone()).or_default().push(row);
+    }
+
+    let mut add_or_modify_ids = std::collections::HashSet::new();
+    for op in &delta.ops {
+        if op.op == "add_requirement" || op.op == "modify_requirement" {
+            add_or_modify_ids.insert(op.req_id.clone());
+        }
+    }
+    for req_id in scenarios_by_req.keys() {
+        if !add_or_modify_ids.contains(req_id) {
+            return Err(anyhow!(
+                "delta spec `{}`: op scenarios must reference add/modify ops only; found scenarios for `{}`",
+                update.capability,
+                req_id
+            ));
+        }
+    }
+
+    let mut counts = ApplyCounts::default();
+
+    fn replace_scenarios(
+        scenarios: &mut Vec<ison_v1::ScenarioRow>,
+        req_id: &str,
+        new_rows: Vec<ison_v1::ScenarioRow>,
+    ) {
+        let insert_pos = scenarios
+            .iter()
+            .position(|row| row.req_id == req_id)
+            .unwrap_or(scenarios.len());
+        scenarios.retain(|row| row.req_id != req_id);
+        scenarios.splice(insert_pos..insert_pos, new_rows.into_iter());
+    }
+
+    for op in delta.ops {
+        match op.op.as_str() {
+            "add_requirement" => {
+                counts.added += 1;
+                let title = op.title.ok_or_else(|| anyhow!("add_requirement missing title"))?;
+                let statement =
+                    op.statement.ok_or_else(|| anyhow!("add_requirement missing statement"))?;
+
+                if spec_doc
+                    .requirements
+                    .iter()
+                    .any(|req| req.req_id == op.req_id)
+                {
+                    return Err(anyhow!(t!(
+                        "sdd.archive.add_exists",
+                        spec = update.capability,
+                        name = op.req_id
+                    )));
+                }
+
+                spec_doc.requirements.push(ison_v1::RequirementRow {
+                    req_id: op.req_id.clone(),
+                    title,
+                    statement,
+                });
+
+                let scenarios = scenarios_by_req.remove(&op.req_id).unwrap_or_default();
+                if scenarios.is_empty() {
+                    return Err(anyhow!(
+                        "delta spec `{}`: add_requirement `{}` must include at least one scenario row",
+                        update.capability,
+                        op.req_id
+                    ));
+                }
+                replace_scenarios(&mut spec_doc.scenarios, &op.req_id, scenarios);
+            }
+            "modify_requirement" => {
+                counts.modified += 1;
+                let title = op.title.ok_or_else(|| anyhow!("modify_requirement missing title"))?;
+                let statement =
+                    op.statement.ok_or_else(|| anyhow!("modify_requirement missing statement"))?;
+
+                let Some(req) = spec_doc
+                    .requirements
+                    .iter_mut()
+                    .find(|req| req.req_id == op.req_id)
+                else {
+                    return Err(anyhow!(t!(
+                        "sdd.archive.modify_missing",
+                        spec = update.capability,
+                        name = op.req_id
+                    )));
+                };
+                req.title = title;
+                req.statement = statement;
+
+                let scenarios = scenarios_by_req.remove(&op.req_id).unwrap_or_default();
+                if scenarios.is_empty() {
+                    return Err(anyhow!(
+                        "delta spec `{}`: modify_requirement `{}` must include at least one scenario row",
+                        update.capability,
+                        op.req_id
+                    ));
+                }
+                replace_scenarios(&mut spec_doc.scenarios, &op.req_id, scenarios);
+            }
+            "remove_requirement" => {
+                counts.removed += 1;
+                let key = op.req_id.clone();
+                if !spec_doc.requirements.iter().any(|req| req.req_id == key) {
+                    let missing_name = op.name.as_deref().unwrap_or(&op.req_id);
+                    return Err(anyhow!(t!(
+                        "sdd.archive.remove_missing",
+                        spec = update.capability,
+                        name = missing_name
+                    )));
+                }
+                spec_doc.requirements.retain(|req| req.req_id != key);
+                spec_doc.scenarios.retain(|row| row.req_id != key);
+            }
+            "rename_requirement" => {
+                counts.renamed += 1;
+                let from = op.from.ok_or_else(|| anyhow!("rename_requirement missing from"))?;
+                let to = op.to.ok_or_else(|| anyhow!("rename_requirement missing to"))?;
+
+                if spec_doc.requirements.iter().any(|r| r.title.trim() == to.trim()) {
+                    return Err(anyhow!(t!(
+                        "sdd.archive.rename_exists",
+                        spec = update.capability,
+                        name = to
+                    )));
+                }
+
+                let current_title = match spec_doc.requirements.iter().find(|r| r.req_id == op.req_id)
+                {
+                    Some(req) => req.title.clone(),
+                    None => {
+                        return Err(anyhow!(t!(
+                            "sdd.archive.rename_missing",
+                            spec = update.capability,
+                            name = op.req_id
+                        )));
+                    }
+                };
+
+                if !from.trim().is_empty() && current_title.trim() != from.trim() {
+                    return Err(anyhow!(
+                        "Rename source mismatch for spec `{}` requirement `{}`: expected `{}`, found `{}`",
+                        update.capability,
+                        op.req_id,
+                        from,
+                        current_title
+                    ));
+                }
+
+                let Some(req) = spec_doc
+                    .requirements
+                    .iter_mut()
+                    .find(|req| req.req_id == op.req_id)
+                else {
+                    return Err(anyhow!(t!(
+                        "sdd.archive.rename_missing",
+                        spec = update.capability,
+                        name = op.req_id
+                    )));
+                };
+                req.title = to.trim().to_string();
+            }
+            other => {
+                return Err(anyhow!(
+                    "delta spec `{}`: unsupported op `{}`",
+                    update.capability,
+                    other
+                ));
+            }
+        }
+    }
+
+    if !scenarios_by_req.is_empty() {
+        let keys = scenarios_by_req.keys().cloned().collect::<Vec<_>>().join(", ");
+        return Err(anyhow!(
+            "delta spec `{}`: found op scenarios without matching add/modify ops: {}",
+            update.capability,
+            keys
+        ));
+    }
+
+    let payload = ison_v1::dump_spec_payload(&spec_doc, false);
+    let body = render_ison_fence(&payload);
     let rebuilt = compose_with_frontmatter(frontmatter_yaml.as_deref(), &body);
     Ok((rebuilt, counts))
 }
@@ -550,7 +808,8 @@ mod tests {
             target_exists: false,
         };
 
-        let result = build_updated_spec(&update, "add-thing").expect("build spec");
+        let result =
+            build_updated_spec(&update, "add-thing", TemplateStyle::Legacy).expect("build spec");
         assert!(result.0.contains("\"kind\": \"llman.sdd.spec\""));
         assert!(result.0.contains("\"title\": \"New capability\""));
         assert!(result.0.contains("System MUST support the new capability."));
@@ -586,7 +845,7 @@ mod tests {
             target_exists: false,
         };
 
-        let result = build_updated_spec(&update, "remove-thing");
+        let result = build_updated_spec(&update, "remove-thing", TemplateStyle::Legacy);
         assert!(result.is_err());
     }
 
@@ -658,7 +917,7 @@ llman_spec_evidence:
             target_exists: true,
         };
 
-        let result = build_updated_spec(&update, "update-thing");
+        let result = build_updated_spec(&update, "update-thing", TemplateStyle::Legacy);
         assert!(result.is_err());
     }
 
