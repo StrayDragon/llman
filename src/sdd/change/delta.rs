@@ -240,8 +240,23 @@ fn parse_delta_spec_table_object(content: &str, context: &str) -> Result<DeltaPl
         let op = get_required_string(row, "op", &row_ctx, false)?
             .trim()
             .to_ascii_lowercase();
+
+        let ensure_null = |field: &str| -> Result<()> {
+            if get_optional_string(row, field, &row_ctx)?.is_some() {
+                return Err(anyhow!(
+                    "{context}: `{}` must be `~` for op `{}` (row {})",
+                    field,
+                    op,
+                    idx + 1
+                ));
+            }
+            Ok(())
+        };
         match op.as_str() {
             "add_requirement" => {
+                ensure_null("from")?;
+                ensure_null("to")?;
+                ensure_null("name")?;
                 let req_id = get_required_string(row, "req_id", &row_ctx, false)?
                     .trim()
                     .to_string();
@@ -255,6 +270,9 @@ fn parse_delta_spec_table_object(content: &str, context: &str) -> Result<DeltaPl
                 });
             }
             "modify_requirement" => {
+                ensure_null("from")?;
+                ensure_null("to")?;
+                ensure_null("name")?;
                 let req_id = get_required_string(row, "req_id", &row_ctx, false)?
                     .trim()
                     .to_string();
@@ -268,6 +286,10 @@ fn parse_delta_spec_table_object(content: &str, context: &str) -> Result<DeltaPl
                 });
             }
             "remove_requirement" => {
+                ensure_null("title")?;
+                ensure_null("statement")?;
+                ensure_null("from")?;
+                ensure_null("to")?;
                 let req_id = get_required_string(row, "req_id", &row_ctx, false)?
                     .trim()
                     .to_string();
@@ -276,6 +298,9 @@ fn parse_delta_spec_table_object(content: &str, context: &str) -> Result<DeltaPl
                 removed.push(RemovedRequirement { req_id, name });
             }
             "rename_requirement" => {
+                ensure_null("title")?;
+                ensure_null("statement")?;
+                ensure_null("name")?;
                 let req_id = get_required_string(row, "req_id", &row_ctx, false)?
                     .trim()
                     .to_string();
