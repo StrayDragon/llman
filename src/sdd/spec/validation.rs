@@ -69,6 +69,29 @@ pub fn validate_spec_content_with_frontmatter(
 
     match parse_spec(&body, &spec_name, style) {
         Ok(spec) => {
+            if spec.metadata.version.trim() != "1.0.0" {
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Error,
+                    path: format!("{}/meta.version", spec_name),
+                    message: format!(
+                        "Spec version must be `1.0.0`, got `{}`",
+                        spec.metadata.version
+                    ),
+                });
+            }
+
+            if spec.name.trim() != spec_name {
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Warning,
+                    path: format!("{}/meta.name", spec_name),
+                    message: format!(
+                        "Spec feature id must match spec directory name: `{}` != `{}`",
+                        spec.name.trim(),
+                        spec_name
+                    ),
+                });
+            }
+
             issues.extend(validate_requirements(&spec.requirements, &spec_name));
             SpecValidation {
                 report: build_report(issues, strict),
@@ -486,7 +509,7 @@ fn validate_requirement_block(
         .count();
     if scenario_count < 1 {
         issues.push(ValidationIssue {
-            level: ValidationLevel::Error,
+            level: ValidationLevel::Warning,
             path: path.to_string(),
             message: format!(
                 "{} \"{}\": {}",
