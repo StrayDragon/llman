@@ -1,5 +1,6 @@
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
+use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::spec::parser::parse_spec;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
@@ -15,6 +16,7 @@ pub struct ListArgs {
     pub sort: String,
     pub json: bool,
     pub compact_json: bool,
+    pub style: TemplateStyle,
 }
 
 #[derive(Debug, Serialize)]
@@ -64,6 +66,7 @@ mod tests {
             sort: "recent".to_string(),
             json: false,
             compact_json: false,
+            style: TemplateStyle::New,
         });
         assert!(result.is_err());
     }
@@ -159,7 +162,7 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     for id in spec_ids {
         let spec_path = specs_dir.join(&id).join("spec.md");
         let requirement_count = match fs::read_to_string(&spec_path) {
-            Ok(content) => match parse_spec(&content, &id) {
+            Ok(content) => match parse_spec(&content, &id, args.style) {
                 Ok(spec) => spec.requirements.len(),
                 Err(_) => 0,
             },

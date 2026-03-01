@@ -191,7 +191,7 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
 
     if args.json {
         let content = fs::read_to_string(&proposal_path)?;
-        let change = parse_change(&content, change_id, &change_dir)?;
+        let change = parse_change(&content, change_id, &change_dir, args.style)?;
         let title = extract_title(&content, change_id);
         let deltas = change.deltas;
         if args.requirements_only {
@@ -228,7 +228,7 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
             return Err(anyhow!(t!("sdd.show.requirements_conflict")));
         }
         let content = fs::read_to_string(&spec_path)?;
-        let spec = parse_spec(&content, spec_id)?;
+        let spec = parse_spec(&content, spec_id, args.style)?;
         if args.meta_only {
             let output = serde_json::json!({
                 "id": spec_id,
