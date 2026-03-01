@@ -42,5 +42,6 @@ r2 happy "" "the new trigger happens" "the new outcome is observed"
 ### Notes
 - Quote strings with spaces/punctuation.
 - Null is `~`. Empty string is `""` (for example: `given ""`).
+- Schema version is implicit (v1). New-style specs/deltas SHOULD omit any `version` column in `object.*` blocks. If present for legacy compatibility, it MUST be `"1.0.0"`.
 - For `table.ops`, fields that are not applicable to the op MUST be `~`.
 - Do **not** put pseudo-markers or templating directives inside ` ```ison ` blocks (keep them pure ISON).
