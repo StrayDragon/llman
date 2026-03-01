@@ -89,13 +89,8 @@ pub fn run_add_requirement(
     }
 
     let spec_path = spec_path(root, &args.capability);
-    let content = fs::read_to_string(&spec_path).map_err(|err| {
-        anyhow!(
-            "failed to read spec: {} ({})",
-            spec_path.display(),
-            err
-        )
-    })?;
+    let content = fs::read_to_string(&spec_path)
+        .map_err(|err| anyhow!("failed to read spec: {} ({})", spec_path.display(), err))?;
     let (frontmatter_yaml, body) = split_frontmatter(&content);
     let Some(frontmatter_yaml) = frontmatter_yaml else {
         return Err(anyhow!(
@@ -144,7 +139,11 @@ pub fn run_add_requirement(
     Ok(())
 }
 
-pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs, style: TemplateStyle) -> Result<()> {
+pub fn run_add_scenario(
+    root: &Path,
+    args: SpecAddScenarioArgs,
+    style: TemplateStyle,
+) -> Result<()> {
     ensure_new_style(style)?;
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
@@ -157,13 +156,8 @@ pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs, style: TemplateS
     }
 
     let spec_path = spec_path(root, &args.capability);
-    let content = fs::read_to_string(&spec_path).map_err(|err| {
-        anyhow!(
-            "failed to read spec: {} ({})",
-            spec_path.display(),
-            err
-        )
-    })?;
+    let content = fs::read_to_string(&spec_path)
+        .map_err(|err| anyhow!("failed to read spec: {} ({})", spec_path.display(), err))?;
     let (frontmatter_yaml, body) = split_frontmatter(&content);
     let Some(frontmatter_yaml) = frontmatter_yaml else {
         return Err(anyhow!(
@@ -248,4 +242,3 @@ fn default_spec_frontmatter_yaml() -> String {
 fn contains_shall_or_must(text: &str) -> bool {
     text.contains("SHALL") || text.contains("MUST")
 }
-

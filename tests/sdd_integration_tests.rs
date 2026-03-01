@@ -475,8 +475,8 @@ llman_spec_evidence:
         !new_validate_change.status.success(),
         "new validate should fail on legacy JSON delta payload"
     );
-    let new_change_json: Value = serde_json::from_slice(&new_validate_change.stdout)
-        .expect("new validate change json");
+    let new_change_json: Value =
+        serde_json::from_slice(&new_validate_change.stdout).expect("new validate change json");
     let message = new_change_json["items"][0]["issues"][0]["message"]
         .as_str()
         .unwrap_or_default();
@@ -671,8 +671,8 @@ fn test_sdd_pretty_ison_is_whitespace_only_and_deterministic() {
         pretty_dir,
         pretty_dir,
     ));
-    let pretty_content = fs::read_to_string(pretty_dir.join("llmanspec/specs/sample/spec.md"))
-        .expect("pretty spec");
+    let pretty_content =
+        fs::read_to_string(pretty_dir.join("llmanspec/specs/sample/spec.md")).expect("pretty spec");
 
     let show_plain = run_llman(
         &["sdd", "show", "sample", "--type", "spec", "--json"],
@@ -688,8 +688,7 @@ fn test_sdd_pretty_ison_is_whitespace_only_and_deterministic() {
     assert_success(&show_pretty);
 
     let json_plain: Value = serde_json::from_slice(&show_plain.stdout).expect("show plain json");
-    let json_pretty: Value =
-        serde_json::from_slice(&show_pretty.stdout).expect("show pretty json");
+    let json_pretty: Value = serde_json::from_slice(&show_pretty.stdout).expect("show pretty json");
     assert_eq!(json_pretty, json_plain);
 
     assert_ne!(pretty_content, plain_content);
