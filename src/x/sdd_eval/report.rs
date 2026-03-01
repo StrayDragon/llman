@@ -125,7 +125,7 @@ pub fn generate(project_root: &Path, run_id: &str) -> Result<()> {
             model: model.clone(),
         });
 
-        let judge = OpenAiJudge::from_env().context("init OpenAI judge from env")?;
+        let judge = OpenAiJudge::from_env()?;
         for vr in &mut variants {
             let score = judge
                 .score_variant(&model, &pb.task, vr)
