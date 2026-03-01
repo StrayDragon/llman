@@ -73,6 +73,9 @@ jsonschema = "0.41.0"
 # JSON parsing and repair
 llm_json = "1.0.2"
 
+# ISON parsing and dumping
+ison-rs = "1.0.1"
+
 # Additional utilities
 regex = "1.12.3"
 serde_yaml = "0.9.34"

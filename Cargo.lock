@@ -1919,6 +1919,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 
 [[package]]
+name = "ison-rs"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bc9f9e8a0c672c682a6c2b83bd96a0be69b92bc7aef273d72ad9dd81076fecd"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2121,6 +2132,7 @@ dependencies = [
  "glob",
  "ignore",
  "inquire",
+ "ison-rs",
  "jsonschema",
  "llm_json",
  "minijinja",

@@ -1,6 +1,6 @@
 ## 1. Dependencies and Core Types
 
-- [ ] 1.1 Add `ison-rs` (and only necessary features) to `Cargo.toml`.
+- [x] 1.1 Add `ison-rs` (and only necessary features) to `Cargo.toml`.
 - [ ] 1.2 Introduce a dedicated module for table/object ISON parsing and dumping for llmanspec specs/deltas.
 - [ ] 1.3 Define internal adapters that map canonical blocks (`object.spec`, `table.requirements`, `table.scenarios`, `object.delta`, `table.ops`, `table.op_scenarios`) into existing Rust domain structs used by `show/list/validate/archive`.
 
