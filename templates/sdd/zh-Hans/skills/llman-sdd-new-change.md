@@ -2,7 +2,7 @@
 name: "llman-sdd-new-change"
 description: "创建新的 SDD 变更提案与增量 specs。"
 metadata:
-  llman-template-version: 2
+  llman-template-version: 3
 ---
 
 # LLMAN SDD 新变更
@@ -18,9 +18,8 @@ metadata:
    - 若变更已存在，STOP 并建议使用 `llman-sdd-continue`（或 `/llman-sdd:continue <id>`）。
 4. 在 `llmanspec/changes/<change-id>/` 下创建工件：
    - `proposal.md`（Why / What Changes / Capabilities / Impact）
-   - 为每个 capability 创建 `specs/<capability>/spec.md`，并使用：
-     - `## ADDED|MODIFIED|REMOVED|RENAMED Requirements`
-     - 每条 requirement 至少一个 `#### Scenario:`
+   - 为每个 capability 创建 `specs/<capability>/spec.md`，使用 canonical ISON（`object.delta` + `table.ops` + `table.op_scenarios`）
+     - 至少包含一个 `add_requirement`/`modify_requirement` op（statement 必须含 MUST/SHALL），并且至少包含一行匹配的 op scenario
    - 仅在涉及权衡/迁移时创建 `design.md`
    - `tasks.md`：按顺序拆分为可勾选清单（包含校验命令）
 5. 校验：`llman sdd validate <change-id> --strict --no-interactive`。

@@ -56,10 +56,10 @@
 
 ## 8. Template and Prompt Updates (Agent Guidance)
 
-- [ ] 8.1 Update `templates/sdd/**` guidance that currently references Markdown heading deltas (`## ADDED|MODIFIED|...`) to instead teach canonical table/object ISON blocks and columns.
-- [ ] 8.2 Add a globally injected “ISON spec contract” section to llmanspec-managed instructions (for example in `llmanspec/AGENTS.md`) so templates can reference it rather than repeating long schema text.
-- [ ] 8.3 Update shared validation hints units to show ISON table examples and common fixes; forbid invalid pseudo-markers inside fenced ISON (for example, `<meta-directives>`).
-- [ ] 8.4 Run `just check-sdd-templates` to ensure locale parity and template version checks pass.
+- [x] 8.1 Update `templates/sdd/**` guidance that currently references Markdown heading deltas (`## ADDED|MODIFIED|...`) to instead teach canonical table/object ISON blocks and columns.
+- [x] 8.2 Add a globally injected “ISON spec contract” section to llmanspec-managed instructions (for example in `llmanspec/AGENTS.md`) so templates can reference it rather than repeating long schema text.
+- [x] 8.3 Update shared validation hints units to show ISON table examples and common fixes; forbid invalid pseudo-markers inside fenced ISON (for example, `<meta-directives>`).
+- [x] 8.4 Run `just check-sdd-templates` to ensure locale parity and template version checks pass.
 
 ## 9. Tests and Acceptance
 

@@ -1,6 +1,6 @@
 use crate::sdd::spec::ison_table::{
-    dumps_canonical, expect_fields, extract_all_ison_fences, get_optional_string,
-    get_required_string, parse_and_merge_fences,
+    dumps_canonical, expect_fields, expect_fields_any_of, extract_all_ison_fences,
+    get_optional_string, get_required_string, parse_and_merge_fences,
 };
 use anyhow::{Result, anyhow};
 use ison_rs::{Block, Document, FieldInfo, Row, Value};
@@ -92,7 +92,14 @@ Use `llman sdd-legacy ...` or rewrite to canonical table/object ISON blocks.",
     let meta_block = merged
         .get("object", "spec")
         .ok_or_else(|| anyhow!("{context}: missing required block `object.spec`"))?;
-    expect_fields(meta_block, &["version", "kind", "name", "purpose"], context)?;
+    expect_fields_any_of(
+        meta_block,
+        &[
+            &["version", "kind", "name", "purpose"][..],
+            &["kind", "name", "purpose"][..],
+        ],
+        context,
+    )?;
     if meta_block.rows.len() != 1 {
         return Err(anyhow!(
             "{context}: `object.spec` must have exactly 1 row, got {}",
@@ -100,9 +107,10 @@ Use `llman sdd-legacy ...` or rewrite to canonical table/object ISON blocks.",
         ));
     }
     let meta_row = &meta_block.rows[0];
-    let version = get_required_string(meta_row, "version", context, false)?
-        .trim()
-        .to_string();
+    let version = get_optional_string(meta_row, "version", context)?
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| V1_VERSION.to_string());
     let kind = get_required_string(meta_row, "kind", context, false)?
         .trim()
         .to_string();
@@ -252,7 +260,11 @@ Use `llman sdd-legacy ...` or rewrite to canonical table/object ISON blocks.",
     let meta_block = merged
         .get("object", "delta")
         .ok_or_else(|| anyhow!("{context}: missing required block `object.delta`"))?;
-    expect_fields(meta_block, &["version", "kind"], context)?;
+    expect_fields_any_of(
+        meta_block,
+        &[&["version", "kind"][..], &["kind"][..]],
+        context,
+    )?;
     if meta_block.rows.len() != 1 {
         return Err(anyhow!(
             "{context}: `object.delta` must have exactly 1 row, got {}",
@@ -260,9 +272,10 @@ Use `llman sdd-legacy ...` or rewrite to canonical table/object ISON blocks.",
         ));
     }
     let meta_row = &meta_block.rows[0];
-    let version = get_required_string(meta_row, "version", context, false)?
-        .trim()
-        .to_string();
+    let version = get_optional_string(meta_row, "version", context)?
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| V1_VERSION.to_string());
     let kind = get_required_string(meta_row, "kind", context, false)?
         .trim()
         .to_string();
@@ -387,12 +400,8 @@ fn block_with_fields(kind: &str, name: &str, fields: &[&str]) -> Block {
 }
 
 fn block_object_spec(spec: &CanonicalSpec) -> Block {
-    let mut block = block_with_fields("object", "spec", &["version", "kind", "name", "purpose"]);
+    let mut block = block_with_fields("object", "spec", &["kind", "name", "purpose"]);
     let mut row = Row::new();
-    row.insert(
-        "version".to_string(),
-        Value::String(spec.meta.version.clone()),
-    );
     row.insert("kind".to_string(), Value::String(spec.meta.kind.clone()));
     row.insert("name".to_string(), Value::String(spec.meta.name.clone()));
     row.insert(
@@ -404,12 +413,8 @@ fn block_object_spec(spec: &CanonicalSpec) -> Block {
 }
 
 fn block_object_delta(delta: &CanonicalDelta) -> Block {
-    let mut block = block_with_fields("object", "delta", &["version", "kind"]);
+    let mut block = block_with_fields("object", "delta", &["kind"]);
     let mut row = Row::new();
-    row.insert(
-        "version".to_string(),
-        Value::String(delta.meta.version.clone()),
-    );
     row.insert("kind".to_string(), Value::String(delta.meta.kind.clone()));
     block.rows.push(row);
     block

@@ -1,4 +1,4 @@
-<!-- llman-template-version: 2 -->
+<!-- llman-template-version: 3 -->
 <!-- source: OpenSpec templates/zh-Hans/llman-sdd/sync.md (copied 2026-02-09; adapted for llman) -->
 
 将活动 change 中的 delta specs 同步到主 specs，**但不归档**该 change。
@@ -28,16 +28,14 @@
    - 阅读（或创建）主 spec：
      - `llmanspec/specs/<capability>/spec.md`
 
-   按 section 手动应用：
-   - `## ADDED Requirements`：添加缺失的 requirements
-   - `## MODIFIED Requirements`：更新已有 requirements/scenarios
-   - `## REMOVED Requirements`：删除 requirements
-   - `## RENAMED Requirements`：重命名 requirements（FROM/TO 配对）
+   按 canonical ISON ops（`table.ops` + `table.op_scenarios`）手动应用：
+   - `add_requirement`：把 requirement 追加到 `table.requirements`，并追加对应的 `table.scenarios` 行
+   - `modify_requirement`：更新已有 `req_id` 行，并替换该 `req_id` 的场景行
+   - `remove_requirement`：删除 `req_id` 行及其所有场景行
+   - `rename_requirement`：仅更新 requirement 标题（`req_id` 保持不变）
 
-   如果需要创建新的主 spec 文件，请包含必需内容：
-   - YAML frontmatter：`llman_spec_valid_scope`、`llman_spec_valid_commands`、`llman_spec_evidence`
-   - `## Purpose`
-   - `## Requirements`
+   如果需要创建新的主 spec 文件，请包含必需 YAML frontmatter（`llman_spec_valid_scope`、`llman_spec_valid_commands`、`llman_spec_evidence`），并使用 canonical ISON（`object.spec` + `table.requirements` + `table.scenarios`）编写 spec body。
+   参考 `llmanspec/AGENTS.md` 中的 Canonical ISON Spec Contract。
 
 4. **验证**
 

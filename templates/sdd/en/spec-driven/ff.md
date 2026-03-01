@@ -1,4 +1,4 @@
-<!-- llman-template-version: 2 -->
+<!-- llman-template-version: 3 -->
 <!-- source: OpenSpec templates/en/llman-sdd/ff.md (copied 2026-02-09) -->
 
 Fast-forward through planning — generate all artifacts needed to start implementation in llman SDD.
@@ -38,7 +38,8 @@ Fast-forward through planning — generate all artifacts needed to start impleme
    b) `specs/<capability>/spec.md` (for each capability)
    - For each capability listed in the proposal, create a delta spec at:
      `llmanspec/changes/<id>/specs/<capability>/spec.md`
-   - Use `## ADDED|MODIFIED|REMOVED|RENAMED Requirements` and at least one `#### Scenario:` per requirement.
+   - Use canonical ISON (`object.delta` + `table.ops` + `table.op_scenarios`).
+   - Include at least one `add_requirement`/`modify_requirement` op with a MUST/SHALL statement and at least one matching `table.op_scenarios` row.
 
    c) `design.md` (optional)
    - If the change spans multiple systems, is risky, or needs tradeoffs: create `design.md`.

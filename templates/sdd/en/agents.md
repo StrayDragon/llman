@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 # LLMAN Spec-Driven Development (SDD)
 
 These instructions are for AI assistants working in this repository.
@@ -63,8 +63,8 @@ Workflow:
 3. Choose a unique change id: kebab-case, verb prefix (`add-`, `update-`, `remove-`, `refactor-`).
 4. Create `llmanspec/changes/<change-id>/` with `proposal.md`, `tasks.md`, and optional `design.md`.
 5. For each affected capability, add `llmanspec/changes/<change-id>/specs/<capability>/spec.md` using:
-   - `## ADDED|MODIFIED|REMOVED|RENAMED Requirements`
-   - Each requirement must include at least one `#### Scenario:`
+   - Canonical ISON blocks: `object.delta` + `table.ops` + `table.op_scenarios`
+   - Use `~` for nulls and `""` for empty strings (for example: `given ""`)
 6. Validate: `llman sdd validate <change-id> --strict --no-interactive`.
 
 ## Phase 2: Implement
@@ -82,12 +82,14 @@ After deployment:
 - Use `--skip-specs` for tooling-only changes.
 - Validate again: `llman sdd validate --strict --no-interactive`.
 
-## Spec format essentials
-- Specs must include YAML frontmatter with:
+## Spec authoring essentials
+- Main specs live at `llmanspec/specs/<feature-id>/spec.md` and MUST include required YAML frontmatter keys:
   - `llman_spec_valid_scope`
   - `llman_spec_valid_commands`
   - `llman_spec_evidence`
-- Each requirement text must contain `SHALL` or `MUST`.
-- Scenario headers must be `#### Scenario:`.
+- Delta specs live at `llmanspec/changes/<change-id>/specs/<feature-id>/spec.md` and MUST NOT include YAML frontmatter.
+- Both spec types are authored as canonical table/object ISON blocks:
+
+{{ unit("spec/ison-contract") }}
 
 Keep this managed block so `llman sdd update` can refresh it.

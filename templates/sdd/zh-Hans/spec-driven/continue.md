@@ -1,4 +1,4 @@
-<!-- llman-template-version: 2 -->
+<!-- llman-template-version: 3 -->
 <!-- source: OpenSpec templates/zh-Hans/llman-sdd/continue.md (copied 2026-02-09) -->
 
 通过创建下一个工件来继续处理某个变更（位于 `llmanspec/changes/<id>/`）。
@@ -35,7 +35,9 @@
    - 如果缺少 `proposal.md`：创建它（Why / What Changes / Capabilities / Impact）。
    - 否则如果 `specs/*/spec.md` 还不存在：
      - 询问第一个 capability id（kebab-case），或从 proposal 的 Capabilities 中派生。
-     - 创建 `llmanspec/changes/<id>/specs/<capability>/spec.md`，使用 `## ADDED|MODIFIED|REMOVED|RENAMED Requirements`，并为每条 requirement 至少写一个 `#### Scenario:`。
+     - 创建 `llmanspec/changes/<id>/specs/<capability>/spec.md`，使用 canonical ISON（`object.delta` + `table.ops` + `table.op_scenarios`）。
+       - 至少包含一个 `add_requirement`/`modify_requirement` op（statement 必须含 MUST/SHALL），并且至少包含一行匹配的 `table.op_scenarios`。
+       - 参考 `llmanspec/AGENTS.md` 中的 Canonical ISON Spec Contract。
    - 否则如果缺少 `design.md` 且此变更需要设计说明（跨多个系统/复杂权衡/破坏性变更等）：
      - 创建 `design.md`，记录关键决策与理由。
    - 否则如果缺少 `tasks.md`：

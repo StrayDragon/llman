@@ -2,7 +2,7 @@
 name: "llman-sdd-sync"
 description: "Manually sync delta specs into main specs without archiving the change."
 metadata:
-  llman-template-version: 2
+  llman-template-version: 3
 ---
 
 # LLMAN SDD Sync
@@ -17,7 +17,7 @@ This is a manual, reproducible protocol.
 2. For each delta spec at `llmanspec/changes/<id>/specs/<capability>/spec.md`:
    - Read the delta
    - Read (or create) the main spec: `llmanspec/specs/<capability>/spec.md`
-   - Apply `ADDED|MODIFIED|REMOVED|RENAMED` sections manually
+   - Apply `table.ops` + `table.op_scenarios` manually (add/modify/remove/rename)
 3. Validate specs:
    ```bash
    llman sdd validate --specs --strict --no-interactive

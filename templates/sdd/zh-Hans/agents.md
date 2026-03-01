@@ -1,4 +1,4 @@
-<!-- llman-template-version: 1 -->
+<!-- llman-template-version: 2 -->
 # LLMAN 规范驱动开发 (SDD)
 
 这些说明适用于在此仓库中工作的 AI 助手。
@@ -62,9 +62,9 @@ llman sdd 快速上手：
 2. 查看现有状态：`llman sdd list` 与 `llman sdd list --specs`。
 3. 选择唯一的 change id：kebab-case + 动词前缀（`add-`、`update-`、`remove-`、`refactor-`）。
 4. 创建 `llmanspec/changes/<change-id>/`，包含 `proposal.md`、`tasks.md` 和可选的 `design.md`。
-5. 为每个受影响能力添加 `llmanspec/changes/<change-id>/specs/<capability>/spec.md`，使用：
-   - `## ADDED|MODIFIED|REMOVED|RENAMED Requirements`
-   - 每个 requirement 至少包含一个 `#### Scenario:`
+5. 为每个受影响能力添加 `llmanspec/changes/<change-id>/specs/<capability>/spec.md`：
+   - 使用 canonical ISON blocks：`object.delta` + `table.ops` + `table.op_scenarios`
+   - Null 用 `~`；空字符串用 `""`（例如：`given ""`）
 6. 校验：`llman sdd validate <change-id> --strict --no-interactive`。
 
 ## 阶段 2：实施变更
@@ -82,12 +82,14 @@ llman sdd 快速上手：
 - 仅工具类变更使用 `--skip-specs`。
 - 再次校验：`llman sdd validate --strict --no-interactive`。
 
-## 规范格式要点
-- spec 必须包含 YAML frontmatter：
+## 规范编写要点
+- Main specs 位于 `llmanspec/specs/<feature-id>/spec.md`，且 MUST 包含所需 YAML frontmatter keys：
   - `llman_spec_valid_scope`
   - `llman_spec_valid_commands`
   - `llman_spec_evidence`
-- 每条 requirement 文本必须包含 `SHALL` 或 `MUST`。
-- 场景标题必须使用 `#### Scenario:`。
+- Delta specs 位于 `llmanspec/changes/<change-id>/specs/<feature-id>/spec.md`，且 MUST 不包含 YAML frontmatter。
+- 两类规范都以 canonical table/object ISON blocks 编写：
+
+{{ unit("spec/ison-contract") }}
 
 保留此托管块，便于 `llman sdd update` 刷新。

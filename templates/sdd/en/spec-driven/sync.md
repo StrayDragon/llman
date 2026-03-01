@@ -1,4 +1,4 @@
-<!-- llman-template-version: 2 -->
+<!-- llman-template-version: 3 -->
 <!-- source: OpenSpec templates/en/llman-sdd/sync.md (copied 2026-02-09) -->
 
 Sync delta specs from an active change into main specs **without archiving** the change.
@@ -28,16 +28,14 @@ This is a manual, reproducible protocol: read delta specs under `llmanspec/chang
    - Read (or create) the main spec:
      - `llmanspec/specs/<capability>/spec.md`
 
-   Apply changes by section:
-   - `## ADDED Requirements`: add missing requirements
-   - `## MODIFIED Requirements`: update existing requirements/scenarios
-   - `## REMOVED Requirements`: remove requirements
-   - `## RENAMED Requirements`: rename requirements (FROM/TO pairs)
+   Apply changes by canonical ISON ops (`table.ops` + `table.op_scenarios`):
+   - `add_requirement`: append to `table.requirements` and append matching rows to `table.scenarios`
+   - `modify_requirement`: update the existing `req_id` row and replace its scenario rows
+   - `remove_requirement`: delete the `req_id` row and all its scenario rows
+   - `rename_requirement`: update the requirement title only (keep `req_id` stable)
 
-   If you create a new main spec file, include required YAML frontmatter and the required sections:
-   - YAML frontmatter with `llman_spec_valid_scope`, `llman_spec_valid_commands`, `llman_spec_evidence`
-   - `## Purpose`
-   - `## Requirements`
+   If you create a new main spec file, include required YAML frontmatter (`llman_spec_valid_scope`, `llman_spec_valid_commands`, `llman_spec_evidence`) and author the spec body as canonical ISON (`object.spec` + `table.requirements` + `table.scenarios`).
+   See the Canonical ISON Spec Contract in `llmanspec/AGENTS.md`.
 
 4. **Validate**
 

@@ -1,4 +1,4 @@
-<!-- llman-template-version: 2 -->
+<!-- llman-template-version: 3 -->
 <!-- source: OpenSpec templates/en/llman-sdd/continue.md (copied 2026-02-09) -->
 
 Continue working on a change by creating the next artifact in `llmanspec/changes/<id>/`.
@@ -34,7 +34,9 @@ Continue working on a change by creating the next artifact in `llmanspec/changes
    - If `proposal.md` is missing: create it (Why / What Changes / Capabilities / Impact).
    - Else if no delta spec exists yet under `specs/*/spec.md`:
      - Ask for the first capability id (kebab-case), OR derive it from the proposal’s Capabilities section.
-     - Create `llmanspec/changes/<id>/specs/<capability>/spec.md` using `## ADDED|MODIFIED|REMOVED|RENAMED Requirements` with at least one `#### Scenario:` per requirement.
+     - Create `llmanspec/changes/<id>/specs/<capability>/spec.md` as canonical ISON (`object.delta` + `table.ops` + `table.op_scenarios`).
+       - Include at least one `add_requirement`/`modify_requirement` op with a MUST/SHALL statement and at least one matching `table.op_scenarios` row.
+       - See the Canonical ISON Spec Contract in `llmanspec/AGENTS.md`.
    - Else if `design.md` is missing and the change seems to need design (multi-system, tricky tradeoffs, breaking changes):
      - Create `design.md` capturing decisions and reasoning.
    - Else if `tasks.md` is missing:
