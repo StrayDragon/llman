@@ -424,7 +424,6 @@ fn build_updated_spec_table_object(
     } else {
         let spec = ison_v1::CanonicalSpec {
             meta: ison_v1::SpecMeta {
-                version: ison_v1::V1_VERSION.to_string(),
                 kind: ison_v1::SPEC_KIND.to_string(),
                 name: update.capability.clone(),
                 purpose: format!(

@@ -22,7 +22,7 @@
 ## 4. Main Spec Parsing and Validation (Table/Object ISON)
 
 - [x] 4.1 Implement table/object ISON parsing for main specs with strict fixed block names and fixed columns (including `table.scenarios` with `given/when/then` columns).
-- [x] 4.2 Enforce canonical validation rules: implicit v1 (optional legacy `version` must be `1.0.0` if present), `kind`, `name` (strict), uniqueness constraints, and ≥1 scenario per requirement.
+- [x] 4.2 Enforce canonical validation rules: `kind`, `name` (strict), uniqueness constraints, and ≥1 scenario per requirement.
 - [x] 4.3 Make `llman sdd` fail fast on legacy JSON-in-` ```ison ` payloads (not only `--strict`) with an actionable hint to use `llman sdd-legacy ...` (and to manually rewrite payloads into canonical table/object ISON when ready).
   - Legacy JSON detection must be a fast sniff: after trimming leading whitespace, `{` or `[` means legacy JSON (emit a dedicated error message, not an `ison-rs` parse error).
 - [x] 4.4 Ensure output JSON shape for `llman sdd show --json` remains stable (only on-disk format changes).
@@ -31,7 +31,7 @@
 ## 5. Delta Spec Parsing and Validation (Ops Tables)
 
 - [x] 5.1 Implement table/object ISON parsing for delta specs using `object.delta`, `table.ops`, `table.op_scenarios` (including `given/when/then` columns for op scenarios).
-- [x] 5.2 Enforce delta validation rules: implicit v1 (optional legacy `version` must be `1.0.0` if present), `kind`, op/field rules (including `~` null handling and strict scenario rules for add/modify vs remove/rename).
+- [x] 5.2 Enforce delta validation rules: `kind`, op/field rules (including `~` null handling and strict scenario rules for add/modify vs remove/rename).
 - [x] 5.3 Make `llman sdd` fail fast on legacy delta JSON payloads (not only `--strict`) with actionable legacy-command hints.
   - Use the same legacy JSON sniff rule as main specs.
 

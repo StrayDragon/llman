@@ -69,17 +69,6 @@ pub fn validate_spec_content_with_frontmatter(
 
     match parse_spec(&body, &spec_name, style) {
         Ok(spec) => {
-            if spec.metadata.version.trim() != "1.0.0" {
-                issues.push(ValidationIssue {
-                    level: ValidationLevel::Error,
-                    path: format!("{}/meta.version", spec_name),
-                    message: format!(
-                        "Spec version must be `1.0.0`, got `{}`",
-                        spec.metadata.version
-                    ),
-                });
-            }
-
             if spec.name.trim() != spec_name {
                 issues.push(ValidationIssue {
                     level: ValidationLevel::Warning,
