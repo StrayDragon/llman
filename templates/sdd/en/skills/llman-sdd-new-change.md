@@ -2,7 +2,7 @@
 name: "llman-sdd-new-change"
 description: "Create a new change proposal and delta specs."
 metadata:
-  llman-template-version: 2
+  llman-template-version: 3
 ---
 
 # LLMAN SDD New Change
@@ -18,9 +18,8 @@ Create a new change with planning artifacts (proposal + delta specs + tasks; des
    - If the change already exists, STOP and suggest `llman-sdd-continue` (or `/llman-sdd:continue <id>`).
 4. Create artifacts under `llmanspec/changes/<change-id>/`:
    - `proposal.md` (Why / What Changes / Capabilities / Impact)
-   - `specs/<capability>/spec.md` for each capability using:
-     - `## ADDED|MODIFIED|REMOVED|RENAMED Requirements`
-     - at least one `#### Scenario:` per requirement
+   - `specs/<capability>/spec.md` for each capability as canonical ISON (`object.delta` + `table.ops` + `table.op_scenarios`)
+     - Include at least one `add_requirement`/`modify_requirement` op (statement MUST contain MUST/SHALL) and at least one matching op scenario row
    - `design.md` only when tradeoffs/migrations matter
    - `tasks.md` as an ordered checklist (include validation commands)
 5. Validate: `llman sdd validate <change-id> --strict --no-interactive`.

@@ -1,8 +1,8 @@
 use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::spec::ison::parse_ison_document;
 use crate::sdd::spec::ison_table::{
-    expect_fields, extract_all_ison_fences, get_optional_string, get_required_string,
-    parse_and_merge_fences,
+    expect_fields, expect_fields_any_of, extract_all_ison_fences, get_optional_string,
+    get_required_string, parse_and_merge_fences,
 };
 use anyhow::{Result, anyhow};
 use serde::Deserialize;
@@ -194,7 +194,7 @@ fn parse_delta_spec_table_object(content: &str, context: &str) -> Result<DeltaPl
     let meta = merged
         .get("object", "delta")
         .ok_or_else(|| anyhow!("{context}: missing required block `object.delta`"))?;
-    expect_fields(meta, &["version", "kind"], context)?;
+    expect_fields_any_of(meta, &[&["version", "kind"][..], &["kind"][..]], context)?;
     if meta.rows.len() != 1 {
         return Err(anyhow!(
             "{context}: `object.delta` must have exactly 1 row, got {}",
@@ -202,9 +202,10 @@ fn parse_delta_spec_table_object(content: &str, context: &str) -> Result<DeltaPl
         ));
     }
     let meta_row = &meta.rows[0];
-    let version = get_required_string(meta_row, "version", context, false)?
-        .trim()
-        .to_string();
+    let version = get_optional_string(meta_row, "version", context)?
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "1.0.0".to_string());
     let kind = get_required_string(meta_row, "kind", context, false)?
         .trim()
         .to_string();

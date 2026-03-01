@@ -66,6 +66,7 @@ const LLMAN_SDD_COMMAND_IDS: &[&str] = &[
 const UNIT_FILES: &[&str] = &[
     "skills/sdd-commands.md",
     "skills/validation-hints.md",
+    "spec/ison-contract.md",
     "skills/structured-protocol.md",
     "skills/future-planning.md",
     "workflow/archive-freeze-guidance.md",

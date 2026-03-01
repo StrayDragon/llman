@@ -345,6 +345,26 @@ pub fn expect_fields(block: &Block, expected: &[&str], context: &str) -> Result<
     Ok(())
 }
 
+pub fn expect_fields_any_of(block: &Block, expected: &[&[&str]], context: &str) -> Result<()> {
+    for variant in expected {
+        let expected_vec: Vec<String> = variant.iter().map(|s| (*s).to_string()).collect();
+        if block.fields == expected_vec {
+            return Ok(());
+        }
+    }
+
+    let variants = expected
+        .iter()
+        .map(|variant| variant.join(" "))
+        .collect::<Vec<_>>()
+        .join(" | ");
+    Err(anyhow!(
+        "{context}: expected fields [{}], got [{}]",
+        variants,
+        block.fields.join(" ")
+    ))
+}
+
 pub fn get_optional_string(row: &Row, field: &str, context: &str) -> Result<Option<String>> {
     let Some(value) = row.get(field) else {
         return Ok(None);

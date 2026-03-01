@@ -1,4 +1,4 @@
-<!-- llman-template-version: 2 -->
+<!-- llman-template-version: 3 -->
 <!-- source: OpenSpec templates/zh-Hans/llman-sdd/ff.md (copied 2026-02-09) -->
 
 快速推进规划工件创建——在 llman SDD 中生成开始实施所需的一切。
@@ -40,7 +40,8 @@
    b) `specs/<capability>/spec.md`（按 capability）
    - 对 proposal 中列出的每个 capability，在下列位置创建 delta spec：
      `llmanspec/changes/<id>/specs/<capability>/spec.md`
-   - 使用 `## ADDED|MODIFIED|REMOVED|RENAMED Requirements`，并为每条 requirement 至少写一个 `#### Scenario:`
+   - 使用 canonical ISON（`object.delta` + `table.ops` + `table.op_scenarios`）
+   - 至少包含一个 `add_requirement`/`modify_requirement` op（statement 必须含 MUST/SHALL），并且至少包含一行匹配的 `table.op_scenarios`
 
    c) `design.md`（可选）
    - 若变更跨多个系统、风险高或需要权衡：创建 `design.md`
