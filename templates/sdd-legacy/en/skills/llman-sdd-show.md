@@ -10,9 +10,9 @@ metadata:
 Use this skill to inspect changes, specs, and JSON output.
 
 ## Steps
-1. List items: `llman sdd list` or `llman sdd list --specs`.
+1. List items: `llman sdd-legacy list` or `llman sdd-legacy list --specs`.
 2. If the id is unknown or ambiguous, show the list and ask the user to pick.
-3. Show details: `llman sdd show <id>`.
+3. Show details: `llman sdd-legacy show <id>`.
 4. Disambiguate with `--type change|spec` when needed.
 5. Use `--json` for structured output.
 

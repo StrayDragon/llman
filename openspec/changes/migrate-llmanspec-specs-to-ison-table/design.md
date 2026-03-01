@@ -17,7 +17,7 @@ Constraints:
   - main specs: `llmanspec/specs/<capability>/spec.md`
   - delta specs: `llmanspec/changes/<change-id>/specs/<capability>/spec.md`
 - Use a Rust crate (`ison-rs`) to parse + dump ISON with stable ordering and predictable diffs.
-- Add first-class CLI authoring helpers (skeleton generation + delta ops/scenario CRUD) so users/agents avoid hand-editing large payloads.
+- Add first-class CLI authoring helpers (skeleton generation + spec/delta CRUD) so users/agents avoid hand-editing large payloads.
 - Preserve legacy behavior via an explicit legacy command (`llman sdd-legacy`) so existing repositories remain usable without loosening the new format contracts.
 - Allow users to manually rewrite legacy payloads into canonical table/object ISON when they choose to switch from `llman sdd-legacy` to `llman sdd`.
 - Update `templates/sdd/**` guidance so agents author new specs/deltas in the new ISON schema (and prefer the new CLI helpers).
@@ -58,6 +58,7 @@ Inside the ` ```ison ` payload for `llmanspec/specs/<capability>/spec.md`, defin
 Block names MUST be strictly fixed to the identifiers above (no aliases), because they are part of the normative authoring/CRUD contract.
 
 Validation contract:
+- `version` MUST be `"1.0.0"` (v1)
 - `kind` MUST be `llman.sdd.spec`
 - `name` MUST match `<capability>` in strict mode
 - each requirement MUST have ≥1 scenario row
@@ -65,6 +66,19 @@ Validation contract:
 - `given` MAY be an empty string (`""`)
 - `when` MUST NOT be an empty string
 - `then` MUST NOT be an empty string
+
+Value encoding (normative, `ison-rs` compatible):
+- `given`, `when`, and `then` are string values. When quoting is required (spaces, punctuation, escapes), they MUST use **double quotes** (`"..."`).
+- Canonical llman write paths SHOULD follow `ison-rs` quoting rules for all string fields (notably: strings containing `.` will be quoted, so `version` and `kind` values are typically written as `"1.0.0"` / `"llman.sdd.spec"`).
+- Newlines (when needed) MUST be represented using `\n` escapes (no multi-line string syntaxes).
+- Writers MUST emit null values as `~` (and MUST NOT emit `null`) to keep dumps deterministic.
+  - Note: `ison-rs` accepts both `~` and `null`, but its serializer emits `null`; llman write paths MUST normalize emitted null tokens to `~` for consistency and token efficiency.
+
+Output compatibility (for `llman sdd show --json` stability):
+- Existing JSON schema remains unchanged (`Scenario.rawText` stays a single string).
+- `table.scenarios` rows MUST be rendered to `rawText` deterministically:
+  - if `given == ""`: `WHEN: {when}\nTHEN: {then}`
+  - otherwise: `GIVEN: {given}\nWHEN: {when}\nTHEN: {then}`
 
 Rationale:
 - preserves the existing semantic model (spec → requirements → scenarios),
@@ -76,7 +90,7 @@ Minimal example (main spec canonical blocks; these may be split across multiple 
 ```ison
 object.spec
 version kind name purpose
-1.0.0 llman.sdd.spec sample "Describe sample behavior."
+"1.0.0" "llman.sdd.spec" sample "Describe sample behavior."
 ```
 
 ```ison
@@ -98,7 +112,7 @@ More examples (main specs):
 ```ison
 object.spec
 version kind name purpose
-1.0.0 llman.sdd.spec auth "Authentication behavior."
+"1.0.0" "llman.sdd.spec" auth "Authentication behavior."
 ```
 
 ```ison
@@ -123,7 +137,7 @@ lockout after_3 "user exists: alice" "user fails login 3 times" "account is lock
 ```ison
 object.spec
 version kind name purpose
-1.0.0 llman.sdd.spec sample "Describe sample behavior."
+"1.0.0" "llman.sdd.spec" sample "Describe sample behavior."
 ```
 
 ## Requirements
@@ -152,7 +166,12 @@ Inside the ` ```ison ` payload for `llmanspec/changes/<change>/specs/<capability
 
 Block names MUST be strictly fixed to the identifiers above (no aliases).
 
+Frontmatter policy:
+- Newly generated delta spec skeletons MUST omit YAML frontmatter.
+
 Validation contract:
+- `version` MUST be `"1.0.0"` (v1)
+- `kind` MUST be `llman.sdd.delta`
 - `op` must be one of: `add_requirement`, `modify_requirement`, `remove_requirement`, `rename_requirement` (case-insensitive)
 - add/modify MUST provide `req_id/title/statement` and may have scenarios via `table.op_scenarios`
 - remove MUST provide `req_id` and may provide `name` (optional)
@@ -170,7 +189,7 @@ Minimal example (delta spec canonical blocks):
 ```ison
 object.delta
 version kind
-1.0.0 llman.sdd.delta
+"1.0.0" "llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name
@@ -188,7 +207,7 @@ More examples (delta specs):
 ```ison
 object.delta
 version kind
-1.0.0 llman.sdd.delta
+"1.0.0" "llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name
@@ -210,7 +229,7 @@ existing baseline "" "run sample" "behavior is preserved\nand no errors are repo
 ```ison
 object.delta
 version kind
-1.0.0 llman.sdd.delta
+"1.0.0" "llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name
@@ -240,9 +259,12 @@ Parser behavior (new command path: `llman sdd`):
 
 Legacy policy (`llman sdd-legacy`):
 - `llman sdd-legacy` preserves the existing JSON-in-` ```ison ` parsing behavior (including any JSON repair fallback).
+- The legacy workflow MUST be exposed as a separate top-level command (`llman sdd-legacy ...`). `llman sdd` MUST NOT expose a `--style legacy` (or equivalent) switch in its help/flags to avoid ambiguity.
 
 Validation policy:
 - In `llman sdd`, JSON-in-` ```ison ` payloads MUST be treated as errors (not only in `--strict`) with an actionable hint to use `llman sdd-legacy` (and to rewrite the payload into canonical table/object ISON when ready).
+- JSON payload detection MUST be fast and unambiguous:
+  - after trimming leading whitespace, if the first character is `{` or `[`, treat the payload as legacy JSON and emit a dedicated error message (do not surface an `ison-rs` parse error).
 
 Writer behavior:
 - Any newly written/updated files in the new path (CRUD edits, archive merge writes) MUST emit table/object ISON (not JSON).
@@ -255,6 +277,7 @@ Rationale:
 ### 6) CLI authoring helpers (CRUD) are first-class commands
 ISON authoring helpers MUST be integrated into the `llman sdd` workflow (not a separate “ison-only” command identity). Concretely, add explicit subcommands under `llman sdd` for:
 - main spec skeleton generation (capability-level)
+- main spec CRUD (add requirement + add scenario)
 - delta spec skeleton generation (change + capability)
 - delta CRUD operations (add/modify/remove/rename requirement ops)
 - scenario append for add/modify ops
@@ -262,6 +285,8 @@ ISON authoring helpers MUST be integrated into the `llman sdd` workflow (not a s
 
 Example shape (final naming to be implemented consistently across help text, templates, and docs):
 - `llman sdd spec skeleton <capability>`
+- `llman sdd spec add-requirement ...`
+- `llman sdd spec add-scenario ...`
 - `llman sdd delta skeleton <change-id> <capability>`
 - `llman sdd delta add-op ...`
 - `llman sdd delta add-scenario ...`
@@ -280,12 +305,19 @@ Rationale:
 ### 7) Default dump mode is token-friendly, with opt-in pretty alignment
 - Default dumps MUST be token-friendly (no column alignment padding).
 - Provide an opt-in flag (or mode) to pretty-align tables for review when desired.
-- Dumps MUST remain deterministic (same input → same output) and preserve block ordering.
+- Dumps MUST remain deterministic (same input → same output) and preserve canonical block ordering:
+  - main spec: `object.spec` → `table.requirements` → `table.scenarios`
+  - delta spec: `object.delta` → `table.ops` → `table.op_scenarios`
+- Row ordering MUST be stable and MUST NOT be auto-sorted; writers preserve existing order and append new rows at the end.
+- Pretty alignment MUST map directly to `ison-rs`’s dumper alignment mode:
+  - default: `align=false`
+  - pretty: `align=true`
+- After dumping, write paths MUST normalize null tokens (`null`) to `~` so emitted files match the canonical examples and delta placeholder style.
 
 ## Risks / Trade-offs
 
 - [Risk] `ison-rs` parser behavior differs from the “prompt-optimizer” docs (e.g., no triple-quoted strings).
-  - Mitigation: constrain the spec schema to values representable in `ison-rs` (scenario fields `given/when/then` use single quoted strings with `\n` escapes); document this in templates + validation hints.
+  - Mitigation: constrain the spec schema to values representable in `ison-rs` (scenario fields use `\n` escapes; quoting uses double quotes when required); document this in templates + validation hints.
 
 - [Risk] Mixed-format repos (some JSON payloads, some table ISON) cause inconsistent diffs or confusing guidance.
   - Mitigation: explicit legacy command + template guidance that strongly prefers table ISON; `llman sdd` fails fast on JSON payloads with actionable next steps.
@@ -294,7 +326,7 @@ Rationale:
   - Mitigation: stable block ordering; stable field ordering; default is token-friendly dumps; provide an opt-in pretty-alignment mode for review when needed.
 
 - [Risk] Adding new CLI commands expands surface area and maintenance.
-  - Mitigation: scope the first wave to skeleton + delta CRUD only; keep main spec CRUD as a follow-up if needed.
+  - Mitigation: scope the first wave to skeleton + spec/delta CRUD; keep more advanced refactors (for example, bulk reorder/format conversions) as follow-ups.
 
 ## Rollout Plan
 
@@ -303,13 +335,13 @@ Rationale:
    - main spec: `object.spec` + `table.requirements` + `table.scenarios`
    - delta spec: `object.delta` + `table.ops` + `table.op_scenarios`
 3. Implement dumping/writing of table ISON for any rewritten output path.
-4. Add integrated authoring helpers under `llman sdd` (skeleton + delta CRUD).
-6. Update `templates/sdd/**` and shared units (validation hints) to describe the new format and prefer CLI helpers.
-7. Update integration tests to cover:
+4. Add integrated authoring helpers under `llman sdd` (skeleton + spec/delta CRUD).
+5. Update `templates/sdd/**` and shared units (validation hints) to describe the new format and prefer CLI helpers.
+6. Update integration tests to cover:
    - `llman sdd-legacy` continues to work on legacy JSON payloads,
    - `llman sdd` parses table/object ISON payloads and errors on legacy JSON payloads,
    - deterministic dumps (no churn) for new table/object ISON writes.
-8. Rollout policy:
+7. Rollout policy:
 - `llman sdd` fails fast on legacy JSON payloads and points to `llman sdd-legacy` (and to canonical table/object ISON rewrite guidance).
 - `llman sdd-legacy` remains available as the compatibility path during transition.
 
@@ -317,7 +349,13 @@ Rollback strategy:
 - Users can temporarily use `llman sdd-legacy` if table ISON parsing has unexpected edge cases.
 - Deterministic dumps ensure users do not experience churn when rewriting or editing table/object ISON payloads.
 
-## Open Questions
+### 8) Delta specs omit YAML frontmatter (v1)
+- Delta spec skeleton generation MUST omit YAML frontmatter.
 
-1. Should delta specs continue to omit YAML frontmatter permanently, or should we optionally add it for symmetry?
-2. Do we need main-spec CRUD commands (`spec add-requirement`, `spec add-scenario`) in the first iteration, or is delta-only CRUD sufficient for the initial rollout?
+### 9) Main spec CRUD is included in v1
+- The first iteration MUST include main spec authoring helpers (`spec add-requirement` and `spec add-scenario`) in addition to delta CRUD.
+
+### 10) Schema evolution is major-versioned
+- v1 requires `"1.0.0"` for both `object.spec.version` and `object.delta.version`.
+- Unknown canonical block names, missing blocks, or unexpected columns are errors in v1.
+- Any schema evolution that changes blocks/columns MUST bump the major version and update `llman sdd` accordingly (v1 does not attempt forward compatibility).

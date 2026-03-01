@@ -11,7 +11,7 @@
 
 - 如果仓库根目录没有 `llmanspec/`，让用户先运行：
   ```bash
-  llman sdd init
+  llman sdd-legacy init
   ```
   然后在 `llmanspec/` 存在后继续。
 
@@ -70,7 +70,7 @@
    - `tasks.md`（有序、小步、可验证）
 3. 校验：
    ```bash
-   llman sdd validate <id> --strict --no-interactive
+   llman sdd-legacy validate <id> --strict --no-interactive
    ```
 
 在关键节点（proposal 完成、tasks 完成）暂停，向用户确认后再继续。
@@ -86,7 +86,7 @@
 
 实现后再次校验：
 ```bash
-llman sdd validate <id> --strict --no-interactive
+llman sdd-legacy validate <id> --strict --no-interactive
 ```
 
 ---
@@ -96,12 +96,12 @@ llman sdd validate <id> --strict --no-interactive
 当变更已被接受/部署后：
 
 ```bash
-llman sdd archive <id>
+llman sdd-legacy archive <id>
 ```
 
 然后运行：
 ```bash
-llman sdd validate --strict --no-interactive
+llman sdd-legacy validate --strict --no-interactive
 ```
 
 ---

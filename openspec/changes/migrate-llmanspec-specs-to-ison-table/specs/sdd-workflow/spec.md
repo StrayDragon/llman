@@ -21,6 +21,8 @@ This legacy command MUST:
 
 At minimum, the CLI MUST support:
 - generating a main spec skeleton for a capability
+- adding a requirement to a main spec
+- adding a scenario to a main spec (keyed by `req_id` + `scenario.id`)
 - generating a delta spec skeleton for a change + capability
 - adding/removing/updating delta ops (add/modify/remove/rename requirement)
 - adding scenarios for add/modify ops (keyed by `req_id` + `scenario.id`)
@@ -44,6 +46,7 @@ At minimum, `llman sdd show` MUST support a JSON metadata-only mode for specs:
 - output MUST NOT include `requirements` when `--meta-only` is set.
 
 If the CLI provides a `--compact-json` mode, it MUST emit JSON without pretty formatting whitespace (token-friendly) while keeping field order stable.
+This MUST apply to `llman sdd list/show/validate` (and `llman sdd-legacy list/show/validate`) whenever `--json` is used.
 
 #### Scenario: Agent fetches spec feature name cheaply
 - **WHEN** an agent needs the spec feature name/purpose for prompt assembly

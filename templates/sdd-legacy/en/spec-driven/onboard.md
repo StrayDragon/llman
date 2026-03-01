@@ -11,7 +11,7 @@ Ensure the repository is initialized for llman SDD:
 
 - If `llmanspec/` does not exist, instruct the user to run:
   ```bash
-  llman sdd init
+  llman sdd-legacy init
   ```
   Then continue once it exists.
 
@@ -70,7 +70,7 @@ Scope guardrail:
    - `tasks.md` (ordered, small, verifiable tasks)
 3. Validate the change:
    ```bash
-   llman sdd validate <id> --strict --no-interactive
+   llman sdd-legacy validate <id> --strict --no-interactive
    ```
 
 Pause at key transitions (after proposal, after tasks) and ask the user to confirm before moving on.
@@ -86,7 +86,7 @@ Pause at key transitions (after proposal, after tasks) and ask the user to confi
 
 After implementation, validate again:
 ```bash
-llman sdd validate <id> --strict --no-interactive
+llman sdd-legacy validate <id> --strict --no-interactive
 ```
 
 ---
@@ -96,12 +96,12 @@ llman sdd validate <id> --strict --no-interactive
 When the change is accepted/deployed:
 
 ```bash
-llman sdd archive <id>
+llman sdd-legacy archive <id>
 ```
 
 Then run:
 ```bash
-llman sdd validate --strict --no-interactive
+llman sdd-legacy validate --strict --no-interactive
 ```
 
 ---

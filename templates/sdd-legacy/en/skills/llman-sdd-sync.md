@@ -20,7 +20,7 @@ This is a manual, reproducible protocol.
    - Apply `ADDED|MODIFIED|REMOVED|RENAMED` sections manually
 3. Validate specs:
    ```bash
-   llman sdd validate --specs --strict --no-interactive
+   llman sdd-legacy validate --specs --strict --no-interactive
    ```
 4. Do NOT archive as part of sync. Use `/llman-sdd:archive` when ready.
 

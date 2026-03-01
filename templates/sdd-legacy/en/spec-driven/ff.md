@@ -16,7 +16,7 @@ Fast-forward through planning — generate all artifacts needed to start impleme
 
 2. **Ensure the project is initialized**
 
-   Check that `llmanspec/` exists. If missing, tell the user to run `llman sdd init` first, then STOP.
+   Check that `llmanspec/` exists. If missing, tell the user to run `llman sdd-legacy init` first, then STOP.
 
 3. **Create the change directory**
 
@@ -46,12 +46,12 @@ Fast-forward through planning — generate all artifacts needed to start impleme
 
    d) `tasks.md`
    - Break down implementation into small, checkable tasks.
-   - Include validation commands (e.g., `just check`, `llman sdd validate <id> --strict --no-interactive`).
+   - Include validation commands (e.g., `just check`, `llman sdd-legacy validate <id> --strict --no-interactive`).
 
 5. **Validate and hand off to implementation**
 
    Suggest running:
-   - `llman sdd validate <id> --strict --no-interactive`
+   - `llman sdd-legacy validate <id> --strict --no-interactive`
 
    Then prompt:
    - "Ready for implementation. Run `/llman-sdd:apply <id>`."

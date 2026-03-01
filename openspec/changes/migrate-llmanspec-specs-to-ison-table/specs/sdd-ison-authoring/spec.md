@@ -9,6 +9,7 @@ The ISON payload MUST provide these blocks with strictly fixed names and columns
 - `table.scenarios`: `req_id id given when then`
 
 Validation MUST enforce:
+- `object.spec.version` equals `"1.0.0"` (v1)
 - `object.spec.kind` equals `llman.sdd.spec`
 - in strict mode: `object.spec.name` equals `<capability>`
 - every requirement has at least one scenario row
@@ -16,7 +17,7 @@ Validation MUST enforce:
 
 `object.spec.name` is the stable feature-id for the spec. In strict mode, it MUST equal `<capability>`.
 
-Scenario fields (`given`, `when`, `then`) MUST each be represented as a single quoted string. Newlines (when needed) MUST be represented using `\n` escapes (rather than multi-line string syntaxes).
+Scenario fields (`given`, `when`, `then`) MUST be ISON string values compatible with `ison-rs`. When quoting is required (spaces, punctuation, escapes), values MUST use **double quotes** (`"..."`). Newlines (when needed) MUST be represented using `\n` escapes (rather than multi-line string syntaxes).
   - `given` MAY be an empty string (`""`) when no precondition is needed.
   - `when` MUST NOT be an empty string.
   - `then` MUST NOT be an empty string.
@@ -41,7 +42,7 @@ llman_spec_valid_commands:
 ```ison
 object.spec
 version kind name purpose
-1.0.0 llman.sdd.spec sample "Describe sample behavior."
+"1.0.0" "llman.sdd.spec" sample "Describe sample behavior."
 ```
 
 ```ison
@@ -61,7 +62,7 @@ existing baseline "" "run sample" "behavior is preserved"
 ```ison
 object.delta
 version kind
-1.0.0 llman.sdd.delta
+"1.0.0" "llman.sdd.delta"
 
 table.ops
 op req_id title statement from to name
@@ -89,9 +90,13 @@ The ISON payload MUST provide these blocks with strictly fixed names and columns
 - `table.ops`: `op req_id title statement from to name`
 - `table.op_scenarios`: `req_id id given when then`
 
+Validation MUST enforce:
+- `object.delta.version` equals `"1.0.0"` (v1)
+- `object.delta.kind` equals `llman.sdd.delta`
+
 Unused fields in `table.ops` MUST be represented as `~` (null).
 
-Scenario values in `table.op_scenarios` MUST follow the same encoding and style rules as main specs (single quoted string; newlines via `\n`; `given` MAY be empty; `when/then` MUST NOT be empty).
+Scenario values in `table.op_scenarios` MUST follow the same encoding and style rules as main specs (ISON string; double quotes when quoting is required; newlines via `\n`; `given` MAY be empty; `when/then` MUST NOT be empty).
 
 #### Scenario: Delta ops and scenarios are representable as deterministic tables
 - **WHEN** a change contains an add/modify/remove/rename requirement delta spec

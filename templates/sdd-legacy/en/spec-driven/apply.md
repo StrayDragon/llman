@@ -11,7 +11,7 @@ Implement tasks for a change in `llmanspec/changes/<id>/`.
 
    If an id is provided, use it. Otherwise:
    - If the conversation clearly references a change id, use it.
-   - Else run `llman sdd list --json`, show the most recent changes, and ask the user to pick one.
+   - Else run `llman sdd-legacy list --json`, show the most recent changes, and ask the user to pick one.
 
    Always announce: "Using change: <id>" and how to override (e.g., `/llman-sdd:apply <other>`).
 
@@ -51,7 +51,7 @@ Implement tasks for a change in `llmanspec/changes/<id>/`.
 6. **On completion**
 
    When all tasks are checked:
-   - Run `llman sdd validate <id> --strict --no-interactive`
+   - Run `llman sdd-legacy validate <id> --strict --no-interactive`
    - Suggest `/llman-sdd:verify <id>` (optional but recommended)
    - Suggest `/llman-sdd:archive <id>` to archive and update main specs
 

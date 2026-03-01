@@ -10,8 +10,8 @@ metadata:
 Use this skill to validate change/spec format and staleness.
 
 ## Steps
-1. Validate one item: `llman sdd validate <id>`.
-2. Validate all: `llman sdd validate --all` (or `--changes` / `--specs`).
+1. Validate one item: `llman sdd-legacy validate <id>`.
+2. Validate all: `llman sdd-legacy validate --all` (or `--changes` / `--specs`).
 3. Use `--strict` and `--no-interactive` for CI-like checks.
 4. If validation fails, summarize the errors and propose minimal, concrete fixes.
 

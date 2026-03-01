@@ -516,7 +516,7 @@ fn test_sdd_update_legacy_style_routes_legacy_templates() {
     let before = fs::read_to_string(&template_path).expect("read default template");
     assert!(!before.contains("legacy-track"));
 
-    let update_output = run_llman(&["sdd", "update", "--style", "legacy"], work_dir, work_dir);
+    let update_output = run_llman(&["sdd-legacy", "update"], work_dir, work_dir);
     assert_success(&update_output);
 
     let after = fs::read_to_string(&template_path).expect("read legacy template");
@@ -610,13 +610,11 @@ fn test_sdd_update_skills_legacy_style_routes_legacy_templates() {
     let output_dir = work_dir.join(".codex/skills");
     let update_output = run_llman(
         &[
-            "sdd",
+            "sdd-legacy",
             "update-skills",
             "--tool",
             "codex",
             "--no-interactive",
-            "--style",
-            "legacy",
             "--path",
             ".codex/skills",
         ],

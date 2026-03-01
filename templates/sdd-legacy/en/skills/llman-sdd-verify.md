@@ -10,9 +10,9 @@ metadata:
 Use this skill to verify that the implementation matches the change’s artifacts.
 
 ## Steps
-1. Select the change id (or ask the user to pick from `llman sdd list --json`).
+1. Select the change id (or ask the user to pick from `llman sdd-legacy list --json`).
 2. Run a fast validation gate:
-   - `llman sdd validate <id> --strict --no-interactive`
+   - `llman sdd-legacy validate <id> --strict --no-interactive`
 3. Read:
    - Delta specs under `llmanspec/changes/<id>/specs/`
    - `proposal.md` and `design.md` if present
@@ -24,7 +24,7 @@ Use this skill to verify that the implementation matches the change’s artifact
    - **CRITICAL** (must fix before archive)
    - **WARNING** (should fix)
    - **SUGGESTION** (nice to have)
-6. If CRITICAL exists, suggest `llman-sdd-apply` (or `/llman-sdd:apply <id>`). If clean, suggest archive: `llman sdd archive <id>`.
+6. If CRITICAL exists, suggest `llman-sdd-apply` (or `/llman-sdd:apply <id>`). If clean, suggest archive: `llman sdd-legacy archive <id>`.
 
 {{ unit("skills/sdd-commands") }}
 

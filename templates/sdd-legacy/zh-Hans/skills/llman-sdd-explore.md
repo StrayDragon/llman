@@ -22,7 +22,7 @@ metadata:
 
 ## 建议动作
 1. 澄清目标与约束（问 1–3 个问题）。
-2. 先看上下文：`llman sdd list --json`
+2. 先看上下文：`llman sdd-legacy list --json`
 3. 如果某个 change id 相关，阅读 `llmanspec/changes/<id>/` 下的 artifacts。
 4. 探索 2–3 个选项与权衡。
 5. 当结论逐渐清晰时，建议用户把它记录下来（不要自动写入）：

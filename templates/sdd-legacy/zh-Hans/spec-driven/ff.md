@@ -16,7 +16,7 @@
 
 2. **确保项目已初始化**
 
-   检查是否存在 `llmanspec/`。若不存在，提示用户先运行 `llman sdd init`，然后 STOP。
+   检查是否存在 `llmanspec/`。若不存在，提示用户先运行 `llman sdd-legacy init`，然后 STOP。
 
 3. **创建变更目录**
 
@@ -48,12 +48,12 @@
 
    d) `tasks.md`
    - 将实施拆成可勾选的小任务
-   - 包含验证命令（例如 `just check`、`llman sdd validate <id> --strict --no-interactive`）
+   - 包含验证命令（例如 `just check`、`llman sdd-legacy validate <id> --strict --no-interactive`）
 
 5. **建议校验并交接给实施**
 
    建议运行：
-   - `llman sdd validate <id> --strict --no-interactive`
+   - `llman sdd-legacy validate <id> --strict --no-interactive`
 
    然后提示：
    - "准备开始实施。运行 `/llman-sdd:apply <id>`。"

@@ -14,6 +14,7 @@ pub struct ListArgs {
     pub changes: bool,
     pub sort: String,
     pub json: bool,
+    pub compact_json: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -62,6 +63,7 @@ mod tests {
             changes: true,
             sort: "recent".to_string(),
             json: false,
+            compact_json: false,
         });
         assert!(result.is_err());
     }
@@ -76,7 +78,7 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
     let change_ids = list_changes(root)?;
     if change_ids.is_empty() {
         if args.json {
-            println!("{}", serde_json::json!({"changes": []}));
+            print_json(&serde_json::json!({"changes": []}), args.compact_json)?;
         } else {
             println!("{}", t!("sdd.list.no_active_changes"));
         }
@@ -113,7 +115,10 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
                 status: status_key(c.completed_tasks, c.total_tasks).to_string(),
             })
             .collect();
-        println!("{}", serde_json::json!({"changes": json_output}));
+        print_json(
+            &serde_json::json!({"changes": json_output}),
+            args.compact_json,
+        )?;
         return Ok(());
     }
 
@@ -133,7 +138,7 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     let specs_dir = root.join(LLMANSPEC_DIR_NAME).join("specs");
     if !specs_dir.exists() {
         if args.json {
-            println!("[]");
+            print_json(&serde_json::json!([]), args.compact_json)?;
         } else {
             println!("{}", t!("sdd.list.no_specs"));
         }
@@ -143,7 +148,7 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     let spec_ids = list_specs(root)?;
     if spec_ids.is_empty() {
         if args.json {
-            println!("[]");
+            print_json(&serde_json::json!([]), args.compact_json)?;
         } else {
             println!("{}", t!("sdd.list.no_specs"));
         }
@@ -176,7 +181,7 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
                 })
             })
             .collect();
-        println!("{}", serde_json::to_string(&json_output)?);
+        print_json(&serde_json::json!(json_output), args.compact_json)?;
         return Ok(());
     }
 
@@ -187,6 +192,15 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
         println!("  {}     requirements {}", padded, count);
     }
 
+    Ok(())
+}
+
+fn print_json(value: &serde_json::Value, compact: bool) -> Result<()> {
+    if compact {
+        println!("{}", serde_json::to_string(value)?);
+    } else {
+        println!("{}", serde_json::to_string_pretty(value)?);
+    }
     Ok(())
 }
 

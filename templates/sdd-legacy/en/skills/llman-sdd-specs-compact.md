@@ -24,13 +24,13 @@ Use this skill to reduce specs bloat while preserving MUST/Scenario behavior.
 - Every retained requirement must keep at least one valid scenario.
 
 ## Workflow
-1. Inventory current specs (`llman sdd list --specs`).
+1. Inventory current specs (`llman sdd-legacy list --specs`).
 2. If archived change history is large, run archive freeze first:
-   - preview: `llman sdd archive freeze --dry-run`
-   - execute: `llman sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
+   - preview: `llman sdd-legacy archive freeze --dry-run`
+   - execute: `llman sdd-legacy archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
 3. Map overlap candidates across capabilities.
 4. Propose a compaction plan (canonical requirements + keep/merge/remove decisions + migration notes).
-5. Validate impacted specs (`llman sdd validate --specs --strict --no-interactive`).
+5. Validate impacted specs (`llman sdd-legacy validate --specs --strict --no-interactive`).
 
 ## Decision Policy
 - Prefer deduplication when two requirements are semantically equivalent.

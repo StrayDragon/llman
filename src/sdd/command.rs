@@ -1,21 +1,16 @@
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
+use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::project::{init, interop, migrate, update, update_skills};
 use crate::sdd::shared::{list, show, validate};
 use anyhow::Result;
-use clap::{Args, Subcommand, ValueEnum};
+use clap::{Args, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Args)]
 pub struct SddArgs {
     #[command(subcommand)]
     pub command: SddCommands,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-pub enum SddStyleArg {
-    New,
-    Legacy,
 }
 
 #[derive(Subcommand)]
@@ -32,9 +27,6 @@ pub enum SddCommands {
     Update {
         /// Target path (default: current directory)
         path: Option<PathBuf>,
-        /// Template style: new (default) or legacy
-        #[arg(long, value_enum, default_value_t = SddStyleArg::New)]
-        style: SddStyleArg,
     },
     /// Generate or update llman sdd skills
     UpdateSkills {
@@ -56,9 +48,6 @@ pub enum SddCommands {
         /// Generate only skills (no llman sdd workflow commands)
         #[arg(long, conflicts_with = "commands_only")]
         skills_only: bool,
-        /// Template style for generated skills: new (default) or legacy
-        #[arg(long, value_enum, default_value_t = SddStyleArg::New)]
-        style: SddStyleArg,
     },
     /// List changes or specs
     List {
@@ -74,6 +63,9 @@ pub enum SddCommands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+        /// Emit compact JSON (no pretty whitespace). Requires `--json`.
+        #[arg(long, requires = "json")]
+        compact_json: bool,
     },
     /// Show a change or spec
     Show {
@@ -82,6 +74,12 @@ pub enum SddCommands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+        /// Emit compact JSON (no pretty whitespace). Requires `--json`.
+        #[arg(long, requires = "json")]
+        compact_json: bool,
+        /// Spec-only: output metadata only (no `requirements`). Requires `--json`.
+        #[arg(long, requires = "json")]
+        meta_only: bool,
         /// Specify item type when ambiguous: change|spec
         #[arg(long = "type")]
         item_type: Option<String>,
@@ -103,9 +101,6 @@ pub enum SddCommands {
         /// Spec-only: show specific requirement by ID (1-based)
         #[arg(short = 'r', long)]
         requirement: Option<usize>,
-        /// Output style context: new (default) or legacy
-        #[arg(long, value_enum, default_value_t = SddStyleArg::New)]
-        style: SddStyleArg,
     },
     /// Validate changes and specs
     Validate {
@@ -129,12 +124,12 @@ pub enum SddCommands {
         /// Output validation results as JSON
         #[arg(long)]
         json: bool,
+        /// Emit compact JSON (no pretty whitespace). Requires `--json`.
+        #[arg(long, requires = "json")]
+        compact_json: bool,
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
-        /// Validation style context: new (default) or legacy
-        #[arg(long, value_enum, default_value_t = SddStyleArg::New)]
-        style: SddStyleArg,
         /// Emit old-vs-new style A/B evaluation report
         #[arg(long)]
         ab_report: bool,
@@ -225,14 +220,23 @@ pub enum ArchiveSubcommand {
 }
 
 pub fn run(args: &SddArgs) -> Result<()> {
+    run_with_style(args, TemplateStyle::New)
+}
+
+pub fn run_legacy(args: &SddArgs) -> Result<()> {
+    run_with_style(args, TemplateStyle::Legacy)
+}
+
+fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
     match &args.command {
         SddCommands::Init { path, lang } => init::run(
             path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
             lang.as_deref(),
+            style,
         ),
-        SddCommands::Update { path, style } => update::run(
+        SddCommands::Update { path } => update::run(
             path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
-            (*style).into(),
+            style,
         ),
         SddCommands::UpdateSkills {
             all,
@@ -241,7 +245,6 @@ pub fn run(args: &SddArgs) -> Result<()> {
             no_interactive,
             commands_only,
             skills_only,
-            style,
         } => update_skills::run(update_skills::UpdateSkillsArgs {
             all: *all,
             tool: tool.clone(),
@@ -249,22 +252,26 @@ pub fn run(args: &SddArgs) -> Result<()> {
             no_interactive: *no_interactive,
             commands_only: *commands_only,
             skills_only: *skills_only,
-            style: (*style).into(),
+            style,
         }),
         SddCommands::List {
             specs,
             changes,
             sort,
             json,
+            compact_json,
         } => list::run(list::ListArgs {
             specs: *specs,
             changes: *changes,
             sort: sort.clone(),
             json: *json,
+            compact_json: *compact_json,
         }),
         SddCommands::Show {
             item,
             json,
+            compact_json,
+            meta_only,
             item_type,
             no_interactive,
             deltas_only,
@@ -272,10 +279,11 @@ pub fn run(args: &SddArgs) -> Result<()> {
             requirements,
             no_scenarios,
             requirement,
-            style,
         } => show::run(show::ShowArgs {
             item: item.clone(),
             json: *json,
+            compact_json: *compact_json,
+            meta_only: *meta_only,
             item_type: item_type.clone(),
             no_interactive: *no_interactive,
             deltas_only: *deltas_only,
@@ -283,7 +291,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             requirements: *requirements,
             no_scenarios: *no_scenarios,
             requirement: *requirement,
-            style: (*style).into(),
+            style,
         }),
         SddCommands::Validate {
             item,
@@ -293,8 +301,8 @@ pub fn run(args: &SddArgs) -> Result<()> {
             item_type,
             strict,
             json,
+            compact_json,
             no_interactive,
-            style,
             ab_report,
         } => validate::run(validate::ValidateArgs {
             item: item.clone(),
@@ -304,8 +312,9 @@ pub fn run(args: &SddArgs) -> Result<()> {
             item_type: item_type.clone(),
             strict: *strict,
             json: *json,
+            compact_json: *compact_json,
             no_interactive: *no_interactive,
-            style: (*style).into(),
+            style,
             ab_report: *ab_report,
         }),
         SddCommands::Archive {
@@ -363,14 +372,5 @@ pub fn run(args: &SddArgs) -> Result<()> {
             dry_run: *dry_run,
             path: path.clone(),
         }),
-    }
-}
-
-impl From<SddStyleArg> for crate::sdd::project::templates::TemplateStyle {
-    fn from(value: SddStyleArg) -> Self {
-        match value {
-            SddStyleArg::New => Self::New,
-            SddStyleArg::Legacy => Self::Legacy,
-        }
     }
 }

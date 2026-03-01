@@ -12,7 +12,7 @@
    - 若提供了 id，直接使用。
    - 否则：
      - 若对话上下文明确指向某个变更 id，则使用它。
-     - 否则运行 `llman sdd list --json`，让用户选择要验证的变更。
+     - 否则运行 `llman sdd-legacy list --json`，让用户选择要验证的变更。
 
 2. **加载工件**
 
@@ -25,7 +25,7 @@
 3. **先运行 validate（快速信号）**
 
    运行：
-   - `llman sdd validate <id> --strict --no-interactive`
+   - `llman sdd-legacy validate <id> --strict --no-interactive`
 
    若校验失败，将其记录为 **CRITICAL**（附原始错误/输出）。
 

@@ -19,7 +19,7 @@ metadata:
 ## 备注
 - `llmanspec/config.yaml` 控制 locale 与 skills 路径。
 - locale 仅影响模板与 skills，CLI 仍为英文。
-- 使用 `llman sdd update-skills` 刷新技能。
+- 使用 `llman sdd-legacy update-skills` 刷新技能。
 
 {{ unit("skills/validation-hints") }}
 

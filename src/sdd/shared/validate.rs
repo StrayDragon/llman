@@ -30,6 +30,7 @@ pub struct ValidateArgs {
     pub item_type: Option<String>,
     pub strict: bool,
     pub json: bool,
+    pub compact_json: bool,
     pub no_interactive: bool,
     pub style: TemplateStyle,
     pub ab_report: bool,
@@ -99,7 +100,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
     let _style = args.style;
     let root = Path::new(".");
     if args.ab_report {
-        run_ab_report(root, args.json)?;
+        run_ab_report(root, args.json, args.compact_json)?;
         return Ok(());
     }
     let interactive = is_interactive(args.no_interactive);
@@ -108,13 +109,20 @@ pub fn run(args: ValidateArgs) -> Result<()> {
     if args.all || args.changes || args.specs {
         let do_changes = args.all || args.changes;
         let do_specs = args.all || args.specs;
-        run_bulk_validation(root, do_changes, do_specs, args.strict, args.json)?;
+        run_bulk_validation(
+            root,
+            do_changes,
+            do_specs,
+            args.strict,
+            args.json,
+            args.compact_json,
+        )?;
         return Ok(());
     }
 
     if args.item.is_none() {
         if interactive {
-            run_interactive_selector(root, args.strict, args.json)?;
+            run_interactive_selector(root, args.strict, args.json, args.compact_json)?;
             return Ok(());
         }
         print_non_interactive_hint();
@@ -122,10 +130,17 @@ pub fn run(args: ValidateArgs) -> Result<()> {
     }
 
     let item = args.item.as_ref().unwrap();
-    validate_direct(root, item, type_override, args.strict, args.json)
+    validate_direct(
+        root,
+        item,
+        type_override,
+        args.strict,
+        args.json,
+        args.compact_json,
+    )
 }
 
-fn run_ab_report(root: &Path, json: bool) -> Result<()> {
+fn run_ab_report(root: &Path, json: bool, compact_json: bool) -> Result<()> {
     let config = load_sdd_config_for_eval(root)?;
     let scenarios = vec![
         "high-risk-harm-request",
@@ -160,7 +175,7 @@ fn run_ab_report(root: &Path, json: bool) -> Result<()> {
                 "priority": ["safety", "quality", "token_estimate", "latency_ms"],
             }
         });
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        print_json(&output, compact_json)?;
         return Ok(());
     }
 
@@ -302,7 +317,12 @@ fn normalize_type(value: Option<&str>) -> Option<ItemType> {
     }
 }
 
-fn run_interactive_selector(root: &Path, strict: bool, json: bool) -> Result<()> {
+fn run_interactive_selector(
+    root: &Path,
+    strict: bool,
+    json: bool,
+    compact_json: bool,
+) -> Result<()> {
     let choice = Select::new(
         &t!("sdd.validate.select_scope"),
         vec![
@@ -315,15 +335,15 @@ fn run_interactive_selector(root: &Path, strict: bool, json: bool) -> Result<()>
     .prompt()?;
 
     if choice == t!("sdd.validate.option_all") {
-        run_bulk_validation(root, true, true, strict, json)?;
+        run_bulk_validation(root, true, true, strict, json, compact_json)?;
         return Ok(());
     }
     if choice == t!("sdd.validate.option_changes") {
-        run_bulk_validation(root, true, false, strict, json)?;
+        run_bulk_validation(root, true, false, strict, json, compact_json)?;
         return Ok(());
     }
     if choice == t!("sdd.validate.option_specs") {
-        run_bulk_validation(root, false, true, strict, json)?;
+        run_bulk_validation(root, false, true, strict, json, compact_json)?;
         return Ok(());
     }
 
@@ -338,7 +358,7 @@ fn run_interactive_selector(root: &Path, strict: bool, json: bool) -> Result<()>
     }
     let picked = Select::new(&t!("sdd.validate.pick_item"), items).prompt()?;
     let (item_type, id) = parse_prefixed_item(&picked)?;
-    validate_by_type(root, item_type, &id, strict, json)
+    validate_by_type(root, item_type, &id, strict, json, compact_json)
 }
 
 fn parse_prefixed_item(value: &str) -> Result<(ItemType, String)> {
@@ -359,6 +379,7 @@ fn validate_direct(
     type_override: Option<ItemType>,
     strict: bool,
     json: bool,
+    compact_json: bool,
 ) -> Result<()> {
     let changes = list_changes(root)?;
     let specs = list_specs(root)?;
@@ -424,6 +445,7 @@ fn validate_direct(
         item,
         strict,
         json,
+        compact_json,
     )
 }
 
@@ -433,6 +455,7 @@ fn validate_by_type(
     id: &str,
     strict: bool,
     json: bool,
+    compact_json: bool,
 ) -> Result<()> {
     let start = Instant::now();
     let (report, staleness) = match item_type {
@@ -493,7 +516,7 @@ fn validate_by_type(
             "summary": summary,
             "version": "1.0"
         });
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        print_json(&output, compact_json)?;
     } else {
         print_single_report(item_type, id, &report, &staleness);
     }
@@ -612,6 +635,7 @@ fn run_bulk_validation(
     validate_specs: bool,
     strict: bool,
     json: bool,
+    compact_json: bool,
 ) -> Result<()> {
     let changes = if validate_changes {
         list_changes(root)?
@@ -701,7 +725,7 @@ fn run_bulk_validation(
                 "summary": summary,
                 "version": "1.0"
             });
-            println!("{}", serde_json::to_string_pretty(&output)?);
+            print_json(&output, compact_json)?;
         } else {
             println!("{}", t!("sdd.validate.no_items"));
         }
@@ -725,7 +749,7 @@ fn run_bulk_validation(
             "summary": summary,
             "version": "1.0"
         });
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        print_json(&output, compact_json)?;
     } else {
         let passed = items.iter().filter(|item| item.valid).count();
         let failed = items.len() - passed;
@@ -848,6 +872,15 @@ fn empty_summary(include_changes: bool, include_specs: bool) -> serde_json::Valu
         "totals": { "items": 0, "passed": 0, "failed": 0 },
         "byType": by_type
     })
+}
+
+fn print_json(value: &serde_json::Value, compact: bool) -> Result<()> {
+    if compact {
+        println!("{}", serde_json::to_string(value)?);
+    } else {
+        println!("{}", serde_json::to_string_pretty(value)?);
+    }
+    Ok(())
 }
 
 #[derive(Default, Serialize)]

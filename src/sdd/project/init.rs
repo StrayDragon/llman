@@ -11,7 +11,7 @@ use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::Path;
 
-pub fn run(target: &Path, locale: Option<&str>) -> Result<()> {
+pub fn run(target: &Path, locale: Option<&str>, style: TemplateStyle) -> Result<()> {
     ensure_directory(target)?;
 
     let llmanspec_path = target.join(LLMANSPEC_DIR_NAME);
@@ -22,10 +22,10 @@ pub fn run(target: &Path, locale: Option<&str>) -> Result<()> {
     create_structure(&llmanspec_path)?;
     let config = config_with_locale(locale);
     write_config(&llmanspec_path, &config)?;
-    write_project_file(&llmanspec_path, target, &config, TemplateStyle::New)?;
-    write_agents_file(&llmanspec_path, target, &config, TemplateStyle::New)?;
-    write_root_agents_file(target, &config, TemplateStyle::New)?;
-    write_spec_driven_templates(&llmanspec_path, target, &config, TemplateStyle::New)?;
+    write_project_file(&llmanspec_path, target, &config, style)?;
+    write_agents_file(&llmanspec_path, target, &config, style)?;
+    write_root_agents_file(target, &config, style)?;
+    write_spec_driven_templates(&llmanspec_path, target, &config, style)?;
 
     Ok(())
 }

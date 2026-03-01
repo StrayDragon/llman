@@ -21,7 +21,7 @@
 2. **确保项目已初始化**
 
    检查仓库根目录是否存在 `llmanspec/`。
-   - 若不存在：提示用户先运行 `llman sdd init`，然后 STOP。
+   - 若不存在：提示用户先运行 `llman sdd-legacy init`，然后 STOP。
 
 3. **创建变更目录（不创建工件）**
 

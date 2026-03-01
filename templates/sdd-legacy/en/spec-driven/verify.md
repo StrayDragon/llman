@@ -11,7 +11,7 @@ Verify that the implementation matches the change artifacts (specs, tasks, desig
 
    If an id is provided, use it. Otherwise:
    - If the conversation clearly references a change id, use it.
-   - Else run `llman sdd list --json` and ask the user to pick a change.
+   - Else run `llman sdd-legacy list --json` and ask the user to pick a change.
 
 2. **Load artifacts**
 
@@ -24,7 +24,7 @@ Verify that the implementation matches the change artifacts (specs, tasks, desig
 3. **Run validation first (fast signal)**
 
    Run:
-   - `llman sdd validate <id> --strict --no-interactive`
+   - `llman sdd-legacy validate <id> --strict --no-interactive`
 
    If validation fails, record it as **CRITICAL** (with the exact error/output).
 

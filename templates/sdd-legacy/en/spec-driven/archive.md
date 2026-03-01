@@ -1,16 +1,16 @@
 <!-- llman-template-version: 2 -->
-<!-- source: llman sdd workflow templates/en/archive.md -->
+<!-- source: llman sdd-legacy workflow templates/en/archive.md -->
 
 Archive completed changes in llman SDD.
 
-**Input**: Optionally provide one or more change ids after `/llman-sdd:archive` (space-separated). If omitted, infer from context; if ambiguous, run `llman sdd list --json` and ask the user to choose.
+**Input**: Optionally provide one or more change ids after `/llman-sdd:archive` (space-separated). If omitted, infer from context; if ambiguous, run `llman sdd-legacy list --json` and ask the user to choose.
 
 **Steps**
 
 1. **Resolve target IDs**
 
    - If one or more ids are provided, use them in order.
-   - Otherwise, run `llman sdd list --json` and ask the user to pick explicit IDs.
+   - Otherwise, run `llman sdd-legacy list --json` and ask the user to pick explicit IDs.
 
    **IMPORTANT**: Do NOT guess. Never archive without confirmed IDs.
    Always announce: "Archiving IDs: <id1>, <id2>, ...".
@@ -19,7 +19,7 @@ Archive completed changes in llman SDD.
 
    Run for each id:
    ```bash
-   llman sdd validate <id> --strict --no-interactive
+   llman sdd-legacy validate <id> --strict --no-interactive
    ```
 
    If any validation fails, STOP and ask whether to fix artifacts first or intentionally proceed.
@@ -27,19 +27,19 @@ Archive completed changes in llman SDD.
 3. **(Optional) Dry run each archive**
 
    ```bash
-   llman sdd archive <id> --dry-run
+   llman sdd-legacy archive <id> --dry-run
    ```
 
 4. **Archive sequentially**
 
    Default behavior (recommended):
    ```bash
-   llman sdd archive run <id>
+   llman sdd-legacy archive run <id>
    ```
 
    Tooling-only change:
    ```bash
-   llman sdd archive run <id> --skip-specs
+   llman sdd-legacy archive run <id> --skip-specs
    ```
 
    Notes:
@@ -50,7 +50,7 @@ Archive completed changes in llman SDD.
 5. **Verify once after completion**
 
    ```bash
-   llman sdd validate --strict --no-interactive
+   llman sdd-legacy validate --strict --no-interactive
    ```
 
 {{ unit("workflow/archive-freeze-guidance") }}
