@@ -1,0 +1,290 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "llman SDD Eval Playbook",
+  "description": "Playbook for `llman x sdd-eval` (workflow/jobs/steps DSL).",
+  "type": "object",
+  "properties": {
+    "name": {
+      "description": "Optional human-readable playbook name.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "report": {
+      "title": "Report",
+      "description": "Report configuration.",
+      "type": "object",
+      "properties": {
+        "ai_judge": {
+          "title": "AI Judge",
+          "description": "Optional AI judge configuration.",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "default": {
+            "enabled": false
+          }
+        },
+        "human": {
+          "title": "Human Report",
+          "description": "Human scoring export settings.",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false,
+          "default": {
+            "enabled": true
+          }
+        }
+      },
+      "additionalProperties": false,
+      "default": {
+        "ai_judge": {
+          "enabled": false
+        },
+        "human": {
+          "enabled": true
+        }
+      }
+    },
+    "sdd_loop": {
+      "title": "SDD Loop",
+      "description": "Default loop configuration for built-in actions.",
+      "type": "object",
+      "properties": {
+        "max_iterations": {
+          "description": "Maximum iterations for the ACP SDD loop (must be > 0).",
+          "type": "integer",
+          "format": "uint32",
+          "default": 6,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "default": {
+        "max_iterations": 6
+      }
+    },
+    "task": {
+      "title": "Task",
+      "description": "Shared evaluation task definition.",
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "description": "Full task prompt presented to the agent.",
+          "type": "string"
+        },
+        "title": {
+          "description": "Short human-readable task title.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "prompt"
+      ]
+    },
+    "variants": {
+      "description": "Variants keyed by stable variant_id. Used by workflow matrix expansion.",
+      "type": "object",
+      "additionalProperties": {
+        "title": "Variant",
+        "description": "Variant configuration (workflow style + ACP agent preset).",
+        "type": "object",
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "description": "ACP agent configuration for the variant.",
+            "type": "object",
+            "properties": {
+              "args": {
+                "description": "Extra process args for the agent.",
+                "type": "array",
+                "default": [],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "command": {
+                "description": "Agent executable name/path (optional; defaults depend on kind).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "title": "Agent Kind",
+                "description": "ACP agent kind.",
+                "type": "string",
+                "enum": [
+                  "claude-code-acp",
+                  "codex-acp",
+                  "fake-acp"
+                ]
+              },
+              "preset": {
+                "description": "Preset/group name from `llman x cc` or `llman x codex`.",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "preset"
+            ]
+          },
+          "style": {
+            "title": "Workflow Style",
+            "description": "Workflow style for the variant.",
+            "type": "string",
+            "enum": [
+              "sdd",
+              "sdd-legacy"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "style",
+          "agent"
+        ]
+      }
+    },
+    "workflow": {
+      "title": "Workflow",
+      "description": "Workflow definition (jobs/steps).",
+      "type": "object",
+      "properties": {
+        "jobs": {
+          "description": "Job map keyed by stable job_id (YAML order is significant).",
+          "type": "object",
+          "additionalProperties": {
+            "title": "Job",
+            "description": "Workflow job definition.",
+            "type": "object",
+            "properties": {
+              "needs": {
+                "description": "Job dependencies by job_id.",
+                "type": "array",
+                "default": [],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "steps": {
+                "description": "Ordered steps for the job (must be non-empty).",
+                "type": "array",
+                "items": {
+                  "title": "Step",
+                  "description": "Workflow step (`uses` or `run`).",
+                  "type": "object",
+                  "properties": {
+                    "cwd": {
+                      "description": "Optional working directory (relative to sandbox root).",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "name": {
+                      "description": "Optional human-readable step name.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "run": {
+                      "description": "Run a single allowlisted command (no shell).",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "uses": {
+                      "description": "Built-in action identifier (e.g. builtin:sdd-eval/workspace.prepare).",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "with": {
+                      "title": "Builtin With",
+                      "description": "Inputs for the action (v1: no keys; may be omitted or `{}`).",
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "strategy": {
+                "title": "Strategy",
+                "description": "Optional job strategy (matrix).",
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "matrix": {
+                    "title": "Matrix",
+                    "description": "Matrix definition (limited to variants in v1).",
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "variant": {
+                        "description": "Variant ids to expand (serial, ordered).",
+                        "type": "array",
+                        "default": [],
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "steps"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "jobs"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "task",
+    "variants",
+    "workflow"
+  ]
+}

@@ -1,7 +1,7 @@
 mod acp;
 pub mod command;
 mod paths;
-mod playbook;
+pub(crate) mod playbook;
 mod presets;
 mod report;
 mod run;

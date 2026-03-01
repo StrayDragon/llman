@@ -627,7 +627,7 @@ struct TerminalRecord {
     exit_code: Option<u32>,
 }
 
-fn is_allowed_command(command: &str) -> bool {
+pub(crate) fn is_allowed_command(command: &str) -> bool {
     let name = Path::new(command)
         .file_name()
         .and_then(|s| s.to_str())
@@ -650,7 +650,7 @@ fn is_allowed_command(command: &str) -> bool {
     )
 }
 
-fn truncate_tail_to_byte_limit(s: &str, limit: usize) -> (String, bool) {
+pub(crate) fn truncate_tail_to_byte_limit(s: &str, limit: usize) -> (String, bool) {
     if s.len() <= limit {
         return (s.to_string(), false);
     }
@@ -667,7 +667,7 @@ fn truncate_tail_to_byte_limit(s: &str, limit: usize) -> (String, bool) {
     (out, true)
 }
 
-fn has_symlink_prefix(workspace_root: &Path, requested: &Path) -> bool {
+pub(crate) fn has_symlink_prefix(workspace_root: &Path, requested: &Path) -> bool {
     let mut cur = workspace_root.to_path_buf();
     let Ok(rel) = requested.strip_prefix(workspace_root) else {
         return true;

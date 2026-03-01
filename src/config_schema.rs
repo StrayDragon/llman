@@ -2,6 +2,7 @@ use crate::config::resolve_config_dir;
 use crate::sdd::project::config::SddConfig;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::tool::config as tool_config;
+use crate::x::sdd_eval::playbook::Playbook;
 use anyhow::{Result, anyhow};
 use jsonschema::validator_for;
 use schemars::JsonSchema;
@@ -19,6 +20,10 @@ pub const LLMANSPEC_SCHEMA_FILE: &str = "llmanspec-config.schema.json";
 pub const GLOBAL_SCHEMA_URL: &str = "https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llman-config.schema.json";
 pub const PROJECT_SCHEMA_URL: &str = "https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llman-project-config.schema.json";
 pub const LLMANSPEC_SCHEMA_URL: &str = "https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llmanspec-config.schema.json";
+
+pub const PLAYBOOK_SCHEMA_OUTPUT_DIR: &str = "artifacts/schema/playbooks/en";
+pub const SDD_EVAL_PLAYBOOK_SCHEMA_FILE: &str = "llman-sdd-eval.schema.json";
+pub const SDD_EVAL_PLAYBOOK_SCHEMA_URL: &str = "https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/playbooks/en/llman-sdd-eval.schema.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[schemars(
@@ -86,12 +91,15 @@ pub struct SchemaPaths {
     pub global: PathBuf,
     pub project: PathBuf,
     pub llmanspec: PathBuf,
+    pub playbooks_root: PathBuf,
+    pub sdd_eval_playbook: PathBuf,
 }
 
 pub struct SchemaArtifacts {
     pub global: String,
     pub project: String,
     pub llmanspec: String,
+    pub sdd_eval_playbook: String,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -111,11 +119,14 @@ const SCHEMA_ERROR_LIMIT: usize = 5;
 
 pub fn schema_paths() -> SchemaPaths {
     let root = PathBuf::from(SCHEMA_OUTPUT_DIR);
+    let playbooks_root = PathBuf::from(PLAYBOOK_SCHEMA_OUTPUT_DIR);
     SchemaPaths {
         global: root.join(GLOBAL_SCHEMA_FILE),
         project: root.join(PROJECT_SCHEMA_FILE),
         llmanspec: root.join(LLMANSPEC_SCHEMA_FILE),
         root,
+        sdd_eval_playbook: playbooks_root.join(SDD_EVAL_PLAYBOOK_SCHEMA_FILE),
+        playbooks_root,
     }
 }
 
@@ -217,6 +228,7 @@ pub fn generate_schema_artifacts() -> Result<SchemaArtifacts> {
     let global = generate_schema::<GlobalConfig>();
     let project = generate_schema::<ProjectConfig>();
     let llmanspec = generate_schema::<SddConfig>();
+    let sdd_eval_playbook = generate_schema::<Playbook>();
 
     Ok(SchemaArtifacts {
         global: serde_json::to_string_pretty(&global)
@@ -224,6 +236,8 @@ pub fn generate_schema_artifacts() -> Result<SchemaArtifacts> {
         project: serde_json::to_string_pretty(&project)
             .map_err(|e| anyhow!(t!("self.schema.generate_failed", error = e)))?,
         llmanspec: serde_json::to_string_pretty(&llmanspec)
+            .map_err(|e| anyhow!(t!("self.schema.generate_failed", error = e)))?,
+        sdd_eval_playbook: serde_json::to_string_pretty(&sdd_eval_playbook)
             .map_err(|e| anyhow!(t!("self.schema.generate_failed", error = e)))?,
     })
 }
@@ -313,6 +327,21 @@ pub fn write_schema_files() -> Result<SchemaPaths> {
         anyhow!(t!(
             "self.schema.write_failed",
             path = paths.llmanspec.display(),
+            error = e
+        ))
+    })?;
+
+    fs::create_dir_all(&paths.playbooks_root).map_err(|e| {
+        anyhow!(t!(
+            "self.schema.write_failed",
+            path = paths.playbooks_root.display(),
+            error = e
+        ))
+    })?;
+    fs::write(&paths.sdd_eval_playbook, artifacts.sdd_eval_playbook).map_err(|e| {
+        anyhow!(t!(
+            "self.schema.write_failed",
+            path = paths.sdd_eval_playbook.display(),
             error = e
         ))
     })?;

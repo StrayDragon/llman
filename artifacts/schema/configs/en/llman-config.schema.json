@@ -573,6 +573,67 @@
             "scope",
             "lang-rules"
           ]
+        },
+        "rm-useless-dirs": {
+          "description": "Settings for the rm-useless-dirs tool.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "protected": {
+              "description": "Protected directory configuration.",
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "mode": {
+                  "description": "List mode: extend or override.",
+                  "type": "string",
+                  "default": "extend",
+                  "enum": [
+                    "extend",
+                    "override"
+                  ]
+                },
+                "names": {
+                  "description": "Directory names to apply for the selected mode.",
+                  "type": "array",
+                  "default": [],
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "useless": {
+              "description": "Useless directory configuration.",
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "mode": {
+                  "description": "List mode: extend or override.",
+                  "type": "string",
+                  "default": "extend",
+                  "enum": [
+                    "extend",
+                    "override"
+                  ]
+                },
+                "names": {
+                  "description": "Directory names to apply for the selected mode.",
+                  "type": "array",
+                  "default": [],
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },

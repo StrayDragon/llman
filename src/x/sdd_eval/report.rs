@@ -219,7 +219,7 @@ fn load_manifest(run_dir: &Path) -> Result<RunManifestV1> {
     serde_json::from_str(&raw).with_context(|| format!("parse {}", path.display()))
 }
 
-fn load_playbook(run_dir: &Path) -> Result<playbook::PlaybookV1> {
+fn load_playbook(run_dir: &Path) -> Result<playbook::Playbook> {
     let path = run_dir.join("playbook.yaml");
     playbook::load_from_path(&path).with_context(|| format!("load playbook {}", path.display()))
 }
@@ -263,7 +263,7 @@ fn build_variant_report(
 
 fn build_human_pack(
     manifest: &RunManifestV1,
-    pb: &playbook::PlaybookV1,
+    pb: &playbook::Playbook,
     run_dir: &Path,
 ) -> HumanPackV1 {
     let variants = manifest
