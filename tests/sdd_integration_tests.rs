@@ -129,25 +129,17 @@ llman_spec_evidence:
 ---
 
 ```ison
-{
-  "version": "1.0.0",
-  "kind": "llman.sdd.spec",
-  "name": "sample",
-  "purpose": "Describe sample behavior.",
-  "requirements": [
-    {
-      "req_id": "existing-behavior",
-      "title": "Existing behavior",
-      "statement": "System MUST preserve existing behavior.",
-      "scenarios": [
-        {
-          "id": "baseline",
-          "text": "- **WHEN** running the sample\n- **THEN** behavior is preserved"
-        }
-      ]
-    }
-  ]
-}
+object.spec
+version kind name purpose
+"1.0.0" "llman.sdd.spec" sample "Describe sample behavior."
+
+table.requirements
+req_id title statement
+existing "Existing behavior" "System MUST preserve existing behavior."
+
+table.scenarios
+req_id id given when then
+existing baseline "" "running the sample" "behavior is preserved"
 ```
 "#;
     fs::write(spec_dir.join("spec.md"), spec_content).expect("write spec");
@@ -168,24 +160,17 @@ Need a sample change.
     )
     .expect("write tasks");
     let delta_spec = r#"```ison
-{
-  "version": "1.0.0",
-  "kind": "llman.sdd.delta",
-  "ops": [
-    {
-      "op": "add_requirement",
-      "req_id": "added-behavior",
-      "title": "Added behavior",
-      "statement": "System MUST support the added behavior.",
-      "scenarios": [
-        {
-          "id": "added",
-          "text": "- **WHEN** a new action is taken\n- **THEN** the new behavior happens"
-        }
-      ]
-    }
-  ]
-}
+object.delta
+version kind
+"1.0.0" "llman.sdd.delta"
+
+table.ops
+op req_id title statement from to name
+add_requirement added "Added behavior" "System MUST support the added behavior." ~ ~ ~
+
+table.op_scenarios
+req_id id given when then
+added added "" "a new action is taken" "the new behavior happens"
 ```
 "#;
     fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
@@ -234,8 +219,11 @@ Need a sample change.
     assert!(archive_name.ends_with("-add-sample"));
 
     let updated_spec = fs::read_to_string(spec_dir.join("spec.md")).expect("read updated spec");
-    assert!(updated_spec.contains("\"title\": \"Existing behavior\""));
-    assert!(updated_spec.contains("\"title\": \"Added behavior\""));
+    assert!(updated_spec.contains("table.requirements"));
+    assert!(updated_spec.contains("existing"));
+    assert!(updated_spec.contains("added"));
+    assert!(updated_spec.contains("\"Existing behavior\""));
+    assert!(updated_spec.contains("\"Added behavior\""));
 }
 
 #[test]
@@ -317,24 +305,17 @@ fn test_sdd_show_change_json_uses_delta_specs() {
     )
     .expect("write proposal");
     let delta_spec = r#"```ison
-{
-  "version": "1.0.0",
-  "kind": "llman.sdd.delta",
-  "ops": [
-    {
-      "op": "add_requirement",
-      "req_id": "added-behavior",
-      "title": "Added behavior",
-      "statement": "System MUST support the added behavior.",
-      "scenarios": [
-        {
-          "id": "added",
-          "text": "- **WHEN** a new action is taken\n- **THEN** the new behavior happens"
-        }
-      ]
-    }
-  ]
-}
+object.delta
+version kind
+"1.0.0" "llman.sdd.delta"
+
+table.ops
+op req_id title statement from to name
+add_requirement added "Added behavior" "System MUST support the added behavior." ~ ~ ~
+
+table.op_scenarios
+req_id id given when then
+added added "" "a new action is taken" "the new behavior happens"
 ```
 "#;
     fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
@@ -375,24 +356,17 @@ fn test_sdd_validate_change_json_succeeds() {
     )
     .expect("write proposal");
     let delta_spec = r#"```ison
-{
-  "version": "1.0.0",
-  "kind": "llman.sdd.delta",
-  "ops": [
-    {
-      "op": "add_requirement",
-      "req_id": "added-behavior",
-      "title": "Added behavior",
-      "statement": "System MUST support the added behavior.",
-      "scenarios": [
-        {
-          "id": "added",
-          "text": "- **WHEN** a new action is taken\n- **THEN** the new behavior happens"
-        }
-      ]
-    }
-  ]
-}
+object.delta
+version kind
+"1.0.0" "llman.sdd.delta"
+
+table.ops
+op req_id title statement from to name
+add_requirement added "Added behavior" "System MUST support the added behavior." ~ ~ ~
+
+table.op_scenarios
+req_id id given when then
+added added "" "a new action is taken" "the new behavior happens"
 ```
 "#;
     fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
@@ -984,24 +958,17 @@ fn test_sdd_validate_change_without_future_md_still_succeeds() {
     .expect("write proposal");
     fs::write(change_dir.join("tasks.md"), "## 1. Tasks\n- [ ] 1.1 Do\n").expect("write tasks");
     let delta_spec = r#"```ison
-{
-  "version": "1.0.0",
-  "kind": "llman.sdd.delta",
-  "ops": [
-    {
-      "op": "add_requirement",
-      "req_id": "added-behavior",
-      "title": "Added behavior",
-      "statement": "System MUST support the added behavior.",
-      "scenarios": [
-        {
-          "id": "added",
-          "text": "- **WHEN** a new action is taken\n- **THEN** the new behavior happens"
-        }
-      ]
-    }
-  ]
-}
+object.delta
+version kind
+"1.0.0" "llman.sdd.delta"
+
+table.ops
+op req_id title statement from to name
+add_requirement added "Added behavior" "System MUST support the added behavior." ~ ~ ~
+
+table.op_scenarios
+req_id id given when then
+added added "" "a new action is taken" "the new behavior happens"
 ```
 "#;
     fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");

@@ -1,6 +1,6 @@
+use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
-use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::spec::parser::parse_spec;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};

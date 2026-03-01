@@ -15,6 +15,14 @@ pub fn parse_ison_payload<T>(payload: &str, context: &str) -> Result<T>
 where
     T: DeserializeOwned,
 {
+    let trimmed = payload.trim_start();
+    if looks_like_table_object_ison(trimmed) {
+        return Err(anyhow!(
+            "{context}: detected canonical table/object ISON payload. \
+`llman sdd-legacy` expects legacy JSON inside ```ison```; use `llman sdd ...` for the canonical table/object ISON workflow.",
+        ));
+    }
+
     match serde_json::from_str::<T>(payload) {
         Ok(value) => Ok(value),
         Err(json_err) => {
@@ -27,6 +35,15 @@ where
                 .map_err(|err| anyhow!("{context}: invalid ISON structure: {err}"))
         }
     }
+}
+
+fn looks_like_table_object_ison(payload: &str) -> bool {
+    let first = payload.lines().find(|line| !line.trim().is_empty());
+    let Some(first) = first else {
+        return false;
+    };
+    let header = first.trim();
+    header.starts_with("object.") || header.starts_with("table.")
 }
 
 pub fn extract_ison_payload(content: &str, context: &str) -> Result<String> {
