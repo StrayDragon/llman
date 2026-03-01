@@ -80,6 +80,19 @@ fn assert_no_disallowed_prompt_markers(path: &Path, content: &str) {
     }
 }
 
+fn normalize_whitespace_preserving_lines(content: &str) -> String {
+    content
+        .lines()
+        .map(|line| {
+            if line.trim().is_empty() {
+                return String::new();
+            }
+            line.split_whitespace().collect::<Vec<_>>().join(" ")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn test_sdd_init_and_list_specs_json() {
     let env = TestEnvironment::new();
@@ -224,6 +237,611 @@ added added "" "a new action is taken" "the new behavior happens"
     assert!(updated_spec.contains("added"));
     assert!(updated_spec.contains("\"Existing behavior\""));
     assert!(updated_spec.contains("\"Added behavior\""));
+}
+
+#[test]
+fn test_sdd_multi_block_ison_merge_show_and_validate_spec() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let llmanspec_dir = work_dir.join("llmanspec");
+    let spec_dir = llmanspec_dir.join("specs").join("sample");
+    fs::create_dir_all(&spec_dir).expect("create spec dir");
+    let spec_content = r#"---
+llman_spec_valid_scope:
+  - src
+llman_spec_valid_commands:
+  - cargo test
+llman_spec_evidence:
+  - tests/sdd_integration_tests.rs
+---
+
+## Meta
+```ison
+object.spec
+kind name purpose
+"llman.sdd.spec" sample "Describe sample behavior."
+```
+
+## Requirements
+```ison
+table.requirements
+req_id title statement
+r1 "First requirement" "System MUST do the first thing."
+```
+
+## Scenarios
+```ison
+table.scenarios
+req_id id given when then
+r1 s1 "" "doing the first thing" "it works"
+```
+"#;
+    fs::write(spec_dir.join("spec.md"), spec_content).expect("write spec");
+
+    git_commit_all(work_dir, "add multi-block spec");
+
+    let show_output = run_llman(
+        &["sdd", "show", "sample", "--type", "spec", "--json"],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&show_output);
+    let show_json: Value = serde_json::from_slice(&show_output.stdout).expect("show spec json");
+    assert_eq!(show_json["id"], "sample");
+    assert_eq!(show_json["requirementCount"], 1);
+
+    let validate_output = run_llman(
+        &[
+            "sdd",
+            "validate",
+            "sample",
+            "--type",
+            "spec",
+            "--strict",
+            "--no-interactive",
+            "--json",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&validate_output);
+    let validate_json: Value =
+        serde_json::from_slice(&validate_output.stdout).expect("validate json");
+    assert_eq!(validate_json["items"][0]["valid"], true);
+}
+
+#[test]
+fn test_sdd_rejects_legacy_json_payloads_and_sdd_legacy_accepts() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let llmanspec_dir = work_dir.join("llmanspec");
+    let spec_dir = llmanspec_dir.join("specs").join("sample");
+    fs::create_dir_all(&spec_dir).expect("create spec dir");
+    let legacy_spec = r#"---
+llman_spec_valid_scope:
+  - src
+llman_spec_valid_commands:
+  - cargo test
+llman_spec_evidence:
+  - tests/sdd_integration_tests.rs
+---
+
+```ison
+{
+  "version": "1.0.0",
+  "kind": "llman.sdd.spec",
+  "name": "sample",
+  "purpose": "Legacy JSON payload.",
+  "requirements": []
+}
+```
+"#;
+    fs::write(spec_dir.join("spec.md"), legacy_spec).expect("write legacy spec");
+
+    let change_dir = llmanspec_dir.join("changes").join("legacy-change");
+    let change_specs_dir = change_dir.join("specs").join("sample");
+    fs::create_dir_all(&change_specs_dir).expect("create change spec dir");
+    fs::write(
+        change_dir.join("proposal.md"),
+        "## Why\nLegacy change.\n\n## What Changes\n- Add legacy delta.\n",
+    )
+    .expect("write proposal");
+    let legacy_delta = r#"```ison
+{
+  "version": "1.0.0",
+  "kind": "llman.sdd.delta",
+  "ops": [
+    {
+      "op": "add_requirement",
+      "req_id": "r1",
+      "title": "R1",
+      "statement": "System MUST support R1.",
+      "scenarios": [
+        {
+          "id": "r1",
+          "text": "- **WHEN** r1 is used\n- **THEN** it works"
+        }
+      ]
+    }
+  ]
+}
+```
+"#;
+    fs::write(change_specs_dir.join("spec.md"), legacy_delta).expect("write legacy delta spec");
+
+    git_commit_all(work_dir, "add legacy payloads");
+
+    let legacy_validate_spec = run_llman(
+        &[
+            "sdd-legacy",
+            "validate",
+            "sample",
+            "--type",
+            "spec",
+            "--strict",
+            "--no-interactive",
+            "--json",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&legacy_validate_spec);
+    let legacy_spec_json: Value =
+        serde_json::from_slice(&legacy_validate_spec.stdout).expect("legacy validate spec json");
+    assert_eq!(legacy_spec_json["items"][0]["valid"], true);
+
+    let new_validate_spec = run_llman(
+        &[
+            "sdd",
+            "validate",
+            "sample",
+            "--type",
+            "spec",
+            "--strict",
+            "--no-interactive",
+            "--json",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert!(
+        !new_validate_spec.status.success(),
+        "new validate should fail on legacy JSON payload"
+    );
+    let new_spec_json: Value =
+        serde_json::from_slice(&new_validate_spec.stdout).expect("new validate spec json");
+    let message = new_spec_json["items"][0]["issues"][0]["message"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        message.contains("llman sdd-legacy"),
+        "expected legacy-command hint in error message: {message}"
+    );
+    assert!(
+        message.contains("legacy JSON detected"),
+        "expected sniff-based legacy JSON error: {message}"
+    );
+
+    let legacy_validate_change = run_llman(
+        &[
+            "sdd-legacy",
+            "validate",
+            "legacy-change",
+            "--type",
+            "change",
+            "--strict",
+            "--no-interactive",
+            "--json",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&legacy_validate_change);
+    let legacy_change_json: Value = serde_json::from_slice(&legacy_validate_change.stdout)
+        .expect("legacy validate change json");
+    assert_eq!(legacy_change_json["items"][0]["valid"], true);
+
+    let new_validate_change = run_llman(
+        &[
+            "sdd",
+            "validate",
+            "legacy-change",
+            "--type",
+            "change",
+            "--strict",
+            "--no-interactive",
+            "--json",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert!(
+        !new_validate_change.status.success(),
+        "new validate should fail on legacy JSON delta payload"
+    );
+    let new_change_json: Value = serde_json::from_slice(&new_validate_change.stdout)
+        .expect("new validate change json");
+    let message = new_change_json["items"][0]["issues"][0]["message"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        message.contains("llman sdd-legacy"),
+        "expected legacy-command hint in error message: {message}"
+    );
+    assert!(
+        message.contains("legacy JSON detected"),
+        "expected sniff-based legacy JSON error: {message}"
+    );
+}
+
+#[test]
+fn test_sdd_given_mapping_to_raw_text_is_deterministic() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let llmanspec_dir = work_dir.join("llmanspec");
+    let spec_dir = llmanspec_dir.join("specs").join("sample");
+    fs::create_dir_all(&spec_dir).expect("create spec dir");
+    let spec_content = r#"---
+llman_spec_valid_scope:
+  - src
+llman_spec_valid_commands:
+  - cargo test
+llman_spec_evidence:
+  - tests/sdd_integration_tests.rs
+---
+
+```ison
+object.spec
+kind name purpose
+"llman.sdd.spec" sample "Describe sample behavior."
+
+table.requirements
+req_id title statement
+r1 "First requirement" "System MUST do the first thing."
+
+table.scenarios
+req_id id given when then
+r1 s1 "" "run the flow" "it works"
+r1 s2 "user exists" "run the flow" "it works"
+```
+"#;
+    fs::write(spec_dir.join("spec.md"), spec_content).expect("write spec");
+
+    let show_output = run_llman(
+        &["sdd", "show", "sample", "--type", "spec", "--json"],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&show_output);
+
+    let show_json: Value = serde_json::from_slice(&show_output.stdout).expect("show spec json");
+    let scenarios = show_json["requirements"][0]["scenarios"]
+        .as_array()
+        .expect("scenarios array");
+    let raw_1 = scenarios[0]["rawText"].as_str().expect("rawText 1");
+    let raw_2 = scenarios[1]["rawText"].as_str().expect("rawText 2");
+    assert_eq!(raw_1, "WHEN: run the flow\nTHEN: it works");
+    assert_eq!(
+        raw_2,
+        "GIVEN: user exists\nWHEN: run the flow\nTHEN: it works"
+    );
+}
+
+#[test]
+fn test_sdd_pretty_ison_is_whitespace_only_and_deterministic() {
+    // Deterministic dumps: same command twice yields identical output.
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+    git_commit_all(work_dir, "init");
+
+    let skeleton_output = run_llman(&["sdd", "spec", "skeleton", "sample"], work_dir, work_dir);
+    assert_success(&skeleton_output);
+    let spec_path = work_dir.join("llmanspec/specs/sample/spec.md");
+    let content_a = fs::read_to_string(&spec_path).expect("read skeleton");
+
+    let skeleton_output_2 = run_llman(
+        &["sdd", "spec", "skeleton", "sample", "--force"],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&skeleton_output_2);
+    let content_a2 = fs::read_to_string(&spec_path).expect("read skeleton 2");
+    assert_eq!(content_a2, content_a);
+
+    // Pretty alignment affects whitespace only (semantics stay the same).
+    let env_plain = TestEnvironment::new();
+    let plain_dir = env_plain.path();
+    assert_success(&run_llman(
+        &["sdd", "init", plain_dir.to_str().unwrap()],
+        plain_dir,
+        plain_dir,
+    ));
+    git_commit_all(plain_dir, "init");
+    assert_success(&run_llman(
+        &["sdd", "spec", "skeleton", "sample"],
+        plain_dir,
+        plain_dir,
+    ));
+    assert_success(&run_llman(
+        &[
+            "sdd",
+            "spec",
+            "add-requirement",
+            "sample",
+            "r1",
+            "--title",
+            "R1",
+            "--statement",
+            "System MUST support R1.",
+        ],
+        plain_dir,
+        plain_dir,
+    ));
+    assert_success(&run_llman(
+        &[
+            "sdd",
+            "spec",
+            "add-scenario",
+            "sample",
+            "r1",
+            "scenario_long",
+            "--when",
+            "x",
+            "--then",
+            "y",
+        ],
+        plain_dir,
+        plain_dir,
+    ));
+    let plain_content =
+        fs::read_to_string(plain_dir.join("llmanspec/specs/sample/spec.md")).expect("plain spec");
+
+    let env_pretty = TestEnvironment::new();
+    let pretty_dir = env_pretty.path();
+    assert_success(&run_llman(
+        &["sdd", "init", pretty_dir.to_str().unwrap()],
+        pretty_dir,
+        pretty_dir,
+    ));
+    git_commit_all(pretty_dir, "init");
+    assert_success(&run_llman(
+        &["sdd", "spec", "skeleton", "sample"],
+        pretty_dir,
+        pretty_dir,
+    ));
+    assert_success(&run_llman(
+        &[
+            "sdd",
+            "spec",
+            "add-requirement",
+            "sample",
+            "r1",
+            "--title",
+            "R1",
+            "--statement",
+            "System MUST support R1.",
+        ],
+        pretty_dir,
+        pretty_dir,
+    ));
+    assert_success(&run_llman(
+        &[
+            "sdd",
+            "spec",
+            "add-scenario",
+            "sample",
+            "r1",
+            "scenario_long",
+            "--when",
+            "x",
+            "--then",
+            "y",
+            "--pretty-ison",
+        ],
+        pretty_dir,
+        pretty_dir,
+    ));
+    let pretty_content = fs::read_to_string(pretty_dir.join("llmanspec/specs/sample/spec.md"))
+        .expect("pretty spec");
+
+    let show_plain = run_llman(
+        &["sdd", "show", "sample", "--type", "spec", "--json"],
+        plain_dir,
+        plain_dir,
+    );
+    assert_success(&show_plain);
+    let show_pretty = run_llman(
+        &["sdd", "show", "sample", "--type", "spec", "--json"],
+        pretty_dir,
+        pretty_dir,
+    );
+    assert_success(&show_pretty);
+
+    let json_plain: Value = serde_json::from_slice(&show_plain.stdout).expect("show plain json");
+    let json_pretty: Value =
+        serde_json::from_slice(&show_pretty.stdout).expect("show pretty json");
+    assert_eq!(json_pretty, json_plain);
+
+    assert_ne!(pretty_content, plain_content);
+    assert_eq!(
+        normalize_whitespace_preserving_lines(&pretty_content),
+        normalize_whitespace_preserving_lines(&plain_content)
+    );
+}
+
+#[test]
+fn test_sdd_authoring_helpers_produce_strict_valid_spec_and_change() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+    git_commit_all(work_dir, "init");
+
+    let spec_skel = run_llman(&["sdd", "spec", "skeleton", "sample"], work_dir, work_dir);
+    assert_success(&spec_skel);
+
+    let add_req = run_llman(
+        &[
+            "sdd",
+            "spec",
+            "add-requirement",
+            "sample",
+            "r1",
+            "--title",
+            "First requirement",
+            "--statement",
+            "System MUST do the first thing.",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&add_req);
+
+    let add_scenario = run_llman(
+        &[
+            "sdd",
+            "spec",
+            "add-scenario",
+            "sample",
+            "r1",
+            "s2",
+            "--when",
+            "running the flow",
+            "--then",
+            "the first thing happens",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&add_scenario);
+
+    git_commit_all(work_dir, "add spec content");
+
+    let validate_spec = run_llman(
+        &[
+            "sdd",
+            "validate",
+            "sample",
+            "--type",
+            "spec",
+            "--strict",
+            "--no-interactive",
+            "--json",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&validate_spec);
+    let validate_spec_json: Value =
+        serde_json::from_slice(&validate_spec.stdout).expect("validate spec json");
+    assert_eq!(validate_spec_json["items"][0]["valid"], true);
+
+    let llmanspec_dir = work_dir.join("llmanspec");
+    let change_dir = llmanspec_dir.join("changes").join("add-sample");
+    fs::create_dir_all(&change_dir).expect("create change dir");
+    let proposal = "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n";
+    fs::write(change_dir.join("proposal.md"), proposal).expect("write proposal");
+
+    let delta_skel = run_llman(
+        &["sdd", "delta", "skeleton", "add-sample", "sample"],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&delta_skel);
+
+    let add_op = run_llman(
+        &[
+            "sdd",
+            "delta",
+            "add-op",
+            "add-sample",
+            "sample",
+            "add_requirement",
+            "r2",
+            "--title",
+            "R2",
+            "--statement",
+            "System MUST support R2.",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&add_op);
+
+    let add_delta_scenario = run_llman(
+        &[
+            "sdd",
+            "delta",
+            "add-scenario",
+            "add-sample",
+            "sample",
+            "r2",
+            "s1",
+            "--when",
+            "r2 is used",
+            "--then",
+            "it works",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&add_delta_scenario);
+
+    git_commit_all(work_dir, "add delta content");
+
+    let validate_change = run_llman(
+        &[
+            "sdd",
+            "validate",
+            "add-sample",
+            "--type",
+            "change",
+            "--strict",
+            "--no-interactive",
+            "--json",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&validate_change);
+    let validate_change_json: Value =
+        serde_json::from_slice(&validate_change.stdout).expect("validate change json");
+    assert_eq!(validate_change_json["items"][0]["valid"], true);
 }
 
 #[test]

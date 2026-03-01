@@ -38,19 +38,19 @@
 ## 6. Deterministic Dumps and Write Paths
 
 - [x] 6.1 Implement token-friendly default dumping (no alignment padding) with stable canonical block ordering (`object.*` → main table → scenarios table).
-- [ ] 6.2 Add an opt-in pretty alignment mode/flag for review (must not become the default; maps directly to `ison-rs` dumper alignment).
+- [x] 6.2 Add an opt-in pretty alignment mode/flag for review (must not become the default; maps directly to `ison-rs` dumper alignment).
 - [x] 6.3 Ensure row ordering is stable (no auto-sorting); writers preserve existing order and append new rows at the end.
 - [x] 6.4 Ensure archive merge writes canonical table/object ISON payloads and preserves deterministic ordering.
 
 ## 7. Authoring Helpers (integrated into `llman sdd`)
 
-- [ ] 7.1 Add `llman sdd spec skeleton <capability>` to generate a valid main spec skeleton (including optional frontmatter placeholders).
-- [ ] 7.2 Add `llman sdd delta skeleton <change-id> <capability>` to generate a valid delta spec skeleton (MUST omit YAML frontmatter).
-- [ ] 7.3 Add `llman sdd spec add-requirement ...` to append a requirement row (`req_id`, `title`, `statement`) with deterministic ordering and strict validation.
-- [ ] 7.4 Add `llman sdd spec add-scenario ...` to append a scenario row (`req_id`, `id`, `given`, `when`, `then`) and validate linkage to an existing requirement.
-- [ ] 7.5 Add `llman sdd delta add-op ...` to append an op row with correct null placeholders.
-- [ ] 7.6 Add `llman sdd delta add-scenario ...` to append an op scenario row (`given/when/then`) and validate linkage to add/modify ops.
-- [ ] 7.7 Ensure all authoring helpers emit token-friendly dumps by default and support opt-in pretty alignment.
+- [x] 7.1 Add `llman sdd spec skeleton <capability>` to generate a valid main spec skeleton (including optional frontmatter placeholders).
+- [x] 7.2 Add `llman sdd delta skeleton <change-id> <capability>` to generate a valid delta spec skeleton (MUST omit YAML frontmatter).
+- [x] 7.3 Add `llman sdd spec add-requirement ...` to append a requirement row (`req_id`, `title`, `statement`) with deterministic ordering and strict validation.
+- [x] 7.4 Add `llman sdd spec add-scenario ...` to append a scenario row (`req_id`, `id`, `given`, `when`, `then`) and validate linkage to an existing requirement.
+- [x] 7.5 Add `llman sdd delta add-op ...` to append an op row with correct null placeholders.
+- [x] 7.6 Add `llman sdd delta add-scenario ...` to append an op scenario row (`given/when/then`) and validate linkage to add/modify ops.
+- [x] 7.7 Ensure all authoring helpers emit token-friendly dumps by default and support opt-in pretty alignment.
 - [x] 7.8 Add `llman sdd show <spec> --type spec --json --meta-only` to return lightweight metadata for agents (feature name/purpose) without returning the full `requirements` array.
 - [x] 7.9 Add an opt-in `--compact-json` mode for `llman sdd list/show/validate --json` (and `llman sdd-legacy ...`) to emit JSON without pretty whitespace (token-friendly) while keeping the default pretty JSON output review-friendly.
 
@@ -64,7 +64,7 @@
 ## 9. Tests and Acceptance
 
 - [x] 9.1 Update integration tests that write JSON payloads in ` ```ison ` blocks to table/object ISON examples (for the new `llman sdd` path).
-- [ ] 9.2 Add tests for:
+- [x] 9.2 Add tests for:
   - multi-block ` ```ison ` merge behavior
   - `llman sdd` rejection of legacy JSON payloads with correct hint text (dedicated sniff-based error)
   - `llman sdd-legacy` acceptance of legacy JSON payloads
