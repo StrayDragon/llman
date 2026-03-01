@@ -335,6 +335,7 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                 skip_specs: *skip_specs,
                 dry_run: *dry_run,
                 force: *force,
+                style,
             }),
             Some(ArchiveSubcommand::Freeze {
                 before,
@@ -354,6 +355,7 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                 skip_specs: *skip_specs,
                 dry_run: *dry_run,
                 force: *force,
+                style,
             }),
         },
         SddCommands::Import { style, path } => interop::run_import(interop::InteropArgs {
