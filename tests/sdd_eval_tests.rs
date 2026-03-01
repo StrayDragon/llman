@@ -87,6 +87,43 @@ report:
     path
 }
 
+fn write_playbook_ai_judge(project_root: &Path, agent_command: &Path, group: &str) -> PathBuf {
+    let path = project_root.join("playbook-ai.yaml");
+    fs::write(
+        &path,
+        format!(
+            r#"version: 1
+task:
+  title: "demo"
+  prompt: |
+    Create a file in the repo root called demo.txt.
+
+sdd_loop:
+  max_iterations: 1
+
+variants:
+  - name: v1
+    style: sdd
+    agent:
+      kind: claude-code-acp
+      preset: {group}
+      command: "{cmd}"
+
+report:
+  ai_judge:
+    enabled: true
+    model: gpt-4.1
+  human:
+    enabled: false
+"#,
+            group = group,
+            cmd = agent_command.display()
+        ),
+    )
+    .expect("write playbook");
+    path
+}
+
 fn find_secret_in_tree(root: &Path, secret: &str) -> Vec<PathBuf> {
     let mut hits = Vec::new();
     for entry in WalkBuilder::new(root)
@@ -273,4 +310,61 @@ fn sdd_eval_run_is_sandboxed_and_redacts_secrets() {
         .find(|v| v.name == "v1")
         .expect("variant v1");
     assert_eq!(v1.human_score.unwrap().score, 7.5);
+}
+
+#[test]
+fn sdd_eval_ai_judge_requires_openai_api_key_when_enabled() {
+    let temp = TempDir::new().expect("temp dir");
+    let project_root = temp.path();
+    fs::write(project_root.join("README.md"), "demo\n").expect("write readme");
+
+    Command::new("git")
+        .args(["init", "--quiet"])
+        .current_dir(project_root)
+        .output()
+        .expect("git init");
+
+    let config_temp = TempDir::new().expect("config temp dir");
+    let config_dir = config_temp.path();
+    write_claude_code_group_config(config_dir, "test", "dummy-secret");
+
+    let playbook = write_playbook_ai_judge(project_root, &fake_agent_bin(), "test");
+
+    let out = run_llman(
+        &[
+            "x",
+            "sdd-eval",
+            "run",
+            "--playbook",
+            playbook.to_str().unwrap(),
+        ],
+        project_root,
+        config_dir,
+    );
+    assert_success(&out);
+
+    let run_dir = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let run_dir = PathBuf::from(run_dir);
+    let manifest: Manifest = serde_json::from_str(
+        &fs::read_to_string(run_dir.join("manifest.json")).expect("read manifest"),
+    )
+    .expect("parse manifest");
+
+    let report_out = Command::new(llman_bin())
+        .args(["--config-dir", config_dir.to_str().expect("config dir")])
+        .args(["x", "sdd-eval", "report", "--run", &manifest.run_id])
+        .current_dir(project_root)
+        .env("OPENAI_API_KEY", "")
+        .output()
+        .expect("run llman report");
+
+    assert!(
+        !report_out.status.success(),
+        "expected report to fail without OPENAI_API_KEY"
+    );
+    let stderr = String::from_utf8_lossy(&report_out.stderr);
+    assert!(
+        stderr.contains("OPENAI_API_KEY is required for AI judge"),
+        "stderr did not mention missing key:\n{stderr}"
+    );
 }
