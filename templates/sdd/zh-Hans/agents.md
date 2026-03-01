@@ -25,7 +25,7 @@ Locale + skills：
 - `llmanspec/config.yaml` 设置 `locale` 与 skills 路径。
 - locale 仅影响模板与 skills，CLI 输出保持英文。
 - 使用 `llman sdd update-skills` 刷新技能。
-- 默认风格为 `new`；如需兼容旧风格请显式传 `--style legacy`。
+- 默认使用 `llman sdd`（`new` 风格）；如需兼容旧风格请使用 `llman sdd-legacy ...`。
 
 仅使用 AGENTS.md 的上下文注入方式。
 

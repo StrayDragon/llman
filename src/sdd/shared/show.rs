@@ -15,6 +15,7 @@ use std::path::Path;
 pub struct ShowArgs {
     pub item: Option<String>,
     pub json: bool,
+    pub compact_json: bool,
     pub item_type: Option<String>,
     pub no_interactive: bool,
     pub deltas_only: bool,
@@ -22,6 +23,7 @@ pub struct ShowArgs {
     pub requirements: bool,
     pub no_scenarios: bool,
     pub requirement: Option<usize>,
+    pub meta_only: bool,
     pub style: TemplateStyle,
 }
 
@@ -201,7 +203,7 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
             "deltaCount": deltas.len(),
             "deltas": deltas
         });
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        print_json(&output, args.compact_json)?;
         return Ok(());
     }
 
@@ -227,6 +229,19 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
         }
         let content = fs::read_to_string(&spec_path)?;
         let spec = parse_spec(&content, spec_id)?;
+        if args.meta_only {
+            let output = serde_json::json!({
+                "id": spec_id,
+                "featureId": spec.name,
+                "title": spec.name,
+                "overview": spec.overview,
+                "requirementCount": spec.requirements.len(),
+                "metadata": spec.metadata
+            });
+            print_json(&output, args.compact_json)?;
+            return Ok(());
+        }
+
         let requirements = filter_requirements(&spec.requirements, args)?;
         let output = serde_json::json!({
             "id": spec_id,
@@ -236,7 +251,7 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
             "requirements": requirements,
             "metadata": spec.metadata
         });
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        print_json(&output, args.compact_json)?;
         return Ok(());
     }
 
@@ -293,6 +308,9 @@ fn warn_irrelevant_flags(item_type: ItemType, args: &ShowArgs) {
             if args.requirement.is_some() {
                 ignored.push("--requirement");
             }
+            if args.meta_only {
+                ignored.push("--meta-only");
+            }
         }
         ItemType::Spec => {
             if args.deltas_only {
@@ -314,6 +332,15 @@ fn warn_irrelevant_flags(item_type: ItemType, args: &ShowArgs) {
             )
         );
     }
+}
+
+fn print_json(value: &serde_json::Value, compact: bool) -> Result<()> {
+    if compact {
+        println!("{}", serde_json::to_string(value)?);
+    } else {
+        println!("{}", serde_json::to_string_pretty(value)?);
+    }
+    Ok(())
 }
 
 fn extract_title(content: &str, fallback: &str) -> String {

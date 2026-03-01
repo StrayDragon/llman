@@ -11,7 +11,7 @@
 - Avoid guessing when identifiers or intent are ambiguous.
 
 ## Workflow
-- Use `llman sdd` commands as the source of truth.
+- Use `llman sdd-legacy` commands as the source of truth.
 - Validate outcomes when files or specs are updated.
 
 ## Decision Policy

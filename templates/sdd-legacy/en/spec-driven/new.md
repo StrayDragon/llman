@@ -21,7 +21,7 @@ Start a new change in llman SDD (directory only; no artifacts yet).
 2. **Ensure the project is initialized**
 
    Check that `llmanspec/` exists in the repo root.
-   - If missing: tell the user to run `llman sdd init` first, then STOP.
+   - If missing: tell the user to run `llman sdd-legacy init` first, then STOP.
 
 3. **Create the change directory (no artifacts)**
 

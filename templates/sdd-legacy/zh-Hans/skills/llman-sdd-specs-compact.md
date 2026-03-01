@@ -24,13 +24,13 @@ metadata:
 - 每个保留 requirement 至少保留一个有效 scenario。
 
 ## Workflow
-1. 盘点当前 specs（`llman sdd list --specs`）。
+1. 盘点当前 specs（`llman sdd-legacy list --specs`）。
 2. 如果已归档历史较大，先执行 archive freeze：
-   - 预览：`llman sdd archive freeze --dry-run`
-   - 执行：`llman sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
+   - 预览：`llman sdd-legacy archive freeze --dry-run`
+   - 执行：`llman sdd-legacy archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
 3. 识别跨 capability 的重叠项。
 4. 产出压缩计划（canonical requirements + keep/merge/remove 决策 + 迁移说明）。
-5. 执行并验证（`llman sdd validate --specs --strict --no-interactive`）。
+5. 执行并验证（`llman sdd-legacy validate --specs --strict --no-interactive`）。
 
 ## Decision Policy
 - 两条 requirement 语义等价时优先合并。

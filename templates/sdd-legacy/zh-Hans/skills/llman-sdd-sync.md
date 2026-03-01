@@ -20,7 +20,7 @@ metadata:
    - 手动应用 `ADDED|MODIFIED|REMOVED|RENAMED` 的变更
 3. 校验 specs：
    ```bash
-   llman sdd validate --specs --strict --no-interactive
+   llman sdd-legacy validate --specs --strict --no-interactive
    ```
 4. sync 不负责归档；准备好后使用 `/llman-sdd:archive`。
 

@@ -12,7 +12,7 @@ metadata:
 ## 步骤
 1. 确定 change id：
    - 如果用户已提供，直接使用。
-   - 否则运行 `llman sdd list --json` 并询问用户要继续哪个 change。
+   - 否则运行 `llman sdd-legacy list --json` 并询问用户要继续哪个 change。
    - 始终说明："使用变更：<id>"。
 2. 阅读 change 目录：`llmanspec/changes/<id>/`。
 3. 找出下一个需要创建的 artifact（按顺序）：
@@ -24,8 +24,8 @@ metadata:
    - continue 模式不要实现应用代码。
 5. 如果所有 artifacts 都已存在，建议下一步：
    - 实施：`llman-sdd-apply`
-   - 校验：`llman sdd validate <id> --strict --no-interactive`
-   - 归档（准备好后）：`llman sdd archive <id>`
+   - 校验：`llman sdd-legacy validate <id> --strict --no-interactive`
+   - 归档（准备好后）：`llman sdd-legacy archive <id>`
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints") }}

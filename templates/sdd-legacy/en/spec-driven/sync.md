@@ -11,7 +11,7 @@ This is a manual, reproducible protocol: read delta specs under `llmanspec/chang
 
 1. **Select the change**
 
-   If an id is provided, use it. Otherwise run `llman sdd list --json` and ask the user which change to sync.
+   If an id is provided, use it. Otherwise run `llman sdd-legacy list --json` and ask the user which change to sync.
    Always announce: "Using change: <id>" and how to override (e.g., `/llman-sdd:sync <other>`).
 
 2. **Find delta specs**
@@ -42,7 +42,7 @@ This is a manual, reproducible protocol: read delta specs under `llmanspec/chang
 4. **Validate**
 
    Run:
-   - `llman sdd validate --specs --strict --no-interactive`
+   - `llman sdd-legacy validate --specs --strict --no-interactive`
 
 5. **Summarize**
 

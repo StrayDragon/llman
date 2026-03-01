@@ -22,7 +22,7 @@ Use this skill when the user wants to think through ideas, investigate problems,
 
 ## Suggested moves
 1. Clarify the goal and constraints (ask 1–3 questions).
-2. Check context: `llman sdd list --json`
+2. Check context: `llman sdd-legacy list --json`
 3. If a change id is relevant, read its artifacts under `llmanspec/changes/<id>/`.
 4. Explore options and tradeoffs (2–3 options).
 5. When something crystallizes, offer to capture it (don’t auto-write):

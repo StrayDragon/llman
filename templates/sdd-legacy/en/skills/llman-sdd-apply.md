@@ -12,7 +12,7 @@ Implement a change by completing `llmanspec/changes/<id>/tasks.md` from top to b
 ## Steps
 1. Select the change id:
    - If provided, use it.
-   - Otherwise infer from context; if ambiguous, run `llman sdd list --json` and ask the user to choose.
+   - Otherwise infer from context; if ambiguous, run `llman sdd-legacy list --json` and ask the user to choose.
    - Always announce: "Using change: <id>" and how to override.
 2. Check prerequisites:
    - `llmanspec/changes/<id>/tasks.md` must exist.
@@ -31,7 +31,7 @@ Implement a change by completing `llmanspec/changes/<id>/tasks.md` from top to b
    - If a task is unclear, you hit a blocker, or specs/design don’t match reality, STOP and ask what to do next.
 6. When tasks are complete (or when pausing), run validation:
    ```bash
-   llman sdd validate <id> --strict --no-interactive
+   llman sdd-legacy validate <id> --strict --no-interactive
    ```
    - If clean, suggest `/llman-sdd:verify <id>` and `/llman-sdd:archive <id>`.
 

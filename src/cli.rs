@@ -49,6 +49,8 @@ pub enum Commands {
     Agents(AgentsArgs),
     /// Spec-driven development workflow
     Sdd(SddArgs),
+    /// Legacy SDD workflow (JSON-in-` ```ison `)
+    SddLegacy(SddArgs),
     /// Experimental commands
     X(XArgs),
     /// Developer tools
@@ -176,6 +178,7 @@ pub fn run() -> Result<()> {
         Commands::Skills(args) => crate::skills::cli::command::run(args),
         Commands::Agents(args) => crate::agents::command::run(args),
         Commands::Sdd(args) => crate::sdd::command::run(args),
+        Commands::SddLegacy(args) => crate::sdd::command::run_legacy(args),
         Commands::X(args) => handle_x_command(args),
         Commands::Tool(args) => handle_tool_command(args),
         Commands::SelfCommand(args) => crate::self_command::run(args),

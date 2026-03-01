@@ -7,12 +7,12 @@ When a request:
 - introduces a new feature, breaking change, architecture shift, or large performance/security work
 - is ambiguous and needs authoritative specs
 
-Use the llmanspec workflow and the `llman sdd` commands.
+Use the llmanspec workflow and the `llman sdd-legacy` commands.
 
 Quick commands:
-- `llman sdd list`
-- `llman sdd show <item>`
-- `llman sdd validate <id> --strict --no-interactive`
-- `llman sdd archive <id>`
+- `llman sdd-legacy list`
+- `llman sdd-legacy show <item>`
+- `llman sdd-legacy validate <id> --strict --no-interactive`
+- `llman sdd-legacy archive <id>`
 
-Keep this managed block so `llman sdd update` can refresh it.
+Keep this managed block so `llman sdd-legacy update` can refresh it.

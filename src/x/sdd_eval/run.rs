@@ -188,16 +188,16 @@ fn generate_run_id(prefix: &str) -> String {
 fn init_workspace_sdd(workspace_root: &Path, style: playbook::WorkflowStyle) -> Result<()> {
     use crate::sdd::project::templates::TemplateStyle;
 
-    let llmanspec = workspace_root.join(crate::sdd::shared::constants::LLMANSPEC_DIR_NAME);
-    if !llmanspec.exists() {
-        crate::sdd::project::init::run(workspace_root, None)
-            .context("llman sdd init (workspace)")?;
-    }
-
     let template_style = match style {
         playbook::WorkflowStyle::Sdd => TemplateStyle::New,
         playbook::WorkflowStyle::SddLegacy => TemplateStyle::Legacy,
     };
+
+    let llmanspec = workspace_root.join(crate::sdd::shared::constants::LLMANSPEC_DIR_NAME);
+    if !llmanspec.exists() {
+        crate::sdd::project::init::run(workspace_root, None, template_style)
+            .context("llman sdd init (workspace)")?;
+    }
 
     crate::sdd::project::update::run(workspace_root, template_style)
         .context("llman sdd update (workspace)")?;

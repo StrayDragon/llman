@@ -152,10 +152,11 @@ pub fn run(args: UpdateSkillsArgs) -> Result<()> {
 fn run_with_root(root: &Path, args: UpdateSkillsArgs) -> Result<()> {
     let llmanspec_path = root.join(LLMANSPEC_DIR_NAME);
     if !llmanspec_path.exists() {
-        return Err(anyhow!(t!(
-            "sdd.update_skills.no_llmanspec",
-            cmd = "llman sdd init"
-        )));
+        let cmd = match args.style {
+            TemplateStyle::New => "llman sdd init",
+            TemplateStyle::Legacy => "llman sdd-legacy init",
+        };
+        return Err(anyhow!(t!("sdd.update_skills.no_llmanspec", cmd = cmd)));
     }
 
     let interactive = is_interactive(args.no_interactive);

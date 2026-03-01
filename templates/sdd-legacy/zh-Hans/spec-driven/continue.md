@@ -12,7 +12,7 @@
    - 如果用户提供了变更 id，直接使用。
    - 否则：
      - 若对话上下文明确指向单个变更 id，则使用它。
-     - 否则运行 `llman sdd list --json`，展示最近修改的 3–4 个变更，让用户选择继续哪一个。
+     - 否则运行 `llman sdd-legacy list --json`，展示最近修改的 3–4 个变更，让用户选择继续哪一个。
    始终说明："使用变更：<id>"，并告知如何覆盖（例如 `/llman-sdd:continue <other>`）。
 
 2. **确认变更存在**
@@ -45,7 +45,7 @@
 
 5. **建议运行校验**
 
-   - 若至少存在一个 delta spec：建议运行 `llman sdd validate <id> --strict --no-interactive`。
+   - 若至少存在一个 delta spec：建议运行 `llman sdd-legacy validate <id> --strict --no-interactive`。
    - 否则：解释 change 校验会在没有 delta spec 时失败（这是预期行为）。
 
 **输出**

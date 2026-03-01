@@ -12,7 +12,7 @@ Use this skill to continue an existing change and create the next missing artifa
 ## Steps
 1. Identify the change id:
    - If provided by the user, use it.
-   - Otherwise run `llman sdd list --json` and ask which change to continue.
+   - Otherwise run `llman sdd-legacy list --json` and ask which change to continue.
    - Always announce: "Using change: <id>".
 2. Read the change directory: `llmanspec/changes/<id>/`.
 3. Determine the next artifact to create (in order):
@@ -24,8 +24,8 @@ Use this skill to continue an existing change and create the next missing artifa
    - Do NOT implement application code in continue mode.
 5. If all artifacts already exist, suggest next actions:
    - Implement: `llman-sdd-apply`
-   - Validate: `llman sdd validate <id> --strict --no-interactive`
-   - Archive (when ready): `llman sdd archive <id>`
+   - Validate: `llman sdd-legacy validate <id> --strict --no-interactive`
+   - Archive (when ready): `llman sdd-legacy archive <id>`
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints") }}

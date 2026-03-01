@@ -25,7 +25,7 @@ Locale + skills:
 - `llmanspec/config.yaml` sets `locale` and skills paths.
 - Locale affects templates and skills only; CLI output stays English.
 - Regenerate skills with `llman sdd update-skills`.
-- Default style is `new`; pass `--style legacy` to use the compatibility track.
+- Use `llman sdd` for the default (`new`) track. Use `llman sdd-legacy ...` for the compatibility track.
 
 Only use AGENTS.md context injection.
 

@@ -46,7 +46,7 @@ For each variant workspace, the runner MUST initialize SDD templates correspondi
 
 #### Scenario: Legacy variant produces legacy templates
 - **WHEN** a variant uses style `sdd-legacy`
-- **THEN** the variant workspace is initialized using legacy SDD templates (equivalent to `llman sdd init` + `llman sdd update --style legacy`)
+- **THEN** the variant workspace is initialized using legacy SDD templates (equivalent to `llman sdd-legacy init` + `llman sdd-legacy update`)
 
 ### Requirement: ACP agents are launched with preset env injection (without leaking secrets)
 The runner MUST support launching ACP agent processes for Claude Code and Codex.

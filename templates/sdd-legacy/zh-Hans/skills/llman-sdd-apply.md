@@ -12,7 +12,7 @@ metadata:
 ## 步骤
 1. 选择变更 id：
    - 若已提供，直接使用。
-   - 否则先从上下文推断；若不明确，运行 `llman sdd list --json` 并让用户选择。
+   - 否则先从上下文推断；若不明确，运行 `llman sdd-legacy list --json` 并让用户选择。
    - 始终说明："使用变更：<id>"，并告知如何覆盖。
 2. 检查前置条件：
    - 必须存在：`llmanspec/changes/<id>/tasks.md`
@@ -31,7 +31,7 @@ metadata:
    - 若任务不明确、遇到阻塞、或发现 specs/design 与现实不一致，必须 STOP 并询问用户下一步。
 6. 在完成（或暂停）时运行校验：
    ```bash
-   llman sdd validate <id> --strict --no-interactive
+   llman sdd-legacy validate <id> --strict --no-interactive
    ```
    - 若校验无误，建议 `/llman-sdd:verify <id>` 与 `/llman-sdd:archive <id>`。
 

@@ -10,7 +10,7 @@ MUST include explicit guidance for the canonical table/object ISON schema:
 - the required columns for each table
 - minimal valid examples
 - common validation failures and how to fix them
-- the token-friendly scenario encoding rules (`table.scenarios` / `table.op_scenarios` use `given/when/then` columns; each value is a single quoted string; `\n` for newlines; `given` MAY be `""`)
+- the token-friendly scenario encoding rules (`table.scenarios` / `table.op_scenarios` use `given/when/then` columns; values are ISON strings; use double quotes when quoting is required; `\n` for newlines; `given` MAY be `""`)
 
 Templates MUST NOT include invalid pseudo-markers inside fenced ` ```ison ` blocks (for example, `<meta-directives>` lines that are not valid `kind.name` headers).
 

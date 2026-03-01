@@ -12,7 +12,7 @@
    - 若用户提供了 id，直接使用。
    - 否则：
      - 若对话上下文明确指向某个变更 id，则使用它。
-     - 否则运行 `llman sdd list --json`，展示最近修改的变更，让用户选择要实施哪一个。
+     - 否则运行 `llman sdd-legacy list --json`，展示最近修改的变更，让用户选择要实施哪一个。
 
    始终说明："使用变更：<id>"，并告知如何覆盖（例如 `/llman-sdd:apply <other>`）。
 
@@ -52,7 +52,7 @@
 6. **全部完成后**
 
    当所有任务都勾选完成：
-   - 运行 `llman sdd validate <id> --strict --no-interactive`
+   - 运行 `llman sdd-legacy validate <id> --strict --no-interactive`
    - 建议 `/llman-sdd:verify <id>`（可选但推荐）
    - 建议 `/llman-sdd:archive <id>` 归档并更新主 specs
 

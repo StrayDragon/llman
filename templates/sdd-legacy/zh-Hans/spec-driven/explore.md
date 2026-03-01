@@ -4,7 +4,7 @@
 进入 llman SDD 的探索模式：用于思考、调查与澄清（不实现）。
 
 **重要：探索模式只用于思考（不实现）。**
-- 你可以阅读文件、搜索代码、运行 `llman sdd` 命令。
+- 你可以阅读文件、搜索代码、运行 `llman sdd-legacy` 命令。
 - 只有在用户要求时，你才可以提议或起草 llman SDD 工件（proposal/specs/design/tasks）。
 - 你绝对不能写应用代码或实现功能。
 
@@ -14,7 +14,7 @@
 
 1. 澄清目标与约束（问 1–3 个问题）。
 2. 若涉及具体 change id：
-   - 运行 `llman sdd list --json` 确认其存在。
+   - 运行 `llman sdd-legacy list --json` 确认其存在。
    - 阅读 `llmanspec/changes/<id>/` 下的工件（proposal/design/tasks/specs）。
 3. 探索 2–3 个方案与权衡；必要时用简短 ASCII 图。
 4. 当结论清晰时，建议把它记录下来（不要自动写）：

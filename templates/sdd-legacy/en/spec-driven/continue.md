@@ -11,7 +11,7 @@ Continue working on a change by creating the next artifact in `llmanspec/changes
 
    If a change id is provided, use it. Otherwise:
    - If the conversation clearly references a single change id, use it.
-   - Else run `llman sdd list --json`, show the top 3–4 most recently modified changes, and ask the user which one to continue.
+   - Else run `llman sdd-legacy list --json`, show the top 3–4 most recently modified changes, and ask the user which one to continue.
    Always announce: "Using change: <id>" and how to override (e.g., `/llman-sdd:continue <other>`).
 
 2. **Verify the change exists**
@@ -44,7 +44,7 @@ Continue working on a change by creating the next artifact in `llmanspec/changes
 
 5. **Suggest validation**
 
-   - If at least one delta spec exists: suggest running `llman sdd validate <id> --strict --no-interactive`.
+   - If at least one delta spec exists: suggest running `llman sdd-legacy validate <id> --strict --no-interactive`.
    - Otherwise: explain that change validation will fail until a delta spec exists (by design).
 
 **Output**

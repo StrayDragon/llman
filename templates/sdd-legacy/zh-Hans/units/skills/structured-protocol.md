@@ -11,7 +11,7 @@
 - 标识符或意图不明确时禁止猜测。
 
 ## Workflow
-- 以 `llman sdd` 命令结果为事实来源。
+- 以 `llman sdd-legacy` 命令结果为事实来源。
 - 涉及文件/规范变更时执行校验。
 
 ## Decision Policy

@@ -11,7 +11,7 @@
 
 1. **选择 change**
 
-   如果提供了 id，直接使用。否则运行 `llman sdd list --json` 并让用户选择要同步的 change。
+   如果提供了 id，直接使用。否则运行 `llman sdd-legacy list --json` 并让用户选择要同步的 change。
    始终说明："使用变更：<id>"，并告知如何覆盖（例如 `/llman-sdd:sync <other>`）。
 
 2. **查找 delta specs**
@@ -43,7 +43,7 @@
 
    运行：
    ```bash
-   llman sdd validate --specs --strict --no-interactive
+   llman sdd-legacy validate --specs --strict --no-interactive
    ```
 
 **护栏**

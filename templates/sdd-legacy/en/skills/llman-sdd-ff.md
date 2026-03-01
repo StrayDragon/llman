@@ -16,7 +16,7 @@ Use this skill to create **all** artifacts for a new change quickly (proposal â†
    - The capability/capabilities impacted (to name `specs/<capability>/`)
    - Confirm the final id before creating any directories.
 2. Ensure the project is initialized:
-   - `llmanspec/` must exist; if missing, tell the user to run `llman sdd init`, then STOP.
+   - `llmanspec/` must exist; if missing, tell the user to run `llman sdd-legacy init`, then STOP.
 3. If `llmanspec/changes/<id>/` already exists, ask whether to:
    - Continue and fill missing artifacts (recommended), or
    - Use a different id.
@@ -28,7 +28,7 @@ Use this skill to create **all** artifacts for a new change quickly (proposal â†
    - `tasks.md` (ordered, small, verifiable tasks including validation)
 5. Validate:
    ```bash
-   llman sdd validate <id> --strict --no-interactive
+   llman sdd-legacy validate <id> --strict --no-interactive
    ```
 6. Show a short status summary and suggest next actions (`llman-sdd-apply` or `/llman-sdd:apply`).
 

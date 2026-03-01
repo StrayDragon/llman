@@ -16,6 +16,7 @@ We want a single, canonical, human-editable format that matches the ISON ecosyst
   - `llman sdd` becomes table/object ISON-first and fails fast on legacy JSON payloads with a concrete legacy-command hint and rewrite guidance.
 - Extend the SDD CLI with ISON authoring helpers:
   - generate/update main spec and delta spec skeletons,
+  - apply main spec CRUD (add requirement + add scenario),
   - apply delta ops CRUD (add/modify/remove/rename requirement),
   - append/edit scenarios at the `req_id` + `scenario.id` level (scenarios are structured rows with `given/when/then` columns),
   - provide lightweight spec metadata output for agents (fetch feature name/purpose without retrieving full requirement bodies),
@@ -31,7 +32,7 @@ Non-goals (explicit):
 
 ### New Capabilities
 
-- `sdd-ison-authoring`: Define the canonical table/object ISON schema for llmanspec spec/delta payloads and the CLI authoring/editing commands (skeleton generation + delta ops/scenario CRUD), including stable dump ordering and token-friendly default formatting.
+- `sdd-ison-authoring`: Define the canonical table/object ISON schema for llmanspec spec/delta payloads and the CLI authoring/editing commands (skeleton generation + spec/delta CRUD), including stable dump ordering and token-friendly default formatting.
 
 ### Modified Capabilities
 
@@ -44,7 +45,7 @@ Non-goals (explicit):
 - **Spec engine**: update parsing/validation/merge paths currently built around JSON payloads:
   - `src/sdd/spec/ison.rs`, `src/sdd/spec/parser.rs`, `src/sdd/spec/validation.rs`
   - `src/sdd/change/delta.rs`, `src/sdd/change/archive.rs`
-- **CLI surface**: add a new subcommand group under `llman sdd` for ISON authoring/editing (skeleton + delta CRUD), and keep existing commands (`show/list/validate/archive`) behavior stable at the JSON output level.
+- **CLI surface**: add a new subcommand group under `llman sdd` for ISON authoring/editing (skeleton + spec/delta CRUD), and keep existing commands (`show/list/validate/archive`) behavior stable at the JSON output level.
 - **Templates**: update `templates/sdd/**` (and shared units like validation hints) to instruct table ISON authoring and reference the new CLI helpers; keep locale parity and template-version checks passing.
 - **Tests**: update integration tests that currently write JSON payloads in ` ```ison ` blocks; add coverage for:
   - legacy vs new command behavior on old payloads (fail fast with actionable hints),
