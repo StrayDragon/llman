@@ -42,5 +42,6 @@ r2 happy "" "发生新的触发条件" "观察到新的预期结果"
 ### 备注
 - 含空格/标点的字符串建议加引号。
 - Null 用 `~` 表示；空字符串用 `""`（例如：`given ""`）。
+- schema version 对作者是隐式的（v1）。new-style specs/deltas SHOULD 不在 `object.*` blocks 中写 `version` 列；如为兼容旧内容而存在，则它 MUST 为 `"1.0.0"`。
 - `table.ops` 中不适用于该 op 的字段 MUST 写成 `~`。
 - ` ```ison ` block 内不要放伪标记或模板指令（保持纯 ISON）。
