@@ -12,6 +12,8 @@ fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path) -> Output {
         .args([
             "run",
             "--quiet",
+            "--bin",
+            "llman",
             "--manifest-path",
             manifest_path().to_str().expect("manifest path"),
             "--",
