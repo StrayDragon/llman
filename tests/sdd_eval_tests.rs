@@ -55,7 +55,7 @@ fn write_playbook(project_root: &Path, agent_command: &Path, group: &str) -> Pat
     fs::write(
         &path,
         format!(
-            r#"version: 1
+            r#"
 task:
   title: "demo"
   prompt: |
@@ -65,12 +65,27 @@ sdd_loop:
   max_iterations: 1
 
 variants:
-  - name: v1
+  v1:
     style: sdd
     agent:
       kind: claude-code-acp
       preset: {group}
       command: "{cmd}"
+
+workflow:
+  jobs:
+    eval:
+      strategy:
+        matrix:
+          variant: [v1]
+      steps:
+        - uses: builtin:sdd-eval/workspace.prepare
+        - uses: builtin:sdd-eval/sdd.prepare
+        - uses: builtin:sdd-eval/acp.sdd-loop
+    report:
+      needs: [eval]
+      steps:
+        - uses: builtin:sdd-eval/report.generate
 
 report:
   ai_judge:
@@ -92,7 +107,7 @@ fn write_playbook_ai_judge(project_root: &Path, agent_command: &Path, group: &st
     fs::write(
         &path,
         format!(
-            r#"version: 1
+            r#"
 task:
   title: "demo"
   prompt: |
@@ -102,12 +117,23 @@ sdd_loop:
   max_iterations: 1
 
 variants:
-  - name: v1
+  v1:
     style: sdd
     agent:
       kind: claude-code-acp
       preset: {group}
       command: "{cmd}"
+
+workflow:
+  jobs:
+    eval:
+      strategy:
+        matrix:
+          variant: [v1]
+      steps:
+        - uses: builtin:sdd-eval/workspace.prepare
+        - uses: builtin:sdd-eval/sdd.prepare
+        - uses: builtin:sdd-eval/acp.sdd-loop
 
 report:
   ai_judge:
@@ -366,5 +392,168 @@ fn sdd_eval_ai_judge_requires_openai_api_key_when_enabled() {
     assert!(
         stderr.contains("OPENAI_API_KEY is required for AI judge"),
         "stderr did not mention missing key:\n{stderr}"
+    );
+}
+
+#[test]
+fn sdd_eval_legacy_playbook_is_rejected_with_actionable_error() {
+    let temp = TempDir::new().expect("temp dir");
+    let project_root = temp.path();
+    fs::write(project_root.join("README.md"), "demo\n").expect("write readme");
+
+    Command::new("git")
+        .args(["init", "--quiet"])
+        .current_dir(project_root)
+        .output()
+        .expect("git init");
+
+    let config_temp = TempDir::new().expect("config temp dir");
+    let config_dir = config_temp.path();
+    write_claude_code_group_config(config_dir, "test", "dummy-secret");
+
+    let legacy_playbook = project_root.join("legacy.yaml");
+    fs::write(
+        &legacy_playbook,
+        r#"version: 1
+task:
+  title: demo
+  prompt: demo
+
+variants: []
+workflow: {}
+"#,
+    )
+    .expect("write legacy playbook");
+
+    let out = run_llman(
+        &[
+            "x",
+            "sdd-eval",
+            "run",
+            "--playbook",
+            legacy_playbook.to_str().unwrap(),
+        ],
+        project_root,
+        config_dir,
+    );
+    assert!(
+        !out.status.success(),
+        "expected run to fail for legacy playbook"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("legacy sdd-eval playbook detected")
+            && stderr.contains("llman x sdd-eval init"),
+        "stderr did not contain actionable legacy guidance:\n{stderr}"
+    );
+}
+
+#[test]
+fn sdd_eval_run_steps_enforce_allowlist_and_sandbox_cwd() {
+    let temp = TempDir::new().expect("temp dir");
+    let project_root = temp.path();
+    fs::write(project_root.join("README.md"), "demo\n").expect("write readme");
+
+    Command::new("git")
+        .args(["init", "--quiet"])
+        .current_dir(project_root)
+        .output()
+        .expect("git init");
+
+    let config_temp = TempDir::new().expect("config temp dir");
+    let config_dir = config_temp.path();
+    write_claude_code_group_config(config_dir, "test", "dummy-secret");
+
+    let playbook_disallowed = project_root.join("disallowed.yaml");
+    fs::write(
+        &playbook_disallowed,
+        r#"
+task:
+  title: "demo"
+  prompt: "demo"
+
+variants:
+  v1:
+    style: sdd
+    agent:
+      kind: claude-code-acp
+      preset: test
+      command: "llman-fake-acp-agent"
+
+workflow:
+  jobs:
+    eval:
+      strategy:
+        matrix:
+          variant: [v1]
+      steps:
+        - run: "curl https://example.com"
+"#,
+    )
+    .expect("write playbook");
+
+    let out = run_llman(
+        &[
+            "x",
+            "sdd-eval",
+            "run",
+            "--playbook",
+            playbook_disallowed.to_str().unwrap(),
+        ],
+        project_root,
+        config_dir,
+    );
+    assert!(!out.status.success(), "expected run to fail");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("terminal command is not allowed"),
+        "stderr did not mention allowlist:\n{stderr}"
+    );
+
+    let playbook_bad_cwd = project_root.join("bad-cwd.yaml");
+    fs::write(
+        &playbook_bad_cwd,
+        r#"
+task:
+  title: "demo"
+  prompt: "demo"
+
+variants:
+  v1:
+    style: sdd
+    agent:
+      kind: claude-code-acp
+      preset: test
+      command: "llman-fake-acp-agent"
+
+workflow:
+  jobs:
+    eval:
+      strategy:
+        matrix:
+          variant: [v1]
+      steps:
+        - run: "git status"
+          cwd: "../outside"
+"#,
+    )
+    .expect("write playbook");
+
+    let out = run_llman(
+        &[
+            "x",
+            "sdd-eval",
+            "run",
+            "--playbook",
+            playbook_bad_cwd.to_str().unwrap(),
+        ],
+        project_root,
+        config_dir,
+    );
+    assert!(!out.status.success(), "expected run to fail");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("path traversal is not allowed in `cwd`"),
+        "stderr did not mention cwd sandbox enforcement:\n{stderr}"
     );
 }

@@ -67,7 +67,7 @@ pub fn run(args: &SddEvalArgs) -> Result<()> {
             let pb = playbook::load_from_path(playbook)?;
             pb.validate().context("validate playbook")?;
             let run_dir = run::create_run(&project_root, playbook, &pb)?;
-            run::execute_run(&run_dir, &pb)?;
+            run::execute_run(&project_root, &run_dir, &pb)?;
             println!("{}", run_dir.display());
             Ok(())
         }

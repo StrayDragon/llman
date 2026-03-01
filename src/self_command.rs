@@ -384,6 +384,7 @@ fn run_check() -> Result<()> {
     let global_schema = load_schema(&paths.global)?;
     let project_schema = load_schema(&paths.project)?;
     let llmanspec_schema = load_schema(&paths.llmanspec)?;
+    let sdd_eval_playbook_schema = load_schema(&paths.sdd_eval_playbook)?;
 
     let global_path = global_config_path()?;
     let project_path = project_config_path()?;
@@ -392,6 +393,7 @@ fn run_check() -> Result<()> {
         &global_schema,
         &project_schema,
         &llmanspec_schema,
+        &sdd_eval_playbook_schema,
         &global_path,
         &project_path,
         &llmanspec_path,
@@ -402,6 +404,7 @@ fn run_check_with_paths(
     global_schema: &Value,
     project_schema: &Value,
     llmanspec_schema: &Value,
+    sdd_eval_playbook_schema: &Value,
     global_config_path: &Path,
     project_config_path: &Path,
     llmanspec_config_path: &Path,
@@ -456,6 +459,22 @@ fn run_check_with_paths(
         })?,
     )?;
 
+    let playbook_yaml = crate::x::sdd_eval::playbook::default_template_yaml();
+    let playbook_value: serde_yaml::Value = serde_yaml::from_str(playbook_yaml).map_err(|e| {
+        anyhow!(t!(
+            "self.schema.yaml_parse_failed",
+            path = "sdd-eval template",
+            error = e
+        ))
+    })?;
+    let playbook_instance = serde_json::to_value(playbook_value)
+        .map_err(|e| anyhow!(t!("errors.config_error", message = e.to_string())))?;
+    validate_schema(
+        "llman-sdd-eval-playbook",
+        sdd_eval_playbook_schema,
+        playbook_instance,
+    )?;
+
     println!("{}", t!("self.schema.check_ok"));
     Ok(())
 }
@@ -480,6 +499,13 @@ fn print_written(paths: &SchemaPaths) -> Result<()> {
         t!(
             "self.schema.generate_written",
             path = paths.llmanspec.display()
+        )
+    );
+    println!(
+        "{}",
+        t!(
+            "self.schema.generate_written",
+            path = paths.sdd_eval_playbook.display()
         )
     );
     Ok(())
@@ -569,12 +595,15 @@ mod tests {
         let global_schema = load_schema(&paths.global).expect("load global schema");
         let project_schema = load_schema(&paths.project).expect("load project schema");
         let llmanspec_schema = load_schema(&paths.llmanspec).expect("load llmanspec schema");
+        let sdd_eval_playbook_schema =
+            load_schema(&paths.sdd_eval_playbook).expect("load sdd-eval playbook schema");
 
         let missing = temp.path().join("missing.yaml");
         let err = run_check_with_paths(
             &global_schema,
             &project_schema,
             &llmanspec_schema,
+            &sdd_eval_playbook_schema,
             &config_path,
             &missing,
             &missing,
@@ -594,12 +623,15 @@ mod tests {
         let global_schema = load_schema(&paths.global).expect("load global schema");
         let project_schema = load_schema(&paths.project).expect("load project schema");
         let llmanspec_schema = load_schema(&paths.llmanspec).expect("load llmanspec schema");
+        let sdd_eval_playbook_schema =
+            load_schema(&paths.sdd_eval_playbook).expect("load sdd-eval playbook schema");
 
         let missing = temp.path().join("missing.yaml");
         let err = run_check_with_paths(
             &global_schema,
             &project_schema,
             &llmanspec_schema,
+            &sdd_eval_playbook_schema,
             &config_path,
             &missing,
             &missing,
