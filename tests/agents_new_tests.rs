@@ -1,6 +1,7 @@
 #![cfg(unix)]
 
-use expectrl::{ControlCode, Eof, Session, WaitStatus};
+use expectrl::process::unix::WaitStatus;
+use expectrl::{ControlCode, Eof, Expect, Session};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -246,13 +247,11 @@ fn agents_new_interactive_cancel_writes_nothing() {
 
     let mut session = Session::spawn(cmd).expect("spawn llman in pty");
     thread::sleep(Duration::from_millis(300));
-    session
-        .send_control(ControlCode::Escape)
-        .expect("send escape");
+    session.send(ControlCode::Escape).expect("send escape");
     session.expect(Eof).expect("eof");
     assert_eq!(
-        session.wait().expect("wait"),
-        WaitStatus::Exited(session.pid(), 0)
+        session.get_process().wait().expect("wait"),
+        WaitStatus::Exited(session.get_process().pid(), 0)
     );
 
     assert!(

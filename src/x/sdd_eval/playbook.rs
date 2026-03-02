@@ -44,15 +44,12 @@ Re-generate a new template via `llman x sdd-eval init` and port your content to 
 
     let pb: Playbook =
         serde_yaml::from_value(value).with_context(|| format!("{context}: decode playbook"))?;
-    pb.validate().with_context(|| format!("{context}: validate playbook"))?;
+    pb.validate()
+        .with_context(|| format!("{context}: validate playbook"))?;
     Ok(pb)
 }
 
-fn ensure_mapping_field(
-    mapping: &serde_yaml::Mapping,
-    key: &str,
-    context: &str,
-) -> Result<()> {
+fn ensure_mapping_field(mapping: &serde_yaml::Mapping, key: &str, context: &str) -> Result<()> {
     let Some(value) = mapping.get(key) else {
         return Err(anyhow!("{context}: `{}` is required", key));
     };
@@ -75,11 +72,7 @@ fn ensure_nested_mapping_field(
         }
         full.push_str(key);
 
-        let Some(next) = cur
-            .as_mapping()
-            .and_then(|m| m.get(*key))
-            .cloned()
-        else {
+        let Some(next) = cur.as_mapping().and_then(|m| m.get(*key)).cloned() else {
             if idx == path.len() - 1 {
                 bail!("{context}: `{}` is required", full);
             }
@@ -224,7 +217,10 @@ impl Playbook {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-#[schemars(title = "Task", description = "Evaluation task shared by all variants.")]
+#[schemars(
+    title = "Task",
+    description = "Evaluation task shared by all variants."
+)]
 pub struct TaskConfig {
     #[schemars(description = "Short human-readable task title.")]
     pub title: String,
@@ -298,18 +294,22 @@ impl WorkflowJob {
             bail!("steps must be non-empty");
         }
         for (idx, step) in self.steps.iter().enumerate() {
-            step.validate().with_context(|| format!("validate step {}", idx + 1))?;
+            step.validate()
+                .with_context(|| format!("validate step {}", idx + 1))?;
         }
 
-        if let Some(strategy) = &self.strategy {
-            if let Some(matrix) = &strategy.matrix {
-                if matrix.variant.is_empty() {
-                    bail!("strategy.matrix.variant must be non-empty when strategy.matrix is present");
-                }
-                for variant_id in &matrix.variant {
-                    if !variants.contains_key(variant_id) {
-                        bail!("strategy.matrix.variant references unknown variant id `{}`", variant_id);
-                    }
+        if let Some(strategy) = &self.strategy
+            && let Some(matrix) = &strategy.matrix
+        {
+            if matrix.variant.is_empty() {
+                bail!("strategy.matrix.variant must be non-empty when strategy.matrix is present");
+            }
+            for variant_id in &matrix.variant {
+                if !variants.contains_key(variant_id) {
+                    bail!(
+                        "strategy.matrix.variant references unknown variant id `{}`",
+                        variant_id
+                    );
                 }
             }
         }
@@ -345,7 +345,9 @@ pub struct JobStep {
     pub name: Option<String>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(description = "Built-in action identifier (e.g. builtin:sdd-eval/workspace.prepare).")]
+    #[schemars(
+        description = "Built-in action identifier (e.g. builtin:sdd-eval/workspace.prepare)."
+    )]
     pub uses: Option<String>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -386,7 +388,10 @@ impl JobStep {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
-#[schemars(title = "Builtin With", description = "Built-in action inputs (v1: empty).")]
+#[schemars(
+    title = "Builtin With",
+    description = "Built-in action inputs (v1: empty)."
+)]
 pub struct BuiltinWithV1 {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
