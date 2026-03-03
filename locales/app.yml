@@ -37,7 +37,7 @@ prompt:
       en: "Rule name (optional, defaults to template name)"
 
     scope_help:
-      en: "Injection scope (codex/claude-code only): user, project, or all"
+      en: "Injection scope(s): global and/or project (repeatable, or comma-separated)"
 
     force_help:
       en: "Force generation, skip repository detection"
@@ -45,6 +45,15 @@ prompt:
   scope:
     select:
       en: "Select injection scope:"
+
+  codex:
+    target:
+      select:
+        en: "Select Codex injection target(s):"
+
+    agents_file:
+      select:
+        en: "Select Codex agents file:"
 
   list:
     about:
@@ -149,6 +158,9 @@ messages:
   file_exists_inject:
     en: "File %{path} exists and is not managed by llman. Inject a managed block?"
 
+  file_exists_inject_second:
+    en: "This will modify %{path}. Are you REALLY sure?"
+
   rule_deleted:
     en: "✅ Rule deleted: %{name}"
 
@@ -224,7 +236,16 @@ errors:
     en: "Cannot find home directory"
 
   project_scope_requires_repo:
-    en: "Project scope requires a git repository (or use --force / --scope user)"
+    en: "Project scope requires a git repository (or use --force / remove project from --scope)"
+
+  invalid_scope_for_app:
+    en: "Invalid scope '%{scope}' for app '%{app}'"
+
+  invalid_prompt_target_for_app:
+    en: "Invalid --target/--override for app '%{app}'"
+
+  override_requires_agents_target:
+    en: "--override requires --target agents"
 
   non_interactive_overwrite_requires_force:
     en: "Non-interactive mode cannot overwrite %{path}; re-run with --force"
