@@ -76,7 +76,7 @@ pub struct TimeRangeArgs {
     /// Include sessions ending before this time (RFC3339 or YYYY-MM-DD local; date-only is exclusive next-day start).
     #[arg(long)]
     pub until: Option<String>,
-    /// Convenience range: last <Nd> days (mutually exclusive with --since/--until).
+    /// Convenience range: last N days, using the `Nd` format (e.g. `7d`; mutually exclusive with --since/--until).
     #[arg(long)]
     pub last: Option<String>,
 }
