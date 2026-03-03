@@ -1,6 +1,7 @@
 #![cfg(unix)]
 
-use expectrl::{Eof, Session, WaitStatus};
+use expectrl::process::unix::WaitStatus;
+use expectrl::{Eof, Expect, Session};
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -267,8 +268,8 @@ fn arena_vote_resumes_after_preexisting_vote() {
 
     session.expect(Eof).expect("eof");
     assert_eq!(
-        session.wait().expect("wait"),
-        WaitStatus::Exited(session.pid(), 0)
+        session.get_process().wait().expect("wait"),
+        WaitStatus::Exited(session.get_process().pid(), 0)
     );
 
     let votes_after = fs::read_to_string(&votes_path).expect("read votes.jsonl");

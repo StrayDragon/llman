@@ -313,7 +313,8 @@ fn codex_stats_json_is_never_colored() {
 #[test]
 #[cfg(unix)]
 fn codex_stats_table_no_color_env_disables_ansi_in_tty_auto_mode() {
-    use expectrl::{Session, WaitStatus};
+    use expectrl::Session;
+    use expectrl::process::unix::WaitStatus;
     use std::io::Read;
 
     let temp = TempDir::new().expect("temp dir");
@@ -352,8 +353,8 @@ fn codex_stats_table_no_color_env_disables_ansi_in_tty_auto_mode() {
     let mut buf = Vec::new();
     session.read_to_end(&mut buf).expect("read stdout");
     assert_eq!(
-        session.wait().expect("wait"),
-        WaitStatus::Exited(session.pid(), 0)
+        session.get_process().wait().expect("wait"),
+        WaitStatus::Exited(session.get_process().pid(), 0)
     );
     assert!(
         !buf.windows(2).any(|w| w == b"\x1b["),

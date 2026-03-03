@@ -24,10 +24,10 @@ path = "src/lib.rs"
 agents-ai = []
 
 [dependencies]
-anyhow = "1.0.101"
-adk-core = "0.3.1"
-adk-model = { version = "0.3.1", default-features = false, features = ["openai"] }
-clap = { version = "4.5.57", features = [
+anyhow = "1.0.102"
+adk-core = "0.3.2"
+adk-model = { version = "0.3.2", default-features = false, features = ["openai"] }
+clap = { version = "4.5.60", features = [
     "deprecated",
     "env",
     "unicode",
@@ -36,8 +36,8 @@ clap = { version = "4.5.57", features = [
     "cargo",
     "derive",
 ] }
-clap_complete = "4.5.65"
-inquire = { version = "0.9.3", features = ["editor"] }
+clap_complete = "4.5.66"
+inquire = { version = "0.9.4", features = ["editor"] }
 crossterm = "0.29.0"
 ratatui = "0.30.0"
 comfy-table = "7.2.2"
@@ -45,21 +45,21 @@ thiserror = "2.0.18"
 rust-i18n = "3.1.5"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-toml = "0.9.11"
+toml = "1.0.3"
 minijinja = "2.16.0"
 diesel = { version = "2.3.6", features = ["sqlite", "chrono"] }
-chrono = { version = "0.4.43", features = ["serde"] }
+chrono = { version = "0.4.44", features = ["serde"] }
 glob = "0.3.3"
 ignore = "0.4.25"
-futures = "0.3.31"
-tokio = { version = "1.47.1", features = ["rt-multi-thread", "time"] }
-tokio-util = { version = "0.7.16", features = ["compat"] }
-reqwest = { version = "0.12.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
-tempfile = "3.24.0"
+futures = "0.3.32"
+tokio = { version = "1.49.0", features = ["rt-multi-thread", "time"] }
+tokio-util = { version = "0.7.18", features = ["compat"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "json", "rustls"] }
+tempfile = "3.26.0"
 
 # Comment processing and parsing
-tree-sitter = "0.26.5"
-tree-sitter-highlight = "0.26.5"
+tree-sitter = "0.26.6"
+tree-sitter-highlight = "0.26.6"
 tree-sitter-javascript = "0.25.0"
 tree-sitter-typescript = "0.23.2"
 tree-sitter-python = "0.25.0"
@@ -68,7 +68,7 @@ tree-sitter-go = "0.25.0"
 
 # Configuration and validation
 schemars = { version = "1.2.1", features = ["derive", "indexmap2"] }
-jsonschema = "0.41.0"
+jsonschema = "0.44.0"
 
 # JSON parsing and repair
 llm_json = "1.0.2"
@@ -82,10 +82,10 @@ serde_yaml = "0.9.34"
 sevenz-rust2 = "0.20.2"
 agent-client-protocol = "0.9.4"
 async-trait = "0.1.89"
-indexmap = { version = "2.11.4", features = ["serde"] }
+indexmap = { version = "2.13.0", features = ["serde"] }
 
 [dev-dependencies]
-expectrl = "0.5.2"
+expectrl = "0.8.0"
 
 # Keep `target/` growth in check:
 # - Compile workspace code with enough debug info for useful backtraces.

@@ -1,5 +1,5 @@
-use crate::x::sdd_eval::{acp, paths, playbook, presets, report};
 use crate::x::sdd_eval::secrets::SecretSet;
+use crate::x::sdd_eval::{acp, paths, playbook, presets, report};
 use anyhow::{Context, Result, bail};
 use chrono::{SecondsFormat, Utc};
 use ignore::WalkBuilder;
@@ -154,11 +154,17 @@ fn execute_workflow(
 
     let run_id = manifest.run_id.clone();
     let mut state = WorkflowState::new();
+    let mut exec = JobExecutionContext {
+        project_root,
+        run_dir,
+        pb,
+        manifest,
+        state: &mut state,
+        run_id: &run_id,
+    };
 
     for job_id in job_order {
-        let job = jobs
-            .get(&job_id)
-            .expect("job_id comes from job map keys");
+        let job = jobs.get(&job_id).expect("job_id comes from job map keys");
 
         let variants = job
             .strategy
@@ -168,30 +174,10 @@ fn execute_workflow(
             .unwrap_or_default();
 
         if variants.is_empty() {
-            execute_job(
-                project_root,
-                run_dir,
-                pb,
-                manifest,
-                &mut state,
-                &run_id,
-                &job_id,
-                job,
-                None,
-            )?;
+            execute_job(&mut exec, &job_id, job, None)?;
         } else {
             for variant_id in variants {
-                execute_job(
-                    project_root,
-                    run_dir,
-                    pb,
-                    manifest,
-                    &mut state,
-                    &run_id,
-                    &job_id,
-                    job,
-                    Some(&variant_id),
-                )?;
+                execute_job(&mut exec, &job_id, job, Some(&variant_id))?;
             }
         }
     }
@@ -234,9 +220,7 @@ fn compute_job_order(jobs: &IndexMap<String, playbook::WorkflowJob>) -> Result<V
     while !remaining.is_empty() {
         let mut next: Option<String> = None;
         for id in &order {
-            if remaining.contains(id)
-                && *indegree.get(id).expect("id present in indegree") == 0
-            {
+            if remaining.contains(id) && *indegree.get(id).expect("id present in indegree") == 0 {
                 next = Some(id.clone());
                 break;
             }
@@ -282,11 +266,8 @@ impl WorkflowState {
     }
 
     fn variant_mut(&mut self, variant_id: &str) -> &mut VariantState {
-        self.variants
-            .entry(variant_id.to_string())
-            .or_insert_with(VariantState::new)
+        self.variants.entry(variant_id.to_string()).or_default()
     }
-
 }
 
 #[derive(Default)]
@@ -298,15 +279,21 @@ struct VariantState {
 }
 
 impl VariantState {
-    fn new() -> Self {
-        Self::default()
-    }
-
     fn merged_metrics(&self) -> Option<acp::VariantAcpMetricsV1> {
         let mut out = self.acp_metrics.clone()?;
-        out.terminal_commands.extend(self.run_terminal_commands.clone());
+        out.terminal_commands
+            .extend(self.run_terminal_commands.clone());
         Some(out)
     }
+}
+
+struct JobExecutionContext<'a> {
+    project_root: &'a Path,
+    run_dir: &'a Path,
+    pb: &'a playbook::Playbook,
+    manifest: &'a mut RunManifestV1,
+    state: &'a mut WorkflowState,
+    run_id: &'a str,
 }
 
 struct InterpolationContext<'a> {
@@ -318,22 +305,17 @@ struct InterpolationContext<'a> {
 }
 
 fn execute_job(
-    project_root: &Path,
-    run_dir: &Path,
-    pb: &playbook::Playbook,
-    manifest: &mut RunManifestV1,
-    state: &mut WorkflowState,
-    run_id: &str,
+    exec: &mut JobExecutionContext<'_>,
     job_id: &str,
     job: &playbook::WorkflowJob,
     matrix_variant: Option<&str>,
 ) -> Result<()> {
     let ctx = InterpolationContext {
         matrix_variant,
-        variant: matrix_variant.and_then(|id| pb.variants.get(id)),
-        task: &pb.task,
-        run_id,
-        run_dir,
+        variant: matrix_variant.and_then(|id| exec.pb.variants.get(id)),
+        task: &exec.pb.task,
+        run_id: exec.run_id,
+        run_dir: exec.run_dir,
     };
 
     for (idx, step) in job.steps.iter().enumerate() {
@@ -346,14 +328,15 @@ fn execute_job(
             .unwrap_or_else(|| format!("step {}/{}", idx + 1, job.steps.len()));
 
         if let Some(uses) = step.uses.as_deref() {
-            let uses = interpolate_string(uses, &ctx)
-                .map_err(|e| anyhow::anyhow!("job `{job_id}` {step_name}: interpolate uses: {e}"))?;
+            let uses = interpolate_string(uses, &ctx).map_err(|e| {
+                anyhow::anyhow!("job `{job_id}` {step_name}: interpolate uses: {e}")
+            })?;
             if let Err(err) = dispatch_builtin_action(
-                project_root,
-                run_dir,
-                pb,
-                manifest,
-                state,
+                exec.project_root,
+                exec.run_dir,
+                exec.pb,
+                exec.manifest,
+                exec.state,
                 matrix_variant,
                 &uses,
             ) {
@@ -366,19 +349,15 @@ fn execute_job(
             let run = interpolate_string(run, &ctx)
                 .map_err(|e| anyhow::anyhow!("job `{job_id}` {step_name}: interpolate run: {e}"))?;
             let cwd = match step.cwd.as_deref() {
-                Some(v) => Some(
-                    interpolate_string(v, &ctx)
-                        .map_err(|e| anyhow::anyhow!("job `{job_id}` {step_name}: interpolate cwd: {e}"))?,
-                ),
+                Some(v) => Some(interpolate_string(v, &ctx).map_err(|e| {
+                    anyhow::anyhow!("job `{job_id}` {step_name}: interpolate cwd: {e}")
+                })?),
                 None => None,
             };
 
             if let Err(err) = execute_run_step(
-                project_root,
-                run_dir,
-                pb,
-                manifest,
-                state,
+                exec.run_dir,
+                exec.state,
                 matrix_variant,
                 &run,
                 cwd.as_deref(),
@@ -468,8 +447,8 @@ fn dispatch_builtin_action(
             builtin_workspace_prepare(project_root, run_dir, pb, variant_id)
         }
         BuiltinActionId::SddPrepare => {
-            let variant_id =
-                matrix_variant.ok_or_else(|| anyhow::anyhow!("sdd.prepare requires matrix.variant"))?;
+            let variant_id = matrix_variant
+                .ok_or_else(|| anyhow::anyhow!("sdd.prepare requires matrix.variant"))?;
             builtin_sdd_prepare(run_dir, pb, variant_id)
         }
         BuiltinActionId::AcpSddLoop => {
@@ -487,10 +466,7 @@ fn dispatch_builtin_action(
 }
 
 fn execute_run_step(
-    _project_root: &Path,
     run_dir: &Path,
-    _pb: &playbook::Playbook,
-    _manifest: &mut RunManifestV1,
     state: &mut WorkflowState,
     matrix_variant: Option<&str>,
     run: &str,
@@ -743,7 +719,8 @@ fn builtin_acp_sdd_loop(
     };
     let paths = VariantPaths::new(run_dir, variant_id);
 
-    fs::create_dir_all(&paths.logs_dir).with_context(|| format!("create {}", paths.logs_dir.display()))?;
+    fs::create_dir_all(&paths.logs_dir)
+        .with_context(|| format!("create {}", paths.logs_dir.display()))?;
     fs::create_dir_all(&paths.artifacts_dir)
         .with_context(|| format!("create {}", paths.artifacts_dir.display()))?;
 
@@ -752,7 +729,11 @@ fn builtin_acp_sdd_loop(
     let mut injected_env_keys: Vec<String> = preset.env.keys().cloned().collect();
     injected_env_keys.sort();
 
-    let Some(mv) = manifest.variants.iter_mut().find(|mv| mv.name == variant_id) else {
+    let Some(mv) = manifest
+        .variants
+        .iter_mut()
+        .find(|mv| mv.name == variant_id)
+    else {
         bail!("run manifest missing variant `{}`", variant_id);
     };
     mv.injected_env_keys = injected_env_keys;
@@ -798,10 +779,7 @@ fn write_variant_metrics(run_dir: &Path, variant_id: &str, v_state: &VariantStat
 }
 
 fn resolve_cwd_under_root(root: &Path, cwd: Option<&str>) -> Result<PathBuf> {
-    let cwd = cwd
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .unwrap_or(".");
+    let cwd = cwd.map(str::trim).filter(|s| !s.is_empty()).unwrap_or(".");
 
     let rel = Path::new(cwd);
     if rel.is_absolute() {
@@ -816,7 +794,10 @@ fn resolve_cwd_under_root(root: &Path, cwd: Option<&str>) -> Result<PathBuf> {
         bail!("symlink traversal is not allowed in `cwd`");
     }
     if !full.is_dir() {
-        bail!("`cwd` does not exist or is not a directory: {}", full.display());
+        bail!(
+            "`cwd` does not exist or is not a directory: {}",
+            full.display()
+        );
     }
 
     Ok(full)
