@@ -82,3 +82,27 @@ env = { "GIT_SIGNING_KEY" = "${GIT_SIGNING_KEY}" }
 
 - `prompt/codex/`：已提供 Codex CLI 的输出风格提示（中/英）；可作为 project doc 的候选内容（通过 `--project-doc` 或 `CODEX_PROJECT_DOC` 注入）。
 - `config.yaml`：`skills.dir: $LLMAN_CONFIG_DIR/skills`（llman 侧的 skills 目录约定）。
+
+## 7) 用 llman 注入（prompts / AGENTS）
+
+llman 的 `prompts gen` 支持把同一份模板注入到 Codex 的不同入口（scope 和 target 可组合）：
+
+- custom prompts（按模板名写入）：`$CODEX_HOME/prompts/<name>.md` 或 `<repo_root>/.codex/prompts/<name>.md`
+- project doc（聚合写入，固定文件名）：`$CODEX_HOME/AGENTS.md` / `<repo_root>/AGENTS.md`
+  - 临时覆盖可用 `AGENTS.override.md`（llman 通过 `--override` 写入）
+
+示例：
+
+```bash
+# 默认：项目 scope + prompts target（写入 <repo_root>/.codex/prompts/draftpr.md）
+llman prompts gen --app codex --template draftpr
+
+# 写入全局 custom prompt（写入 $CODEX_HOME/prompts/draftpr.md）
+llman prompts gen --app codex --target prompts --scope global --template draftpr
+
+# 写入项目 AGENTS.md（写入 <repo_root>/AGENTS.md）
+llman prompts gen --app codex --target agents --scope project --template common.en
+
+# 写入全局 AGENTS.override.md（写入 $CODEX_HOME/AGENTS.override.md）
+llman prompts gen --app codex --target agents --scope global --override --template common.en
+```

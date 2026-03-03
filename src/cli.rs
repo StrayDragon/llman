@@ -77,9 +77,15 @@ pub enum PromptCommands {
         app: Option<String>,
         #[arg(long, required_unless_present = "interactive")]
         template: Option<String>,
-        /// Target scope for injection (codex/claude-code only)
-        #[arg(long, value_enum, default_value = "project")]
-        scope: PromptScopeArg,
+        /// Target scope(s) for injection. Repeat or use a comma list (e.g. --scope global --scope project)
+        #[arg(long, value_enum, value_delimiter = ',', action = clap::ArgAction::Append, default_value = "project")]
+        scope: Vec<PromptScopeArg>,
+        /// Codex injection target(s): agents (AGENTS*.md) and/or prompts (prompts/*.md)
+        #[arg(long, value_enum, value_delimiter = ',', action = clap::ArgAction::Append)]
+        target: Vec<CodexTargetArg>,
+        /// For codex + target=agents: write to AGENTS.override.md instead of AGENTS.md
+        #[arg(long = "override")]
+        override_file: bool,
         #[arg(long)]
         name: Option<String>,
         #[arg(long)]
@@ -144,9 +150,14 @@ pub enum XCommands {
 
 #[derive(ValueEnum, Debug, Clone, Copy)]
 pub enum PromptScopeArg {
-    User,
+    Global,
     Project,
-    All,
+}
+
+#[derive(ValueEnum, Debug, Clone, Copy)]
+pub enum CodexTargetArg {
+    Agents,
+    Prompts,
 }
 
 pub fn run() -> Result<()> {
@@ -247,6 +258,8 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
             app,
             template,
             scope,
+            target,
+            override_file,
             name,
             force,
             ..
@@ -254,12 +267,20 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
             if *interactive {
                 prompt_cmd.generate_interactive()?;
             } else {
+                let scopes: Vec<crate::prompt::PromptScope> =
+                    scope.iter().copied().map(Into::into).collect();
+                let targets: Vec<crate::prompt::CodexPromptTarget> =
+                    target.iter().copied().map(Into::into).collect();
                 prompt_cmd.generate_rules(
                     app.as_deref().unwrap(),
                     template.as_deref().unwrap(),
                     name.as_deref(),
-                    (*scope).into(),
-                    *force,
+                    crate::prompt::PromptGenerateOptions {
+                        scopes: &scopes,
+                        codex_targets: &targets,
+                        override_file: *override_file,
+                        force: *force,
+                    },
                 )?;
             }
         }
@@ -287,9 +308,17 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
 impl From<PromptScopeArg> for crate::prompt::PromptScope {
     fn from(value: PromptScopeArg) -> Self {
         match value {
-            PromptScopeArg::User => Self::User,
+            PromptScopeArg::Global => Self::Global,
             PromptScopeArg::Project => Self::Project,
-            PromptScopeArg::All => Self::All,
+        }
+    }
+}
+
+impl From<CodexTargetArg> for crate::prompt::CodexPromptTarget {
+    fn from(value: CodexTargetArg) -> Self {
+        match value {
+            CodexTargetArg::Agents => Self::Agents,
+            CodexTargetArg::Prompts => Self::Prompts,
         }
     }
 }
