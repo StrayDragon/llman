@@ -33,8 +33,8 @@ Use this skill when the user wants to think through ideas, investigate problems,
 
 ## Exiting explore mode
 When the user is ready to implement, suggest:
-- `/llman-sdd:new` or `llman-sdd-new-change` (start a change)
-- `/llman-sdd:ff` or `llman-sdd-ff` (create all artifacts quickly)
+- `llman-sdd-new-change` (start a change)
+- `llman-sdd-ff` (create all artifacts quickly)
 - `llman-sdd-apply` (implement tasks)
 If the user asks you to implement while in explore mode, STOP and remind them to exit explore mode first.
 

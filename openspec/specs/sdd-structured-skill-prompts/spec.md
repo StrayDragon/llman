@@ -4,7 +4,7 @@
 TBD - created by archiving change upgrade-sdd-archive-freeze-and-structured-prompts. Update Purpose after archive.
 ## Requirements
 ### Requirement: SDD 技能结构化提示协议
-llman SDD 的技能模板与 spec-driven 模板 MUST 采用统一结构化提示协议，并通过模板单元注入方式组装协议块，以降低重复维护成本并保持内容一致性。
+llman SDD 的技能模板 MUST 采用统一结构化提示协议，并通过模板单元注入方式组装协议块，以降低重复维护成本并保持内容一致性。
 
 协议至少包含以下逻辑层：
 - `Context`
@@ -15,7 +15,7 @@ llman SDD 的技能模板与 spec-driven 模板 MUST 采用统一结构化提示
 - `Output Contract`
 
 #### Scenario: 结构化协议由共享单元注入
-- **WHEN** 维护者检查 `templates/sdd/{locale}/skills/*.md` 与 `templates/sdd/{locale}/spec-driven/*.md`
+- **WHEN** 维护者检查 `templates/sdd/{locale}/skills/*.md`
 - **THEN** 协议章节通过共享模板单元注入而不是手工重复拷贝
 
 #### Scenario: 注入后结构化章节仍完整可见
@@ -44,7 +44,7 @@ New-style validation MUST fail when required ethics governance fields are missin
 - **THEN** validation returns non-zero with explicit missing-field diagnostics
 
 ### Requirement: 生成提示不得包含占位块或无效引导
-SDD 的 new/legacy 双轨技能与 spec-driven 模板渲染结果 MUST 不包含会诱导不稳定行为的占位块或无效引导（例如 “Options / <option …> / What would you like to do?”）。
+SDD 的 new/legacy 双轨技能渲染结果 MUST 不包含会诱导不稳定行为的占位块或无效引导（例如 “Options / <option …> / What would you like to do?”）。
 
 #### Scenario: update-skills 产物无占位块
 - **WHEN** 维护者在同一代码版本下分别运行 new 与 legacy 风格的 `llman sdd update-skills --no-interactive --tool codex`
@@ -52,7 +52,7 @@ SDD 的 new/legacy 双轨技能与 spec-driven 模板渲染结果 MUST 不包含
 - **AND** 生成的任意 `SKILL.md` 不包含子串 `What would you like to do?`
 
 ### Requirement: Spec Authoring Prompts Include Canonical Table ISON Guidance
-New-style SDD skills and spec-driven templates MUST include canonical table/object ISON guidance when they instruct users/agents to create or edit:
+New-style SDD skills MUST include canonical table/object ISON guidance when they instruct users/agents to create or edit:
 - `llmanspec/specs/<capability>/spec.md`, or
 - `llmanspec/changes/<change-id>/specs/<capability>/spec.md`
 
@@ -70,7 +70,7 @@ Guidance MAY be provided either:
 - via a globally injected llmanspec-managed “ISON spec contract” section (for example in `llmanspec/AGENTS.md`) that templates can reference.
 
 #### Scenario: Template guidance matches the canonical schema
-- **WHEN** a maintainer reviews `templates/sdd/{locale}/skills/*.md` and `templates/sdd/{locale}/spec-driven/*.md`
+- **WHEN** a maintainer reviews `templates/sdd/{locale}/skills/*.md`
 - **THEN** any guidance that references writing `spec.md` files uses canonical table/object ISON examples
 - **AND** the guidance does not instruct Markdown heading-based delta sections like `## ADDED|MODIFIED|REMOVED|RENAMED Requirements` for llmanspec delta specs
 
@@ -81,4 +81,3 @@ Guidance MAY be provided either:
 #### Scenario: Validation errors point to legacy command
 - **WHEN** a user follows the templates and encounters an error because legacy JSON payloads are present
 - **THEN** the guidance and/or error output includes a concrete legacy-command hint when appropriate (for example, `llman sdd-legacy validate ...`)
-

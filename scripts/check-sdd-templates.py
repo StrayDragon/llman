@@ -11,6 +11,9 @@ FRONTMATTER_VERSION_RE = re.compile(
     r"^\s*llman-template-version:\s*([0-9]+)\s*$"
 )
 SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+FORBIDDEN_PROMPT_TOOLING_RE = re.compile(
+    r"(?i)/llman-sdd:|\bclaude\b|\bcodex\b|slash commands?"
+)
 
 
 def extract_frontmatter_version(
@@ -134,6 +137,12 @@ def collect_versions(locale_dir: Path, errors: List[str]) -> Dict[str, str]:
     for path in sorted(locale_dir.rglob("*.md")):
         rel = path.relative_to(locale_dir).as_posix()
         lines = path.read_text(encoding="utf-8").splitlines()
+        content = "\n".join(lines)
+        forbidden_match = FORBIDDEN_PROMPT_TOOLING_RE.search(content)
+        if forbidden_match:
+            errors.append(
+                f"{path}: forbidden tool-specific prompt content detected: '{forbidden_match.group(0)}'"
+            )
         validate_skill_frontmatter(path, lines, errors)
         version = extract_version(path, lines, errors)
         if version is None:

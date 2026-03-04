@@ -16,7 +16,7 @@ Implement a change by completing `llmanspec/changes/<id>/tasks.md` from top to b
    - Always announce: "Using change: <id>" and how to override.
 2. Check prerequisites:
    - `llmanspec/changes/<id>/tasks.md` must exist.
-   - If missing, suggest `/llman-sdd:continue <id>` (or `/llman-sdd:ff <id>`) to create planning artifacts, then STOP.
+   - If missing, suggest using `llman-sdd-continue` (or `llman-sdd-ff`) to create planning artifacts, then STOP.
 3. Read context files (as applicable):
    - `llmanspec/changes/<id>/proposal.md`
    - `llmanspec/changes/<id>/design.md` (if present)
@@ -33,7 +33,7 @@ Implement a change by completing `llmanspec/changes/<id>/tasks.md` from top to b
    ```bash
    llman sdd-legacy validate <id> --strict --no-interactive
    ```
-   - If clean, suggest `/llman-sdd:verify <id>` and `/llman-sdd:archive <id>`.
+   - If clean, suggest running `llman-sdd-verify`, then archive with `llman sdd-legacy archive run <id>`.
 
 {{ unit("skills/sdd-commands") }}
 

@@ -30,7 +30,7 @@ Use this skill to create **all** artifacts for a new change quickly (proposal â†
    ```bash
    llman sdd validate <id> --strict --no-interactive
    ```
-6. Show a short status summary and suggest next actions (`llman-sdd-apply` or `/llman-sdd:apply`).
+6. Show a short status summary and suggest next actions (`llman-sdd-apply`).
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints") }}

@@ -24,7 +24,7 @@ metadata:
    - **CRITICAL**（归档前必须修复）
    - **WARNING**（建议修复）
    - **SUGGESTION**（可选优化）
-6. 若存在 CRITICAL，建议用 `llman-sdd-apply`（或 `/llman-sdd:apply <id>`）修复；若通过则建议归档：`llman sdd-legacy archive <id>`。
+6. 若存在 CRITICAL，建议用 `llman-sdd-apply` 修复；若通过则建议归档：`llman sdd-legacy archive run <id>`。
 
 {{ unit("skills/sdd-commands") }}
 

@@ -27,20 +27,9 @@ Locale + skills：
 
 仅使用 AGENTS.md 的上下文注入方式。
 
-llman sdd-legacy 入口：
-- Claude Code：优先使用由 `llman sdd-legacy update-skills` 生成的托管 `/llman-sdd:*` 工作流命令。
-- Codex：使用生成的 `llman-sdd-*` skills，不依赖 slash commands/custom prompts。
-- 不要手动添加其它工具专用的 slash commands。
-
-llman sdd-legacy 快速上手：
-- `/llman-sdd:onboard`（引导式走一遍完整流程）
-- `/llman-sdd:new <id|description>`（开始一个 change）
-- `/llman-sdd:continue <id>`（创建下一个 artifact）
-- `/llman-sdd:ff <id>`（一次性创建所有 artifacts）
-- `/llman-sdd:apply <id>`（按 tasks 实施）
-- `/llman-sdd:verify <id>`（核对实现与 artifacts 是否一致）
-- `/llman-sdd:sync <id>`（手动同步 delta specs；不归档）
-- `/llman-sdd:archive <id>`（归档并合并 deltas）
+工作流提示词：
+- 使用生成的 `llman-sdd-*` skills（通过 `llman sdd-legacy update-skills` 刷新）。
+- 将工作流提示词统一维护在 skills 模板中；不要手工维护其它包装层。
 
 ## 阶段 1：创建变更
 在以下情况创建提案：

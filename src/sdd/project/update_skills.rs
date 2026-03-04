@@ -546,8 +546,8 @@ mod tests {
                 "command missing frontmatter category: {cmd}"
             );
             assert!(
-                content.contains("<!-- llman-template-version: 1 -->"),
-                "command does not include command body template: {cmd}"
+                content.contains("name: \"llman-sdd-"),
+                "command does not include embedded llman-sdd skill content: {cmd}"
             );
         }
 

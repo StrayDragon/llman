@@ -33,8 +33,8 @@ metadata:
 
 ## 退出探索模式
 当用户准备开始实现时，建议：
-- `/llman-sdd:new` 或 `llman-sdd-new-change`（创建 change）
-- `/llman-sdd:ff` 或 `llman-sdd-ff`（一次性创建所有 artifacts）
+- `llman-sdd-new-change`（创建 change）
+- `llman-sdd-ff`（一次性创建所有 artifacts）
 - `llman-sdd-apply`（按 tasks 实施）
 若用户在探索模式中要求你开始实现，STOP 并提醒其先退出探索模式。
 

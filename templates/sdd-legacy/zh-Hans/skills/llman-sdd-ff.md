@@ -30,7 +30,7 @@ metadata:
    ```bash
    llman sdd-legacy validate <id> --strict --no-interactive
    ```
-6. 给出简短状态总结，并建议下一步（`llman-sdd-apply` 或 `/llman-sdd:apply`）。
+6. 给出简短状态总结，并建议下一步（`llman-sdd-apply`）。
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints") }}

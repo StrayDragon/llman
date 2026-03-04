@@ -15,7 +15,7 @@ metadata:
 2. 确保项目已初始化：
    - 必须存在 `llmanspec/`；若不存在，提示先运行 `llman sdd-legacy init`，然后 STOP。
 3. 创建 `llmanspec/changes/<change-id>/` 与 `llmanspec/changes/<change-id>/specs/`。
-   - 若变更已存在，STOP 并建议使用 `llman-sdd-continue`（或 `/llman-sdd:continue <id>`）。
+   - 若变更已存在，STOP 并建议使用 `llman-sdd-continue`。
 4. 在 `llmanspec/changes/<change-id>/` 下创建工件：
    - `proposal.md`（Why / What Changes / Capabilities / Impact）
    - 为每个 capability 创建 `specs/<capability>/spec.md`，并使用：
@@ -24,7 +24,7 @@ metadata:
    - 仅在涉及权衡/迁移时创建 `design.md`
    - `tasks.md`：按顺序拆分为可勾选清单（包含校验命令）
 5. 校验：`llman sdd-legacy validate <change-id> --strict --no-interactive`。
-6. 进入实现阶段：建议使用 `llman-sdd-apply`（或 `/llman-sdd:apply <id>`）。
+6. 进入实现阶段：建议使用 `llman-sdd-apply`。
 
 {{ unit("skills/sdd-commands") }}
 

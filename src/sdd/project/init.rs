@@ -2,11 +2,8 @@ use super::config::{SddConfig, config_with_locale, write_config};
 use super::fs_utils::update_file_with_markers;
 use super::templates::{
     TemplateStyle, default_agents_file, render_project_template, root_stub_content,
-    spec_driven_templates,
 };
-use crate::sdd::shared::constants::{
-    LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS, SPEC_DRIVEN_TEMPLATE_DIR,
-};
+use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS};
 use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::Path;
@@ -25,7 +22,6 @@ pub fn run(target: &Path, locale: Option<&str>, style: TemplateStyle) -> Result<
     write_project_file(&llmanspec_path, target, &config, style)?;
     write_agents_file(&llmanspec_path, target, &config, style)?;
     write_root_agents_file(target, &config, style)?;
-    write_spec_driven_templates(&llmanspec_path, target, &config, style)?;
 
     Ok(())
 }
@@ -44,7 +40,6 @@ fn ensure_directory(target: &Path) -> Result<()> {
 fn create_structure(llmanspec_path: &Path) -> Result<()> {
     fs::create_dir_all(llmanspec_path.join("specs"))?;
     fs::create_dir_all(llmanspec_path.join("changes").join("archive"))?;
-    fs::create_dir_all(llmanspec_path.join(SPEC_DRIVEN_TEMPLATE_DIR))?;
     Ok(())
 }
 
@@ -73,20 +68,6 @@ fn write_agents_file(
     let agents_path = llmanspec_path.join("AGENTS.md");
     let content = default_agents_file(config, target, style)?;
     fs::write(&agents_path, content)?;
-    Ok(())
-}
-
-fn write_spec_driven_templates(
-    llmanspec_path: &Path,
-    target: &Path,
-    config: &SddConfig,
-    style: TemplateStyle,
-) -> Result<()> {
-    let template_dir = llmanspec_path.join(SPEC_DRIVEN_TEMPLATE_DIR);
-    for template in spec_driven_templates(config, target, style)? {
-        let path = template_dir.join(template.name);
-        fs::write(path, template.content)?;
-    }
     Ok(())
 }
 
