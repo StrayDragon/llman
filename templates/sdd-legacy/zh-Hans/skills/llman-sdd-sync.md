@@ -22,7 +22,7 @@ metadata:
    ```bash
    llman sdd-legacy validate --specs --strict --no-interactive
    ```
-4. sync 不负责归档；准备好后使用 `/llman-sdd:archive`。
+4. sync 不负责归档；准备好后执行 `llman sdd-legacy archive run <id>`。
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints") }}

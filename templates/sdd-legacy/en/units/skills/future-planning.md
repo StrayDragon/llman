@@ -8,6 +8,6 @@
 - For each `now` item, propose a concrete landing path:
   - follow-up change id (`add-...`, `update-...`, `refactor-...`)
   - affected capability/spec path
-  - first executable action (`/llman-sdd:new`, `/llman-sdd:continue`, `/llman-sdd:ff`, or `llman-sdd-apply`)
+  - first executable action (`llman-sdd-new-change`, `llman-sdd-continue`, `llman-sdd-ff`, or `llman-sdd-apply`)
 - Keep traceability: reference source future item in the new proposal/design/tasks notes.
 - When uncertainty is high, pause and ask before creating new change artifacts.

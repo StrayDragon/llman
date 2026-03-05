@@ -15,7 +15,7 @@ Create a new change with planning artifacts (proposal + delta specs + tasks; des
 2. Ensure the project is initialized:
    - `llmanspec/` must exist; if missing, tell the user to run `llman sdd-legacy init`, then STOP.
 3. Create `llmanspec/changes/<change-id>/` and `llmanspec/changes/<change-id>/specs/`.
-   - If the change already exists, STOP and suggest `llman-sdd-continue` (or `/llman-sdd:continue <id>`).
+   - If the change already exists, STOP and suggest `llman-sdd-continue`.
 4. Create artifacts under `llmanspec/changes/<change-id>/`:
    - `proposal.md` (Why / What Changes / Capabilities / Impact)
    - `specs/<capability>/spec.md` for each capability using:
@@ -24,7 +24,7 @@ Create a new change with planning artifacts (proposal + delta specs + tasks; des
    - `design.md` only when tradeoffs/migrations matter
    - `tasks.md` as an ordered checklist (include validation commands)
 5. Validate: `llman sdd-legacy validate <change-id> --strict --no-interactive`.
-6. Hand off to implementation: suggest `llman-sdd-apply` (or `/llman-sdd:apply <id>`).
+6. Hand off to implementation: suggest `llman-sdd-apply`.
 
 {{ unit("skills/sdd-commands") }}
 

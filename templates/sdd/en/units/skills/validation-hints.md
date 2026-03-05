@@ -7,7 +7,7 @@ Validation fixes (minimal examples):
 llman_spec_valid_scope:
   - src
 llman_spec_valid_commands:
-  - cargo test
+  - llman sdd validate <feature-id> --type spec --strict --no-interactive
 llman_spec_evidence:
   - <evidence>
 ---

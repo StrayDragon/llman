@@ -16,7 +16,7 @@ metadata:
    - 始终说明："使用变更：<id>"，并告知如何覆盖。
 2. 检查前置条件：
    - 必须存在：`llmanspec/changes/<id>/tasks.md`
-   - 若缺失，建议先用 `/llman-sdd:continue <id>`（或 `/llman-sdd:ff <id>`）补齐规划工件，然后 STOP。
+   - 若缺失，建议先用 `llman-sdd-continue`（或 `llman-sdd-ff`）补齐规划工件，然后 STOP。
 3. 阅读上下文文件（视情况而定）：
    - `llmanspec/changes/<id>/proposal.md`
    - `llmanspec/changes/<id>/design.md`（如存在）
@@ -33,7 +33,7 @@ metadata:
    ```bash
    llman sdd validate <id> --strict --no-interactive
    ```
-   - 若校验无误，建议 `/llman-sdd:verify <id>` 与 `/llman-sdd:archive <id>`。
+   - 若校验无误，建议运行 `llman-sdd-verify`，然后执行归档：`llman sdd archive run <id>`。
 
 {{ unit("skills/sdd-commands") }}
 

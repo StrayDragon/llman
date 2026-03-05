@@ -24,7 +24,7 @@ Use this skill to verify that the implementation matches the change’s artifact
    - **CRITICAL** (must fix before archive)
    - **WARNING** (should fix)
    - **SUGGESTION** (nice to have)
-6. If CRITICAL exists, suggest `llman-sdd-apply` (or `/llman-sdd:apply <id>`). If clean, suggest archive: `llman sdd-legacy archive <id>`.
+6. If CRITICAL exists, suggest `llman-sdd-apply`. If clean, suggest archive: `llman sdd-legacy archive run <id>`.
 
 {{ unit("skills/sdd-commands") }}
 

@@ -22,7 +22,7 @@ This is a manual, reproducible protocol.
    ```bash
    llman sdd-legacy validate --specs --strict --no-interactive
    ```
-4. Do NOT archive as part of sync. Use `/llman-sdd:archive` when ready.
+4. Do NOT archive as part of sync. When ready, run `llman sdd-legacy archive run <id>`.
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints") }}

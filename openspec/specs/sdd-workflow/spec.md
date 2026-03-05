@@ -4,7 +4,7 @@
 Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmanspec/`.
 ## Requirements
 ### Requirement: SDD 初始化脚手架
-`llman sdd init [path]` 命令 MUST 在目标路径创建 `llmanspec/` 目录结构，包括 `llmanspec/AGENTS.md`、`llmanspec/project.md`、`llmanspec/specs/`、`llmanspec/changes/` 与 `llmanspec/changes/archive/`，以及 `llmanspec/templates/spec-driven/` 下的 `proposal.md`、`spec.md`、`design.md`、`tasks.md`。命令 MUST 生成 `llmanspec/config.yaml` 并写入 locale 配置。命令 MUST 在 `llmanspec/config.yaml` 顶部写入 `yaml-language-server` schema 头注释，指向 `llmanspec-config` schema URL。命令 MUST 创建或刷新 repo 根目录下的 `AGENTS.md` 受管块以指向 `llmanspec/AGENTS.md`。当 `llmanspec/` 已存在时，命令 MUST 报错并且不修改任何文件。生成的 `llmanspec/AGENTS.md` MUST 包含 LLMANSPEC 受管提示块且包含完整 llman sdd 方法论说明。
+`llman sdd init [path]` 命令 MUST 在目标路径创建 `llmanspec/` 目录结构，包括 `llmanspec/AGENTS.md`、`llmanspec/project.md`、`llmanspec/config.yaml`、`llmanspec/specs/`、`llmanspec/changes/` 与 `llmanspec/changes/archive/`。命令 MUST 在 `llmanspec/config.yaml` 顶部写入 `yaml-language-server` schema 头注释，指向 `llmanspec-config` schema URL。命令 MUST 创建或刷新 repo 根目录下的 `AGENTS.md` 受管块以指向 `llmanspec/AGENTS.md`。当 `llmanspec/` 已存在时，命令 MUST 报错并且不修改任何文件。生成的 `llmanspec/AGENTS.md` MUST 包含 LLMANSPEC 受管提示块且包含完整 llman sdd 方法论说明。
 
 #### Scenario: 初始化新项目
 - **WHEN** 用户在不存在 `llmanspec/` 的目录执行 `llman sdd init`
@@ -39,7 +39,7 @@ Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmansp
 - **THEN** `llman sdd init` 仅创建 `llmanspec/` 且不修改 `openspec/`
 
 ### Requirement: SDD 指令与提示词刷新
-`llman sdd update [path]` MUST 刷新 `llmanspec/AGENTS.md` 与 `llmanspec/templates/spec-driven/` 内置模板，同时 MUST 保持 `llmanspec/specs/**` 与 `llmanspec/changes/**` 不被修改。命令 MUST 刷新 repo 根目录 `AGENTS.md` 的 LLMANSPEC 受管块并保留非受管内容。更新 `llmanspec/AGENTS.md` 时 MUST 仅替换 LLMANSPEC 受管提示块，并保留受管块以外的用户内容。更新时必须使用 `llmanspec/config.yaml` 的 locale 选择模板。
+`llman sdd update [path]` MUST 刷新 `llmanspec/AGENTS.md` 的 LLMANSPEC 受管提示块，同时 MUST 保持 `llmanspec/specs/**` 与 `llmanspec/changes/**` 不被修改。命令 MUST 刷新 repo 根目录 `AGENTS.md` 的 LLMANSPEC 受管块并保留非受管内容。更新 `llmanspec/AGENTS.md` 时 MUST 仅替换 LLMANSPEC 受管提示块，并保留受管块以外的用户内容。更新时必须使用 `llmanspec/config.yaml` 的 locale 选择模板。
 
 #### Scenario: 更新指令文件
 - **WHEN** 用户执行 `llman sdd update`
@@ -66,7 +66,7 @@ Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmansp
 - **THEN** `llman sdd update` 不修改 `openspec/`
 
 ### Requirement: SDD 本地化配置与模板加载
-`llman sdd` MUST 使用项目级配置 `llmanspec/config.yaml` 解析 locale，并基于 `templates/sdd/<locale>/` 加载 `llmanspec/AGENTS.md`、`llmanspec/templates/**` 与 sdd skills 内容。locale 仅影响模板与 skills 输出，不影响 CLI 文本。
+`llman sdd` MUST 使用项目级配置 `llmanspec/config.yaml` 解析 locale，并基于 `templates/sdd/<locale>/` 加载 `llmanspec/AGENTS.md`、`llmanspec/project.md` 与 sdd skills 内容。locale 仅影响模板与 skills 输出，不影响 CLI 文本。
 
 #### Scenario: 初始化写入 locale 配置
 - **WHEN** 用户执行 `llman sdd init --lang zh-Hans`
@@ -82,7 +82,7 @@ Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmansp
 - **AND** CLI 输出仍保持英文
 
 ### Requirement: SDD Skills 生成与更新
-`llman sdd update-skills` 生成的 workflow skills 集 MUST 新增 `llman-sdd-specs-compact`，并在现有 `llman-sdd-*` skills 中使用统一结构化提示协议（见 `sdd-structured-skill-prompts` capability）。
+`llman sdd update-skills` 生成的 workflow skills 集 MUST 新增 `llman-sdd-specs-compact`，并在现有 `llman-sdd-*` skills 中使用统一结构化提示协议（见 `sdd-structured-skill-prompts` capability）。当目标工具为 Claude 时，命令 MUST 同步生成 `.claude/commands/llman-sdd/*.md` workflow commands，且其命令提示内容 MUST 直接来自对应的 `templates/sdd/<locale>/skills/llman-sdd-*.md`（单一真源）。
 
 #### Scenario: 生成包含 specs-compact skill
 - **WHEN** 用户执行 `llman sdd update-skills --no-interactive --tool codex`
@@ -464,7 +464,7 @@ SDD locale 模板 MUST 包含 `llman-template-version` 元信息。对于带 YAM
 ### Requirement: SDD Future 记录文件为可选
 `llmanspec/changes/<change-id>/future.md` MUST 作为可选记录文件存在，用于承载延期项与分叉路线。缺失该文件 MUST NOT 阻塞 `llman sdd validate` 或 `llman sdd archive`。
 
-与 future 相关的 `skills/*.md` 与 `spec-driven/{new,continue,ff,explore}.md` 模板 MUST 提供“future 到执行”的注入式引导：将 future 条目分类为 `now|later|drop`，并为 `now` 条目映射后续 change 与首个可执行动作（如 `/llman-sdd:new`、`/llman-sdd:continue`、`/llman-sdd:ff`、`llman-sdd-apply`）。
+与 future 相关的 `skills/*.md` 模板 MUST 提供“future 到执行”的注入式引导：将 future 条目分类为 `now|later|drop`，并为 `now` 条目映射后续 change 与首个可执行动作（如 `/llman-sdd:new`、`/llman-sdd:continue`、`/llman-sdd:ff`、`llman-sdd-apply`）。
 
 #### Scenario: 缺失 future 不阻塞
 - **WHEN** change 不包含 `future.md`
@@ -475,7 +475,7 @@ SDD locale 模板 MUST 包含 `llman-template-version` 元信息。对于带 YAM
 - **THEN** 输出包含 `now|later|drop` 分类与后续落地动作建议
 
 ### Requirement: SDD 模板结构化提示协议
-`templates/sdd/{locale}/skills/*.md` 与 `templates/sdd/{locale}/spec-driven/*.md` MUST 提供统一结构化章节（或等价命名）：`Context`、`Goal`、`Constraints`、`Workflow`、`Decision Policy`、`Output Contract`。模板 MUST 为自包含规则，不得要求先调用外部技能作为前置步骤。
+`templates/sdd/{locale}/skills/*.md` MUST 提供统一结构化章节（或等价命名）：`Context`、`Goal`、`Constraints`、`Workflow`、`Decision Policy`、`Output Contract`。模板 MUST 为自包含规则，不得要求先调用外部技能作为前置步骤。
 
 #### Scenario: skills 模板包含结构化章节
 - **WHEN** 维护者运行 `llman sdd update-skills`
@@ -708,4 +708,3 @@ The system MUST NOT require an automatic migration command as part of the new-st
 - **WHEN** a repository remains on legacy JSON payloads
 - **THEN** users can continue using `llman sdd-legacy`
 - **AND** switching to `llman sdd` requires rewriting payloads into canonical table/object ISON, but no automatic migration command is required
-

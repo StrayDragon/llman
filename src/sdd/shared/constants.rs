@@ -10,5 +10,3 @@ pub const LLMANSPEC_MARKERS: MarkerPair = MarkerPair {
     start: "<!-- LLMANSPEC:START -->",
     end: "<!-- LLMANSPEC:END -->",
 };
-
-pub const SPEC_DRIVEN_TEMPLATE_DIR: &str = "templates/spec-driven";

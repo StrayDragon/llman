@@ -69,6 +69,7 @@ fn assert_no_disallowed_prompt_markers(path: &Path, content: &str) {
         "Options:",
         "<option",
         "What would you like to do?",
+        "/llman-sdd:",
         "{{ unit(",
     ];
     for snippet in DISALLOWED {
@@ -1059,7 +1060,7 @@ fn test_sdd_validate_ab_report_json_orders_safety_priority_metrics() {
 }
 
 #[test]
-fn test_sdd_update_recreates_templates() {
+fn test_sdd_update_recreates_llmanspec_agents_md() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
 
@@ -1070,24 +1071,22 @@ fn test_sdd_update_recreates_templates() {
     );
     assert_success(&init_output);
 
-    let template_path = work_dir
-        .join("llmanspec")
-        .join("templates")
-        .join("spec-driven")
-        .join("new.md");
-    fs::remove_file(&template_path).expect("remove template");
-    assert!(!template_path.exists());
+    let agents_path = work_dir.join("llmanspec").join("AGENTS.md");
+    fs::remove_file(&agents_path).expect("remove llmanspec/AGENTS.md");
+    assert!(!agents_path.exists());
 
     let update_output = run_llman(&["sdd", "update"], work_dir, work_dir);
     assert_success(&update_output);
 
-    assert!(template_path.exists());
-    let content = fs::read_to_string(&template_path).expect("read template");
-    assert!(content.contains("/llman-sdd:new"));
+    assert!(agents_path.exists());
+    let content = fs::read_to_string(&agents_path).expect("read llmanspec/AGENTS.md");
+    assert!(content.contains("<!-- LLMANSPEC:START -->"));
+    assert!(content.contains("LLMAN Spec-Driven Development (SDD)"));
+    assert!(content.contains("llman sdd update-skills"));
 }
 
 #[test]
-fn test_sdd_update_legacy_style_routes_legacy_templates() {
+fn test_sdd_update_legacy_style_routes_legacy_agents_template() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
 
@@ -1098,23 +1097,16 @@ fn test_sdd_update_legacy_style_routes_legacy_templates() {
     );
     assert_success(&init_output);
 
-    let template_path = work_dir
-        .join("llmanspec")
-        .join("templates")
-        .join("spec-driven")
-        .join("new.md");
-
-    let before = fs::read_to_string(&template_path).expect("read default template");
-    assert!(!before.contains("legacy-track"));
+    let agents_path = work_dir.join("llmanspec").join("AGENTS.md");
+    let before = fs::read_to_string(&agents_path).expect("read default agents");
+    assert!(before.contains("llman sdd list"));
+    assert!(!before.contains("llman sdd-legacy list"));
 
     let update_output = run_llman(&["sdd-legacy", "update"], work_dir, work_dir);
     assert_success(&update_output);
 
-    let after = fs::read_to_string(&template_path).expect("read legacy template");
-    assert!(
-        after.contains("legacy-track"),
-        "legacy style update should render legacy marker"
-    );
+    let after = fs::read_to_string(&agents_path).expect("read legacy agents");
+    assert!(after.contains("llman sdd-legacy list"));
 }
 
 #[test]
