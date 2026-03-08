@@ -423,72 +423,72 @@ fn hash_dir_recursive(
     stack.push(canon);
 
     let result = (|| {
-    let mut entries = fs::read_dir(dir)?.collect::<std::result::Result<Vec<_>, _>>()?;
-    entries.sort_by(|a, b| {
-        a.file_name()
-            .to_string_lossy()
-            .cmp(&b.file_name().to_string_lossy())
-    });
+        let mut entries = fs::read_dir(dir)?.collect::<std::result::Result<Vec<_>, _>>()?;
+        entries.sort_by(|a, b| {
+            a.file_name()
+                .to_string_lossy()
+                .cmp(&b.file_name().to_string_lossy())
+        });
 
-    for entry in entries {
-        let name = entry.file_name();
-        if name.to_string_lossy() == VENDORED_METADATA_FILE {
-            continue;
-        }
-
-        let path = entry.path();
-        let rel = match path.strip_prefix(root) {
-            Ok(rel) => rel,
-            Err(_) => {
-                return Err(anyhow!(
-                    "{} {}",
-                    t!("skills.hash.strip_prefix_failed"),
-                    path.display()
-                ));
+        for entry in entries {
+            let name = entry.file_name();
+            if name.to_string_lossy() == VENDORED_METADATA_FILE {
+                continue;
             }
-        };
 
-        let link_meta = match fs::symlink_metadata(&path) {
-            Ok(meta) => meta,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(e) => return Err(e.into()),
-        };
-
-        let follow_meta = if link_meta.file_type().is_symlink() {
-            match fs::metadata(&path) {
-                Ok(meta) => meta,
-                // Dangling/invalid symlink: ignore it for digest purposes.
-                Err(_) => continue,
-            }
-        } else {
-            link_meta
-        };
-
-        hasher.update(rel.to_string_lossy().as_bytes());
-        hasher.update([0u8]);
-
-        if follow_meta.is_dir() {
-            hasher.update(b"dir");
-            hasher.update([0u8]);
-            hash_dir_recursive(root, &path, hasher, stack)?;
-            continue;
-        }
-
-        if follow_meta.is_file() {
-            hasher.update(b"file");
-            hasher.update([0u8]);
-            let mut file = fs::File::open(&path)?;
-            let mut buf = [0u8; 8192];
-            loop {
-                let read = file.read(&mut buf)?;
-                if read == 0 {
-                    break;
+            let path = entry.path();
+            let rel = match path.strip_prefix(root) {
+                Ok(rel) => rel,
+                Err(_) => {
+                    return Err(anyhow!(
+                        "{} {}",
+                        t!("skills.hash.strip_prefix_failed"),
+                        path.display()
+                    ));
                 }
-                hasher.update(&buf[..read]);
+            };
+
+            let link_meta = match fs::symlink_metadata(&path) {
+                Ok(meta) => meta,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => return Err(e.into()),
+            };
+
+            let follow_meta = if link_meta.file_type().is_symlink() {
+                match fs::metadata(&path) {
+                    Ok(meta) => meta,
+                    // Dangling/invalid symlink: ignore it for digest purposes.
+                    Err(_) => continue,
+                }
+            } else {
+                link_meta
+            };
+
+            hasher.update(rel.to_string_lossy().as_bytes());
+            hasher.update([0u8]);
+
+            if follow_meta.is_dir() {
+                hasher.update(b"dir");
+                hasher.update([0u8]);
+                hash_dir_recursive(root, &path, hasher, stack)?;
+                continue;
+            }
+
+            if follow_meta.is_file() {
+                hasher.update(b"file");
+                hasher.update([0u8]);
+                let mut file = fs::File::open(&path)?;
+                let mut buf = [0u8; 8192];
+                loop {
+                    let read = file.read(&mut buf)?;
+                    if read == 0 {
+                        break;
+                    }
+                    hasher.update(&buf[..read]);
+                }
             }
         }
-    }
-    Ok(())
+        Ok(())
     })();
 
     stack.pop();
@@ -781,8 +781,9 @@ fn copy_dir_all_follow_links_inner(from: &Path, to: &Path, stack: &mut Vec<PathB
                 if follow_meta.is_dir() {
                     copy_dir_all_follow_links_inner(&src, &dst, stack)?;
                 } else if follow_meta.is_file() {
-                    fs::copy(&src, &dst)
-                        .with_context(|| format!("copy file {} -> {}", src.display(), dst.display()))?;
+                    fs::copy(&src, &dst).with_context(|| {
+                        format!("copy file {} -> {}", src.display(), dst.display())
+                    })?;
                 }
                 continue;
             }

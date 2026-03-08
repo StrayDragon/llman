@@ -298,26 +298,17 @@ fn handle_interactive_mode(config: &Config) -> Result<(String, Vec<String>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::Parser;
-    use crate::editor::select_editor_from_env;
     use crate::cli::{Cli, Commands, XCommands};
+    use crate::editor::select_editor_from_env;
     use crate::x::codex::config::{ProviderConfig, provider_to_codex_table};
+    use clap::Parser;
     use std::fs;
     use tempfile::TempDir;
 
     #[test]
     fn run_command_accepts_trailing_args_after_double_dash() {
         let cli = Cli::try_parse_from([
-            "llman",
-            "x",
-            "codex",
-            "run",
-            "--group",
-            "openai",
-            "--",
-            "--help",
-            "-m",
-            "o3",
+            "llman", "x", "codex", "run", "--group", "openai", "--", "--help", "-m", "o3",
         ])
         .expect("parse");
 

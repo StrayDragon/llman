@@ -148,9 +148,10 @@ pub fn upsert_to_codex_config(provider_key: &str, provider: &ProviderConfig) -> 
         Some(override_name) => {
             let override_name = override_name.trim();
             if override_name.is_empty() {
-                return Err(anyhow!(
-                    t!("codex.error.override_name_blank", name = provider_key)
-                ));
+                return Err(anyhow!(t!(
+                    "codex.error.override_name_blank",
+                    name = provider_key
+                )));
             }
             override_name.to_string()
         }
@@ -392,7 +393,9 @@ override_name = "a"
         let provider_a = providers.get("a").and_then(|v| v.as_table()).expect("a");
         assert_eq!(provider_a.get("name").and_then(|v| v.as_str()), Some("a"));
         assert_eq!(
-            provider_a.get("request_max_retries").and_then(|v| v.as_integer()),
+            provider_a
+                .get("request_max_retries")
+                .and_then(|v| v.as_integer()),
             Some(9999)
         );
         assert!(provider_a.get("env").is_none());
