@@ -56,6 +56,7 @@ tokio = { version = "1.49.0", features = ["rt-multi-thread", "time"] }
 tokio-util = { version = "0.7.18", features = ["compat"] }
 reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "json", "rustls"] }
 tempfile = "3.26.0"
+sha2 = "0.10.9"
 
 # Comment processing and parsing
 tree-sitter = "0.26.6"

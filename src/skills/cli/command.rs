@@ -9,7 +9,7 @@ use crate::skills::cli::tui_picker;
 use crate::skills::cli::tui_picker::{TuiEntry, TuiEntryKind};
 use crate::skills::config::load_config;
 use crate::skills::targets::sync::SkillSyncCancelled;
-use crate::skills::targets::sync::{apply_target_diff, is_skill_linked};
+use crate::skills::targets::sync::{apply_target_diff, is_skill_present};
 use anyhow::Result;
 use clap::{Args, ValueEnum};
 use inquire::error::InquireError;
@@ -27,7 +27,7 @@ pub struct SkillsArgs {
     #[arg(long = "relink-sources", hide = true)]
     pub relink_sources_removed: bool,
 
-    /// Conflict policy for link targets (overwrite or skip)
+    /// Conflict policy when a target entry already exists (overwrite or skip)
     #[arg(long = "target-conflict", value_enum)]
     pub target_conflict: Option<TargetConflictArg>,
 
@@ -150,7 +150,7 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
             let desired: HashSet<String> = skills
                 .iter()
                 .filter_map(|skill| {
-                    if is_skill_linked(skill, target) || target.enabled {
+                    if is_skill_present(skill, target) || target.enabled {
                         Some(skill.skill_id.clone())
                     } else {
                         None
@@ -905,11 +905,11 @@ fn visible_skills_for_target(
     skills
         .iter()
         .filter(|skill| {
-            let linked_in_target = is_skill_linked(skill, target);
-            if linked_in_target {
+            let present_in_target = is_skill_present(skill, target);
+            if present_in_target {
                 return true;
             }
-            !is_skill_linked(skill, user_target)
+            !is_skill_present(skill, user_target)
         })
         .cloned()
         .collect()
@@ -969,7 +969,7 @@ fn map_skill_defaults_to_option_indexes(
 fn linked_skill_indexes(skills: &[SkillCandidate], target: &ConfigEntry) -> Vec<usize> {
     let mut indexes = Vec::new();
     for (idx, skill) in skills.iter().enumerate() {
-        if is_skill_linked(skill, target) {
+        if is_skill_present(skill, target) {
             indexes.push(idx);
         }
     }

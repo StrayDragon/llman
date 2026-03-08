@@ -1995,7 +1995,7 @@ skills:
     unsupported_version:
       en: "Unsupported skills config version %{version}."
     invalid_target_mode:
-      en: "Unsupported target mode %{mode}. Expected link or skip."
+      en: "Unsupported target mode %{mode}. Expected link, copy, or skip."
     sources_removed:
       en: "Skills config v2 does not support [[source]] entries. Use targets-only config under <skills_root>."
     skills_dir_invalid_cli:

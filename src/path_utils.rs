@@ -3,6 +3,66 @@
 use anyhow::{Result as AnyhowResult, bail};
 use std::path::{Path, PathBuf};
 
+/// Compute a relative path from `from_dir` to `to`.
+///
+/// Returns `None` when either path is not absolute, or when a relative path
+/// cannot be expressed (for example, differing Windows drive letters).
+pub fn relative_path_from_dir(from_dir: &Path, to: &Path) -> Option<PathBuf> {
+    if !from_dir.is_absolute() || !to.is_absolute() {
+        return None;
+    }
+
+    let from_components: Vec<_> = from_dir.components().collect();
+    let to_components: Vec<_> = to.components().collect();
+
+    #[cfg(windows)]
+    {
+        use std::path::Component;
+
+        let from_prefix = match from_components.first() {
+            Some(Component::Prefix(prefix)) => Some(prefix.kind()),
+            _ => None,
+        };
+        let to_prefix = match to_components.first() {
+            Some(Component::Prefix(prefix)) => Some(prefix.kind()),
+            _ => None,
+        };
+
+        if from_prefix != to_prefix {
+            return None;
+        }
+    }
+
+    let mut common_len = 0usize;
+    while common_len < from_components.len()
+        && common_len < to_components.len()
+        && from_components[common_len] == to_components[common_len]
+    {
+        common_len += 1;
+    }
+
+    let mut out = PathBuf::new();
+
+    // For each remaining segment in `from_dir`, go up one level.
+    for _ in common_len..from_components.len() {
+        out.push("..");
+    }
+
+    // Then descend into the remaining segments of `to`.
+    for comp in &to_components[common_len..] {
+        match comp {
+            std::path::Component::Prefix(_) | std::path::Component::RootDir => return None,
+            _ => out.push(comp.as_os_str()),
+        }
+    }
+
+    if out.as_os_str().is_empty() {
+        out.push(".");
+    }
+
+    Some(out)
+}
+
 /// Validates that a path string is not empty or just whitespace
 pub fn validate_path_str(path_str: &str) -> Result<(), String> {
     if path_str.trim().is_empty() {
@@ -129,6 +189,30 @@ mod tests {
         assert!(is_just_filename(Path::new("config.yaml")));
         assert!(!is_just_filename(Path::new("dir/config.yaml")));
         assert!(!is_just_filename(Path::new("/tmp/config.yaml")));
+    }
+
+    #[test]
+    fn test_relative_path_from_dir_returns_none_for_relative_inputs() {
+        assert!(relative_path_from_dir(Path::new("a/b"), Path::new("/tmp/x")).is_none());
+        assert!(relative_path_from_dir(Path::new("/tmp/x"), Path::new("a/b")).is_none());
+    }
+
+    #[test]
+    fn test_relative_path_from_dir_basic() {
+        use tempfile::TempDir;
+
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let from_dir = root.join("a/b/c");
+        let to = root.join("a/d/e");
+        std::fs::create_dir_all(&from_dir).expect("create from");
+        std::fs::create_dir_all(&to).expect("create to");
+
+        let rel = relative_path_from_dir(&from_dir, &to).expect("relative path");
+        assert_eq!(rel, PathBuf::from("../../d/e"));
+
+        let same = relative_path_from_dir(&from_dir, &from_dir).expect("relative path");
+        assert_eq!(same, PathBuf::from("."));
     }
 
     #[test]

@@ -193,6 +193,7 @@ fn resolve_target_entries(entries: Vec<TomlEntry>) -> Result<Vec<ConfigEntry>> {
 fn parse_target_mode(raw: Option<&str>) -> Result<TargetMode> {
     match raw.unwrap_or("link") {
         "link" => Ok(TargetMode::Link),
+        "copy" => Ok(TargetMode::Copy),
         "skip" => Ok(TargetMode::Skip),
         other => Err(anyhow!(t!(
             "skills.config.invalid_target_mode",
@@ -310,7 +311,7 @@ fn default_agent_global_dir_with(home_dir: Option<&Path>) -> Result<PathBuf> {
 
 fn default_repo_scope_dir(cwd: &Path, relative: &str) -> (PathBuf, TargetMode) {
     if let Some(repo_root) = find_git_root(cwd) {
-        return (repo_root.join(relative), TargetMode::Link);
+        return (repo_root.join(relative), TargetMode::Copy);
     }
     (cwd.join(relative), TargetMode::Skip)
 }
@@ -500,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rejects_copy_target_mode() {
+    fn test_accepts_copy_target_mode() {
         let temp = TempDir::new().expect("temp dir");
         let skills_root = temp.path().join("skills");
         fs::create_dir_all(&skills_root).expect("create skills root");
@@ -513,8 +514,9 @@ mod tests {
             root: skills_root.clone(),
             config_path: skills_root.join("config.toml"),
         };
-        let err = load_config(&paths).expect_err("should reject copy mode");
-        assert!(err.to_string().contains("Unsupported target mode"));
+        let config = load_config(&paths).expect("config");
+        assert_eq!(config.targets.len(), 1);
+        assert_eq!(config.targets[0].mode, TargetMode::Copy);
     }
 
     #[test]
@@ -534,14 +536,14 @@ mod tests {
             .iter()
             .find(|target| target.id == "claude_project")
             .expect("claude_project target");
-        assert_eq!(claude_project.mode, TargetMode::Link);
+        assert_eq!(claude_project.mode, TargetMode::Copy);
         assert_eq!(claude_project.path, repo_root.join(".claude/skills"));
 
         let codex_repo = targets
             .iter()
             .find(|target| target.id == "codex_repo")
             .expect("codex_repo target");
-        assert_eq!(codex_repo.mode, TargetMode::Link);
+        assert_eq!(codex_repo.mode, TargetMode::Copy);
         assert_eq!(codex_repo.path, repo_root.join(".agents/skills"));
     }
 

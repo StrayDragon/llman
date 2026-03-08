@@ -13,6 +13,7 @@ pub struct ConfigEntry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TargetMode {
     Link,
+    Copy,
     Skip,
 }
 
