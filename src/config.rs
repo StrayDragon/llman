@@ -15,7 +15,6 @@ pub const CODEX_EXTENSION: &str = "md";
 pub const DEFAULT_EXTENSION: &str = "txt";
 pub const PROMPT_DIR: &str = "prompt";
 pub const TARGET_CURSOR_RULES_DIR: &str = ".cursor/rules";
-const GLOBAL_CONFIG_FILE: &str = "config.yaml";
 
 fn rule_extension_for_app(app: &str) -> &'static str {
     match app {
@@ -23,34 +22,6 @@ fn rule_extension_for_app(app: &str) -> &'static str {
         CODEX_APP => CODEX_EXTENSION,
         _ => DEFAULT_EXTENSION,
     }
-}
-
-fn is_recognizable_config_root(config_dir: &Path) -> bool {
-    config_dir.join(GLOBAL_CONFIG_FILE).is_file() || config_dir.join(PROMPT_DIR).is_dir()
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MacosConfigDirChoice {
-    Default,
-    LegacyApplicationSupport,
-    LegacyBundleIdApplicationSupport,
-}
-
-fn select_macos_config_dir_choice(
-    default_recognizable: bool,
-    legacy_application_support_recognizable: bool,
-    legacy_bundle_id_application_support_recognizable: bool,
-) -> MacosConfigDirChoice {
-    if default_recognizable {
-        return MacosConfigDirChoice::Default;
-    }
-    if legacy_application_support_recognizable {
-        return MacosConfigDirChoice::LegacyApplicationSupport;
-    }
-    if legacy_bundle_id_application_support_recognizable {
-        return MacosConfigDirChoice::LegacyBundleIdApplicationSupport;
-    }
-    MacosConfigDirChoice::Default
 }
 
 pub(crate) fn try_home_dir() -> Option<PathBuf> {
@@ -118,50 +89,7 @@ pub fn resolve_config_dir_with(
     }
 
     let home = home_dir()?;
-    let default_dir = home.join(".config").join(APP_NAME);
-
-    if cfg!(target_os = "macos") {
-        let legacy_application_support = home
-            .join("Library")
-            .join("Application Support")
-            .join(APP_NAME);
-        let legacy_bundle_id_application_support = home
-            .join("Library")
-            .join("Application Support")
-            .join("com.StrayDragon.llman");
-
-        let choice = select_macos_config_dir_choice(
-            is_recognizable_config_root(&default_dir),
-            is_recognizable_config_root(&legacy_application_support),
-            is_recognizable_config_root(&legacy_bundle_id_application_support),
-        );
-
-        match choice {
-            MacosConfigDirChoice::Default => Ok(default_dir),
-            MacosConfigDirChoice::LegacyApplicationSupport => {
-                eprintln!(
-                    "{}",
-                    t!(
-                        "messages.macos_legacy_config_dir_warning",
-                        legacy_path = legacy_application_support.display()
-                    )
-                );
-                Ok(legacy_application_support)
-            }
-            MacosConfigDirChoice::LegacyBundleIdApplicationSupport => {
-                eprintln!(
-                    "{}",
-                    t!(
-                        "messages.macos_legacy_config_dir_warning",
-                        legacy_path = legacy_bundle_id_application_support.display()
-                    )
-                );
-                Ok(legacy_bundle_id_application_support)
-            }
-        }
-    } else {
-        Ok(default_dir)
-    }
+    Ok(home.join(".config").join(APP_NAME))
 }
 
 pub struct Config {
@@ -283,51 +211,34 @@ mod tests {
 
         let resolved = resolve_config_dir_with(None, None).unwrap();
         assert_eq!(resolved, temp_home.path().join(".config").join(APP_NAME));
+        assert!(!resolved.exists(), "resolution must not create directories");
     }
 
     #[test]
-    fn test_select_macos_config_dir_choice_prefers_default_when_recognizable() {
-        assert_eq!(
-            select_macos_config_dir_choice(true, true, true),
-            MacosConfigDirChoice::Default
-        );
-    }
+    fn test_resolve_config_dir_default_ignores_legacy_macos_directories() {
+        let temp_home = TempDir::new().expect("temp home");
+        let mut proc = TestProcess::new();
+        proc.set_var("HOME", temp_home.path());
 
-    #[test]
-    fn test_select_macos_config_dir_choice_falls_back_to_legacy_application_support() {
-        assert_eq!(
-            select_macos_config_dir_choice(false, true, true),
-            MacosConfigDirChoice::LegacyApplicationSupport
-        );
-    }
+        let legacy_app_support = temp_home
+            .path()
+            .join("Library")
+            .join("Application Support")
+            .join(APP_NAME);
+        fs::create_dir_all(legacy_app_support.join(PROMPT_DIR)).expect("create legacy prompt dir");
+        fs::write(legacy_app_support.join("config.yaml"), "legacy: true\n")
+            .expect("write legacy config");
 
-    #[test]
-    fn test_select_macos_config_dir_choice_falls_back_to_bundle_id_when_only_bundle_recognizable() {
-        assert_eq!(
-            select_macos_config_dir_choice(false, false, true),
-            MacosConfigDirChoice::LegacyBundleIdApplicationSupport
-        );
-    }
+        let legacy_bundle_id = temp_home
+            .path()
+            .join("Library")
+            .join("Application Support")
+            .join("com.StrayDragon.llman");
+        fs::create_dir_all(legacy_bundle_id.join(PROMPT_DIR))
+            .expect("create legacy bundle prompt dir");
 
-    #[test]
-    fn test_select_macos_config_dir_choice_returns_default_when_no_recognizable_roots() {
-        assert_eq!(
-            select_macos_config_dir_choice(false, false, false),
-            MacosConfigDirChoice::Default
-        );
-    }
-
-    #[test]
-    fn test_is_recognizable_config_root_detects_config_yaml_or_prompt_dir() {
-        let temp = TempDir::new().expect("temp dir");
-        assert!(!is_recognizable_config_root(temp.path()));
-
-        fs::write(temp.path().join(GLOBAL_CONFIG_FILE), "x").expect("write config.yaml");
-        assert!(is_recognizable_config_root(temp.path()));
-
-        let temp = TempDir::new().expect("temp dir");
-        fs::create_dir_all(temp.path().join(PROMPT_DIR)).expect("create prompt dir");
-        assert!(is_recognizable_config_root(temp.path()));
+        let resolved = resolve_config_dir_with(None, None).unwrap();
+        assert_eq!(resolved, temp_home.path().join(".config").join(APP_NAME));
     }
 
     #[cfg(unix)]
