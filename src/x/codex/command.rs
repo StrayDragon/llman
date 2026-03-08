@@ -32,6 +32,7 @@ pub enum CodexCommands {
         action: Option<AccountAction>,
     },
     /// Run codex with configuration selection
+    #[command(about = "Run codex with configuration")]
     Run {
         #[arg(
             short = 'i',
@@ -297,10 +298,48 @@ fn handle_interactive_mode(config: &Config) -> Result<(String, Vec<String>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
     use crate::editor::select_editor_from_env;
+    use crate::cli::{Cli, Commands, XCommands};
     use crate::x::codex::config::{ProviderConfig, provider_to_codex_table};
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn run_command_accepts_trailing_args_after_double_dash() {
+        let cli = Cli::try_parse_from([
+            "llman",
+            "x",
+            "codex",
+            "run",
+            "--group",
+            "openai",
+            "--",
+            "--help",
+            "-m",
+            "o3",
+        ])
+        .expect("parse");
+
+        let Some(Commands::X(x_args)) = cli.command else {
+            panic!("expected x subcommand");
+        };
+        let XCommands::Codex(codex_args) = x_args.command else {
+            panic!("expected x codex subcommand");
+        };
+        let Some(CodexCommands::Run {
+            interactive,
+            group,
+            args,
+        }) = codex_args.command
+        else {
+            panic!("expected codex run subcommand");
+        };
+
+        assert!(!interactive);
+        assert_eq!(group.as_deref(), Some("openai"));
+        assert_eq!(args, vec!["--help", "-m", "o3"]);
+    }
 
     #[test]
     fn editor_parsing_supports_args_and_quotes() {
