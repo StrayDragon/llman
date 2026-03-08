@@ -1434,6 +1434,8 @@ codex:
       en: "Failed to parse ~/.codex/config.toml"
     codex_config_not_table:
       en: "~/.codex/config.toml root is not a TOML table"
+    override_name_blank:
+      en: "Invalid override_name for provider '%{name}': value must not be empty"
     create_codex_dir_failed:
       en: "Failed to create ~/.codex directory"
     serialize_codex_config_failed:

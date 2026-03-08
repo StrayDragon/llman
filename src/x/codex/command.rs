@@ -457,11 +457,13 @@ env_key = "OPENAI_API_KEY"
             env: [("MINIMAX_KEY".into(), "sk-test".into())]
                 .into_iter()
                 .collect(),
+            llman_configs: None,
+            extra: std::collections::HashMap::new(),
         };
 
         // We can't easily test upsert_to_codex_config because it resolves the user home directory,
         // but we can test the building blocks
-        let table = provider_to_codex_table(&provider);
+        let table = provider_to_codex_table(&provider, "minimax");
         assert!(table.is_table());
         let t = table.as_table().unwrap();
         assert_eq!(t.get("name").unwrap().as_str().unwrap(), "minimax");

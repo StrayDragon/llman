@@ -3,6 +3,15 @@
 # The [model_providers.<group_name>.env] sub-table holds the actual API key
 # that will be injected as an environment variable when running codex.
 #
+# Optional: override the provider identity written into `~/.codex/config.toml`.
+# This is useful when you want Codex sessions/history to stay stable even if
+# you rename or reuse llman group names.
+#
+# When set, llman will:
+# - upsert to `[model_providers.<override_name>]` (instead of `<group_name>`)
+# - set `model_provider = "<override_name>"`
+# - force the provider table's `name = "<override_name>"`
+#
 # Example:
 #
 # [model_providers.minimax]
@@ -13,6 +22,9 @@
 #
 # [model_providers.minimax.env]
 # MINIMAX_CODEX_API_KEY = "sk-your-key-here"
+#
+# [model_providers.minimax.llman_configs]
+# override_name = "minimax-stable"
 #
 # Usage:
 #   llman x codex                    # interactive select & run
