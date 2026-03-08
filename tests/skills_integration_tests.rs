@@ -214,7 +214,10 @@ enabled = true
     let meta = fs::symlink_metadata(&link_path).expect("metadata");
     assert!(meta.file_type().is_symlink());
     let target = fs::read_link(&link_path).expect("read link");
-    assert_eq!(target, skill_dir);
+    assert!(!target.is_absolute(), "expected compact relative symlink");
+    let expected =
+        llman::path_utils::relative_path_from_dir(&target_root, &skill_dir).expect("relative path");
+    assert_eq!(target, expected);
 
     let registry_path = skills_root.join("registry.json");
     assert!(!registry_path.exists());

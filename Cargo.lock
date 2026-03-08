@@ -2200,6 +2200,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sevenz-rust2",
+ "sha2",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
