@@ -53,6 +53,8 @@ pub fn prompt_import() -> Result<Option<(String, ProviderConfig)>> {
         wire_api: "responses".to_string(),
         env_key: env_key_id,
         env,
+        llman_configs: None,
+        extra: std::collections::HashMap::new(),
     };
 
     Ok(Some((group_name, provider)))
