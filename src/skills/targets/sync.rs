@@ -1181,6 +1181,10 @@ mod tests {
 
         apply_target_link(&skill, &target, false, false, None).expect("remove");
         assert!(fs::symlink_metadata(&link_path).is_err());
+        assert!(
+            skill_dir.join("SKILL.md").exists(),
+            "removing the symlink must not delete the target skill directory"
+        );
     }
 
     #[cfg(unix)]

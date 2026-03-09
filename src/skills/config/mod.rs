@@ -222,7 +222,7 @@ fn default_targets_with(
     codex_home: Option<&Path>,
 ) -> Result<Vec<ConfigEntry>> {
     let (claude_project_path, claude_project_mode) = default_repo_scope_dir(cwd, ".claude/skills");
-    let (codex_repo_path, codex_repo_mode) = default_repo_scope_dir(cwd, ".agents/skills");
+    let (codex_repo_path, codex_repo_mode) = default_repo_scope_dir(cwd, ".codex/skills");
 
     Ok(vec![
         ConfigEntry {
@@ -283,26 +283,10 @@ fn default_codex_user_dir_with(
     home_dir: Option<&Path>,
 ) -> Result<PathBuf> {
     if let Some(home) = codex_home {
-        let preferred = home.join(".agents").join("skills");
-        if preferred.exists() {
-            return Ok(preferred);
-        }
-        let legacy = home.join("skills");
-        if legacy.exists() {
-            return Ok(legacy);
-        }
-        return Ok(preferred);
+        return Ok(home.join("skills"));
     }
 
-    let preferred = expand_path_with("~/.agents/skills", home_dir, |_key| None)?;
-    if preferred.exists() {
-        return Ok(preferred);
-    }
-    let legacy = expand_path_with("~/.codex/skills", home_dir, |_key| None)?;
-    if legacy.exists() {
-        return Ok(legacy);
-    }
-    Ok(preferred)
+    expand_path_with("~/.codex/skills", home_dir, |_key| None)
 }
 
 fn default_agent_global_dir_with(home_dir: Option<&Path>) -> Result<PathBuf> {
@@ -544,7 +528,7 @@ mod tests {
             .find(|target| target.id == "codex_repo")
             .expect("codex_repo target");
         assert_eq!(codex_repo.mode, TargetMode::Copy);
-        assert_eq!(codex_repo.path, repo_root.join(".agents/skills"));
+        assert_eq!(codex_repo.path, repo_root.join(".codex/skills"));
     }
 
     #[test]
@@ -571,18 +555,7 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_user_prefers_agents_skills_path() {
-        let temp = TempDir::new().expect("temp dir");
-        let home_root = temp.path().join("home");
-        fs::create_dir_all(home_root.join(".agents/skills")).expect("create agents skills");
-        fs::create_dir_all(home_root.join(".codex/skills")).expect("create codex skills");
-
-        let path = default_codex_user_dir_with(None, Some(&home_root)).expect("codex user dir");
-        assert_eq!(path, home_root.join(".agents/skills"));
-    }
-
-    #[test]
-    fn test_codex_user_falls_back_to_codex_skills_when_agents_missing() {
+    fn test_codex_user_defaults_to_codex_skills_path() {
         let temp = TempDir::new().expect("temp dir");
         let home_root = temp.path().join("home");
         fs::create_dir_all(home_root.join(".codex/skills")).expect("create codex skills");
