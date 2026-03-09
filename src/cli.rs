@@ -161,38 +161,41 @@ pub enum CodexTargetArg {
 }
 
 pub fn run() -> Result<()> {
-    let cli = Cli::parse();
+    let Cli {
+        config_dir,
+        print_config_dir_path,
+        command,
+    } = Cli::parse();
 
-    if cli.print_config_dir_path {
+    if print_config_dir_path {
         let env_override = env::var(ENV_CONFIG_DIR).ok();
-        let config_dir =
-            resolve_config_dir_with(cli.config_dir.as_deref(), env_override.as_deref())?;
+        let config_dir = resolve_config_dir_with(config_dir.as_deref(), env_override.as_deref())?;
         println!("{}", config_dir.display());
         return Ok(());
     }
 
-    if cli.command.is_none() {
+    let Some(command) = command else {
         let mut command = Cli::command();
         command.print_help()?;
         println!();
         return Ok(());
-    }
+    };
 
     // Determine and set config directory
-    let config_dir = determine_config_dir(cli.config_dir.as_ref())?;
+    let config_dir = determine_config_dir(config_dir.as_ref())?;
 
     set_config_dir_env(&config_dir);
     ensure_global_sample_config(&config_dir)?;
 
-    match cli.command.as_ref().expect("command is present") {
-        Commands::Prompt(args) => handle_prompt_command(args),
-        Commands::Skills(args) => crate::skills::cli::command::run(args),
-        Commands::Agents(args) => crate::agents::command::run(args),
-        Commands::Sdd(args) => crate::sdd::command::run(args),
-        Commands::SddLegacy(args) => crate::sdd::command::run_legacy(args),
-        Commands::X(args) => handle_x_command(args),
-        Commands::Tool(args) => handle_tool_command(args),
-        Commands::SelfCommand(args) => crate::self_command::run(args),
+    match command {
+        Commands::Prompt(args) => handle_prompt_command(&args),
+        Commands::Skills(args) => crate::skills::cli::command::run(&args),
+        Commands::Agents(args) => crate::agents::command::run(&args),
+        Commands::Sdd(args) => crate::sdd::command::run(&args),
+        Commands::SddLegacy(args) => crate::sdd::command::run_legacy(&args),
+        Commands::X(args) => handle_x_command(&args),
+        Commands::Tool(args) => handle_tool_command(&args),
+        Commands::SelfCommand(args) => crate::self_command::run(&args),
     }
 }
 
@@ -254,9 +257,14 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
 
     match &args.command {
         Some(PromptCommands::Gen {
-            interactive,
-            app,
-            template,
+            interactive: true, ..
+        }) => {
+            prompt_cmd.generate_interactive()?;
+        }
+        Some(PromptCommands::Gen {
+            interactive: false,
+            app: Some(app),
+            template: Some(template),
             scope,
             target,
             override_file,
@@ -264,25 +272,26 @@ fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
             force,
             ..
         }) => {
-            if *interactive {
-                prompt_cmd.generate_interactive()?;
-            } else {
-                let scopes: Vec<crate::prompt::PromptScope> =
-                    scope.iter().copied().map(Into::into).collect();
-                let targets: Vec<crate::prompt::CodexPromptTarget> =
-                    target.iter().copied().map(Into::into).collect();
-                prompt_cmd.generate_rules(
-                    app.as_deref().unwrap(),
-                    template.as_deref().unwrap(),
-                    name.as_deref(),
-                    crate::prompt::PromptGenerateOptions {
-                        scopes: &scopes,
-                        codex_targets: &targets,
-                        override_file: *override_file,
-                        force: *force,
-                    },
-                )?;
-            }
+            let scopes: Vec<crate::prompt::PromptScope> =
+                scope.iter().copied().map(Into::into).collect();
+            let targets: Vec<crate::prompt::CodexPromptTarget> =
+                target.iter().copied().map(Into::into).collect();
+            prompt_cmd.generate_rules(
+                app,
+                template,
+                name.as_deref(),
+                crate::prompt::PromptGenerateOptions {
+                    scopes: &scopes,
+                    codex_targets: &targets,
+                    override_file: *override_file,
+                    force: *force,
+                },
+            )?;
+        }
+        Some(PromptCommands::Gen { .. }) => {
+            return Err(anyhow!(
+                "--app and --template are required unless --interactive"
+            ));
         }
         Some(PromptCommands::List { app }) => {
             prompt_cmd.list_rules(app.as_deref())?;

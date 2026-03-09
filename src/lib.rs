@@ -12,6 +12,7 @@ pub mod config;
 pub mod config_schema;
 pub mod editor;
 pub mod error;
+pub(crate) mod fs_utils;
 pub mod path_utils;
 pub mod prompt;
 pub mod sdd;

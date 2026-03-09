@@ -1,3 +1,4 @@
+use crate::x::sdd_eval::process::{run_command_capture_tail, should_insert_stderr_separator};
 use crate::x::sdd_eval::secrets::SecretSet;
 use crate::x::sdd_eval::{acp, paths, playbook, presets, report};
 use anyhow::{Context, Result, bail};
@@ -511,30 +512,51 @@ fn execute_run_step(
 
     let args = argv.iter().skip(1).cloned().collect::<Vec<_>>();
 
+    let tail_cap = 20_000usize.saturating_add(secrets.max_len());
     let start = Instant::now();
-    let output = std::process::Command::new(&command)
-        .args(&args)
-        .current_dir(&cwd)
-        .output();
-    let duration_ms = start.elapsed().as_millis() as u64;
+    let (exit_code, combined, duration_ms, combined_total_bytes) =
+        match run_command_capture_tail(&command, &args, &cwd, &[], tail_cap) {
+            Ok(captured) => {
+                let stdout = String::from_utf8_lossy(&captured.stdout_tail);
+                let stderr = String::from_utf8_lossy(&captured.stderr_tail);
 
-    let (exit_code, combined) = match output {
-        Ok(out) => {
-            let mut combined = String::new();
-            combined.push_str(&String::from_utf8_lossy(&out.stdout));
-            if !out.stderr.is_empty() {
-                if !combined.ends_with('\n') {
+                let stdout_ends_with_newline =
+                    captured.stdout_total > 0 && captured.stdout_tail.last() == Some(&b'\n');
+                let insert_sep = should_insert_stderr_separator(
+                    captured.stdout_total,
+                    stdout_ends_with_newline,
+                    captured.stderr_total,
+                );
+                let combined_total_bytes = captured
+                    .stdout_total
+                    .saturating_add(if insert_sep { 1 } else { 0 })
+                    .saturating_add(captured.stderr_total);
+
+                let mut combined = String::new();
+                combined.push_str(stdout.as_ref());
+                if insert_sep && !combined.ends_with('\n') {
                     combined.push('\n');
                 }
-                combined.push_str(&String::from_utf8_lossy(&out.stderr));
+                combined.push_str(stderr.as_ref());
+
+                (
+                    captured.exit_code,
+                    combined,
+                    captured.duration_ms,
+                    combined_total_bytes,
+                )
             }
-            (out.status.code().map(|c| c as u32), combined)
-        }
-        Err(err) => (None, format!("Failed to execute: {err}")),
-    };
+            Err(err) => (
+                None,
+                format!("Failed to execute: {err}"),
+                start.elapsed().as_millis() as u64,
+                0,
+            ),
+        };
 
     let redacted = secrets.redact(&combined);
-    let (output, truncated) = acp::truncate_tail_to_byte_limit(&redacted, 20_000);
+    let (output, _) = acp::truncate_tail_to_byte_limit(&redacted, 20_000);
+    let truncated = combined_total_bytes > 20_000;
 
     if let Some(variant_id) = record_variant {
         let v = state.variant_mut(variant_id);

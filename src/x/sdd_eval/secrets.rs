@@ -29,4 +29,8 @@ impl SecretSet {
         }
         out
     }
+
+    pub fn max_len(&self) -> usize {
+        self.secrets.iter().map(|s| s.len()).max().unwrap_or(0)
+    }
 }
