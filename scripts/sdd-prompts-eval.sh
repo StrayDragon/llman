@@ -11,18 +11,17 @@ usage() {
 说明：
   - 在临时目录创建一个最小 llmanspec 项目（不会污染仓库根目录）
   - 基于当前工作区模板渲染生成 baseline/candidate 的 Promptfoo system prompt
-  - 复制 promptfoo fixtures 到临时目录并运行 `llman x promptfoo validate/eval`
+  - 复制 promptfoo fixtures 到临时目录并运行 `promptfoo validate/eval`
 
 必要环境变量：
   - OPENAI_API_KEY
-  - OPENAI_DEFAULT_MODEL（推荐；也可用 --model 覆盖）
   - OPENAI_BASE_URL 或 OPENAI_API_BASE（可选；用于中转/加速；建议带 /v1）
 
 常用选项：
   --locale <en|zh-Hans>          默认：zh-Hans
   --baseline-style <new|legacy>  默认：legacy
   --candidate-style <new|legacy> 默认：new
-  --model <model_id>             默认：$OPENAI_DEFAULT_MODEL（若两者都为空则报错）
+  --models <csv>                 默认：从 artifacts/testing_config_home/promptfoo/default_models.txt 读取
   --repeat <N>                   可选；等价于 `promptfoo eval --repeat`
   --max-concurrency <N>          可选；等价于 `promptfoo eval --max-concurrency`
   --delay <ms>                   可选；等价于 `promptfoo eval --delay`
@@ -39,7 +38,7 @@ die() {
 LOCALE="zh-Hans"
 BASELINE_STYLE="legacy"
 CANDIDATE_STYLE="new"
-MODEL="${OPENAI_DEFAULT_MODEL:-}"
+MODELS_CSV=""
 REPEAT=""
 MAX_CONCURRENCY=""
 DELAY_MS=""
@@ -61,8 +60,8 @@ while [[ $# -gt 0 ]]; do
       BASELINE_STYLE="${2:-}"; shift 2;;
     --candidate-style)
       CANDIDATE_STYLE="${2:-}"; shift 2;;
-    --model)
-      MODEL="${2:-}"; shift 2;;
+    --models)
+      MODELS_CSV="${2:-}"; shift 2;;
     --repeat)
       REPEAT="${2:-}"; shift 2;;
     --max-concurrency)
@@ -79,7 +78,27 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "${MODEL}" ]] || die "必须指定模型：设置 OPENAI_DEFAULT_MODEL 或传入 --model"
+default_models_file="$REPO_ROOT/artifacts/testing_config_home/promptfoo/default_models.txt"
+
+load_models_from_file() {
+  local path="$1"
+  [[ -f "$path" ]] || die "找不到默认模型列表：$path"
+  rg -v '^\s*(#|$)' "$path" || true
+}
+
+parse_models_csv() {
+  local csv="$1"
+  echo "$csv" | tr ',' '\n' | sed 's/^\s*//; s/\s*$//' | rg -v '^\s*$'
+}
+
+models=()
+if [[ -n "$MODELS_CSV" ]]; then
+  while IFS= read -r line; do models+=("$line"); done < <(parse_models_csv "$MODELS_CSV")
+else
+  while IFS= read -r line; do models+=("$line"); done < <(load_models_from_file "$default_models_file" | sed 's/^\s*//; s/\s*$//' | rg -v '^\s*$')
+fi
+
+(( ${#models[@]} > 0 )) || die "必须指定模型：传入 --models 或在 $default_models_file 填写默认模型列表"
 
 timestamp_utc="$(date -u +%Y-%m-%dT%H%M%SZ)"
 git_sha="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
@@ -93,7 +112,7 @@ mkdir -p "$project_dir" "$config_dir" "$meta_dir" "$promptfoo_dir"
 
 echo "== work_dir:  $work_dir"
 echo "== locale:    $LOCALE"
-echo "== model:     $MODEL"
+echo "== models:    $(IFS=,; echo "${models[*]}")"
 echo "== baseline:  $BASELINE_STYLE"
 echo "== candidate: $CANDIDATE_STYLE"
 echo "== promptfoo: $promptfoo_dir"
@@ -129,12 +148,24 @@ render_skill_prompt() {
   local out_path="$2"
   local skill_path="$project_dir/.codex/skills/$SKILL_ID/SKILL.md"
 
-  run_llman "$project_dir" sdd update-skills \
+  local cmd="sdd"
+  if [[ "$style" == "legacy" ]]; then
+    cmd="sdd-legacy"
+  elif [[ "$style" == "new" ]]; then
+    cmd="sdd"
+  else
+    die "未知 style：$style（应为 new 或 legacy）"
+  fi
+
+  if ! run_llman "$project_dir" "$cmd" update-skills \
     --tool codex \
     --no-interactive \
     --skills-only \
-    --style "$style" \
-    2>&1 | tee "$meta_dir/update-skills-${style}.txt" >/dev/null
+    2>&1 | tee "$meta_dir/update-skills-${style}.txt" >/dev/null; then
+    echo "Error: $cmd update-skills failed. Log:" >&2
+    cat "$meta_dir/update-skills-${style}.txt" >&2
+    exit 1
+  fi
 
   [[ -f "$skill_path" ]] || die "找不到生成产物：$skill_path"
 
@@ -159,8 +190,29 @@ fixture_src="$REPO_ROOT/artifacts/testing_config_home/promptfoo/$PROMPTFOO_FIXTU
 cp -R "$fixture_src/." "$promptfoo_dir/"
 
 echo
-echo "== pin promptfoo provider model"
-perl -pi -e "s/__MODEL__/${MODEL}/g" "$promptfoo_dir/promptfooconfig.yaml"
+echo "== pin promptfoo providers"
+python3 - "$promptfoo_dir/promptfooconfig.yaml" "${models[@]}" <<'PY'
+import sys
+
+path = sys.argv[1]
+models = sys.argv[2:]
+
+if not models:
+    raise SystemExit("No models provided")
+
+with open(path, "r", encoding="utf-8") as f:
+    text = f.read()
+
+needle = "  - __PROVIDERS__"
+if needle not in text:
+    raise SystemExit(f"Promptfoo fixture placeholder not found: {needle} in {path}")
+
+providers_block = "\n".join([f"  - openai:chat:{m}" for m in models])
+text = text.replace(needle, providers_block)
+
+with open(path, "w", encoding="utf-8") as f:
+    f.write(text)
+PY
 
 echo
 echo "== generate baseline/candidate system prompts"
@@ -209,11 +261,11 @@ fi
 
 echo
 echo "== promptfoo validate"
-run_llman "$REPO_ROOT" x promptfoo validate --cwd "$promptfoo_dir" --config "$promptfoo_dir/promptfooconfig.yaml"
+(cd "$promptfoo_dir" && promptfoo validate --config "$promptfoo_dir/promptfooconfig.yaml")
 
 echo
 echo "== promptfoo eval"
-eval_args=(x promptfoo eval --cwd "$promptfoo_dir" --config "$promptfoo_dir/promptfooconfig.yaml" --output "$promptfoo_dir/results.json" --output "$promptfoo_dir/results.html")
+eval_args=(promptfoo eval --config "$promptfoo_dir/promptfooconfig.yaml" --output "$promptfoo_dir/results.json" --output "$promptfoo_dir/results.html")
 if [[ -n "$REPEAT" ]]; then
   eval_args+=(--repeat "$REPEAT")
 fi
@@ -226,10 +278,10 @@ fi
 if [[ "$NO_CACHE" == "1" ]]; then
   eval_args+=(--no-cache)
 fi
-run_llman "$REPO_ROOT" "${eval_args[@]}"
+(cd "$promptfoo_dir" && "${eval_args[@]}")
 
 cat <<EOF
 
 下一步：
-  LLMAN_CONFIG_DIR=$config_dir cargo run -q -- x promptfoo view --cwd $promptfoo_dir --config $promptfoo_dir/promptfooconfig.yaml
+  cd $promptfoo_dir && promptfoo view --config $promptfoo_dir/promptfooconfig.yaml
 EOF
