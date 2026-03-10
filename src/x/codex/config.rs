@@ -4,7 +4,7 @@ use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use toml::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,7 +43,7 @@ impl Config {
         Self::load_from_path(&path)
     }
 
-    pub fn load_from_path(path: &PathBuf) -> Result<Self> {
+    pub fn load_from_path(path: &Path) -> Result<Self> {
         if !path.exists() {
             return Ok(Self::default());
         }
@@ -82,7 +82,7 @@ impl Config {
         self.save_to_path(&path)
     }
 
-    pub fn save_to_path(&self, path: &PathBuf) -> Result<()> {
+    pub fn save_to_path(&self, path: &Path) -> Result<()> {
         if let Some(parent) = safe_parent_for_creation(path) {
             fs::create_dir_all(parent).with_context(|| {
                 t!(
@@ -95,19 +95,8 @@ impl Config {
         let content = toml::to_string_pretty(self)
             .with_context(|| t!("codex.error.serialize_config_failed"))?;
 
-        fs::write(path, content)
+        crate::fs_utils::atomic_write_with_mode(path, content.as_bytes(), Some(0o600))
             .with_context(|| t!("codex.error.write_config_failed", path = path.display()))?;
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = fs::metadata(path)
-                .with_context(|| t!("codex.error.metadata_failed"))?
-                .permissions();
-            perms.set_mode(0o600);
-            fs::set_permissions(path, perms)
-                .with_context(|| t!("codex.error.permissions_failed"))?;
-        }
 
         Ok(())
     }
@@ -214,7 +203,7 @@ pub fn upsert_to_codex_config(provider_key: &str, provider: &ProviderConfig) -> 
     let output = toml::to_string_pretty(&doc)
         .with_context(|| t!("codex.error.serialize_codex_config_failed"))?;
 
-    fs::write(&codex_config_path, output)
+    crate::fs_utils::atomic_write_with_mode(&codex_config_path, output.as_bytes(), Some(0o600))
         .with_context(|| t!("codex.error.write_codex_config_failed"))?;
 
     Ok(true)

@@ -67,11 +67,12 @@ pub fn run(args: ShowArgs) -> Result<()> {
             .prompt()?;
             return run_interactive_by_type(root, choice, &args);
         }
-        print_non_interactive_hint();
-        std::process::exit(1);
+        return Err(anyhow!(non_interactive_hint_message()));
     }
 
-    let item = args.item.as_ref().unwrap();
+    let Some(item) = args.item.as_deref() else {
+        return Err(anyhow!(non_interactive_hint_message()));
+    };
     show_direct(root, item, type_override, &args)
 }
 
@@ -89,8 +90,7 @@ fn run_interactive_by_type(root: &Path, item_type: ItemType, args: &ShowArgs) ->
         ItemType::Change => {
             let changes = list_changes(root)?;
             if changes.is_empty() {
-                eprintln!("{}", t!("sdd.show.no_changes_found"));
-                std::process::exit(1);
+                return Err(anyhow!(t!("sdd.show.no_changes_found")));
             }
             let picked = Select::new(&t!("sdd.show.pick_change"), changes).prompt()?;
             show_change(root, &picked, args)
@@ -98,8 +98,7 @@ fn run_interactive_by_type(root: &Path, item_type: ItemType, args: &ShowArgs) ->
         ItemType::Spec => {
             let specs = list_specs(root)?;
             if specs.is_empty() {
-                eprintln!("{}", t!("sdd.show.no_specs_found"));
-                std::process::exit(1);
+                return Err(anyhow!(t!("sdd.show.no_specs_found")));
             }
             let picked = Select::new(&t!("sdd.show.pick_spec"), specs).prompt()?;
             show_spec(root, &picked, args)
@@ -143,8 +142,7 @@ fn show_direct(
         None
     });
 
-    if resolved_type.is_none() {
-        eprintln!("{}", t!("sdd.show.unknown_item", item = item));
+    let Some(resolved_type) = resolved_type else {
         let mut candidates = Vec::new();
         if changes.is_empty() && specs.is_empty() {
             candidates.extend(list_changes(root)?);
@@ -154,22 +152,22 @@ fn show_direct(
             candidates.extend(specs);
         }
         let suggestions = nearest_matches(item, &candidates, 5);
+
+        let mut msg = t!("sdd.show.unknown_item", item = item).to_string();
         if !suggestions.is_empty() {
-            eprintln!(
-                "{}",
-                t!("sdd.show.did_you_mean", items = suggestions.join(", "))
-            );
+            msg.push('\n');
+            msg.push_str(&t!("sdd.show.did_you_mean", items = suggestions.join(", ")));
         }
-        std::process::exit(1);
-    }
+        return Err(anyhow!(msg));
+    };
 
     if type_override.is_none() && is_change && is_spec {
-        eprintln!("{}", t!("sdd.show.ambiguous_item", item = item));
-        eprintln!("{}", t!("sdd.show.ambiguous_hint"));
-        std::process::exit(1);
+        return Err(anyhow!(
+            "{}\n{}",
+            t!("sdd.show.ambiguous_item", item = item),
+            t!("sdd.show.ambiguous_hint")
+        ));
     }
-
-    let resolved_type = resolved_type.expect("resolved type");
     warn_irrelevant_flags(resolved_type, args);
 
     match resolved_type {
@@ -357,10 +355,13 @@ fn extract_title(content: &str, fallback: &str) -> String {
     fallback.to_string()
 }
 
-fn print_non_interactive_hint() {
-    eprintln!("{}", t!("sdd.show.non_interactive.line1"));
-    eprintln!("{}", t!("sdd.show.non_interactive.line2"));
-    eprintln!("{}", t!("sdd.show.non_interactive.line3"));
-    eprintln!("{}", t!("sdd.show.non_interactive.line4"));
-    eprintln!("{}", t!("sdd.show.non_interactive.line5"));
+fn non_interactive_hint_message() -> String {
+    [
+        t!("sdd.show.non_interactive.line1"),
+        t!("sdd.show.non_interactive.line2"),
+        t!("sdd.show.non_interactive.line3"),
+        t!("sdd.show.non_interactive.line4"),
+        t!("sdd.show.non_interactive.line5"),
+    ]
+    .join("\n")
 }

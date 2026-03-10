@@ -126,11 +126,12 @@ pub fn run(args: ValidateArgs) -> Result<()> {
             run_interactive_selector(root, style, args.strict, args.json, args.compact_json)?;
             return Ok(());
         }
-        print_non_interactive_hint();
-        std::process::exit(1);
+        return Err(anyhow!(non_interactive_hint_message()));
     }
 
-    let item = args.item.as_ref().unwrap();
+    let Some(item) = args.item.as_deref() else {
+        return Err(anyhow!(non_interactive_hint_message()));
+    };
     validate_direct(
         root,
         item,
@@ -356,8 +357,7 @@ fn run_interactive_selector(
     items.extend(changes.iter().map(|id| format!("change/{id}")));
     items.extend(specs.iter().map(|id| format!("spec/{id}")));
     if items.is_empty() {
-        eprintln!("{}", t!("sdd.validate.no_items"));
-        std::process::exit(1);
+        return Err(anyhow!(t!("sdd.validate.no_items")));
     }
     let picked = Select::new(&t!("sdd.validate.pick_item"), items).prompt()?;
     let (item_type, id) = parse_prefixed_item(&picked)?;
@@ -393,28 +393,14 @@ fn validate_direct(
     if let Some(ItemType::Change) = type_override
         && !is_change
     {
-        eprintln!("{}", t!("sdd.validate.unknown_item", item = item));
         let suggestions = nearest_matches(item, &changes, 5);
-        if !suggestions.is_empty() {
-            eprintln!(
-                "{}",
-                t!("sdd.validate.did_you_mean", items = suggestions.join(", "))
-            );
-        }
-        std::process::exit(1);
+        return Err(anyhow!(unknown_item_message(item, &suggestions)));
     }
     if let Some(ItemType::Spec) = type_override
         && !is_spec
     {
-        eprintln!("{}", t!("sdd.validate.unknown_item", item = item));
         let suggestions = nearest_matches(item, &specs, 5);
-        if !suggestions.is_empty() {
-            eprintln!(
-                "{}",
-                t!("sdd.validate.did_you_mean", items = suggestions.join(", "))
-            );
-        }
-        std::process::exit(1);
+        return Err(anyhow!(unknown_item_message(item, &suggestions)));
     }
 
     let resolved_type = type_override.or(if is_change {
@@ -425,33 +411,20 @@ fn validate_direct(
         None
     });
 
-    if resolved_type.is_none() {
-        eprintln!("{}", t!("sdd.validate.unknown_item", item = item));
+    let Some(resolved_type) = resolved_type else {
         let suggestions = nearest_matches(item, &[changes, specs].concat(), 5);
-        if !suggestions.is_empty() {
-            eprintln!(
-                "{}",
-                t!("sdd.validate.did_you_mean", items = suggestions.join(", "))
-            );
-        }
-        std::process::exit(1);
-    }
+        return Err(anyhow!(unknown_item_message(item, &suggestions)));
+    };
 
     if type_override.is_none() && is_change && is_spec {
-        eprintln!("{}", t!("sdd.validate.ambiguous_item", item = item));
-        eprintln!("{}", t!("sdd.validate.ambiguous_hint"));
-        std::process::exit(1);
+        return Err(anyhow!(
+            "{}\n{}",
+            t!("sdd.validate.ambiguous_item", item = item),
+            t!("sdd.validate.ambiguous_hint")
+        ));
     }
 
-    validate_by_type(
-        root,
-        resolved_type.expect("resolved type"),
-        item,
-        style,
-        strict,
-        json,
-        compact_json,
-    )
+    validate_by_type(root, resolved_type, item, style, strict, json, compact_json)
 }
 
 fn validate_by_type(
@@ -528,7 +501,7 @@ fn validate_by_type(
     }
 
     if !report.valid {
-        std::process::exit(1);
+        return Err(anyhow!("validation failed"));
     }
 
     Ok(())
@@ -673,7 +646,7 @@ fn run_bulk_validation(
             staleness: StalenessInfo::not_applicable(),
         });
     }
-    let staleness_evaluator = (!specs.is_empty()).then(|| StalenessEvaluator::new(root));
+    let staleness_evaluator = StalenessEvaluator::new(root);
     for id in specs {
         let start = Instant::now();
         validate_sdd_id(&id, "spec")?;
@@ -686,10 +659,12 @@ fn run_bulk_validation(
             Ok(content) => {
                 let validation =
                     validate_spec_content_with_frontmatter(&spec_path, &content, style, strict);
-                let staleness = staleness_evaluator
-                    .as_ref()
-                    .expect("staleness evaluator")
-                    .evaluate(&id, &spec_path, validation.frontmatter.as_ref(), None);
+                let staleness = staleness_evaluator.evaluate(
+                    &id,
+                    &spec_path,
+                    validation.frontmatter.as_ref(),
+                    None,
+                );
                 let mut issues = validation.report.issues;
                 issues.extend(apply_strict(staleness.issues, strict));
                 let valid = validation.report.valid
@@ -796,9 +771,21 @@ fn run_bulk_validation(
 
     let failed = items.iter().filter(|item| !item.valid).count();
     if failed > 0 {
-        std::process::exit(1);
+        return Err(anyhow!("validation failed"));
     }
     Ok(())
+}
+
+fn unknown_item_message(item: &str, suggestions: &[String]) -> String {
+    let mut msg = t!("sdd.validate.unknown_item", item = item).to_string();
+    if !suggestions.is_empty() {
+        msg.push('\n');
+        msg.push_str(&t!(
+            "sdd.validate.did_you_mean",
+            items = suggestions.join(", ")
+        ));
+    }
+    msg
 }
 
 fn apply_strict(mut issues: Vec<ValidationIssue>, strict: bool) -> Vec<ValidationIssue> {
@@ -898,11 +885,14 @@ struct SummaryCounts {
     failed: usize,
 }
 
-fn print_non_interactive_hint() {
-    eprintln!("{}", t!("sdd.validate.non_interactive.line1"));
-    eprintln!("{}", t!("sdd.validate.non_interactive.line2"));
-    eprintln!("{}", t!("sdd.validate.non_interactive.line3"));
-    eprintln!("{}", t!("sdd.validate.non_interactive.line4"));
-    eprintln!("{}", t!("sdd.validate.non_interactive.line5"));
-    eprintln!("{}", t!("sdd.validate.non_interactive.line6"));
+fn non_interactive_hint_message() -> String {
+    [
+        t!("sdd.validate.non_interactive.line1"),
+        t!("sdd.validate.non_interactive.line2"),
+        t!("sdd.validate.non_interactive.line3"),
+        t!("sdd.validate.non_interactive.line4"),
+        t!("sdd.validate.non_interactive.line5"),
+        t!("sdd.validate.non_interactive.line6"),
+    ]
+    .join("\n")
 }

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // Simplified ConfigGroup: 直接映射为环境变量
 pub type ConfigGroup = HashMap<String, String>;
@@ -86,7 +86,7 @@ impl Config {
         Self::load_from_path(&path)
     }
 
-    pub fn load_from_path(path: &PathBuf) -> Result<Self> {
+    pub fn load_from_path(path: &Path) -> Result<Self> {
         if !path.exists() {
             return Ok(Self::default());
         }
@@ -163,7 +163,7 @@ impl Config {
         self.save_to_path(&path)
     }
 
-    pub fn save_to_path(&self, path: &PathBuf) -> Result<()> {
+    pub fn save_to_path(&self, path: &Path) -> Result<()> {
         // Create config directory if it doesn't exist
         if let Some(parent) = safe_parent_for_creation(path) {
             fs::create_dir_all(parent).with_context(|| {
@@ -177,20 +177,8 @@ impl Config {
         let content = toml::to_string_pretty(self)
             .with_context(|| t!("claude_code.config.serialize_failed"))?;
 
-        fs::write(path, content)
+        crate::fs_utils::atomic_write_with_mode(path, content.as_bytes(), Some(0o600))
             .with_context(|| t!("claude_code.config.write_failed", path = path.display()))?;
-
-        // Set file permissions to 0600 (read/write for owner only)
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = fs::metadata(path)
-                .with_context(|| t!("claude_code.config.metadata_failed"))?
-                .permissions();
-            perms.set_mode(0o600);
-            fs::set_permissions(path, perms)
-                .with_context(|| t!("claude_code.config.permissions_failed"))?;
-        }
 
         Ok(())
     }

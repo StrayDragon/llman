@@ -6,9 +6,22 @@ use glob::Pattern;
 use ignore::WalkBuilder;
 use regex::Regex;
 use std::collections::HashSet;
+#[cfg(unix)]
+use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+#[cfg(unix)]
+fn pathbuf_from_git_bytes(bytes: &[u8]) -> PathBuf {
+    use std::os::unix::ffi::OsStringExt;
+    PathBuf::from(OsString::from_vec(bytes.to_vec()))
+}
+
+#[cfg(not(unix))]
+fn pathbuf_from_git_bytes(bytes: &[u8]) -> PathBuf {
+    PathBuf::from(String::from_utf8_lossy(bytes).as_ref())
+}
 
 struct CompiledScopePatterns {
     include: Vec<Pattern>,
@@ -293,8 +306,7 @@ impl CommentProcessor {
             if entry.is_empty() {
                 continue;
             }
-            let rel = String::from_utf8_lossy(entry);
-            let candidate = repo_root.join(rel.as_ref());
+            let candidate = repo_root.join(pathbuf_from_git_bytes(entry));
             if let Ok(canonical) = candidate.canonicalize() {
                 tracked.insert(canonical);
             }
@@ -317,12 +329,27 @@ impl CommentProcessor {
             return Ok(None);
         }
 
-        let root = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if root.is_empty() {
-            return Ok(None);
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStringExt;
+            let mut bytes = output.stdout;
+            while bytes.last().is_some_and(|b| *b == b'\n' || *b == b'\r') {
+                bytes.pop();
+            }
+            if bytes.is_empty() {
+                return Ok(None);
+            }
+            Ok(Some(PathBuf::from(OsString::from_vec(bytes))))
         }
 
-        Ok(Some(PathBuf::from(root)))
+        #[cfg(not(unix))]
+        {
+            let root = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if root.is_empty() {
+                return Ok(None);
+            }
+            Ok(Some(PathBuf::from(root)))
+        }
     }
 
     fn process_file(

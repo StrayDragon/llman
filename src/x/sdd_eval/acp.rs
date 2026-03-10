@@ -1,4 +1,7 @@
 use crate::x::sdd_eval::playbook;
+use crate::x::sdd_eval::process::{
+    CapturedOutput, run_command_capture_tail, should_insert_stderr_separator,
+};
 use crate::x::sdd_eval::secrets::SecretSet;
 use agent_client_protocol as acp;
 use agent_client_protocol::Agent;
@@ -7,6 +10,7 @@ use chrono::{SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
+use std::io::BufRead;
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
@@ -433,20 +437,102 @@ impl acp::Client for EvalClient {
         args: acp::ReadTextFileRequest,
     ) -> acp::Result<acp::ReadTextFileResponse> {
         let path = self.validate_path(&args.path)?;
-        let bytes = std::fs::read(&path).map_err(acp::Error::into_internal_error)?;
-        let mut content = String::from_utf8_lossy(&bytes).to_string();
+        let wants_sliced = args.line.is_some() || args.limit.is_some();
 
-        if args.line.is_some() || args.limit.is_some() {
-            let start = args.line.unwrap_or(1).saturating_sub(1) as usize;
-            let limit = args.limit.map(|v| v as usize).unwrap_or(2000);
-            let lines: Vec<&str> = content.lines().collect();
-            content = lines
-                .into_iter()
-                .skip(start)
-                .take(limit)
-                .collect::<Vec<_>>()
-                .join("\n");
+        const MAX_READ_TEXT_BYTES: u64 = 4 * 1024 * 1024;
+        let file_len = std::fs::metadata(&path)
+            .map(|m| m.len())
+            .map_err(acp::Error::into_internal_error)?;
+        if !wants_sliced && file_len > MAX_READ_TEXT_BYTES {
+            let msg = format!(
+                "file is too large to read without line/limit (size={} bytes, max={} bytes)",
+                file_len, MAX_READ_TEXT_BYTES
+            );
+            return Err(acp::Error::invalid_params().data(serde_json::json!({ "error": msg })));
         }
+
+        #[derive(Debug)]
+        enum ReadTextFileError {
+            TooLarge(String),
+            Io(std::io::Error),
+        }
+
+        let path_for_read = path.clone();
+        let line = args.line;
+        let limit = args.limit;
+
+        let content = tokio::task::spawn_blocking(
+            move || -> std::result::Result<String, ReadTextFileError> {
+            if !wants_sliced {
+                let bytes =
+                    std::fs::read(&path_for_read).map_err(ReadTextFileError::Io)?;
+                return Ok(String::from_utf8_lossy(&bytes).to_string());
+            }
+
+            let start = line.unwrap_or(1).saturating_sub(1) as usize;
+            let limit = limit.map(|v| v as usize).unwrap_or(2000);
+
+            let file = std::fs::File::open(&path_for_read).map_err(ReadTextFileError::Io)?;
+            let mut reader = std::io::BufReader::new(file);
+
+            let mut idx = 0usize;
+            let mut buf = Vec::new();
+            while idx < start {
+                buf.clear();
+                let n = reader
+                    .read_until(b'\n', &mut buf)
+                    .map_err(ReadTextFileError::Io)?;
+                if n == 0 {
+                    return Ok(String::new());
+                }
+                idx += 1;
+            }
+
+            let mut out = String::new();
+            for _ in 0..limit {
+                buf.clear();
+                let n = reader
+                    .read_until(b'\n', &mut buf)
+                    .map_err(ReadTextFileError::Io)?;
+                if n == 0 {
+                    break;
+                }
+
+                if buf.ends_with(b"\n") {
+                    buf.pop();
+                    if buf.ends_with(b"\r") {
+                        buf.pop();
+                    }
+                } else if buf.ends_with(b"\r") {
+                    buf.pop();
+                }
+
+                let line = String::from_utf8_lossy(&buf);
+                let additional = line.len().saturating_add(if out.is_empty() { 0 } else { 1 });
+                if out.len().saturating_add(additional) > (MAX_READ_TEXT_BYTES as usize) {
+                    return Err(ReadTextFileError::TooLarge(format!(
+                        "read_text_file output exceeds max={} bytes; narrow the requested range",
+                        MAX_READ_TEXT_BYTES
+                    )));
+                }
+
+                if !out.is_empty() {
+                    out.push('\n');
+                }
+                out.push_str(line.as_ref());
+            }
+
+            Ok(out)
+        },
+        )
+        .await
+        .map_err(acp::Error::into_internal_error)?
+        .map_err(|err| match err {
+            ReadTextFileError::TooLarge(msg) => {
+                acp::Error::invalid_params().data(serde_json::json!({ "error": msg }))
+            }
+            ReadTextFileError::Io(err) => acp::Error::into_internal_error(err),
+        })?;
 
         self.metrics
             .lock()
@@ -475,7 +561,12 @@ impl acp::Client for EvalClient {
         }
         let cwd = self.validate_cwd(args.cwd.as_ref())?;
 
-        let output_byte_limit = args.output_byte_limit.unwrap_or(20_000) as usize;
+        const DEFAULT_OUTPUT_BYTE_LIMIT: usize = 20_000;
+        const MAX_OUTPUT_BYTE_LIMIT: usize = 200_000;
+        let output_byte_limit = args
+            .output_byte_limit
+            .unwrap_or(DEFAULT_OUTPUT_BYTE_LIMIT as u64)
+            .min(MAX_OUTPUT_BYTE_LIMIT as u64) as usize;
         let env_pairs: Vec<(String, String)> =
             args.env.into_iter().map(|v| (v.name, v.value)).collect();
 
@@ -484,42 +575,60 @@ impl acp::Client for EvalClient {
         let args_for_record = args_for_cmd.clone();
         let cwd_clone = cwd.clone();
 
-        let (exit_code, combined, duration_ms) = tokio::task::spawn_blocking(move || {
+        let tail_cap = output_byte_limit.saturating_add(self.secrets.max_len());
+        let captured: CapturedOutput = tokio::task::spawn_blocking(move || {
             let start = std::time::Instant::now();
-            let mut cmd = std::process::Command::new(&command_clone);
-            cmd.args(&args_for_cmd);
-            cmd.current_dir(&cwd_clone);
-            for (k, v) in env_pairs {
-                cmd.env(k, v);
-            }
-            match cmd.output() {
-                Ok(out) => {
-                    let mut combined = String::new();
-                    combined.push_str(&String::from_utf8_lossy(&out.stdout));
-                    if !out.stderr.is_empty() {
-                        if !combined.ends_with('\n') {
-                            combined.push('\n');
-                        }
-                        combined.push_str(&String::from_utf8_lossy(&out.stderr));
+            match run_command_capture_tail(
+                &command_clone,
+                &args_for_cmd,
+                &cwd_clone,
+                &env_pairs,
+                tail_cap,
+            ) {
+                Ok(captured) => captured,
+                Err(err) => {
+                    let msg = format!("Failed to execute: {err}");
+                    CapturedOutput {
+                        exit_code: None,
+                        stdout_tail: msg.as_bytes().to_vec(),
+                        stderr_tail: Vec::new(),
+                        stdout_total: msg.len(),
+                        stderr_total: 0,
+                        duration_ms: start.elapsed().as_millis() as u64,
                     }
-                    (
-                        out.status.code().map(|c| c as u32),
-                        combined,
-                        start.elapsed().as_millis() as u64,
-                    )
                 }
-                Err(err) => (
-                    None,
-                    format!("Failed to execute: {err}"),
-                    start.elapsed().as_millis() as u64,
-                ),
             }
         })
         .await
         .map_err(acp::Error::into_internal_error)?;
 
+        let stdout = String::from_utf8_lossy(&captured.stdout_tail);
+        let stderr = String::from_utf8_lossy(&captured.stderr_tail);
+        let stdout_ends_with_newline =
+            captured.stdout_total > 0 && captured.stdout_tail.last() == Some(&b'\n');
+        let insert_sep = should_insert_stderr_separator(
+            captured.stdout_total,
+            stdout_ends_with_newline,
+            captured.stderr_total,
+        );
+        let combined_total_bytes = captured
+            .stdout_total
+            .saturating_add(if insert_sep { 1 } else { 0 })
+            .saturating_add(captured.stderr_total);
+
+        let mut combined = String::new();
+        combined.push_str(stdout.as_ref());
+        if insert_sep && !combined.ends_with('\n') {
+            combined.push('\n');
+        }
+        combined.push_str(stderr.as_ref());
+
+        let exit_code = captured.exit_code;
+        let duration_ms = captured.duration_ms;
+
         let redacted = self.secrets.redact(&combined);
-        let (output, truncated) = truncate_tail_to_byte_limit(&redacted, output_byte_limit);
+        let (output, _) = truncate_tail_to_byte_limit(&redacted, output_byte_limit);
+        let truncated = combined_total_bytes > output_byte_limit;
 
         let mut terminals = self.terminals.lock().expect("terminals lock");
         let terminal_id = terminals.next_id();
@@ -628,6 +737,10 @@ struct TerminalRecord {
 }
 
 pub(crate) fn is_allowed_command(command: &str) -> bool {
+    // NOTE: This is a lightweight guard (command-name allowlist) for sdd-eval runs.
+    // It is NOT an OS-level sandbox. Arguments may still influence filesystem/network
+    // behavior (e.g. `git -C ...`, interpreters, absolute paths). Treat playbooks and
+    // agents as trusted inputs in v1, or add stronger isolation.
     let name = Path::new(command)
         .file_name()
         .and_then(|s| s.to_str())
