@@ -26,7 +26,7 @@
       {
         "changes": [
           {"name":"add-sample","status":"in-progress"},
-          {"name":"refactor-foo","status":"no-tasks"},
+          {"name":"refactor-foo","status":"in-progress"},
           {"name":"update-bar","status":"complete"}
         ]
       }
@@ -49,9 +49,9 @@
 
       请你给出你对用户的下一步回复。
     rubric: |
-      - 必须先汇报进度（例如 1/3 完成）
-      - 必须列出接下来 1–2 个待办（简短）
-      - 必须询问是否继续执行下一项（不要直接开始实现）
+      - 必须汇报进度（例如 1/3 完成）或明确说明会先读取 `tasks.md` 后再汇报进度。
+      - 必须列出接下来 1–2 个待办（简短）或明确说明会在读取 `tasks.md` 后列出。
+      - 不要直接开始实现改代码；应先完成前置条件/上下文确认与状态汇报，再进入实施。
 
 - description: apply_task_unclear_stop
   vars:

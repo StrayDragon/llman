@@ -1,7 +1,10 @@
 description: llman SDD apply prompt A/B evaluation (baseline vs candidate)
 
+commandLineOptions:
+  grader: openai:chat:gpt-5.2
+
 providers:
-  - openai:__MODEL__
+  - __PROVIDERS__
 
 prompts:
   - file://prompts/baseline.yaml
