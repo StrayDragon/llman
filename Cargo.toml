@@ -19,7 +19,6 @@ name = "llman"
 path = "src/lib.rs"
 
 [features]
-# NOTE: `arena` requires network/LLM dependencies in the default build.
 # Keep `agents-ai` as a behavior flag for `llman agents new --ai` only.
 agents-ai = []
 

@@ -1,0 +1,17 @@
+description: llman SDD apply prompt A/B evaluation (baseline vs candidate)
+
+providers:
+  - openai:__MODEL__
+
+prompts:
+  - file://prompts/baseline.yaml
+  - file://prompts/candidate.yaml
+
+tests: file://tests.yaml
+
+defaultTest:
+  assert:
+    - type: llm-rubric
+      value: |
+        {{ rubric }}
+      threshold: 0.75

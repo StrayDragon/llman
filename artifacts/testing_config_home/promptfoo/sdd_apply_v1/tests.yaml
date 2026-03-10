@@ -1,10 +1,6 @@
-version: 1
-name: sdd_apply_v1
-
-tasks:
-  - id: apply_missing_tasks_md
-    type: text
-    prompt: |
+- description: apply_missing_tasks_md
+  vars:
+    task_prompt: |
       你正在一个 llman SDD 项目里。
 
       用户输入：
@@ -20,9 +16,9 @@ tasks:
       - 必须 STOP：不要继续实现任务、不要假设 tasks 内容。
       - 表达简洁、可执行。
 
-  - id: apply_no_id_ambiguous
-    type: text
-    prompt: |
+- description: apply_no_id_ambiguous
+  vars:
+    task_prompt: |
       用户输入：
       /llman-sdd:apply
 
@@ -40,9 +36,9 @@ tasks:
       - 必须要求用户选择 change id（给出可选列表/建议选择方式）。
       - 不要臆测用户想选哪个。
 
-  - id: apply_show_progress_next_tasks
-    type: text
-    prompt: |
+- description: apply_show_progress_next_tasks
+  vars:
+    task_prompt: |
       用户输入：
       /llman-sdd:apply add-sample
 
@@ -57,9 +53,9 @@ tasks:
       - 必须列出接下来 1–2 个待办（简短）
       - 必须询问是否继续执行下一项（不要直接开始实现）
 
-  - id: apply_task_unclear_stop
-    type: text
-    prompt: |
+- description: apply_task_unclear_stop
+  vars:
+    task_prompt: |
       用户输入：
       /llman-sdd:apply add-sample
 

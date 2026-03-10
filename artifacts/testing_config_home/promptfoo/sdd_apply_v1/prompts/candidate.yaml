@@ -1,0 +1,6 @@
+- role: system
+  content: |
+    PLACEHOLDER
+- role: user
+  content: |
+    {{ task_prompt }}

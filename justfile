@@ -87,7 +87,7 @@ check-i18n:
 check-sdd-templates:
     ./scripts/check-sdd-templates.py
 
-# 评估 SDD prompts（临时目录：生成 baseline/candidate prompts + Arena 跑分）
+# 评估 SDD prompts（临时目录：生成 baseline/candidate prompts + promptfoo eval）
 sdd-prompts-eval *args:
     bash ./scripts/sdd-prompts-eval.sh {{args}}
 

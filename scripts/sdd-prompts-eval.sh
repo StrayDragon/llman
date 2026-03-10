@@ -10,8 +10,8 @@ usage() {
 
 说明：
   - 在临时目录创建一个最小 llmanspec 项目（不会污染仓库根目录）
-  - 基于当前工作区模板渲染生成 baseline/candidate 的 Arena system prompt
-  - 复制 arena contest/dataset fixtures 到临时 LLMAN_CONFIG_DIR 并运行 `llman x arena gen`
+  - 基于当前工作区模板渲染生成 baseline/candidate 的 Promptfoo system prompt
+  - 复制 promptfoo fixtures 到临时目录并运行 `llman x promptfoo validate/eval`
 
 必要环境变量：
   - OPENAI_API_KEY
@@ -23,9 +23,11 @@ usage() {
   --baseline-style <new|legacy>  默认：legacy
   --candidate-style <new|legacy> 默认：new
   --model <model_id>             默认：$OPENAI_DEFAULT_MODEL（若两者都为空则报错）
-  --rounds <N>                   默认：10
-  --seed <S>                     可选；不传则使用随机 seed
-  --no-gen                       只生成 prompts/fixtures，不跑 arena gen
+  --repeat <N>                   可选；等价于 `promptfoo eval --repeat`
+  --max-concurrency <N>          可选；等价于 `promptfoo eval --max-concurrency`
+  --delay <ms>                   可选；等价于 `promptfoo eval --delay`
+  --no-cache                     可选；等价于 `promptfoo eval --no-cache`
+  --no-gen                       只生成 prompts/fixtures，不跑 promptfoo eval
 EOF
 }
 
@@ -38,14 +40,13 @@ LOCALE="zh-Hans"
 BASELINE_STYLE="legacy"
 CANDIDATE_STYLE="new"
 MODEL="${OPENAI_DEFAULT_MODEL:-}"
-ROUNDS="10"
-SEED=""
+REPEAT=""
+MAX_CONCURRENCY=""
+DELAY_MS=""
+NO_CACHE="0"
 NO_GEN="0"
 
-CONTEST_NAME="sdd_apply_v1"
-DATASET_NAME="sdd_apply_v1"
-PROMPT_BASELINE="sdd_apply_v1_baseline"
-PROMPT_CANDIDATE="sdd_apply_v1_candidate"
+PROMPTFOO_FIXTURE="sdd_apply_v1"
 SKILL_ID="llman-sdd-apply"
 
 while [[ $# -gt 0 ]]; do
@@ -62,10 +63,14 @@ while [[ $# -gt 0 ]]; do
       CANDIDATE_STYLE="${2:-}"; shift 2;;
     --model)
       MODEL="${2:-}"; shift 2;;
-    --rounds)
-      ROUNDS="${2:-}"; shift 2;;
-    --seed)
-      SEED="${2:-}"; shift 2;;
+    --repeat)
+      REPEAT="${2:-}"; shift 2;;
+    --max-concurrency)
+      MAX_CONCURRENCY="${2:-}"; shift 2;;
+    --delay)
+      DELAY_MS="${2:-}"; shift 2;;
+    --no-cache)
+      NO_CACHE="1"; shift 1;;
     --no-gen)
       NO_GEN="1"; shift 1;;
     *)
@@ -82,14 +87,16 @@ work_dir="$REPO_ROOT/.tmp/sdd-prompts-eval/${timestamp_utc}_${git_sha}"
 project_dir="$work_dir/project_${LOCALE}"
 config_dir="$work_dir/config"
 meta_dir="$work_dir/meta"
+promptfoo_dir="$work_dir/promptfoo"
 
-mkdir -p "$project_dir" "$config_dir" "$meta_dir"
+mkdir -p "$project_dir" "$config_dir" "$meta_dir" "$promptfoo_dir"
 
 echo "== work_dir:  $work_dir"
 echo "== locale:    $LOCALE"
 echo "== model:     $MODEL"
 echo "== baseline:  $BASELINE_STYLE"
 echo "== candidate: $CANDIDATE_STYLE"
+echo "== promptfoo: $promptfoo_dir"
 echo
 
 echo "== check-sdd-templates"
@@ -146,31 +153,51 @@ render_skill_prompt() {
 }
 
 echo
-echo "== generate baseline/candidate prompts"
-mkdir -p "$config_dir/prompt/codex"
-render_skill_prompt "$BASELINE_STYLE" "$config_dir/prompt/codex/${PROMPT_BASELINE}.md"
-render_skill_prompt "$CANDIDATE_STYLE" "$config_dir/prompt/codex/${PROMPT_CANDIDATE}.md"
+echo "== prepare promptfoo fixtures"
+fixture_src="$REPO_ROOT/artifacts/testing_config_home/promptfoo/$PROMPTFOO_FIXTURE"
+[[ -d "$fixture_src" ]] || die "找不到 promptfoo fixtures：$fixture_src"
+cp -R "$fixture_src/." "$promptfoo_dir/"
 
 echo
-echo "== install arena fixtures into temp config"
-mkdir -p "$config_dir/arena/contests" "$config_dir/arena/datasets"
-cp "$REPO_ROOT/artifacts/testing_config_home/arena/contests/${CONTEST_NAME}.toml" "$config_dir/arena/contests/"
-cp "$REPO_ROOT/artifacts/testing_config_home/arena/datasets/${DATASET_NAME}.yaml" "$config_dir/arena/datasets/"
+echo "== pin promptfoo provider model"
+perl -pi -e "s/__MODEL__/${MODEL}/g" "$promptfoo_dir/promptfooconfig.yaml"
 
 echo
-echo "== pin contest model"
-perl -pi -e "s/^models\\s*=\\s*\\[[^\\]]*\\]/models = [\\\"$MODEL\\\"]/g" \
-  "$config_dir/arena/contests/${CONTEST_NAME}.toml"
+echo "== generate baseline/candidate system prompts"
+baseline_txt="$meta_dir/system-baseline.txt"
+candidate_txt="$meta_dir/system-candidate.txt"
+render_skill_prompt "$BASELINE_STYLE" "$baseline_txt"
+render_skill_prompt "$CANDIDATE_STYLE" "$candidate_txt"
+
+write_promptfoo_chat_prompt() {
+  local system_prompt_txt="$1"
+  local out_path="$2"
+
+  mkdir -p "$(dirname "$out_path")"
+  {
+    echo "- role: system"
+    echo "  content: |"
+    sed 's/^/    /' "$system_prompt_txt"
+    echo "- role: user"
+    echo "  content: |"
+    echo "    {{ task_prompt }}"
+    echo
+  } > "$out_path"
+}
+
+echo
+echo "== write promptfoo prompt templates"
+write_promptfoo_chat_prompt "$baseline_txt" "$promptfoo_dir/prompts/baseline.yaml"
+write_promptfoo_chat_prompt "$candidate_txt" "$promptfoo_dir/prompts/candidate.yaml"
 
 echo
 echo "== ready"
 echo "LLMAN_CONFIG_DIR=$config_dir"
-echo "Prompts:"
-echo "  - prompt/codex/${PROMPT_BASELINE}.md"
-echo "  - prompt/codex/${PROMPT_CANDIDATE}.md"
-echo "Contest/Dataset:"
-echo "  - arena/contests/${CONTEST_NAME}.toml"
-echo "  - arena/datasets/${DATASET_NAME}.yaml"
+echo "Promptfoo:"
+echo "  - $promptfoo_dir/promptfooconfig.yaml"
+echo "  - $promptfoo_dir/tests.yaml"
+echo "  - $promptfoo_dir/prompts/baseline.yaml"
+echo "  - $promptfoo_dir/prompts/candidate.yaml"
 
 if [[ "$NO_GEN" == "1" ]]; then
   echo
@@ -178,20 +205,31 @@ if [[ "$NO_GEN" == "1" ]]; then
   exit 0
 fi
 
-[[ -n "${OPENAI_API_KEY:-}" ]] || die "OPENAI_API_KEY 未设置（Arena gen 需要）"
+[[ -n "${OPENAI_API_KEY:-}" ]] || die "OPENAI_API_KEY 未设置（Promptfoo eval 需要）"
 
 echo
-echo "== arena gen"
-gen_args=(x arena gen --contest "$CONTEST_NAME" --dataset "$DATASET_NAME" --rounds "$ROUNDS")
-if [[ -n "$SEED" ]]; then
-  gen_args+=(--seed "$SEED")
-fi
+echo "== promptfoo validate"
+run_llman "$REPO_ROOT" x promptfoo validate --cwd "$promptfoo_dir" --config "$promptfoo_dir/promptfooconfig.yaml"
 
-(cd "$REPO_ROOT" && LLMAN_CONFIG_DIR="$config_dir" cargo run -q -- "${gen_args[@]}")
+echo
+echo "== promptfoo eval"
+eval_args=(x promptfoo eval --cwd "$promptfoo_dir" --config "$promptfoo_dir/promptfooconfig.yaml" --output "$promptfoo_dir/results.json" --output "$promptfoo_dir/results.html")
+if [[ -n "$REPEAT" ]]; then
+  eval_args+=(--repeat "$REPEAT")
+fi
+if [[ -n "$MAX_CONCURRENCY" ]]; then
+  eval_args+=(--max-concurrency "$MAX_CONCURRENCY")
+fi
+if [[ -n "$DELAY_MS" ]]; then
+  eval_args+=(--delay "$DELAY_MS")
+fi
+if [[ "$NO_CACHE" == "1" ]]; then
+  eval_args+=(--no-cache)
+fi
+run_llman "$REPO_ROOT" "${eval_args[@]}"
 
 cat <<EOF
 
-下一步（在同一 LLMAN_CONFIG_DIR 下）：
-  LLMAN_CONFIG_DIR=$config_dir cargo run -q -- x arena vote --run <RUN_ID>
-  LLMAN_CONFIG_DIR=$config_dir cargo run -q -- x arena report --run <RUN_ID>
+下一步：
+  LLMAN_CONFIG_DIR=$config_dir cargo run -q -- x promptfoo view --cwd $promptfoo_dir --config $promptfoo_dir/promptfooconfig.yaml
 EOF
