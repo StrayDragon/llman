@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use crate::x::sdd_eval::acp;
 use crate::x::sdd_eval::paths;
 use crate::x::sdd_eval::playbook;
@@ -138,7 +139,8 @@ pub fn generate(project_root: &Path, run_id: &str) -> Result<()> {
     if pb.report.human.enabled {
         let pack = build_human_pack(&manifest, &pb, &run_dir);
         let pack_path = run_dir.join("human-pack.json");
-        fs::write(&pack_path, serde_json::to_vec_pretty(&pack)?)
+        let pack_json = serde_json::to_vec_pretty(&pack)?;
+        atomic_write_with_mode(&pack_path, &pack_json, None)
             .with_context(|| format!("write {}", pack_path.display()))?;
 
         let template_path = run_dir.join("human-scores.template.json");
@@ -156,7 +158,8 @@ pub fn generate(project_root: &Path, run_id: &str) -> Result<()> {
             file: "fill-me".to_string(),
             variants: template_variants,
         };
-        fs::write(&template_path, serde_json::to_vec_pretty(&template)?)
+        let template_json = serde_json::to_vec_pretty(&template)?;
+        atomic_write_with_mode(&template_path, &template_json, None)
             .with_context(|| format!("write {}", template_path.display()))?;
     }
 
@@ -180,11 +183,13 @@ pub fn generate(project_root: &Path, run_id: &str) -> Result<()> {
     };
 
     let report_json_path = run_dir.join("report.json");
-    fs::write(&report_json_path, serde_json::to_vec_pretty(&report)?)
+    let report_json = serde_json::to_vec_pretty(&report)?;
+    atomic_write_with_mode(&report_json_path, &report_json, None)
         .with_context(|| format!("write {}", report_json_path.display()))?;
 
     let report_md_path = run_dir.join("report.md");
-    fs::write(&report_md_path, render_report_md(&report))
+    let report_md = render_report_md(&report);
+    atomic_write_with_mode(&report_md_path, report_md.as_bytes(), None)
         .with_context(|| format!("write {}", report_md_path.display()))?;
 
     Ok(())
@@ -205,7 +210,8 @@ pub fn import_human(project_root: &Path, run_id: &str, file: &Path) -> Result<()
         serde_json::from_str(&raw).with_context(|| "parse human score JSON")?;
 
     let dst = run_dir.join("human-scores.json");
-    fs::write(&dst, serde_json::to_vec_pretty(&imported)?)
+    let imported_json = serde_json::to_vec_pretty(&imported)?;
+    atomic_write_with_mode(&dst, &imported_json, None)
         .with_context(|| format!("write {}", dst.display()))?;
 
     // Re-generate report to reflect merged human scores.

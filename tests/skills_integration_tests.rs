@@ -1,45 +1,13 @@
 #![cfg(unix)]
 
+mod common;
+
+use common::{assert_success, run_llman};
 use llman::skills::catalog::types::{ConfigEntry, SkillCandidate, SkillsConfig, TargetMode};
 use llman::skills::targets::sync::apply_target_links;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
 use tempfile::TempDir;
-
-fn manifest_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")
-}
-
-fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path) -> Output {
-    Command::new("cargo")
-        .args([
-            "run",
-            "--quiet",
-            "--manifest-path",
-            manifest_path().to_str().expect("manifest path"),
-            "--",
-            "--config-dir",
-            config_dir.to_str().expect("config dir"),
-        ])
-        .args(args)
-        .current_dir(work_dir)
-        .output()
-        .expect("Failed to run llman command")
-}
-
-fn assert_success(output: &Output) {
-    if output.status.success() {
-        return;
-    }
-    panic!(
-        "Command failed: {}\nstdout:\n{}\nstderr:\n{}",
-        output.status,
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
 
 #[cfg(unix)]
 #[test]

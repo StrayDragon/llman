@@ -2,6 +2,7 @@ use crate::config::{
     CLAUDE_CODE_APP, CODEX_APP, CURSOR_APP, CURSOR_EXTENSION, Config, DEFAULT_EXTENSION,
     TARGET_CURSOR_RULES_DIR,
 };
+use crate::fs_utils::atomic_write_with_mode;
 use crate::path_utils::{safe_parent_for_creation, validate_path_segment, validate_path_str};
 use crate::sdd::project::fs_utils::update_file_with_markers;
 use crate::skills::cli::interactive::is_interactive;
@@ -45,6 +46,18 @@ pub struct PromptCommand {
     claude_home_override: Option<PathBuf>,
 }
 
+fn selected_scopes(scopes: &[PromptScope]) -> impl Iterator<Item = PromptScope> {
+    [PromptScope::Global, PromptScope::Project]
+        .into_iter()
+        .filter(|scope| scopes.contains(scope))
+}
+
+fn record_first_error(first_error: &mut Option<anyhow::Error>, err: impl Into<anyhow::Error>) {
+    if first_error.is_none() {
+        *first_error = Some(err.into());
+    }
+}
+
 impl PromptCommand {
     #[allow(dead_code)]
     pub fn new() -> Result<Self> {
@@ -79,77 +92,89 @@ impl PromptCommand {
             return Ok(());
         }
 
-        if app == CURSOR_APP {
-            if self.project_root(false, interactive)?.is_none() {
-                return Ok(());
-            }
-            let target_dir = self.prompt_target_dir(app)?;
-            for template_name in &templates {
-                self.generate_rules_with_target_dir(
-                    app,
-                    template_name,
-                    template_name,
-                    PromptGenerateOptions {
-                        scopes: &[PromptScope::Project],
-                        codex_targets: &[],
-                        override_file: false,
-                        force: false,
-                    },
-                    Some(&target_dir),
-                )?;
-            }
-        } else if app == CODEX_APP {
-            let scopes = self.prompt_scopes(app)?;
-            if scopes.is_empty() {
-                println!("{}", t!("messages.operation_cancelled"));
-                return Ok(());
-            }
-
-            let targets = self.prompt_codex_targets()?;
-            if targets.is_empty() {
-                println!("{}", t!("messages.operation_cancelled"));
-                return Ok(());
-            }
-
-            let override_file = if targets.contains(&CodexPromptTarget::Agents) {
-                self.prompt_codex_override_file()?
-            } else {
-                false
-            };
-
-            // Write prompts as individual files per template.
-            if targets.contains(&CodexPromptTarget::Prompts) {
-                for template_name in &templates {
-                    self.generate_rules_with_target_dir(
-                        app,
-                        template_name,
-                        template_name,
-                        PromptGenerateOptions {
-                            scopes: &scopes,
-                            codex_targets: &[CodexPromptTarget::Prompts],
-                            override_file: false,
-                            force: false,
-                        },
-                        None,
-                    )?;
-                }
-            }
-
-            // Inject templates into AGENTS*.md as a single managed block update.
-            if targets.contains(&CodexPromptTarget::Agents) {
-                self.inject_codex_agents_templates(&scopes, &templates, override_file, false)?;
-            }
-        } else if app == CLAUDE_CODE_APP {
-            let scopes = self.prompt_scopes(app)?;
-            if scopes.is_empty() {
-                println!("{}", t!("messages.operation_cancelled"));
-                return Ok(());
-            }
-            self.inject_claude_templates(&scopes, &templates, false)?;
+        match app {
+            CURSOR_APP => self.generate_cursor_interactive(&templates, interactive)?,
+            CODEX_APP => self.generate_codex_interactive(&templates)?,
+            CLAUDE_CODE_APP => self.generate_claude_interactive(&templates)?,
+            _ => unreachable!("selected app comes from validated interactive options"),
         }
 
         println!("{}", t!("messages.rule_generation_success"));
         Ok(())
+    }
+
+    fn generate_cursor_interactive(&self, templates: &[String], interactive: bool) -> Result<()> {
+        if self.project_root(false, interactive)?.is_none() {
+            return Ok(());
+        }
+
+        let target_dir = self.prompt_target_dir(CURSOR_APP)?;
+        for template_name in templates {
+            self.generate_rules_with_target_dir(
+                CURSOR_APP,
+                template_name,
+                template_name,
+                PromptGenerateOptions {
+                    scopes: &[PromptScope::Project],
+                    codex_targets: &[],
+                    override_file: false,
+                    force: false,
+                },
+                Some(&target_dir),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn generate_codex_interactive(&self, templates: &[String]) -> Result<()> {
+        let Some(scopes) = self.prompt_scopes(CODEX_APP)? else {
+            println!("{}", t!("messages.operation_cancelled"));
+            return Ok(());
+        };
+
+        let Some(targets) = self.prompt_codex_targets()? else {
+            println!("{}", t!("messages.operation_cancelled"));
+            return Ok(());
+        };
+
+        let override_file = if targets.contains(&CodexPromptTarget::Agents) {
+            self.prompt_codex_override_file()?
+        } else {
+            false
+        };
+
+        if targets.contains(&CodexPromptTarget::Prompts) {
+            for template_name in templates {
+                self.generate_rules_with_target_dir(
+                    CODEX_APP,
+                    template_name,
+                    template_name,
+                    PromptGenerateOptions {
+                        scopes: &scopes,
+                        codex_targets: &[CodexPromptTarget::Prompts],
+                        override_file: false,
+                        force: false,
+                    },
+                    None,
+                )?;
+            }
+        }
+
+        if targets.contains(&CodexPromptTarget::Agents) {
+            self.inject_codex_agents_templates(&scopes, templates, override_file, false)?;
+        }
+
+        Ok(())
+    }
+
+    fn generate_claude_interactive(&self, templates: &[String]) -> Result<()> {
+        let Some(scopes) = self.prompt_scopes(CLAUDE_CODE_APP)? else {
+            println!("{}", t!("messages.operation_cancelled"));
+            return Ok(());
+        };
+
+        self.inject_claude_templates(&scopes, templates, false)
     }
 
     pub fn generate_rules(
@@ -216,7 +241,7 @@ impl PromptCommand {
                 if let Some(parent) = safe_parent_for_creation(&target_path) {
                     fs::create_dir_all(parent)?;
                 }
-                fs::write(&target_path, content)?;
+                atomic_write_with_mode(&target_path, content.as_bytes(), None)?;
                 println!(
                     "{}",
                     t!("messages.rule_generated", path = target_path.display())
@@ -224,16 +249,7 @@ impl PromptCommand {
                 Ok(())
             }
             CODEX_APP => {
-                let mut targets: Vec<CodexPromptTarget> = if codex_targets.is_empty() {
-                    vec![CodexPromptTarget::Prompts]
-                } else {
-                    codex_targets.to_vec()
-                };
-                targets.sort_by_key(|t| match t {
-                    CodexPromptTarget::Prompts => 0,
-                    CodexPromptTarget::Agents => 1,
-                });
-                targets.dedup();
+                let targets = self.normalized_codex_targets(codex_targets);
 
                 if override_file && !targets.contains(&CodexPromptTarget::Agents) {
                     return Err(anyhow!(t!("errors.override_requires_agents_target")));
@@ -326,30 +342,32 @@ impl PromptCommand {
         self.write_codex_agents_files(scopes, override_file, force, is_interactive(), &combined)
     }
 
-    fn prompt_scopes(&self, _app: &str) -> Result<Vec<PromptScope>> {
+    fn prompt_scopes(&self, _app: &str) -> Result<Option<Vec<PromptScope>>> {
         let options = vec!["project", "global"];
         let picked = MultiSelect::new(&t!("prompt.scope.select"), options).prompt()?;
-        Ok(picked
+        let scopes = picked
             .into_iter()
             .filter_map(|p| match p {
                 "global" => Some(PromptScope::Global),
                 "project" => Some(PromptScope::Project),
                 _ => None,
             })
-            .collect())
+            .collect::<Vec<_>>();
+        Ok((!scopes.is_empty()).then_some(scopes))
     }
 
-    fn prompt_codex_targets(&self) -> Result<Vec<CodexPromptTarget>> {
+    fn prompt_codex_targets(&self) -> Result<Option<Vec<CodexPromptTarget>>> {
         let options = vec!["prompts", "agents"];
         let picked = MultiSelect::new(&t!("prompt.codex.target.select"), options).prompt()?;
-        Ok(picked
+        let targets = picked
             .into_iter()
             .filter_map(|p| match p {
                 "agents" => Some(CodexPromptTarget::Agents),
                 "prompts" => Some(CodexPromptTarget::Prompts),
                 _ => None,
             })
-            .collect())
+            .collect::<Vec<_>>();
+        Ok((!targets.is_empty()).then_some(targets))
     }
 
     fn prompt_codex_override_file(&self) -> Result<bool> {
@@ -393,7 +411,7 @@ impl PromptCommand {
         };
 
         let rule_path = self.config.rule_file_path(app, &name);
-        fs::write(&rule_path, rule_content)?;
+        atomic_write_with_mode(&rule_path, rule_content.as_bytes(), None)?;
 
         println!("{}", t!("messages.rule_saved", path = rule_path.display()));
         Ok(())
@@ -643,45 +661,21 @@ impl PromptCommand {
     ) -> Result<()> {
         let mut first_error: Option<anyhow::Error> = None;
 
-        let has_global = scopes.contains(&PromptScope::Global);
-        let has_project = scopes.contains(&PromptScope::Project);
-        let scopes = [
-            (PromptScope::Global, has_global),
-            (PromptScope::Project, has_project),
-        ];
-
-        for (scope, enabled) in scopes {
-            if !enabled {
-                continue;
-            }
-
-            let target_path = match scope {
-                PromptScope::Global => {
-                    let dir = self.codex_home_dir()?.join("prompts");
-                    dir.join(format!("{name}.md"))
+        for scope in selected_scopes(scopes) {
+            let target_path = match self.codex_prompt_path(scope, name, force, interactive) {
+                Ok(Some(path)) => path,
+                Ok(None) => continue,
+                Err(e) => {
+                    record_first_error(&mut first_error, e);
+                    continue;
                 }
-                PromptScope::Project => match self.project_root(force, interactive) {
-                    Ok(Some(root)) => root
-                        .join(".codex")
-                        .join("prompts")
-                        .join(format!("{name}.md")),
-                    Ok(None) => continue,
-                    Err(e) => {
-                        if first_error.is_none() {
-                            first_error = Some(e);
-                        }
-                        continue;
-                    }
-                },
             };
 
             if target_path.exists() && !force {
                 let overwrite = match confirm_overwrite(&target_path, interactive) {
                     Ok(v) => v,
                     Err(e) => {
-                        if first_error.is_none() {
-                            first_error = Some(e);
-                        }
+                        record_first_error(&mut first_error, e);
                         continue;
                     }
                 };
@@ -693,15 +687,11 @@ impl PromptCommand {
             if let Some(parent) = safe_parent_for_creation(&target_path)
                 && let Err(e) = fs::create_dir_all(parent)
             {
-                if first_error.is_none() {
-                    first_error = Some(e.into());
-                }
+                record_first_error(&mut first_error, e);
                 continue;
             }
-            if let Err(e) = fs::write(&target_path, content) {
-                if first_error.is_none() {
-                    first_error = Some(e.into());
-                }
+            if let Err(e) = atomic_write_with_mode(&target_path, content.as_bytes(), None) {
+                record_first_error(&mut first_error, e);
                 continue;
             }
             println!(
@@ -732,88 +722,19 @@ impl PromptCommand {
 
         let mut first_error: Option<anyhow::Error> = None;
 
-        let has_global = scopes.contains(&PromptScope::Global);
-        let has_project = scopes.contains(&PromptScope::Project);
-        let scopes = [
-            (PromptScope::Global, has_global),
-            (PromptScope::Project, has_project),
-        ];
-
-        for (scope, enabled) in scopes {
-            if !enabled {
-                continue;
-            }
-
-            let path = match scope {
-                PromptScope::Global => self.codex_home_dir()?.join(file_name),
-                PromptScope::Project => match self.project_root(force, interactive) {
-                    Ok(Some(root)) => root.join(file_name),
-                    Ok(None) => continue,
-                    Err(e) => {
-                        if first_error.is_none() {
-                            first_error = Some(e);
-                        }
-                        continue;
-                    }
-                },
+        for scope in selected_scopes(scopes) {
+            let path = match self.codex_agents_path(scope, file_name, force, interactive) {
+                Ok(Some(path)) => path,
+                Ok(None) => continue,
+                Err(e) => {
+                    record_first_error(&mut first_error, e);
+                    continue;
+                }
             };
 
-            if let Some(parent) = safe_parent_for_creation(&path)
-                && let Err(e) = fs::create_dir_all(parent)
-            {
-                if first_error.is_none() {
-                    first_error = Some(e.into());
-                }
-                continue;
+            if let Err(e) = self.write_managed_prompt_block(&path, body, force, interactive) {
+                record_first_error(&mut first_error, e);
             }
-
-            if path.exists() {
-                let existing = match fs::read_to_string(&path) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        if first_error.is_none() {
-                            first_error = Some(anyhow!(t!(
-                                "errors.file_read_failed",
-                                path = path.display(),
-                                error = e
-                            )));
-                        }
-                        continue;
-                    }
-                };
-
-                let needs_confirm =
-                    !existing.trim().is_empty() && !has_llman_prompts_markers(&existing);
-                if needs_confirm && !force {
-                    let confirmed = match confirm_inject_twice(&path, interactive) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            if first_error.is_none() {
-                                first_error = Some(e);
-                            }
-                            continue;
-                        }
-                    };
-                    if !confirmed {
-                        println!("{}", t!("messages.operation_cancelled"));
-                        continue;
-                    }
-                }
-            }
-
-            if let Err(e) = update_file_with_markers(
-                &path,
-                body.trim_end(),
-                LLMAN_PROMPTS_MARKER_START,
-                LLMAN_PROMPTS_MARKER_END,
-            ) {
-                if first_error.is_none() {
-                    first_error = Some(e);
-                }
-                continue;
-            }
-
-            println!("{}", t!("messages.rule_generated", path = path.display()));
         }
 
         if let Some(err) = first_error {
@@ -831,90 +752,132 @@ impl PromptCommand {
     ) -> Result<()> {
         let mut first_error: Option<anyhow::Error> = None;
 
-        let has_global = scopes.contains(&PromptScope::Global);
-        let has_project = scopes.contains(&PromptScope::Project);
-        let scopes = [
-            (PromptScope::Global, has_global),
-            (PromptScope::Project, has_project),
-        ];
-
-        for (scope, enabled) in scopes {
-            if !enabled {
-                continue;
-            }
-
-            let path = match scope {
-                PromptScope::Global => self.claude_home_dir()?.join(CLAUDE_MEMORY_FILE),
-                PromptScope::Project => match self.project_root(force, interactive) {
-                    Ok(Some(root)) => root.join(CLAUDE_MEMORY_FILE),
-                    Ok(None) => continue,
-                    Err(e) => {
-                        if first_error.is_none() {
-                            first_error = Some(e);
-                        }
-                        continue;
-                    }
-                },
+        for scope in selected_scopes(scopes) {
+            let path = match self.claude_memory_path(scope, force, interactive) {
+                Ok(Some(path)) => path,
+                Ok(None) => continue,
+                Err(e) => {
+                    record_first_error(&mut first_error, e);
+                    continue;
+                }
             };
 
-            if let Some(parent) = safe_parent_for_creation(&path)
-                && let Err(e) = fs::create_dir_all(parent)
-            {
-                if first_error.is_none() {
-                    first_error = Some(e.into());
-                }
-                continue;
+            if let Err(e) = self.write_managed_prompt_block(&path, body, force, interactive) {
+                record_first_error(&mut first_error, e);
             }
-
-            if path.exists() {
-                let existing = match fs::read_to_string(&path) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        if first_error.is_none() {
-                            first_error = Some(anyhow!(t!(
-                                "errors.file_read_failed",
-                                path = path.display(),
-                                error = e
-                            )));
-                        }
-                        continue;
-                    }
-                };
-                let needs_confirm =
-                    !existing.trim().is_empty() && !has_llman_prompts_markers(&existing);
-                if needs_confirm && !force {
-                    let confirmed = match confirm_inject_twice(&path, interactive) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            if first_error.is_none() {
-                                first_error = Some(e);
-                            }
-                            continue;
-                        }
-                    };
-                    if !confirmed {
-                        println!("{}", t!("messages.operation_cancelled"));
-                        continue;
-                    }
-                }
-            }
-            if let Err(e) = update_file_with_markers(
-                &path,
-                body.trim_end(),
-                LLMAN_PROMPTS_MARKER_START,
-                LLMAN_PROMPTS_MARKER_END,
-            ) {
-                if first_error.is_none() {
-                    first_error = Some(e);
-                }
-                continue;
-            }
-            println!("{}", t!("messages.rule_generated", path = path.display()));
         }
 
         if let Some(err) = first_error {
             return Err(err);
         }
+        Ok(())
+    }
+
+    fn normalized_codex_targets(
+        &self,
+        codex_targets: &[CodexPromptTarget],
+    ) -> Vec<CodexPromptTarget> {
+        let mut targets = if codex_targets.is_empty() {
+            vec![CodexPromptTarget::Prompts]
+        } else {
+            codex_targets.to_vec()
+        };
+        targets.sort_by_key(|t| match t {
+            CodexPromptTarget::Prompts => 0,
+            CodexPromptTarget::Agents => 1,
+        });
+        targets.dedup();
+        targets
+    }
+
+    fn codex_prompt_path(
+        &self,
+        scope: PromptScope,
+        name: &str,
+        force: bool,
+        interactive: bool,
+    ) -> Result<Option<PathBuf>> {
+        match scope {
+            PromptScope::Global => Ok(Some(
+                self.codex_home_dir()?
+                    .join("prompts")
+                    .join(format!("{name}.md")),
+            )),
+            PromptScope::Project => self.project_root(force, interactive).map(|root| {
+                root.map(|root| {
+                    root.join(".codex")
+                        .join("prompts")
+                        .join(format!("{name}.md"))
+                })
+            }),
+        }
+    }
+
+    fn codex_agents_path(
+        &self,
+        scope: PromptScope,
+        file_name: &str,
+        force: bool,
+        interactive: bool,
+    ) -> Result<Option<PathBuf>> {
+        match scope {
+            PromptScope::Global => Ok(Some(self.codex_home_dir()?.join(file_name))),
+            PromptScope::Project => self
+                .project_root(force, interactive)
+                .map(|root| root.map(|root| root.join(file_name))),
+        }
+    }
+
+    fn claude_memory_path(
+        &self,
+        scope: PromptScope,
+        force: bool,
+        interactive: bool,
+    ) -> Result<Option<PathBuf>> {
+        match scope {
+            PromptScope::Global => Ok(Some(self.claude_home_dir()?.join(CLAUDE_MEMORY_FILE))),
+            PromptScope::Project => self
+                .project_root(force, interactive)
+                .map(|root| root.map(|root| root.join(CLAUDE_MEMORY_FILE))),
+        }
+    }
+
+    fn write_managed_prompt_block(
+        &self,
+        path: &Path,
+        body: &str,
+        force: bool,
+        interactive: bool,
+    ) -> Result<()> {
+        if let Some(parent) = safe_parent_for_creation(path) {
+            fs::create_dir_all(parent)?;
+        }
+
+        if path.exists() {
+            let existing = fs::read_to_string(path).map_err(|e| {
+                anyhow!(t!(
+                    "errors.file_read_failed",
+                    path = path.display(),
+                    error = e
+                ))
+            })?;
+
+            let needs_confirm =
+                !existing.trim().is_empty() && !has_llman_prompts_markers(&existing);
+            if needs_confirm && !force && !confirm_inject_twice(path, interactive)? {
+                println!("{}", t!("messages.operation_cancelled"));
+                return Ok(());
+            }
+        }
+
+        update_file_with_markers(
+            path,
+            body.trim_end(),
+            LLMAN_PROMPTS_MARKER_START,
+            LLMAN_PROMPTS_MARKER_END,
+        )?;
+
+        println!("{}", t!("messages.rule_generated", path = path.display()));
         Ok(())
     }
 }

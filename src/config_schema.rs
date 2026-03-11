@@ -1,4 +1,5 @@
 use crate::config::resolve_config_dir;
+use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::config::SddConfig;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::tool::config as tool_config;
@@ -214,7 +215,7 @@ pub fn apply_schema_header(path: &Path, schema_url: &str) -> Result<ApplyResult>
     if !changed {
         return Ok(ApplyResult::Unchanged);
     }
-    fs::write(path, updated).map_err(|e| {
+    atomic_write_with_mode(path, updated.as_bytes(), None).map_err(|e| {
         anyhow!(t!(
             "self.schema.write_failed",
             path = path.display(),
@@ -309,27 +310,29 @@ pub fn write_schema_files() -> Result<SchemaPaths> {
         ))
     })?;
 
-    fs::write(&paths.global, artifacts.global).map_err(|e| {
+    atomic_write_with_mode(&paths.global, artifacts.global.as_bytes(), None).map_err(|e| {
         anyhow!(t!(
             "self.schema.write_failed",
             path = paths.global.display(),
             error = e
         ))
     })?;
-    fs::write(&paths.project, artifacts.project).map_err(|e| {
+    atomic_write_with_mode(&paths.project, artifacts.project.as_bytes(), None).map_err(|e| {
         anyhow!(t!(
             "self.schema.write_failed",
             path = paths.project.display(),
             error = e
         ))
     })?;
-    fs::write(&paths.llmanspec, artifacts.llmanspec).map_err(|e| {
-        anyhow!(t!(
-            "self.schema.write_failed",
-            path = paths.llmanspec.display(),
-            error = e
-        ))
-    })?;
+    atomic_write_with_mode(&paths.llmanspec, artifacts.llmanspec.as_bytes(), None).map_err(
+        |e| {
+            anyhow!(t!(
+                "self.schema.write_failed",
+                path = paths.llmanspec.display(),
+                error = e
+            ))
+        },
+    )?;
 
     fs::create_dir_all(&paths.playbooks_root).map_err(|e| {
         anyhow!(t!(
@@ -338,7 +341,12 @@ pub fn write_schema_files() -> Result<SchemaPaths> {
             error = e
         ))
     })?;
-    fs::write(&paths.sdd_eval_playbook, artifacts.sdd_eval_playbook).map_err(|e| {
+    atomic_write_with_mode(
+        &paths.sdd_eval_playbook,
+        artifacts.sdd_eval_playbook.as_bytes(),
+        None,
+    )
+    .map_err(|e| {
         anyhow!(t!(
             "self.schema.write_failed",
             path = paths.sdd_eval_playbook.display(),
@@ -368,7 +376,7 @@ pub fn ensure_global_sample_config(config_dir: &Path) -> Result<Option<PathBuf>>
     let yaml = serde_yaml::to_string(&config)
         .map_err(|e| anyhow!(t!("self.schema.generate_failed", error = e)))?;
     let content = prepend_schema_header(&yaml, GLOBAL_SCHEMA_URL);
-    fs::write(&path, content).map_err(|e| {
+    atomic_write_with_mode(&path, content.as_bytes(), None).map_err(|e| {
         anyhow!(t!(
             "self.schema.write_failed",
             path = path.display(),

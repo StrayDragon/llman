@@ -1,43 +1,18 @@
 mod common;
 
-use common::TestEnvironment;
+use common::{TestEnvironment, assert_success, git_head, llman_command};
 use serde_json::Value;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output};
 
-fn manifest_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")
-}
-
 fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path) -> Output {
-    Command::new("cargo")
-        .args([
-            "run",
-            "--quiet",
-            "--manifest-path",
-            manifest_path().to_str().expect("manifest path"),
-            "--",
-            "--config-dir",
-            config_dir.to_str().expect("config dir"),
-        ])
-        .args(args)
-        .current_dir(work_dir)
-        .env("LLMANSPEC_BASE_REF", "HEAD")
-        .output()
-        .expect("Failed to run llman command")
-}
-
-fn assert_success(output: &Output) {
-    if output.status.success() {
-        return;
+    let mut cmd = llman_command(config_dir);
+    cmd.args(args).current_dir(work_dir);
+    if let Some(base_ref) = git_head(work_dir) {
+        cmd.env("LLMANSPEC_BASE_REF", base_ref);
     }
-    panic!(
-        "Command failed: {}\nstdout:\n{}\nstderr:\n{}",
-        output.status,
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    cmd.output().expect("Failed to run llman command")
 }
 
 fn git_commit_all(work_dir: &Path, message: &str) {

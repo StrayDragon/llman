@@ -1,9 +1,9 @@
 use std::io;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::thread;
 use std::time::Instant;
+use tempfile::NamedTempFile;
 
 #[derive(Debug)]
 pub(crate) struct CapturedOutput {
@@ -99,17 +99,29 @@ impl TailRing {
     }
 }
 
-fn read_stream_tail<R: Read>(mut reader: R, cap: usize) -> io::Result<TailRing> {
+fn read_file_tail(file: &mut std::fs::File, cap: usize) -> io::Result<TailRing> {
+    let total = usize::try_from(file.metadata()?.len()).unwrap_or(usize::MAX);
     let mut capture = TailRing::new(cap);
+    capture.total = total;
+
+    if total == 0 || cap == 0 {
+        return Ok(capture);
+    }
+
+    let tail_offset = total.saturating_sub(cap);
+    file.seek(SeekFrom::Start(tail_offset as u64))?;
+
     let mut buf = [0u8; 8192];
     loop {
-        match reader.read(&mut buf) {
+        match file.read(&mut buf) {
             Ok(0) => break,
             Ok(n) => capture.push(&buf[..n]),
             Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
             Err(err) => return Err(err),
         }
     }
+
+    capture.total = total;
     Ok(capture)
 }
 
@@ -121,46 +133,27 @@ pub(crate) fn run_command_capture_tail(
     tail_cap: usize,
 ) -> io::Result<CapturedOutput> {
     let start = Instant::now();
+    let stdout_file = NamedTempFile::new()?;
+    let stderr_file = NamedTempFile::new()?;
 
     let mut cmd = Command::new(command);
     cmd.args(args);
     cmd.current_dir(cwd);
     cmd.stdin(Stdio::null());
-    cmd.stdout(Stdio::piped());
-    cmd.stderr(Stdio::piped());
+    cmd.stdout(Stdio::from(stdout_file.reopen()?));
+    cmd.stderr(Stdio::from(stderr_file.reopen()?));
     for (k, v) in env {
         cmd.env(k, v);
     }
 
     let mut child = cmd.spawn()?;
 
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-
-    let stdout_thread =
-        stdout.map(|handle| thread::spawn(move || read_stream_tail(handle, tail_cap)));
-    let stderr_thread =
-        stderr.map(|handle| thread::spawn(move || read_stream_tail(handle, tail_cap)));
-
     let status = child.wait()?;
 
-    let stdout_capture = match stdout_thread {
-        Some(t) => match t.join() {
-            Ok(Ok(capture)) => capture,
-            Ok(Err(err)) => return Err(err),
-            Err(_) => return Err(io::Error::other("stdout reader thread panicked")),
-        },
-        None => TailRing::default(),
-    };
-
-    let stderr_capture = match stderr_thread {
-        Some(t) => match t.join() {
-            Ok(Ok(capture)) => capture,
-            Ok(Err(err)) => return Err(err),
-            Err(_) => return Err(io::Error::other("stderr reader thread panicked")),
-        },
-        None => TailRing::default(),
-    };
+    let mut stdout_reader = stdout_file.reopen()?;
+    let stdout_capture = read_file_tail(&mut stdout_reader, tail_cap)?;
+    let mut stderr_reader = stderr_file.reopen()?;
+    let stderr_capture = read_file_tail(&mut stderr_reader, tail_cap)?;
 
     let stdout_total = stdout_capture.total();
     let stderr_total = stderr_capture.total();
@@ -183,4 +176,35 @@ pub(crate) fn should_insert_stderr_separator(
     stderr_total: usize,
 ) -> bool {
     stderr_total > 0 && (!stdout_ends_with_newline || stdout_total == 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[cfg(unix)]
+    #[test]
+    fn background_process_inheriting_stdio_does_not_block_capture() {
+        let temp = tempdir().expect("temp dir");
+        let started = Instant::now();
+
+        let output = run_command_capture_tail(
+            "sh",
+            &[
+                "-c".to_string(),
+                "printf child-output; (sleep 1) &".to_string(),
+            ],
+            temp.path(),
+            &[],
+            1024,
+        )
+        .expect("capture output");
+
+        assert!(
+            started.elapsed().as_millis() < 800,
+            "capture unexpectedly blocked on inherited stdio"
+        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout_tail), "child-output");
+    }
 }

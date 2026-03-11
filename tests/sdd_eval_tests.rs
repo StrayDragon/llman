@@ -1,53 +1,29 @@
 #![cfg(unix)]
 
+mod common;
+
+use common::{assert_success, llman_command, run_llman, write_claude_code_config};
 use ignore::WalkBuilder;
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Command;
 use tempfile::TempDir;
-
-fn llman_bin() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_llman"))
-}
 
 fn fake_agent_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_llman-fake-acp-agent"))
 }
 
-fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path) -> Output {
-    Command::new(llman_bin())
-        .args(["--config-dir", config_dir.to_str().expect("config dir")])
-        .args(args)
-        .current_dir(work_dir)
-        .output()
-        .expect("run llman")
-}
-
-fn assert_success(output: &Output) {
-    if output.status.success() {
-        return;
-    }
-    panic!(
-        "Command failed: {}\nstdout:\n{}\nstderr:\n{}",
-        output.status,
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
 fn write_claude_code_group_config(config_dir: &Path, group: &str, secret: &str) {
-    fs::create_dir_all(config_dir).expect("create config dir");
-    fs::write(
-        config_dir.join("claude-code.toml"),
-        format!(
+    write_claude_code_config(
+        config_dir,
+        &format!(
             r#"
 [groups.{group}]
 ANTHROPIC_AUTH_TOKEN = "{secret}"
 "#
         ),
-    )
-    .expect("write claude-code.toml");
+    );
 }
 
 fn write_playbook(project_root: &Path, agent_command: &Path, group: &str) -> PathBuf {
@@ -376,8 +352,7 @@ fn sdd_eval_ai_judge_requires_openai_api_key_when_enabled() {
     )
     .expect("parse manifest");
 
-    let report_out = Command::new(llman_bin())
-        .args(["--config-dir", config_dir.to_str().expect("config dir")])
+    let report_out = llman_command(config_dir)
         .args(["x", "sdd-eval", "report", "--run", &manifest.run_id])
         .current_dir(project_root)
         .env("OPENAI_API_KEY", "")

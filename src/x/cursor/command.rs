@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use crate::path_utils::validate_path_str;
 use crate::x::cursor::database::CursorDatabase;
 use crate::x::cursor::models::{
@@ -502,7 +503,8 @@ fn export_to_files_with_dir(
             sanitize_filename(&conversation.get_title())
         );
         let file_path = output_dir.join(&filename);
-        fs::write(&file_path, conversation.to_markdown())?;
+        let markdown = conversation.to_markdown();
+        atomic_write_with_mode(&file_path, markdown.as_bytes(), None)?;
         println!(
             "{}",
             t!(
@@ -538,7 +540,7 @@ fn export_to_single_file_at(conversations: &[&ConversationExport], filename: &st
 }
 
 fn export_to_single_file_with_content(content: &str, filename: &str) -> Result<()> {
-    fs::write(filename, content)?;
+    atomic_write_with_mode(Path::new(filename), content.as_bytes(), None)?;
     println!(
         "{}",
         t!("cursor.export.export_success_single", filename = filename)

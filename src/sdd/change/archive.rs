@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::change::delta::{RequirementBlock, normalize_requirement_name, parse_delta_spec};
 use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
@@ -699,7 +700,7 @@ fn write_updates(prepared: &[(SpecUpdate, String, ApplyCounts)]) -> Result<()> {
             .parent()
             .ok_or_else(|| anyhow!(t!("sdd.archive.invalid_target")))?;
         fs::create_dir_all(target_dir)?;
-        fs::write(&update.target, rebuilt)?;
+        atomic_write_with_mode(&update.target, rebuilt.as_bytes(), None)?;
         print_apply_counts(update, counts, false);
         totals.added += counts.added;
         totals.modified += counts.modified;

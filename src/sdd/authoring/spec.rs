@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
@@ -65,7 +66,7 @@ pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs, style: TemplateStyle) -
     let body = render_ison_fence(&payload);
     let rebuilt = compose_with_frontmatter(Some(&frontmatter), &body);
 
-    fs::write(&spec_path, rebuilt)?;
+    atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
     println!("{}", spec_path.display());
     Ok(())
 }
@@ -134,7 +135,7 @@ pub fn run_add_requirement(
     let payload = dump_spec_payload(&spec, args.pretty_ison);
     let body = render_ison_fence(&payload);
     let rebuilt = compose_with_frontmatter(Some(&frontmatter_yaml), &body);
-    fs::write(&spec_path, rebuilt)?;
+    atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
     println!("{}", spec_path.display());
     Ok(())
 }
@@ -205,7 +206,7 @@ pub fn run_add_scenario(
     let payload = dump_spec_payload(&spec, args.pretty_ison);
     let body = render_ison_fence(&payload);
     let rebuilt = compose_with_frontmatter(Some(&frontmatter_yaml), &body);
-    fs::write(&spec_path, rebuilt)?;
+    atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
     println!("{}", spec_path.display());
     Ok(())
 }

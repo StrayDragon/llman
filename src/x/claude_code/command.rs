@@ -1,5 +1,6 @@
 use crate::arg_utils::split_shell_args;
 use crate::editor::{parse_editor_command, select_editor_raw};
+use crate::fs_utils::atomic_write_new_with_mode;
 use crate::path_utils::safe_parent_for_creation;
 use crate::x::claude_code::config::{Config, ConfigGroup};
 use crate::x::claude_code::env_injection::{
@@ -12,7 +13,6 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
 use std::fs;
-use std::io::{ErrorKind, Write};
 use std::path::Path;
 use std::process::Command;
 
@@ -220,46 +220,22 @@ fn handle_account_edit_with(config_path: &Path, editor_raw: &str) -> Result<()> 
         ))?;
     }
 
-    let created = match fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(config_path)
-    {
-        Ok(mut file) => {
-            let template = include_str!("../../../templates/claude-code/default.toml");
-            file.write_all(template.as_bytes()).context(t!(
-                "claude_code.config.write_failed",
-                path = config_path.display()
-            ))?;
+    let template = include_str!("../../../templates/claude-code/default.toml");
+    let created = atomic_write_new_with_mode(config_path, template.as_bytes(), Some(0o600))
+        .context(t!(
+            "claude_code.config.write_failed",
+            path = config_path.display()
+        ))?;
 
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let mut perms = fs::metadata(config_path)
-                    .context(t!("claude_code.config.metadata_failed"))?
-                    .permissions();
-                perms.set_mode(0o600);
-                fs::set_permissions(config_path, perms)
-                    .context(t!("claude_code.config.permissions_failed"))?;
-            }
-
-            println!(
-                "{}",
-                t!(
-                    "claude_code.account.config_created",
-                    path = config_path.display()
-                )
-            );
-            true
-        }
-        Err(e) if e.kind() == ErrorKind::AlreadyExists => false,
-        Err(e) => {
-            return Err(e).context(t!(
-                "claude_code.config.write_failed",
+    if created {
+        println!(
+            "{}",
+            t!(
+                "claude_code.account.config_created",
                 path = config_path.display()
-            ));
-        }
-    };
+            )
+        );
+    }
 
     if !created {
         println!(

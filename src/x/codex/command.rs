@@ -1,5 +1,6 @@
 use crate::arg_utils::split_shell_args;
 use crate::editor::{parse_editor_command, select_editor_raw};
+use crate::fs_utils::atomic_write_new_with_mode;
 use crate::x::codex::config::{Config, upsert_to_codex_config};
 use crate::x::codex::interactive;
 use crate::x::codex::stats::CodexStatsArgs;
@@ -7,7 +8,6 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
 use std::fs;
-use std::io::{ErrorKind, Write};
 use std::path::Path;
 use std::process::Command;
 
@@ -114,31 +114,19 @@ fn handle_account_edit_with(config_path: &Path, editor_raw: &str) -> Result<()> 
         ))?;
     }
 
-    let created = match fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(config_path)
-    {
-        Ok(mut file) => {
-            let template = include_str!("../../../templates/codex/default.toml");
-            file.write_all(template.as_bytes()).context(t!(
-                "codex.error.write_config_failed",
-                path = config_path.display()
-            ))?;
-            println!(
-                "{}",
-                t!("codex.account.config_created", path = config_path.display())
-            );
-            true
-        }
-        Err(e) if e.kind() == ErrorKind::AlreadyExists => false,
-        Err(e) => {
-            return Err(e).context(t!(
-                "codex.error.write_config_failed",
-                path = config_path.display()
-            ));
-        }
-    };
+    let template = include_str!("../../../templates/codex/default.toml");
+    let created = atomic_write_new_with_mode(config_path, template.as_bytes(), Some(0o600))
+        .context(t!(
+            "codex.error.write_config_failed",
+            path = config_path.display()
+        ))?;
+
+    if created {
+        println!(
+            "{}",
+            t!("codex.account.config_created", path = config_path.display())
+        );
+    }
 
     if !created {
         println!(
@@ -377,6 +365,31 @@ mod tests {
         let err = handle_account_edit_with(&config_path, &editor_path.to_string_lossy())
             .expect_err("should error");
         assert!(err.to_string().contains("Editor exited with status"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn created_config_file_uses_user_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = TempDir::new().expect("temp dir");
+        let config_path = temp.path().join("codex.toml");
+
+        let editor_path = temp.path().join("ok-editor.sh");
+        fs::write(&editor_path, "#!/bin/sh\nexit 0\n").expect("write editor");
+        let mut perms = fs::metadata(&editor_path).expect("meta").permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&editor_path, perms).expect("chmod");
+
+        handle_account_edit_with(&config_path, &editor_path.to_string_lossy())
+            .expect("edit succeeds");
+
+        let mode = fs::metadata(&config_path)
+            .expect("meta")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600);
     }
 
     #[test]

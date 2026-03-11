@@ -13,7 +13,9 @@ use ratatui::widgets::{
     Block, Borders, Cell, Clear, Gauge, Paragraph, Row, Sparkline, Table, TableState, Tabs, Wrap,
 };
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
@@ -42,7 +44,9 @@ pub enum ScanMessage {
 }
 
 pub type ScanFn = Arc<
-    dyn Fn(StatsTuiScanRequest, Sender<ScanMessage>) -> Result<Vec<SessionRecord>> + Send + Sync,
+    dyn Fn(StatsTuiScanRequest, Sender<ScanMessage>, Arc<AtomicBool>) -> Result<Vec<SessionRecord>>
+        + Send
+        + Sync,
 >;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -362,6 +366,8 @@ struct StatsTuiApp {
     request: StatsTuiScanRequest,
     scan_fn: ScanFn,
     scan_rx: Option<Receiver<ScanMessage>>,
+    scan_cancel: Option<Arc<AtomicBool>>,
+    scan_handle: Option<JoinHandle<()>>,
     status: ScanStatus,
     filter_open: bool,
     filter: FilterFormState,
@@ -380,6 +386,8 @@ impl StatsTuiApp {
             request,
             scan_fn,
             scan_rx: None,
+            scan_cancel: None,
+            scan_handle: None,
             status: ScanStatus::Idle,
             filter_open: false,
             filter,
@@ -391,14 +399,21 @@ impl StatsTuiApp {
     }
 
     fn start_scan(&mut self) {
+        self.stop_scan();
+
         let (tx, rx) = channel::<ScanMessage>();
         self.scan_rx = Some(rx);
         self.status = ScanStatus::Scanning(None);
 
         let scan_fn = Arc::clone(&self.scan_fn);
         let request = self.request.clone();
-        std::thread::spawn(move || {
-            let result = (scan_fn)(request, tx.clone());
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.scan_cancel = Some(Arc::clone(&cancel));
+        self.scan_handle = Some(std::thread::spawn(move || {
+            let result = (scan_fn)(request, tx.clone(), Arc::clone(&cancel));
+            if cancel.load(Ordering::Relaxed) {
+                return;
+            }
             match result {
                 Ok(sessions) => {
                     let _ = tx.send(ScanMessage::Done(sessions));
@@ -407,7 +422,17 @@ impl StatsTuiApp {
                     let _ = tx.send(ScanMessage::Error(err.to_string()));
                 }
             }
-        });
+        }));
+    }
+
+    fn stop_scan(&mut self) {
+        if let Some(cancel) = self.scan_cancel.take() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        self.scan_rx = None;
+        if let Some(handle) = self.scan_handle.take() {
+            let _ = handle.join();
+        }
     }
 
     fn drain_scan_messages(&mut self) {
@@ -1120,6 +1145,12 @@ impl StatsTuiApp {
     }
 }
 
+impl Drop for StatsTuiApp {
+    fn drop(&mut self) {
+        self.stop_scan();
+    }
+}
+
 fn tool_title(tool: ToolKind) -> &'static str {
     match tool {
         ToolKind::Codex => "codex stats",
@@ -1256,7 +1287,7 @@ mod tests {
             with_breakdown: false,
             include_sidechain: true,
         };
-        let scan_fn: ScanFn = Arc::new(|_request, _tx| Ok(vec![]));
+        let scan_fn: ScanFn = Arc::new(|_request, _tx, _cancel| Ok(vec![]));
         StatsTuiApp::new(tool, request, scan_fn)
     }
 

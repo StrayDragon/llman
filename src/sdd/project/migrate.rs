@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::spec::ison::{compose_with_frontmatter, render_ison_code_block, split_frontmatter};
 use anyhow::{Result, anyhow};
@@ -63,7 +64,7 @@ fn run_with_root(root: &Path, dry_run: bool) -> Result<()> {
             Ok(Some(updated)) => {
                 migrated.push(path.clone());
                 if !dry_run {
-                    fs::write(&path, updated)?;
+                    atomic_write_with_mode(&path, updated.as_bytes(), None)?;
                 }
             }
             Ok(None) => skipped.push(path),
@@ -77,7 +78,7 @@ fn run_with_root(root: &Path, dry_run: bool) -> Result<()> {
             Ok(Some(updated)) => {
                 migrated.push(path.clone());
                 if !dry_run {
-                    fs::write(&path, updated)?;
+                    atomic_write_with_mode(&path, updated.as_bytes(), None)?;
                 }
             }
             Ok(None) => skipped.push(path),

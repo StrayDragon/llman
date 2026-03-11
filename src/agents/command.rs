@@ -1,6 +1,7 @@
 use crate::agents::builder::AgentPresetBuildOutput;
 use crate::agents::manifest::AgentManifestV1;
 use crate::config::resolve_config_dir;
+use crate::fs_utils::atomic_write_with_mode;
 use crate::path_utils::validate_path_segment;
 use crate::skills::catalog::scan::discover_skills;
 use crate::skills::catalog::types::SkillsPaths;
@@ -143,7 +144,7 @@ fn run_new(id: &str, force: bool, ai: bool, skills_dir_override: Option<&Path>) 
     }
 
     fs::create_dir_all(&agent_skill_dir)?;
-    fs::write(&agent_skill_file, skill_md)?;
+    atomic_write_with_mode(&agent_skill_file, skill_md.as_bytes(), None)?;
 
     fs::create_dir_all(&agent_manifest_dir)?;
     manifest.write_to_path(&agent_manifest_file)?;

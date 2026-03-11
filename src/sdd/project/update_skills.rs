@@ -1,5 +1,6 @@
 use super::config::{SddConfig, load_or_create_config, resolve_skill_path};
 use super::templates::{TemplateStyle, skill_templates, workflow_command_templates};
+use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::interactive::is_interactive;
 use anyhow::{Result, anyhow};
@@ -292,7 +293,8 @@ fn write_tool_skills(base: &Path, templates: &[super::templates::SkillTemplate])
         let dir_name = template.name.trim_end_matches(".md");
         let skill_dir = base.join(dir_name);
         fs::create_dir_all(&skill_dir)?;
-        fs::write(skill_dir.join("SKILL.md"), &template.content)?;
+        let skill_path = skill_dir.join("SKILL.md");
+        atomic_write_with_mode(&skill_path, template.content.as_bytes(), None)?;
     }
     Ok(())
 }
@@ -403,7 +405,8 @@ fn write_llman_sdd_claude_commands(
             yaml_tags(spec.tags),
             body.trim_end()
         );
-        fs::write(base.join(format!("{}.md", spec.id)), content)?;
+        let path = base.join(format!("{}.md", spec.id));
+        atomic_write_with_mode(&path, content.as_bytes(), None)?;
     }
     Ok(())
 }

@@ -1,38 +1,12 @@
 #![cfg(unix)]
 
+mod common;
+
+use common::{assert_success, llman_command, run_llman};
 use expectrl::process::unix::WaitStatus;
 use expectrl::{ControlCode, Eof, Expect, Session};
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::thread;
-use std::time::Duration;
 use tempfile::TempDir;
-
-fn llman_bin() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_llman"))
-}
-
-fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path) -> Output {
-    Command::new(llman_bin())
-        .args(["--config-dir", config_dir.to_str().expect("config dir")])
-        .args(args)
-        .current_dir(work_dir)
-        .output()
-        .expect("run llman")
-}
-
-fn assert_success(output: &Output) {
-    if output.status.success() {
-        return;
-    }
-    panic!(
-        "Command failed: {}\nstdout:\n{}\nstderr:\n{}",
-        output.status,
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
 
 #[test]
 fn agents_new_creates_skill_and_manifest() {
@@ -233,10 +207,8 @@ fn agents_new_interactive_cancel_writes_nothing() {
     )
     .expect("write SKILL");
 
-    let mut cmd = Command::new(llman_bin());
+    let mut cmd = llman_command(&config_dir);
     cmd.args([
-        "--config-dir",
-        config_dir.to_str().unwrap(),
         "agents",
         "new",
         "foo-agent",
@@ -246,7 +218,9 @@ fn agents_new_interactive_cancel_writes_nothing() {
     .current_dir(root);
 
     let mut session = Session::spawn(cmd).expect("spawn llman in pty");
-    thread::sleep(Duration::from_millis(300));
+    session
+        .expect("\u{1b}[?1049h")
+        .expect("wait for interactive picker");
     session.send(ControlCode::Escape).expect("send escape");
     session.expect(Eof).expect("eof");
     assert_eq!(

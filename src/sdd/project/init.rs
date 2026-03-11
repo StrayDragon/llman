@@ -3,6 +3,7 @@ use super::fs_utils::update_file_with_markers;
 use super::templates::{
     TemplateStyle, default_agents_file, render_project_template, root_stub_content,
 };
+use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS};
 use anyhow::{Result, anyhow};
 use std::fs;
@@ -55,7 +56,7 @@ fn write_project_file(
         .unwrap_or("Project");
     let content = render_project_template(project_name, config, target, style)?;
     let path = llmanspec_path.join("project.md");
-    fs::write(path, content)?;
+    atomic_write_with_mode(&path, content.as_bytes(), None)?;
     Ok(())
 }
 
@@ -67,7 +68,7 @@ fn write_agents_file(
 ) -> Result<()> {
     let agents_path = llmanspec_path.join("AGENTS.md");
     let content = default_agents_file(config, target, style)?;
-    fs::write(&agents_path, content)?;
+    atomic_write_with_mode(&agents_path, content.as_bytes(), None)?;
     Ok(())
 }
 

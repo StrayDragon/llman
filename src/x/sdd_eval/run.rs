@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use crate::x::sdd_eval::process::{run_command_capture_tail, should_insert_stderr_separator};
 use crate::x::sdd_eval::secrets::SecretSet;
 use crate::x::sdd_eval::{acp, paths, playbook, presets, report};
@@ -105,7 +106,8 @@ pub fn create_run(
     };
 
     let manifest_path = run_dir.join("manifest.json");
-    fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)
+    let manifest_json = serde_json::to_vec_pretty(&manifest)?;
+    atomic_write_with_mode(&manifest_path, &manifest_json, None)
         .with_context(|| format!("write {}", manifest_path.display()))?;
 
     Ok(run_dir)
@@ -120,7 +122,8 @@ pub fn execute_run(project_root: &Path, run_dir: &Path, pb: &playbook::Playbook)
 
     execute_workflow(project_root, run_dir, pb, &mut manifest)?;
 
-    fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)
+    let manifest_json = serde_json::to_vec_pretty(&manifest)?;
+    atomic_write_with_mode(&manifest_path, &manifest_json, None)
         .with_context(|| format!("write {}", manifest_path.display()))?;
 
     Ok(())
@@ -795,7 +798,8 @@ fn write_variant_metrics(run_dir: &Path, variant_id: &str, v_state: &VariantStat
     fs::create_dir_all(&paths.artifacts_dir)
         .with_context(|| format!("create {}", paths.artifacts_dir.display()))?;
     let metrics_path = paths.artifacts_dir.join("acp-metrics.json");
-    fs::write(&metrics_path, serde_json::to_vec_pretty(&merged)?)
+    let metrics_json = serde_json::to_vec_pretty(&merged)?;
+    atomic_write_with_mode(&metrics_path, &metrics_json, None)
         .with_context(|| format!("write {}", metrics_path.display()))?;
     Ok(())
 }

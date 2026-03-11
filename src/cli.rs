@@ -1,5 +1,5 @@
 use crate::agents::command::AgentsArgs;
-use crate::config::{ENV_CONFIG_DIR, resolve_config_dir_with};
+use crate::config::{ENV_CONFIG_DIR, override_runtime_config_dir, resolve_config_dir_with};
 use crate::config_schema::ensure_global_sample_config;
 use crate::prompt::PromptCommand;
 use crate::sdd::command::{SddArgs, SddLegacyArgs};
@@ -180,7 +180,7 @@ pub fn run() -> Result<()> {
     // Determine and set config directory
     let config_dir = determine_config_dir(config_dir.as_ref())?;
 
-    set_config_dir_env(&config_dir);
+    let _config_dir_guard = override_runtime_config_dir(config_dir.clone());
     ensure_global_sample_config(&config_dir)?;
 
     match command {
@@ -192,16 +192,6 @@ pub fn run() -> Result<()> {
         Commands::X(args) => handle_x_command(&args),
         Commands::Tool(args) => handle_tool_command(&args),
         Commands::SelfCommand(args) => crate::self_command::run(&args),
-    }
-}
-
-fn set_config_dir_env(config_dir: &Path) {
-    // SAFETY: Setting env vars is a process-global mutation that can be unsound if other threads
-    // concurrently access environment variables. We do this at CLI startup before spawning any
-    // background work, and only to pass config context to subcommands. If llman grows concurrent
-    // startup behavior, refactor to pass config_dir through an explicit context instead.
-    unsafe {
-        env::set_var(ENV_CONFIG_DIR, config_dir);
     }
 }
 
@@ -231,6 +221,10 @@ fn is_llman_dev_project() -> bool {
     let Ok(current_dir) = env::current_dir() else {
         return false;
     };
+    is_llman_dev_project_at(&current_dir)
+}
+
+fn is_llman_dev_project_at(current_dir: &Path) -> bool {
     let cargo_toml = current_dir.join("Cargo.toml");
     if !cargo_toml.exists() {
         return false;
@@ -353,7 +347,6 @@ fn handle_tool_command(args: &ToolArgs) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use crate::config::resolve_config_dir_with;
-    use crate::test_utils::TestProcess;
     use std::fs;
     use tempfile::TempDir;
 
@@ -379,11 +372,7 @@ version = "0.1.0"
 "#,
         )
         .expect("write Cargo.toml");
-
-        let mut proc = TestProcess::new();
-        proc.chdir(temp.path()).expect("chdir");
-
-        assert!(!super::is_llman_dev_project());
+        assert!(!super::is_llman_dev_project_at(temp.path()));
     }
 
     #[test]
@@ -398,10 +387,6 @@ version = "0.1.0"
 "#,
         )
         .expect("write Cargo.toml");
-
-        let mut proc = TestProcess::new();
-        proc.chdir(temp.path()).expect("chdir");
-
-        assert!(super::is_llman_dev_project());
+        assert!(super::is_llman_dev_project_at(temp.path()));
     }
 }

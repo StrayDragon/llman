@@ -15,6 +15,7 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Args, Debug, Clone)]
 pub struct ClaudeCodeStatsArgs {
@@ -48,9 +49,13 @@ pub fn run_stats(args: &ClaudeCodeStatsArgs) -> Result<()> {
         };
 
         let scan_projects_dir = projects_dir.clone();
-        let scan_fn: ScanFn = Arc::new(move |request, _tx| {
-            let sessions =
-                load_claude_sessions(&scan_projects_dir, &request.cwd, request.include_sidechain)?;
+        let scan_fn: ScanFn = Arc::new(move |request, _tx, cancel| {
+            let sessions = load_claude_sessions(
+                &scan_projects_dir,
+                &request.cwd,
+                request.include_sidechain,
+                Some(cancel.as_ref()),
+            )?;
 
             let time_range = parse_time_range(&request.range, Utc::now())?;
             let query = StatsQuery {
@@ -84,7 +89,7 @@ pub fn run_stats(args: &ClaudeCodeStatsArgs) -> Result<()> {
         id,
     };
 
-    let sessions = load_claude_sessions(&projects_dir, &query.cwd, include_sidechain)?;
+    let sessions = load_claude_sessions(&projects_dir, &query.cwd, include_sidechain, None)?;
     let sessions = filter_sessions_v1(&sessions, &query);
 
     let view = match query.view {
@@ -240,6 +245,7 @@ fn load_claude_sessions(
     projects_dir: &Path,
     cwd_filter: &Path,
     include_sidechain: bool,
+    cancel: Option<&AtomicBool>,
 ) -> Result<Vec<SessionRecord>> {
     let mut sessions = Vec::new();
 
@@ -247,6 +253,9 @@ fn load_claude_sessions(
         .with_context(|| format!("read Claude projects directory: {}", projects_dir.display()))?;
 
     for entry in entries {
+        if cancel.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+            return Ok(Vec::new());
+        }
         let Ok(entry) = entry else {
             continue;
         };
@@ -270,6 +279,9 @@ fn load_claude_sessions(
         };
 
         for entry in index.entries {
+            if cancel.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+                return Ok(Vec::new());
+            }
             if !include_sidechain && entry.is_sidechain {
                 continue;
             }

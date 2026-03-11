@@ -3,7 +3,6 @@ use clap::Parser;
 use clap::error::ErrorKind;
 use common::*;
 use llman::cli::Cli;
-use std::process::Command;
 
 #[test]
 fn test_command_help_is_display_help() {
@@ -44,12 +43,8 @@ def hello():
     );
     let config_dir = env.path();
 
-    let output = Command::new("cargo")
-        .args([
-            "run",
-            "--",
-            "--config-dir",
-            config_dir.to_str().unwrap(),
+    let output = run_llman(
+        &[
             "tool",
             "clean-useless-comments",
             "--config",
@@ -57,10 +52,10 @@ def hello():
             "--yes",
             "--force",
             test_file.to_str().unwrap(),
-        ])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .output()
-        .expect("Failed to run command");
+        ],
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+        config_dir,
+    );
 
     assert!(output.status.success());
     let updated = std::fs::read_to_string(&test_file).expect("Failed to read updated file");
@@ -82,12 +77,8 @@ def hello():
     let config_dir = env.path();
     let missing_config = env.path().join("missing_config.yaml");
 
-    let output = Command::new("cargo")
-        .args([
-            "run",
-            "--",
-            "--config-dir",
-            config_dir.to_str().unwrap(),
+    let output = run_llman(
+        &[
             "tool",
             "clean-useless-comments",
             "--config",
@@ -95,10 +86,10 @@ def hello():
             "--yes",
             "--force",
             test_file.to_str().unwrap(),
-        ])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .output()
-        .expect("Failed to run command");
+        ],
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+        config_dir,
+    );
 
     assert!(output.status.success());
     let updated = std::fs::read_to_string(&test_file).expect("Failed to read updated file");
@@ -134,12 +125,8 @@ def hello():
     let config_dir = env.path();
     let missing_config = env.path().join("missing_config.yaml");
 
-    let output = Command::new("cargo")
-        .args([
-            "run",
-            "--",
-            "--config-dir",
-            config_dir.to_str().unwrap(),
+    let output = run_llman(
+        &[
             "tool",
             "clean-useless-comments",
             "--config",
@@ -147,10 +134,10 @@ def hello():
             "--yes",
             "--force",
             test_file.to_str().unwrap(),
-        ])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .output()
-        .expect("Failed to run command");
+        ],
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+        config_dir,
+    );
 
     assert!(output.status.success());
     let updated = std::fs::read_to_string(&test_file).expect("Failed to read updated file");

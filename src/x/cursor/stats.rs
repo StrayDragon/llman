@@ -18,6 +18,7 @@ use diesel::sqlite::SqliteConnection;
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Args, Debug, Clone)]
 pub struct CursorStatsArgs {
@@ -52,7 +53,7 @@ pub fn run_stats(args: &CursorStatsArgs) -> Result<()> {
 
         let scan_workspace_db = workspace_db.clone();
         let scan_global_db = global_db.clone();
-        let scan_fn: ScanFn = Arc::new(move |request, tx| {
+        let scan_fn: ScanFn = Arc::new(move |request, tx, cancel| {
             let tx_progress = tx.clone();
             let mut report = move |progress: CursorScanProgress| {
                 let CursorScanProgress::Composers { done, total } = progress;
@@ -68,6 +69,7 @@ pub fn run_stats(args: &CursorStatsArgs) -> Result<()> {
                 &scan_global_db,
                 &request.cwd,
                 Some(&mut report),
+                Some(cancel.as_ref()),
             )?;
 
             let time_range = parse_time_range(&request.range, Utc::now())?;
@@ -102,7 +104,7 @@ pub fn run_stats(args: &CursorStatsArgs) -> Result<()> {
         id,
     };
 
-    let sessions = load_cursor_sessions(&workspace_db, &global_db, &cwd, None)?;
+    let sessions = load_cursor_sessions(&workspace_db, &global_db, &cwd, None, None)?;
     let sessions = filter_sessions_v1(&sessions, &query);
 
     let view = match query.view {
@@ -182,6 +184,7 @@ fn load_cursor_sessions(
     global_db: &std::path::Path,
     cwd: &std::path::Path,
     mut progress: Option<&mut dyn FnMut(CursorScanProgress)>,
+    cancel: Option<&AtomicBool>,
 ) -> Result<Vec<SessionRecord>> {
     let composer_data = read_composer_data(workspace_db)?;
     let mut global_conn = connect_sqlite_ro(global_db)
@@ -192,6 +195,9 @@ fn load_cursor_sessions(
 
     let mut sessions = Vec::with_capacity(total);
     for composer in composer_data.all_composers {
+        if cancel.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+            return Ok(Vec::new());
+        }
         done = done.saturating_add(1);
         if let Some(progress) = progress.as_deref_mut() {
             progress(CursorScanProgress::Composers { done, total });
@@ -467,7 +473,7 @@ mod tests {
 
         let cwd = std::path::PathBuf::from("/p");
         let sessions =
-            load_cursor_sessions(&workspace_db, &global_db, &cwd, None).expect("sessions");
+            load_cursor_sessions(&workspace_db, &global_db, &cwd, None, None).expect("sessions");
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].id.0, "composer:c1");
         assert_eq!(sessions[0].token_usage.total, Some(22));
@@ -490,7 +496,7 @@ mod tests {
 
         let cwd = std::path::PathBuf::from("/p");
         let sessions =
-            load_cursor_sessions(&workspace_db, &global_db, &cwd, None).expect("sessions");
+            load_cursor_sessions(&workspace_db, &global_db, &cwd, None, None).expect("sessions");
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].token_usage.total, None);
         assert!(sessions[0].end_ts.timestamp_millis() > 0);

@@ -1,36 +1,7 @@
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+mod common;
+
+use common::{run_llman, write_claude_code_config};
 use tempfile::TempDir;
-
-fn manifest_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")
-}
-
-fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path) -> Output {
-    Command::new("cargo")
-        .args([
-            "run",
-            "--quiet",
-            "--bin",
-            "llman",
-            "--manifest-path",
-            manifest_path().to_str().expect("manifest path"),
-            "--",
-            "--config-dir",
-            config_dir.to_str().expect("config dir"),
-        ])
-        .args(args)
-        .current_dir(work_dir)
-        .output()
-        .expect("Failed to run llman command")
-}
-
-fn write_claude_code_config(config_dir: &Path, content: &str) {
-    fs::create_dir_all(config_dir).expect("create config dir");
-    let config_path = config_dir.join("claude-code.toml");
-    fs::write(config_path, content).expect("write claude-code.toml");
-}
 
 #[test]
 fn claude_code_account_env_emits_sorted_injection_statements_with_escaping() {

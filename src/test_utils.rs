@@ -57,6 +57,12 @@ impl TestProcess {
     }
 }
 
+impl Default for TestProcess {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for TestProcess {
     fn drop(&mut self) {
         for (key, previous) in self.original_vars.drain() {

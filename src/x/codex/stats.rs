@@ -20,6 +20,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Args, Debug, Clone)]
 pub struct CodexStatsArgs {
@@ -52,7 +53,7 @@ pub fn run_stats(args: &CodexStatsArgs) -> Result<()> {
         };
 
         let scan_state_db = state_db.clone();
-        let scan_fn: ScanFn = Arc::new(move |request, tx| {
+        let scan_fn: ScanFn = Arc::new(move |request, tx, cancel| {
             let tx_progress = tx.clone();
             let mut report = move |progress: CodexScanProgress| {
                 let CodexScanProgress::Breakdown { done, total } = progress;
@@ -63,8 +64,12 @@ pub fn run_stats(args: &CodexStatsArgs) -> Result<()> {
                 }));
             };
 
-            let sessions =
-                load_codex_sessions(&scan_state_db, request.with_breakdown, Some(&mut report))?;
+            let sessions = load_codex_sessions(
+                &scan_state_db,
+                request.with_breakdown,
+                Some(&mut report),
+                Some(cancel.as_ref()),
+            )?;
 
             let time_range = parse_time_range(&request.range, Utc::now())?;
             let query = StatsQuery {
@@ -98,7 +103,7 @@ pub fn run_stats(args: &CodexStatsArgs) -> Result<()> {
         id,
     };
 
-    let sessions = load_codex_sessions(&state_db, args.with_breakdown, None)?;
+    let sessions = load_codex_sessions(&state_db, args.with_breakdown, None, None)?;
     let sessions = filter_sessions_v1(&sessions, &query);
 
     let view = match query.view {
@@ -203,6 +208,7 @@ fn load_codex_sessions(
     state_db: &Path,
     with_breakdown: bool,
     mut progress: Option<&mut dyn FnMut(CodexScanProgress)>,
+    cancel: Option<&AtomicBool>,
 ) -> Result<Vec<SessionRecord>> {
     let database_url = format!("file:{}?mode=ro", state_db.display());
     let mut connection = SqliteConnection::establish(&database_url)
@@ -248,6 +254,9 @@ fn load_codex_sessions(
 
     let mut sessions = Vec::with_capacity(rows.len());
     for row in rows {
+        if cancel.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+            return Ok(Vec::new());
+        }
         let created_at = Utc.timestamp_opt(row.created_at, 0).single();
         let end_ts = match Utc.timestamp_opt(row.updated_at, 0).single() {
             Some(ts) => ts,
@@ -443,13 +452,13 @@ CREATE TABLE threads (
         .expect("insert");
 
         // Without breakdown.
-        let sessions = load_codex_sessions(&db_path, false, None).unwrap();
+        let sessions = load_codex_sessions(&db_path, false, None, None).unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].token_usage.total, Some(9));
         assert_eq!(sessions[0].token_usage.input, None);
 
         // With breakdown.
-        let sessions = load_codex_sessions(&db_path, true, None).unwrap();
+        let sessions = load_codex_sessions(&db_path, true, None, None).unwrap();
         assert_eq!(sessions[0].token_usage.total, Some(9));
         assert_eq!(sessions[0].token_usage.input, Some(1));
         assert_eq!(sessions[0].token_usage.cache, Some(2));
@@ -484,7 +493,7 @@ CREATE TABLE threads (
             .execute(&mut conn)
             .expect("insert");
 
-        let sessions = load_codex_sessions(&db_path, true, None).unwrap();
+        let sessions = load_codex_sessions(&db_path, true, None, None).unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].token_usage.total, Some(9));
         assert_eq!(sessions[0].token_usage.input, None);
@@ -529,7 +538,7 @@ CREATE TABLE threads (
         .execute(&mut conn)
         .expect("insert");
 
-        let sessions = load_codex_sessions(&db_path, true, None).unwrap();
+        let sessions = load_codex_sessions(&db_path, true, None, None).unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].token_usage.total, Some(9));
         assert_eq!(sessions[0].token_usage.input, Some(1));

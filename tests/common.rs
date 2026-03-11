@@ -1,6 +1,125 @@
 use std::fs;
-use std::path::Path;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 use tempfile::TempDir;
+
+#[allow(dead_code)]
+pub fn llman_bin() -> PathBuf {
+    PathBuf::from(env!("CARGO_BIN_EXE_llman"))
+}
+
+#[allow(dead_code)]
+pub fn llman_command(config_dir: &Path) -> Command {
+    let mut cmd = Command::new(llman_bin());
+    cmd.args(["--config-dir", config_dir.to_str().expect("config dir")]);
+    cmd
+}
+
+#[allow(dead_code)]
+pub fn prepare_work_and_config_dirs(root: &Path) -> (PathBuf, PathBuf) {
+    let work_dir = root.join("work");
+    fs::create_dir_all(&work_dir).expect("mkdir work");
+    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
+
+    let config_dir = root.join("config");
+    fs::create_dir_all(&config_dir).expect("mkdir config");
+
+    (work_dir, config_dir)
+}
+
+#[allow(dead_code)]
+pub fn write_claude_code_config(config_dir: &Path, content: &str) -> PathBuf {
+    fs::create_dir_all(config_dir).expect("create config dir");
+    let config_path = config_dir.join("claude-code.toml");
+    fs::write(&config_path, content).expect("write claude-code.toml");
+    config_path
+}
+
+#[allow(dead_code)]
+pub fn write_claude_code_sessions_index(project_dir: &Path, entries_json: &str) -> PathBuf {
+    let index_path = project_dir.join("sessions-index.json");
+    let index = format!(
+        r#"{{
+  "version": 1,
+  "entries": {entries_json},
+  "originalPath": "/ignored"
+}}"#
+    );
+    fs::write(&index_path, index).expect("write sessions-index");
+    index_path
+}
+
+#[allow(dead_code)]
+pub fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path) -> Output {
+    llman_command(config_dir)
+        .args(args)
+        .current_dir(work_dir)
+        .output()
+        .expect("run llman")
+}
+
+#[cfg(unix)]
+#[allow(dead_code)]
+pub fn llman_command_with_editor(config_dir: &Path, editor_raw: &str) -> Command {
+    let mut cmd = llman_command(config_dir);
+    cmd.env_remove("VISUAL").env("EDITOR", editor_raw);
+    cmd
+}
+
+#[cfg(unix)]
+#[allow(dead_code)]
+pub fn run_llman_with_editor(
+    args: &[&str],
+    work_dir: &Path,
+    config_dir: &Path,
+    editor_raw: &str,
+) -> Output {
+    llman_command_with_editor(config_dir, editor_raw)
+        .args(args)
+        .current_dir(work_dir)
+        .output()
+        .expect("run llman with editor")
+}
+
+#[cfg(unix)]
+#[allow(dead_code)]
+pub fn write_executable_script(path: &Path, content: &str) -> PathBuf {
+    fs::write(path, content).expect("write script");
+    let mut perms = fs::metadata(path).expect("metadata").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms).expect("chmod");
+    path.to_path_buf()
+}
+
+#[allow(dead_code)]
+pub fn assert_success(output: &Output) {
+    if output.status.success() {
+        return;
+    }
+    panic!(
+        "Command failed: {}\nstdout:\n{}\nstderr:\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[allow(dead_code)]
+pub fn git_head(work_dir: &Path) -> Option<String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", "HEAD"])
+        .current_dir(work_dir)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let head = String::from_utf8(output.stdout).ok()?;
+    let head = head.trim();
+    (!head.is_empty()).then(|| head.to_string())
+}
 
 /// Test constants for consistent test values
 #[allow(dead_code)]
@@ -133,6 +252,7 @@ impl TestEnvironment {
         Self { temp_dir, work_dir }
     }
 
+    #[allow(dead_code)]
     pub fn path(&self) -> &Path {
         &self.work_dir
     }

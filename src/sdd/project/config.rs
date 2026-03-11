@@ -1,6 +1,7 @@
 use crate::config_schema::{
     ConfigSchemaKind, LLMANSPEC_SCHEMA_URL, prepend_schema_header, validate_yaml_value,
 };
+use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::shared::constants::LLMANSPEC_CONFIG_FILE;
 use anyhow::{Result, anyhow};
 use schemars::JsonSchema;
@@ -135,7 +136,8 @@ pub fn write_config(llmanspec_dir: &Path, config: &SddConfig) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(&path, content).map_err(|err| anyhow!(t!("sdd.config.write_failed", error = err)))?;
+    atomic_write_with_mode(&path, content.as_bytes(), None)
+        .map_err(|err| anyhow!(t!("sdd.config.write_failed", error = err)))?;
     Ok(())
 }
 
