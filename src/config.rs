@@ -3,6 +3,7 @@ use anyhow::{Result, anyhow};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 pub const ENV_CONFIG_DIR: &str = "LLMAN_CONFIG_DIR";
 pub const ENV_LANG: &str = "LLMAN_LANG";
@@ -15,6 +16,32 @@ pub const CODEX_EXTENSION: &str = "md";
 pub const DEFAULT_EXTENSION: &str = "txt";
 pub const PROMPT_DIR: &str = "prompt";
 pub const TARGET_CURSOR_RULES_DIR: &str = ".cursor/rules";
+
+static RUNTIME_CONFIG_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+pub(crate) struct ConfigDirOverrideGuard {
+    previous: Option<PathBuf>,
+}
+
+pub(crate) fn override_runtime_config_dir(config_dir: PathBuf) -> ConfigDirOverrideGuard {
+    let mut slot = RUNTIME_CONFIG_DIR.lock().unwrap_or_else(|e| e.into_inner());
+    let previous = slot.replace(config_dir);
+    ConfigDirOverrideGuard { previous }
+}
+
+impl Drop for ConfigDirOverrideGuard {
+    fn drop(&mut self) {
+        let mut slot = RUNTIME_CONFIG_DIR.lock().unwrap_or_else(|e| e.into_inner());
+        *slot = self.previous.take();
+    }
+}
+
+fn runtime_config_dir() -> Option<PathBuf> {
+    RUNTIME_CONFIG_DIR
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
 
 fn rule_extension_for_app(app: &str) -> &'static str {
     match app {
@@ -68,8 +95,16 @@ fn expand_tilde_path(path: &Path) -> Result<PathBuf> {
 }
 
 pub fn resolve_config_dir(cli_override: Option<&Path>) -> Result<PathBuf> {
+    if let Some(path) = cli_override {
+        return resolve_config_dir_with(Some(path), None);
+    }
+
+    if let Some(runtime_override) = runtime_config_dir() {
+        return Ok(runtime_override);
+    }
+
     let env_override = env::var(ENV_CONFIG_DIR).ok();
-    resolve_config_dir_with(cli_override, env_override.as_deref())
+    resolve_config_dir_with(None, env_override.as_deref())
 }
 
 pub fn resolve_config_dir_with(

@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::Path;
@@ -97,6 +98,6 @@ pub fn update_file_with_markers(
     {
         fs::create_dir_all(parent)?;
     }
-    fs::write(path, content)?;
+    atomic_write_with_mode(path, content.as_bytes(), None)?;
     Ok(())
 }

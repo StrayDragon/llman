@@ -1,24 +1,12 @@
+mod common;
+
+use common::{llman_command, prepare_work_and_config_dirs, run_llman};
 use diesel::prelude::*;
 use diesel::sql_query;
 use diesel::sqlite::SqliteConnection;
 use serde_json::Value;
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
 use tempfile::TempDir;
-
-fn llman_bin() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_llman"))
-}
-
-fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path) -> Output {
-    Command::new(llman_bin())
-        .args(["--config-dir", config_dir.to_str().expect("config dir")])
-        .args(args)
-        .current_dir(work_dir)
-        .output()
-        .expect("run llman")
-}
 
 fn create_state_db(path: &std::path::Path) {
     let database_url = path.to_string_lossy().to_string();
@@ -63,11 +51,7 @@ fn insert_thread(
 #[test]
 fn codex_stats_summary_json_filters_by_cwd() {
     let temp = TempDir::new().expect("temp dir");
-    let work_dir = temp.path().join("work");
-    fs::create_dir_all(&work_dir).expect("mkdir work");
-    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
-    let config_dir = temp.path().join("config");
-    fs::create_dir_all(&config_dir).expect("mkdir config");
+    let (work_dir, config_dir) = prepare_work_and_config_dirs(temp.path());
 
     let db_path = temp.path().join("state_1.sqlite");
     create_state_db(&db_path);
@@ -108,11 +92,7 @@ fn codex_stats_summary_json_filters_by_cwd() {
 #[test]
 fn codex_stats_session_json_with_breakdown() {
     let temp = TempDir::new().expect("temp dir");
-    let work_dir = temp.path().join("work");
-    fs::create_dir_all(&work_dir).expect("mkdir work");
-    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
-    let config_dir = temp.path().join("config");
-    fs::create_dir_all(&config_dir).expect("mkdir config");
+    let (work_dir, config_dir) = prepare_work_and_config_dirs(temp.path());
 
     let rollout = temp.path().join("rollout.jsonl");
     fs::write(
@@ -173,11 +153,7 @@ fn codex_stats_session_json_with_breakdown() {
 #[test]
 fn codex_stats_table_color_auto_has_no_ansi_when_captured() {
     let temp = TempDir::new().expect("temp dir");
-    let work_dir = temp.path().join("work");
-    fs::create_dir_all(&work_dir).expect("mkdir work");
-    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
-    let config_dir = temp.path().join("config");
-    fs::create_dir_all(&config_dir).expect("mkdir config");
+    let (work_dir, config_dir) = prepare_work_and_config_dirs(temp.path());
 
     let db_path = temp.path().join("state_1.sqlite");
     create_state_db(&db_path);
@@ -219,11 +195,7 @@ fn codex_stats_table_color_auto_has_no_ansi_when_captured() {
 #[test]
 fn codex_stats_table_color_always_includes_ansi_when_captured() {
     let temp = TempDir::new().expect("temp dir");
-    let work_dir = temp.path().join("work");
-    fs::create_dir_all(&work_dir).expect("mkdir work");
-    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
-    let config_dir = temp.path().join("config");
-    fs::create_dir_all(&config_dir).expect("mkdir config");
+    let (work_dir, config_dir) = prepare_work_and_config_dirs(temp.path());
 
     let db_path = temp.path().join("state_1.sqlite");
     create_state_db(&db_path);
@@ -265,11 +237,7 @@ fn codex_stats_table_color_always_includes_ansi_when_captured() {
 #[test]
 fn codex_stats_json_is_never_colored() {
     let temp = TempDir::new().expect("temp dir");
-    let work_dir = temp.path().join("work");
-    fs::create_dir_all(&work_dir).expect("mkdir work");
-    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
-    let config_dir = temp.path().join("config");
-    fs::create_dir_all(&config_dir).expect("mkdir config");
+    let (work_dir, config_dir) = prepare_work_and_config_dirs(temp.path());
 
     let db_path = temp.path().join("state_1.sqlite");
     create_state_db(&db_path);
@@ -318,11 +286,7 @@ fn codex_stats_table_no_color_env_disables_ansi_in_tty_auto_mode() {
     use std::io::Read;
 
     let temp = TempDir::new().expect("temp dir");
-    let work_dir = temp.path().join("work");
-    fs::create_dir_all(&work_dir).expect("mkdir work");
-    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
-    let config_dir = temp.path().join("config");
-    fs::create_dir_all(&config_dir).expect("mkdir config");
+    let (work_dir, config_dir) = prepare_work_and_config_dirs(temp.path());
 
     let db_path = temp.path().join("state_1.sqlite");
     create_state_db(&db_path);
@@ -333,9 +297,8 @@ fn codex_stats_table_no_color_env_disables_ansi_in_tty_auto_mode() {
         insert_thread(&mut conn, "t1", &work_dir.to_string_lossy(), 9, None);
     }
 
-    let mut cmd = Command::new(llman_bin());
+    let mut cmd = llman_command(&config_dir);
     cmd.env("NO_COLOR", "1")
-        .args(["--config-dir", config_dir.to_str().expect("config dir")])
         .args([
             "x",
             "codex",

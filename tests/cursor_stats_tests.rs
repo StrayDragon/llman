@@ -1,24 +1,12 @@
+mod common;
+
+use common::{prepare_work_and_config_dirs, run_llman};
 use diesel::prelude::*;
 use diesel::sql_query;
 use diesel::sqlite::SqliteConnection;
 use serde_json::Value;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::Path;
 use tempfile::TempDir;
-
-fn llman_bin() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_llman"))
-}
-
-fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path) -> Output {
-    Command::new(llman_bin())
-        .args(["--config-dir", config_dir.to_str().expect("config dir")])
-        .args(args)
-        .current_dir(work_dir)
-        .output()
-        .expect("run llman")
-}
 
 fn create_workspace_db(path: &Path, composer_data_json: &str) {
     let database_url = path.to_string_lossy().to_string();
@@ -55,11 +43,7 @@ fn create_global_db(path: &Path, rows: Vec<(&str, &str)>) {
 #[test]
 fn cursor_stats_summary_json_aggregates_composer_bubbles() {
     let temp = TempDir::new().expect("temp dir");
-    let work_dir = temp.path().join("work");
-    fs::create_dir_all(&work_dir).expect("mkdir work");
-    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
-    let config_dir = temp.path().join("config");
-    fs::create_dir_all(&config_dir).expect("mkdir config");
+    let (work_dir, config_dir) = prepare_work_and_config_dirs(temp.path());
 
     let workspace_db = temp.path().join("state.vscdb");
     let global_db = temp.path().join("global.vscdb");
@@ -119,11 +103,7 @@ fn cursor_stats_summary_json_aggregates_composer_bubbles() {
 #[test]
 fn cursor_stats_session_json_by_id() {
     let temp = TempDir::new().expect("temp dir");
-    let work_dir = temp.path().join("work");
-    fs::create_dir_all(&work_dir).expect("mkdir work");
-    let work_dir = fs::canonicalize(&work_dir).expect("canonicalize work");
-    let config_dir = temp.path().join("config");
-    fs::create_dir_all(&config_dir).expect("mkdir config");
+    let (work_dir, config_dir) = prepare_work_and_config_dirs(temp.path());
 
     let workspace_db = temp.path().join("state.vscdb");
     let global_db = temp.path().join("global.vscdb");

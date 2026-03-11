@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
@@ -152,7 +153,7 @@ where
         return Err(anyhow!(msg_phrase_mismatch(direction)));
     }
 
-    let mut summary = apply_plan(&plan, &created_date)?;
+    let mut summary = apply_plan(direction, &plan, &created_date)?;
     summary.warnings = plan.warnings.clone();
 
     println!(
@@ -208,6 +209,8 @@ fn build_plan(root: &Path, direction: Direction) -> Result<MigrationPlan> {
             source_root.display()
         )));
     }
+    ensure_not_symlink(direction, &source_root)?;
+    ensure_not_symlink(direction, &target_root)?;
 
     let mut files = Vec::new();
     if source_root.join("specs").exists() {
@@ -294,6 +297,8 @@ fn collect_dir_files(
     dir: &Path,
     out: &mut Vec<PlannedFile>,
 ) -> Result<()> {
+    ensure_not_symlink(direction, dir)?;
+
     for entry in read_dir_sorted(dir)? {
         let path = entry.path();
         let metadata = fs::symlink_metadata(&path)?;
@@ -422,10 +427,15 @@ fn validate_planned_targets(direction: Direction, files: &[PlannedFile]) -> Resu
     Err(anyhow!(msg_conflicts(direction, &conflicts)))
 }
 
-fn apply_plan(plan: &MigrationPlan, created_date: &str) -> Result<MigrationSummary> {
+fn apply_plan(
+    direction: Direction,
+    plan: &MigrationPlan,
+    created_date: &str,
+) -> Result<MigrationSummary> {
     let mut summary = MigrationSummary::default();
 
     for file in &plan.files {
+        ensure_no_symlink_prefix(direction, &plan.target_root, &file.target)?;
         if let Some(parent) = file.target.parent() {
             fs::create_dir_all(parent)
                 .with_context(|| format!("create directory {}", parent.display()))?;
@@ -448,18 +458,19 @@ fn apply_plan(plan: &MigrationPlan, created_date: &str) -> Result<MigrationSumma
                 let content = fs::read_to_string(source)
                     .with_context(|| format!("read source spec {}", source.display()))?;
                 let updated = ensure_llman_frontmatter(&content)?;
-                fs::write(&file.target, updated)
+                atomic_write_with_mode(&file.target, updated.as_bytes(), None)
                     .with_context(|| format!("write transformed spec {}", file.target.display()))?;
                 summary.copied_files += 1;
             }
             FileOpKind::WriteOpenSpecConfig => {
-                fs::write(&file.target, format!("schema: {}\n", OPENSPEC_SCHEMA))
+                let content = format!("schema: {}\n", OPENSPEC_SCHEMA);
+                atomic_write_with_mode(&file.target, content.as_bytes(), None)
                     .with_context(|| format!("write {}", file.target.display()))?;
                 summary.generated_files += 1;
             }
             FileOpKind::WriteOpenSpecChangeMetadata => {
                 let content = format!("schema: {}\ncreated: {}\n", OPENSPEC_SCHEMA, created_date);
-                fs::write(&file.target, content)
+                atomic_write_with_mode(&file.target, content.as_bytes(), None)
                     .with_context(|| format!("write {}", file.target.display()))?;
                 summary.generated_files += 1;
             }
@@ -728,6 +739,34 @@ fn ensure_target_within_root(root: &Path, target: &Path) -> Result<()> {
         .strip_prefix(root)
         .map_err(|_| anyhow!("target path escapes root: {}", target.display()))?;
     ensure_safe_relative_path(relative)
+}
+
+fn ensure_not_symlink(direction: Direction, path: &Path) -> Result<()> {
+    if let Ok(metadata) = fs::symlink_metadata(path)
+        && metadata.file_type().is_symlink()
+    {
+        return Err(anyhow!(msg_symlink_unsupported(direction, path.display())));
+    }
+    Ok(())
+}
+
+fn ensure_no_symlink_prefix(direction: Direction, root: &Path, target: &Path) -> Result<()> {
+    ensure_not_symlink(direction, root)?;
+
+    let relative = target
+        .strip_prefix(root)
+        .map_err(|_| anyhow!("target path escapes root: {}", target.display()))?;
+
+    let mut cur = root.to_path_buf();
+    for component in relative.components() {
+        let Component::Normal(name) = component else {
+            continue;
+        };
+        cur.push(name);
+        ensure_not_symlink(direction, &cur)?;
+    }
+
+    Ok(())
 }
 
 fn is_interactive_terminal() -> bool {
@@ -1171,5 +1210,36 @@ mod tests {
 
         assert!(delete_result.deleted_source);
         assert!(!dir_delete.path().join("openspec").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn import_rejects_symlinked_target_subdir() {
+        use std::os::unix::fs as unix_fs;
+
+        init_locale();
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        create_open_spec_source(root);
+
+        fs::create_dir_all(root.join("llmanspec")).expect("create llmanspec");
+        let outside = root.join("outside");
+        fs::create_dir_all(&outside).expect("create outside");
+        unix_fs::symlink(&outside, root.join("llmanspec/specs")).expect("create symlink");
+
+        let prompt = TestPromptAdapter::approve_keep_source();
+        let err = run_with_prompt_adapter(
+            InteropArgs {
+                style: "openspec".to_string(),
+                path: Some(root.to_path_buf()),
+            },
+            Direction::Import,
+            &prompt,
+            always_interactive,
+        )
+        .expect_err("must reject symlinked target path");
+
+        let text = err.to_string();
+        assert!(text.contains("symlink") || text.contains("Symlink"));
     }
 }

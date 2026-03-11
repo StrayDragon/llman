@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use crate::x::sdd_eval::playbook;
 use crate::x::sdd_eval::process::{
     CapturedOutput, run_command_capture_tail, should_insert_stderr_separator,
@@ -72,6 +73,8 @@ pub struct PermissionRecord {
     pub option_kind: String,
     pub option_name: String,
 }
+
+const MAX_TEXT_FILE_BYTES: usize = 4 * 1024 * 1024;
 
 impl VariantAcpMetricsV1 {
     pub fn new_now() -> Self {
@@ -415,10 +418,13 @@ impl acp::Client for EvalClient {
         args: acp::WriteTextFileRequest,
     ) -> acp::Result<acp::WriteTextFileResponse> {
         let path = self.validate_path(&args.path)?;
+        validate_write_text_content_size(&args.content)?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(acp::Error::into_internal_error)?;
         }
-        std::fs::write(&path, args.content.as_bytes()).map_err(acp::Error::into_internal_error)?;
+        atomic_write_with_mode(&path, args.content.as_bytes(), None).map_err(|err| {
+            acp::Error::into_internal_error(std::io::Error::other(err.to_string()))
+        })?;
 
         self.metrics
             .lock()
@@ -439,14 +445,13 @@ impl acp::Client for EvalClient {
         let path = self.validate_path(&args.path)?;
         let wants_sliced = args.line.is_some() || args.limit.is_some();
 
-        const MAX_READ_TEXT_BYTES: u64 = 4 * 1024 * 1024;
         let file_len = std::fs::metadata(&path)
             .map(|m| m.len())
             .map_err(acp::Error::into_internal_error)?;
-        if !wants_sliced && file_len > MAX_READ_TEXT_BYTES {
+        if !wants_sliced && file_len > (MAX_TEXT_FILE_BYTES as u64) {
             let msg = format!(
                 "file is too large to read without line/limit (size={} bytes, max={} bytes)",
-                file_len, MAX_READ_TEXT_BYTES
+                file_len, MAX_TEXT_FILE_BYTES
             );
             return Err(acp::Error::invalid_params().data(serde_json::json!({ "error": msg })));
         }
@@ -509,10 +514,10 @@ impl acp::Client for EvalClient {
 
                 let line = String::from_utf8_lossy(&buf);
                 let additional = line.len().saturating_add(if out.is_empty() { 0 } else { 1 });
-                if out.len().saturating_add(additional) > (MAX_READ_TEXT_BYTES as usize) {
+                if out.len().saturating_add(additional) > MAX_TEXT_FILE_BYTES {
                     return Err(ReadTextFileError::TooLarge(format!(
                         "read_text_file output exceeds max={} bytes; narrow the requested range",
-                        MAX_READ_TEXT_BYTES
+                        MAX_TEXT_FILE_BYTES
                     )));
                 }
 
@@ -738,28 +743,16 @@ struct TerminalRecord {
 
 pub(crate) fn is_allowed_command(command: &str) -> bool {
     // NOTE: This is a lightweight guard (command-name allowlist) for sdd-eval runs.
-    // It is NOT an OS-level sandbox. Arguments may still influence filesystem/network
-    // behavior (e.g. `git -C ...`, interpreters, absolute paths). Treat playbooks and
-    // agents as trusted inputs in v1, or add stronger isolation.
+    // It is NOT an OS-level sandbox. Direct interpreters are intentionally excluded so
+    // the agent cannot trivially execute ad-hoc code via `python -c` / `node -e`.
+    // Build/test tools remain allowed because sdd-eval needs to exercise the workspace.
     let name = Path::new(command)
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or(command);
     matches!(
         name,
-        "git"
-            | "rg"
-            | "cargo"
-            | "just"
-            | "npm"
-            | "pnpm"
-            | "yarn"
-            | "node"
-            | "python"
-            | "python3"
-            | "pytest"
-            | "go"
-            | "make"
+        "git" | "rg" | "cargo" | "just" | "npm" | "pnpm" | "yarn" | "pytest" | "go" | "make"
     )
 }
 
@@ -781,6 +774,11 @@ pub(crate) fn truncate_tail_to_byte_limit(s: &str, limit: usize) -> (String, boo
 }
 
 pub(crate) fn has_symlink_prefix(workspace_root: &Path, requested: &Path) -> bool {
+    if let Ok(meta) = std::fs::symlink_metadata(workspace_root)
+        && meta.file_type().is_symlink()
+    {
+        return true;
+    }
     let mut cur = workspace_root.to_path_buf();
     let Ok(rel) = requested.strip_prefix(workspace_root) else {
         return true;
@@ -810,4 +808,53 @@ fn writeln_lock(file: &Arc<Mutex<File>>, line: String) -> std::io::Result<()> {
 
 fn json_escape(s: &str) -> String {
     serde_json::to_string(s).unwrap_or_else(|_| "\"<unprintable>\"".to_string())
+}
+
+fn validate_write_text_content_size(content: &str) -> acp::Result<()> {
+    if content.len() <= MAX_TEXT_FILE_BYTES {
+        return Ok(());
+    }
+
+    let msg = format!(
+        "file content is too large to write (size={} bytes, max={} bytes)",
+        content.len(),
+        MAX_TEXT_FILE_BYTES
+    );
+    Err(acp::Error::invalid_params().data(serde_json::json!({ "error": msg })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn direct_interpreters_are_not_allowlisted() {
+        assert!(is_allowed_command("git"));
+        assert!(is_allowed_command("cargo"));
+        assert!(!is_allowed_command("python"));
+        assert!(!is_allowed_command("/usr/bin/python3"));
+        assert!(!is_allowed_command("node"));
+    }
+
+    #[test]
+    fn oversized_writes_are_rejected() {
+        assert!(validate_write_text_content_size("ok").is_ok());
+        assert!(validate_write_text_content_size(&"a".repeat(MAX_TEXT_FILE_BYTES + 1)).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_prefix_detects_symlinked_root() {
+        use std::os::unix::fs as unix_fs;
+        use tempfile::tempdir;
+
+        let dir = tempdir().expect("tempdir");
+        let real_root = dir.path().join("real-root");
+        std::fs::create_dir_all(&real_root).expect("create real root");
+
+        let link_root = dir.path().join("link-root");
+        unix_fs::symlink(&real_root, &link_root).expect("symlink root");
+
+        assert!(has_symlink_prefix(&link_root, &link_root.join("file.txt")));
+    }
 }

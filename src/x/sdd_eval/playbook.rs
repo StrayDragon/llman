@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use anyhow::{Context, Result, anyhow, bail};
 use indexmap::IndexMap;
 use schemars::JsonSchema;
@@ -13,7 +14,7 @@ pub fn write_template(path: &Path, force: bool) -> Result<()> {
         fs::create_dir_all(parent)
             .with_context(|| format!("create playbook dir {}", parent.display()))?;
     }
-    fs::write(path, default_template())
+    atomic_write_with_mode(path, default_template().as_bytes(), None)
         .with_context(|| format!("write playbook {}", path.display()))?;
     Ok(())
 }

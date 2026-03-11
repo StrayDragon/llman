@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -51,7 +52,8 @@ impl AgentManifestV1 {
 
     pub fn write_to_path(&self, path: &Path) -> Result<()> {
         let raw = toml::to_string_pretty(self).context("serialize agent.toml")?;
-        fs::write(path, raw).with_context(|| format!("write {}", path.display()))?;
+        atomic_write_with_mode(path, raw.as_bytes(), None)
+            .with_context(|| format!("write {}", path.display()))?;
         Ok(())
     }
 }

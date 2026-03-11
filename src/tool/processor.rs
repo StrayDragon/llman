@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use crate::tool::command::CleanUselessCommentsArgs;
 use crate::tool::config::Config;
 use crate::tool::tree_sitter_processor::{TreeSitterProcessor, compile_preserve_regexes};
@@ -198,37 +199,20 @@ impl CommentProcessor {
                 } else {
                     cwd.join(file)
                 };
-                if candidate.exists() {
-                    if candidate.is_file() {
-                        if !git_only
-                            || tracked_files
-                                .map(|tracked| self.is_tracked(&candidate, cwd, tracked))
-                                .unwrap_or(false)
-                        {
-                            files.push(candidate.clone());
-                        } else {
-                            eprintln!(
-                                "{}",
-                                t!(
-                                    "tool.clean_comments.processor.file_not_tracked",
-                                    path = candidate.display()
-                                )
-                            );
-                        }
-                    } else {
-                        eprintln!(
-                            "{}",
-                            t!(
-                                "tool.clean_comments.processor.path_skipped_not_file",
-                                path = candidate.display()
-                            )
-                        );
-                    }
+                let Some(candidate) = self.validate_explicit_file_path(&candidate)? else {
+                    continue;
+                };
+                if !git_only
+                    || tracked_files
+                        .map(|tracked| self.is_tracked(&candidate, cwd, tracked))
+                        .unwrap_or(false)
+                {
+                    files.push(candidate);
                 } else {
                     eprintln!(
                         "{}",
                         t!(
-                            "tool.clean_comments.processor.file_not_found",
+                            "tool.clean_comments.processor.file_not_tracked",
                             path = candidate.display()
                         )
                     );
@@ -243,6 +227,12 @@ impl CommentProcessor {
         for result in walker.build() {
             match result {
                 Ok(entry) => {
+                    if entry
+                        .file_type()
+                        .is_some_and(|file_type| file_type.is_symlink())
+                    {
+                        continue;
+                    }
                     let path = entry.path();
                     if path.is_file() {
                         let relative = path.strip_prefix(walk_root).unwrap_or(path);
@@ -267,6 +257,59 @@ impl CommentProcessor {
         }
 
         Ok(files)
+    }
+
+    fn validate_explicit_file_path(&self, candidate: &Path) -> Result<Option<PathBuf>> {
+        if !candidate.exists() {
+            eprintln!(
+                "{}",
+                t!(
+                    "tool.clean_comments.processor.file_not_found",
+                    path = candidate.display()
+                )
+            );
+            return Ok(None);
+        }
+
+        let metadata = fs::symlink_metadata(candidate)?;
+        if metadata.file_type().is_symlink() {
+            eprintln!(
+                "{}",
+                t!(
+                    "tool.clean_comments.processor.path_symlink_skipped",
+                    path = candidate.display()
+                )
+            );
+            return Ok(None);
+        }
+
+        if !metadata.is_file() {
+            eprintln!(
+                "{}",
+                t!(
+                    "tool.clean_comments.processor.path_skipped_not_file",
+                    path = candidate.display()
+                )
+            );
+            return Ok(None);
+        }
+
+        let normalized = match candidate.canonicalize() {
+            Ok(path) => path,
+            Err(error) => {
+                eprintln!(
+                    "{}",
+                    t!(
+                        "tool.clean_comments.processor.path_resolve_failed",
+                        path = candidate.display(),
+                        error = error
+                    )
+                );
+                return Ok(None);
+            }
+        };
+
+        Ok(Some(normalized))
     }
 
     fn is_tracked(&self, path: &Path, cwd: &Path, tracked_files: &HashSet<PathBuf>) -> bool {
@@ -357,6 +400,14 @@ impl CommentProcessor {
         file_path: &Path,
         clean_config: &crate::tool::config::CleanUselessCommentsConfig,
     ) -> Result<FileProcessingResult> {
+        let metadata = fs::symlink_metadata(file_path)?;
+        if metadata.file_type().is_symlink() {
+            return Err(anyhow!(
+                "refusing to modify symlink path: {}",
+                file_path.display()
+            ));
+        }
+
         let content = fs::read_to_string(file_path)?;
         let language = self.detect_language(file_path);
 
@@ -367,7 +418,7 @@ impl CommentProcessor {
             let has_changes = new_content != content;
 
             if !self.effective_dry_run() && has_changes {
-                fs::write(file_path, new_content)?;
+                atomic_write_with_mode(file_path, new_content.as_bytes(), None)?;
             }
 
             Ok(FileProcessingResult {
@@ -697,11 +748,77 @@ mod tests {
             args,
             tree_sitter_processor: None,
         };
-        let result = processor.process().unwrap();
+        let result = processor.process_with_cwd(work_dir).unwrap();
         assert_eq!(result.errors, 1);
         assert!(result.files_changed.is_empty());
 
         let actual = std::fs::read_to_string(&file_path).unwrap();
         assert_eq!(actual, original);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_symlink_input_is_skipped() {
+        use std::os::unix::fs as unix_fs;
+
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        let work_dir = root.join("work");
+        std::fs::create_dir_all(&work_dir).unwrap();
+
+        let target = root.join("target.py");
+        let original = "# short\n\ndef test():\n    pass\n";
+        std::fs::write(&target, original).unwrap();
+
+        let link = work_dir.join("linked.py");
+        unix_fs::symlink(&target, &link).unwrap();
+
+        let config = Config {
+            version: "0.1".to_string(),
+            tools: ToolsConfig {
+                rm_useless_dirs: None,
+                clean_useless_comments: Some(CleanUselessCommentsConfig {
+                    scope: ScopeConfig {
+                        include: vec!["**/*.py".to_string()],
+                        exclude: Vec::new(),
+                    },
+                    lang_rules: LanguageRules {
+                        python: Some(LanguageSpecificRules {
+                            single_line_comments: Some(true),
+                            min_comment_length: Some(100),
+                            ..Default::default()
+                        }),
+                        javascript: None,
+                        typescript: None,
+                        rust: None,
+                        go: None,
+                    },
+                    global_rules: None,
+                    safety: None,
+                    output: None,
+                }),
+            },
+        };
+
+        let args = CleanUselessCommentsArgs {
+            config: None,
+            dry_run: false,
+            yes: true,
+            interactive: false,
+            force: true,
+            verbose: false,
+            git_only: false,
+            files: vec![link],
+        };
+
+        let mut processor = CommentProcessor {
+            config,
+            args,
+            tree_sitter_processor: None,
+        };
+        let result = processor.process_with_cwd(&work_dir).unwrap();
+        assert_eq!(result.errors, 0);
+        assert!(result.files_changed.is_empty());
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), original);
     }
 }

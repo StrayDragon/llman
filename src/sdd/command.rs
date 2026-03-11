@@ -575,6 +575,157 @@ pub enum ArchiveLegacySubcommand {
     },
 }
 
+impl SddLegacyCommands {
+    fn to_current(&self) -> SddCommands {
+        match self {
+            Self::Init { path, lang } => SddCommands::Init {
+                path: path.clone(),
+                lang: lang.clone(),
+            },
+            Self::Update { path } => SddCommands::Update { path: path.clone() },
+            Self::UpdateSkills {
+                all,
+                tool,
+                path,
+                no_interactive,
+                commands_only,
+                skills_only,
+            } => SddCommands::UpdateSkills {
+                all: *all,
+                tool: tool.clone(),
+                path: path.clone(),
+                no_interactive: *no_interactive,
+                commands_only: *commands_only,
+                skills_only: *skills_only,
+            },
+            Self::List {
+                specs,
+                changes,
+                sort,
+                json,
+                compact_json,
+            } => SddCommands::List {
+                specs: *specs,
+                changes: *changes,
+                sort: sort.clone(),
+                json: *json,
+                compact_json: *compact_json,
+            },
+            Self::Show {
+                item,
+                json,
+                compact_json,
+                meta_only,
+                item_type,
+                no_interactive,
+                deltas_only,
+                requirements_only,
+                requirements,
+                no_scenarios,
+                requirement,
+            } => SddCommands::Show {
+                item: item.clone(),
+                json: *json,
+                compact_json: *compact_json,
+                meta_only: *meta_only,
+                item_type: item_type.clone(),
+                no_interactive: *no_interactive,
+                deltas_only: *deltas_only,
+                requirements_only: *requirements_only,
+                requirements: *requirements,
+                no_scenarios: *no_scenarios,
+                requirement: *requirement,
+            },
+            Self::Validate {
+                item,
+                all,
+                changes,
+                specs,
+                item_type,
+                strict,
+                json,
+                compact_json,
+                no_interactive,
+                ab_report,
+            } => SddCommands::Validate {
+                item: item.clone(),
+                all: *all,
+                changes: *changes,
+                specs: *specs,
+                item_type: item_type.clone(),
+                strict: *strict,
+                json: *json,
+                compact_json: *compact_json,
+                no_interactive: *no_interactive,
+                ab_report: *ab_report,
+            },
+            Self::Archive {
+                change,
+                skip_specs,
+                dry_run,
+                force,
+                command,
+            } => SddCommands::Archive {
+                change: change.clone(),
+                skip_specs: *skip_specs,
+                dry_run: *dry_run,
+                pretty_ison: false,
+                force: *force,
+                command: command.as_ref().map(ArchiveLegacySubcommand::to_current),
+            },
+            Self::Import { style, path } => SddCommands::Import {
+                style: style.clone(),
+                path: path.clone(),
+            },
+            Self::Export { style, path } => SddCommands::Export {
+                style: style.clone(),
+                path: path.clone(),
+            },
+            Self::Migrate {
+                to_ison,
+                dry_run,
+                path,
+            } => SddCommands::Migrate {
+                to_ison: *to_ison,
+                dry_run: *dry_run,
+                path: path.clone(),
+            },
+        }
+    }
+}
+
+impl ArchiveLegacySubcommand {
+    fn to_current(&self) -> ArchiveSubcommand {
+        match self {
+            Self::Run {
+                change,
+                skip_specs,
+                dry_run,
+                force,
+            } => ArchiveSubcommand::Run {
+                change: change.clone(),
+                skip_specs: *skip_specs,
+                dry_run: *dry_run,
+                pretty_ison: false,
+                force: *force,
+            },
+            Self::Freeze {
+                before,
+                keep_recent,
+                dry_run,
+            } => ArchiveSubcommand::Freeze {
+                before: before.clone(),
+                keep_recent: *keep_recent,
+                dry_run: *dry_run,
+            },
+            Self::Thaw { change, dest } => ArchiveSubcommand::Thaw {
+                change: change.clone(),
+                dest: dest.clone(),
+            },
+        }
+    }
+}
+
 pub fn run(args: &SddArgs) -> Result<()> {
     run_with_style(args, TemplateStyle::New)
 }
@@ -859,156 +1010,8 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
 }
 
 fn run_with_style_legacy(args: &SddLegacyArgs, style: TemplateStyle) -> Result<()> {
-    match &args.command {
-        SddLegacyCommands::Init { path, lang } => init::run(
-            path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
-            lang.as_deref(),
-            style,
-        ),
-        SddLegacyCommands::Update { path } => update::run(
-            path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
-            style,
-        ),
-        SddLegacyCommands::UpdateSkills {
-            all,
-            tool,
-            path,
-            no_interactive,
-            commands_only,
-            skills_only,
-        } => update_skills::run(update_skills::UpdateSkillsArgs {
-            all: *all,
-            tool: tool.clone(),
-            path: path.clone(),
-            no_interactive: *no_interactive,
-            commands_only: *commands_only,
-            skills_only: *skills_only,
-            style,
-        }),
-        SddLegacyCommands::List {
-            specs,
-            changes,
-            sort,
-            json,
-            compact_json,
-        } => list::run(list::ListArgs {
-            specs: *specs,
-            changes: *changes,
-            sort: sort.clone(),
-            json: *json,
-            compact_json: *compact_json,
-            style,
-        }),
-        SddLegacyCommands::Show {
-            item,
-            json,
-            compact_json,
-            meta_only,
-            item_type,
-            no_interactive,
-            deltas_only,
-            requirements_only,
-            requirements,
-            no_scenarios,
-            requirement,
-        } => show::run(show::ShowArgs {
-            item: item.clone(),
-            json: *json,
-            compact_json: *compact_json,
-            meta_only: *meta_only,
-            item_type: item_type.clone(),
-            no_interactive: *no_interactive,
-            deltas_only: *deltas_only,
-            requirements_only: *requirements_only,
-            requirements: *requirements,
-            no_scenarios: *no_scenarios,
-            requirement: *requirement,
-            style,
-        }),
-        SddLegacyCommands::Validate {
-            item,
-            all,
-            changes,
-            specs,
-            item_type,
-            strict,
-            json,
-            compact_json,
-            no_interactive,
-            ab_report,
-        } => validate::run(validate::ValidateArgs {
-            item: item.clone(),
-            all: *all,
-            changes: *changes,
-            specs: *specs,
-            item_type: item_type.clone(),
-            strict: *strict,
-            json: *json,
-            compact_json: *compact_json,
-            no_interactive: *no_interactive,
-            style,
-            ab_report: *ab_report,
-        }),
-        SddLegacyCommands::Archive {
-            change,
-            skip_specs,
-            dry_run,
-            force,
-            command,
-        } => match command {
-            Some(ArchiveLegacySubcommand::Run {
-                change,
-                skip_specs,
-                dry_run,
-                force,
-            }) => archive::run(archive::ArchiveArgs {
-                change: change.clone(),
-                skip_specs: *skip_specs,
-                dry_run: *dry_run,
-                pretty_ison: false,
-                force: *force,
-                style,
-            }),
-            Some(ArchiveLegacySubcommand::Freeze {
-                before,
-                keep_recent,
-                dry_run,
-            }) => freeze::run_freeze(freeze::FreezeArgs {
-                before: before.clone(),
-                keep_recent: *keep_recent,
-                dry_run: *dry_run,
-            }),
-            Some(ArchiveLegacySubcommand::Thaw { change, dest }) => {
-                freeze::run_thaw(freeze::ThawArgs {
-                    change: change.clone(),
-                    dest: dest.clone(),
-                })
-            }
-            None => archive::run(archive::ArchiveArgs {
-                change: change.clone(),
-                skip_specs: *skip_specs,
-                dry_run: *dry_run,
-                pretty_ison: false,
-                force: *force,
-                style,
-            }),
-        },
-        SddLegacyCommands::Import { style, path } => interop::run_import(interop::InteropArgs {
-            style: style.clone(),
-            path: path.clone(),
-        }),
-        SddLegacyCommands::Export { style, path } => interop::run_export(interop::InteropArgs {
-            style: style.clone(),
-            path: path.clone(),
-        }),
-        SddLegacyCommands::Migrate {
-            to_ison,
-            dry_run,
-            path,
-        } => migrate::run(migrate::MigrateArgs {
-            to_ison: *to_ison,
-            dry_run: *dry_run,
-            path: path.clone(),
-        }),
-    }
+    let args = SddArgs {
+        command: args.command.to_current(),
+    };
+    run_with_style(&args, style)
 }

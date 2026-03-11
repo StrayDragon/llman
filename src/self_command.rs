@@ -4,6 +4,7 @@ use crate::config_schema::{
     apply_schema_header, format_schema_errors, global_config_path, llmanspec_config_path,
     project_config_path, schema_paths, write_schema_files,
 };
+use crate::fs_utils::atomic_write_with_mode;
 use anyhow::{Result, anyhow};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::generate;
@@ -350,7 +351,7 @@ fn update_completion_block(path: &Path, body: &str) -> Result<()> {
     {
         fs::create_dir_all(parent)?;
     }
-    fs::write(path, content).map_err(|e| {
+    atomic_write_with_mode(path, content.as_bytes(), None).map_err(|e| {
         anyhow!(t!(
             "self.completion.write_failed",
             path = path.display(),

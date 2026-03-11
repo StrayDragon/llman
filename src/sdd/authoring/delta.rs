@@ -1,3 +1,4 @@
+use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
@@ -69,7 +70,7 @@ pub fn run_skeleton(root: &Path, args: DeltaSkeletonArgs, style: TemplateStyle) 
     };
     let payload = dump_delta_payload(&delta, args.pretty_ison);
     let rebuilt = render_ison_fence(&payload);
-    fs::write(&delta_path, rebuilt)?;
+    atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
     println!("{}", delta_path.display());
     Ok(())
 }
@@ -111,7 +112,7 @@ pub fn run_add_op(root: &Path, args: DeltaAddOpArgs, style: TemplateStyle) -> Re
 
     let payload = dump_delta_payload(&delta, args.pretty_ison);
     let rebuilt = render_ison_fence(&payload);
-    fs::write(&delta_path, rebuilt)?;
+    atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
     println!("{}", delta_path.display());
     Ok(())
 }
@@ -188,7 +189,7 @@ pub fn run_add_scenario(
 
     let payload = dump_delta_payload(&delta, args.pretty_ison);
     let rebuilt = render_ison_fence(&payload);
-    fs::write(&delta_path, rebuilt)?;
+    atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
     println!("{}", delta_path.display());
     Ok(())
 }

@@ -676,6 +676,15 @@ tool:
       path_skipped_not_file:
         en: "Warning: Skipping non-file path: %{path}"
 
+      path_symlink_skipped:
+        en: "Warning: Skipping symlink path: %{path}"
+
+      path_outside_root:
+        en: "Warning: Skipping path outside working tree: %{path}"
+
+      path_resolve_failed:
+        en: "Warning: Failed to resolve path: %{path} (%{error})"
+
       walk_error:
         en: "Error walking directory: %{error}"
 

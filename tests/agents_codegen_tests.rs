@@ -1,34 +1,10 @@
 #![cfg(unix)]
 
+mod common;
+
+use common::{assert_success, run_llman};
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
 use tempfile::TempDir;
-
-fn llman_bin() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_llman"))
-}
-
-fn run_llman(args: &[&str], work_dir: &Path, config_dir: &Path) -> Output {
-    Command::new(llman_bin())
-        .args(["--config-dir", config_dir.to_str().expect("config dir")])
-        .args(args)
-        .current_dir(work_dir)
-        .output()
-        .expect("run llman")
-}
-
-fn assert_success(output: &Output) {
-    if output.status.success() {
-        return;
-    }
-    panic!(
-        "Command failed: {}\nstdout:\n{}\nstderr:\n{}",
-        output.status,
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
 
 #[test]
 fn agents_gen_code_renders_agent_py_with_prompt_and_includes() {

@@ -1,6 +1,7 @@
 use crate::agents::command::FrameworkArg;
 use crate::agents::manifest::load_agent_manifest_v1;
 use crate::config::resolve_config_dir;
+use crate::fs_utils::atomic_write_with_mode;
 use crate::path_utils::validate_path_segment;
 use crate::skills::catalog::types::SkillsPaths;
 use crate::skills::cli::interactive::is_interactive;
@@ -93,7 +94,8 @@ pub fn run_gen_code(
         })
         .context("render agent.py template")?;
 
-    fs::write(&out_file, rendered).with_context(|| format!("write {}", out_file.display()))?;
+    atomic_write_with_mode(&out_file, rendered.as_bytes(), None)
+        .with_context(|| format!("write {}", out_file.display()))?;
     Ok(())
 }
 

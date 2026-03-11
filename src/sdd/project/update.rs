@@ -3,9 +3,9 @@ use super::fs_utils::update_file_with_markers;
 use super::templates::{
     TemplateStyle, default_agents_file, managed_block_content, root_stub_content,
 };
+use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS};
 use anyhow::{Result, anyhow};
-use std::fs;
 use std::path::Path;
 
 pub fn run(target: &Path, style: TemplateStyle) -> Result<()> {
@@ -44,7 +44,8 @@ fn update_agents_file(
         return Ok(());
     }
 
-    fs::write(&agents_path, default_agents_file(config, target, style)?)?;
+    let content = default_agents_file(config, target, style)?;
+    atomic_write_with_mode(&agents_path, content.as_bytes(), None)?;
     Ok(())
 }
 
