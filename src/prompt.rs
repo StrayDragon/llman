@@ -26,6 +26,19 @@ pub enum CodexPromptTarget {
 }
 
 #[derive(Debug, Clone, Copy)]
+struct CodexInteractiveTargets {
+    write_prompts: bool,
+    write_agents_md: bool,
+    write_agents_override_md: bool,
+}
+
+impl CodexInteractiveTargets {
+    fn any_selected(self) -> bool {
+        self.write_prompts || self.write_agents_md || self.write_agents_override_md
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct PromptGenerateOptions<'a> {
     pub scopes: &'a [PromptScope],
     pub codex_targets: &'a [CodexPromptTarget],
@@ -138,13 +151,7 @@ impl PromptCommand {
             return Ok(());
         };
 
-        let override_file = if targets.contains(&CodexPromptTarget::Agents) {
-            self.prompt_codex_override_file()?
-        } else {
-            false
-        };
-
-        if targets.contains(&CodexPromptTarget::Prompts) {
+        if targets.write_prompts {
             for template_name in templates {
                 self.generate_rules_with_target_dir(
                     CODEX_APP,
@@ -161,8 +168,12 @@ impl PromptCommand {
             }
         }
 
-        if targets.contains(&CodexPromptTarget::Agents) {
-            self.inject_codex_agents_templates(&scopes, templates, override_file, false)?;
+        if targets.write_agents_md {
+            self.inject_codex_agents_templates(&scopes, templates, false, false)?;
+        }
+
+        if targets.write_agents_override_md {
+            self.inject_codex_agents_templates(&scopes, templates, true, false)?;
         }
 
         Ok(())
@@ -356,24 +367,15 @@ impl PromptCommand {
         Ok((!scopes.is_empty()).then_some(scopes))
     }
 
-    fn prompt_codex_targets(&self) -> Result<Option<Vec<CodexPromptTarget>>> {
-        let options = vec!["prompts", "agents"];
+    fn prompt_codex_targets(&self) -> Result<Option<CodexInteractiveTargets>> {
+        let options = vec!["prompts", CODEX_AGENTS_FILE, CODEX_AGENTS_OVERRIDE_FILE];
         let picked = MultiSelect::new(&t!("prompt.codex.target.select"), options).prompt()?;
-        let targets = picked
-            .into_iter()
-            .filter_map(|p| match p {
-                "agents" => Some(CodexPromptTarget::Agents),
-                "prompts" => Some(CodexPromptTarget::Prompts),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        Ok((!targets.is_empty()).then_some(targets))
-    }
-
-    fn prompt_codex_override_file(&self) -> Result<bool> {
-        let options = vec!["AGENTS.md", "AGENTS.override.md"];
-        let picked = Select::new(&t!("prompt.codex.agents_file.select"), options).prompt()?;
-        Ok(picked == "AGENTS.override.md")
+        let targets = CodexInteractiveTargets {
+            write_prompts: picked.contains(&"prompts"),
+            write_agents_md: picked.contains(&CODEX_AGENTS_FILE),
+            write_agents_override_md: picked.contains(&CODEX_AGENTS_OVERRIDE_FILE),
+        };
+        Ok((targets.any_selected()).then_some(targets))
     }
 
     pub fn list_rules(&self, app: Option<&str>) -> Result<()> {
@@ -1182,6 +1184,36 @@ mod tests {
             1
         );
         assert_eq!(updated2.matches(super::LLMAN_PROMPTS_MARKER_END).count(), 1);
+    }
+
+    #[test]
+    fn test_codex_agents_override_inject_preserves_user_content_with_force() {
+        let temp = TempDir::new().expect("temp dir");
+        let codex_home = temp.path().join("codexhome");
+        fs::create_dir_all(&codex_home).expect("create codex home");
+
+        let temp_dir = temp_config_dir("codex_agents_override_inject");
+        let mut command = PromptCommand::with_config_dir(Some(temp_dir.to_str().unwrap())).unwrap();
+        command.codex_home_override = Some(codex_home.clone());
+
+        let file = codex_home.join(super::CODEX_AGENTS_OVERRIDE_FILE);
+        fs::write(&file, "user content\n").expect("write user content");
+
+        command
+            .write_codex_agents_files(
+                &[super::PromptScope::Global],
+                true,
+                true,
+                false,
+                "llman body",
+            )
+            .expect("inject with force");
+
+        let updated = fs::read_to_string(&file).expect("read");
+        assert!(updated.contains(super::LLMAN_PROMPTS_MARKER_START));
+        assert!(updated.contains(super::LLMAN_PROMPTS_MARKER_END));
+        assert!(updated.contains("llman body"));
+        assert!(updated.contains("user content"));
     }
 
     #[test]
