@@ -1094,7 +1094,21 @@ mod tests {
 
     #[test]
     fn test_codex_global_still_writes_when_project_fails() {
-        let temp = TempDir::new().expect("temp dir");
+        // Use a temp dir that is guaranteed to live outside any repo-root `TMPDIR`
+        // (some environments set `TMPDIR` to a path inside the current git repo).
+        let temp = {
+            #[cfg(unix)]
+            {
+                tempfile::Builder::new()
+                    .prefix("llman_prompt_codex_global_project_mixed_")
+                    .tempdir_in("/tmp")
+                    .expect("temp dir")
+            }
+            #[cfg(not(unix))]
+            {
+                TempDir::new().expect("temp dir")
+            }
+        };
         let codex_home = temp.path().join("codexhome");
         fs::create_dir_all(&codex_home).expect("create codex home");
 
@@ -1107,29 +1121,15 @@ mod tests {
         fs::create_dir_all(&no_repo).expect("mkdir");
         command.cwd_override = Some(no_repo.clone());
 
-        command
-            .config
-            .ensure_app_dir(CODEX_APP)
-            .expect("ensure codex app dir");
-        fs::write(
-            command.config.rule_file_path(CODEX_APP, "draftpr"),
-            "content",
-        )
-        .expect("write template");
-
         let err = command
-            .generate_rules(
-                CODEX_APP,
+            .write_codex_prompt_files(
                 "draftpr",
-                None,
-                super::PromptGenerateOptions {
-                    scopes: &[super::PromptScope::Global, super::PromptScope::Project],
-                    codex_targets: &[super::CodexPromptTarget::Prompts],
-                    override_file: false,
-                    force: false,
-                },
+                &[super::PromptScope::Global, super::PromptScope::Project],
+                false,
+                false,
+                "content",
             )
-            .expect_err("project scope should fail without --force");
+            .expect_err("project scope should fail without --force in non-interactive mode");
 
         // Global target should still be written.
         assert!(codex_home.join("prompts").join("draftpr.md").exists());
