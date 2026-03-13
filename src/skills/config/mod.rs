@@ -1,4 +1,4 @@
-use crate::config::resolve_config_dir;
+use crate::config::{ENV_CONFIG_DIR, resolve_config_dir};
 use crate::config_schema::{ConfigSchemaKind, validate_yaml_value};
 use crate::path_utils::validate_path_str;
 use crate::skills::catalog::types::{ConfigEntry, SkillsConfig, SkillsPaths, TargetMode};
@@ -95,8 +95,8 @@ fn resolve_skills_root_with(
     }
 
     let global_config = config_dir.join(LLMAN_CONFIG_FILE);
-    if let Some(config_dir) = load_skills_root_from_config_path(&global_config)? {
-        return Ok(config_dir);
+    if let Some(skills_root) = load_skills_root_from_config_path(&global_config, config_dir)? {
+        return Ok(skills_root);
     }
 
     Ok(config_dir.join(SKILLS_DIR))
@@ -115,13 +115,19 @@ fn resolve_skills_root_from_env(raw: &str) -> Result<PathBuf> {
     expand_path(raw)
 }
 
-fn resolve_skills_root_from_config(raw: &str) -> Result<PathBuf> {
+fn resolve_skills_root_from_config(raw: &str, config_dir: &Path) -> Result<PathBuf> {
     validate_path_str(raw)
         .map_err(|e| anyhow!(t!("skills.config.skills_dir_invalid_config", error = e)))?;
-    expand_path(raw)
+    expand_path_with(raw, None, |key| {
+        if key == ENV_CONFIG_DIR {
+            Some(config_dir.to_string_lossy().to_string())
+        } else {
+            env::var(key).ok()
+        }
+    })
 }
 
-fn load_skills_root_from_config_path(path: &Path) -> Result<Option<PathBuf>> {
+fn load_skills_root_from_config_path(path: &Path, config_dir: &Path) -> Result<Option<PathBuf>> {
     if !path.exists() {
         return Ok(None);
     }
@@ -142,7 +148,7 @@ fn load_skills_root_from_config_path(path: &Path) -> Result<Option<PathBuf>> {
     if let Some(skills) = parsed.skills
         && let Some(dir) = skills.dir
     {
-        return Ok(Some(resolve_skills_root_from_config(&dir)?));
+        return Ok(Some(resolve_skills_root_from_config(&dir, config_dir)?));
     }
 
     Ok(None)
@@ -425,6 +431,22 @@ mod tests {
         .expect("write global config");
         let resolved = resolve_skills_root_with(None, None, &config_dir).expect("paths");
         assert_eq!(resolved, global_root);
+    }
+
+    #[test]
+    fn test_resolve_skills_root_config_supports_llman_config_dir_placeholder() {
+        let temp = TempDir::new().expect("temp dir");
+        let config_dir = temp.path().join("config");
+        fs::create_dir_all(&config_dir).expect("create config dir");
+
+        fs::write(
+            config_dir.join("config.yaml"),
+            "version: \"0.1\"\ntools: {}\nskills:\n  dir: \"$LLMAN_CONFIG_DIR/skills\"\n",
+        )
+        .expect("write global config");
+
+        let resolved = resolve_skills_root_with(None, None, &config_dir).expect("paths");
+        assert_eq!(resolved, config_dir.join("skills"));
     }
 
     #[test]
