@@ -16,11 +16,19 @@ use std::process::Command;
     author,
     version,
     about,
-    long_about = "Commands for managing OpenAI Codex configurations"
+    long_about = "Commands for managing OpenAI Codex configurations",
+    args_conflicts_with_subcommands = true
 )]
 pub struct CodexArgs {
     #[command(subcommand)]
     pub command: Option<CodexCommands>,
+
+    #[arg(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        help = "Arguments to pass to codex when using the main command (use -- to separate)"
+    )]
+    pub args: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -65,7 +73,7 @@ pub enum AccountAction {
 
 pub fn run(args: &CodexArgs) -> Result<()> {
     match &args.command {
-        None => handle_main_command()?,
+        None => handle_main_command(&args.args)?,
         Some(CodexCommands::Account { action }) => handle_account_command(action.as_ref())?,
         Some(CodexCommands::Run {
             interactive,
@@ -77,8 +85,8 @@ pub fn run(args: &CodexArgs) -> Result<()> {
     Ok(())
 }
 
-/// `llman x codex` — interactive select → upsert provider → inject env → exec codex
-fn handle_main_command() -> Result<()> {
+/// `llman x codex` — interactive select → upsert provider → inject env → exec codex (supports `-- <codex-args...>`)
+fn handle_main_command(args: &[String]) -> Result<()> {
     let config = Config::load().context(t!("codex.error.load_config_failed"))?;
 
     if config.is_empty() {
@@ -86,7 +94,7 @@ fn handle_main_command() -> Result<()> {
     }
 
     if let Some(selected) = interactive::select_provider(&config)? {
-        activate_and_exec(&config, &selected, &[])?;
+        activate_and_exec(&config, &selected, args)?;
     }
 
     Ok(())
@@ -292,6 +300,22 @@ mod tests {
     use clap::Parser;
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn main_command_accepts_trailing_args_after_double_dash() {
+        let cli = Cli::try_parse_from(["llman", "x", "codex", "--", "--help", "-m", "o3"])
+            .expect("parse");
+
+        let Some(Commands::X(x_args)) = cli.command else {
+            panic!("expected x subcommand");
+        };
+        let XCommands::Codex(codex_args) = x_args.command else {
+            panic!("expected x codex subcommand");
+        };
+
+        assert!(codex_args.command.is_none());
+        assert_eq!(codex_args.args, vec!["--help", "-m", "o3"]);
+    }
 
     #[test]
     fn run_command_accepts_trailing_args_after_double_dash() {
