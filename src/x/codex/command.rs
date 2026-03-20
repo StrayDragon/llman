@@ -1,6 +1,7 @@
 use crate::arg_utils::split_shell_args;
 use crate::editor::{parse_editor_command, select_editor_raw};
 use crate::fs_utils::atomic_write_new_with_mode;
+use crate::x::codex::agents::CodexAgentsArgs;
 use crate::x::codex::config::{Config, upsert_to_codex_config};
 use crate::x::codex::interactive;
 use crate::x::codex::stats::CodexStatsArgs;
@@ -61,6 +62,8 @@ pub enum CodexCommands {
     },
     /// View local usage statistics (tokens + time)
     Stats(CodexStatsArgs),
+    /// Manage Codex custom agent configurations
+    Agents(CodexAgentsArgs),
 }
 
 #[derive(Subcommand)]
@@ -81,6 +84,7 @@ pub fn run(args: &CodexArgs) -> Result<()> {
             args,
         }) => handle_run_command(*interactive, group.as_deref(), args.clone())?,
         Some(CodexCommands::Stats(stats)) => crate::x::codex::stats::run_stats(stats)?,
+        Some(CodexCommands::Agents(agents)) => crate::x::codex::agents::run(agents)?,
     }
     Ok(())
 }
