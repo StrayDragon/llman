@@ -124,7 +124,7 @@ interactive:
     en: "⚠️  No templates available, nothing to generate"
 
   no_templates_hint:
-    en: "Hint: add a template with `llman prompts upsert --app cursor --name <name> --content <content>`"
+    en: "Hint: add a template with `llman x <app> prompts upsert --name <name> --content <content>`"
 
 # Messages
 messages:
@@ -242,7 +242,7 @@ errors:
     en: "Invalid --target/--override for app '%{app}'"
 
   override_requires_agents_target:
-    en: "--override requires --target agents"
+    en: "--override requires --target project-doc"
 
   non_interactive_overwrite_requires_force:
     en: "Non-interactive mode cannot overwrite %{path}; re-run with --force"

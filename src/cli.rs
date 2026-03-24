@@ -1,7 +1,6 @@
 use crate::agents::command::AgentsArgs;
 use crate::config::{ENV_CONFIG_DIR, override_runtime_config_dir, resolve_config_dir_with};
 use crate::config_schema::ensure_global_sample_config;
-use crate::prompt::PromptCommand;
 use crate::sdd::command::{SddArgs, SddLegacyArgs};
 use crate::self_command::SelfArgs;
 use crate::skills::cli::command::SkillsArgs;
@@ -12,7 +11,7 @@ use crate::x::codex::command::CodexArgs;
 use crate::x::cursor::command::CursorArgs;
 use crate::x::sdd_eval::command::SddEvalArgs;
 use anyhow::{Result, anyhow};
-use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -37,9 +36,9 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Manage prompts and rules
+    /// Prompt orchestrator (interactive-only)
     #[command(name = "prompts", aliases = ["prompt", "rule"])]
-    Prompt(PromptArgs),
+    Prompts(PromptsArgs),
     /// Manage skills
     #[command(alias = "skill")]
     Skills(SkillsArgs),
@@ -59,69 +58,10 @@ pub enum Commands {
 }
 
 #[derive(Parser)]
-#[command(subcommand_required = false)]
-pub struct PromptArgs {
-    #[command(subcommand)]
-    pub command: Option<PromptCommands>,
-}
-
-#[derive(Subcommand)]
-pub enum PromptCommands {
-    /// Generate a new prompt
-    Gen {
-        #[arg(short, long)]
-        interactive: bool,
-        #[arg(long, required_unless_present = "interactive")]
-        app: Option<String>,
-        #[arg(long, required_unless_present = "interactive")]
-        template: Option<String>,
-        /// Target scope(s) for injection. Repeat or use a comma list (e.g. --scope global --scope project)
-        #[arg(long, value_enum, value_delimiter = ',', action = clap::ArgAction::Append, default_value = "project")]
-        scope: Vec<PromptScopeArg>,
-        /// Codex injection target(s): agents (AGENTS*.md) and/or prompts (prompts/*.md)
-        #[arg(long, value_enum, value_delimiter = ',', action = clap::ArgAction::Append)]
-        target: Vec<CodexTargetArg>,
-        /// For codex + target=agents: write to AGENTS.override.md instead of AGENTS.md
-        #[arg(long = "override")]
-        override_file: bool,
-        #[arg(long)]
-        name: Option<String>,
-        #[arg(long)]
-        force: bool,
-    },
-    /// List all prompts
-    List {
-        #[arg(long)]
-        app: Option<String>,
-    },
-    /// Create or update a prompt
-    Upsert {
-        #[arg(long)]
-        app: String,
-        #[arg(long)]
-        name: String,
-        #[command(flatten)]
-        content: ContentSource,
-    },
-    /// Remove a prompt
-    Rm {
-        #[arg(long)]
-        app: String,
-        #[arg(long)]
-        name: String,
-        /// Skip confirmation prompts (required for non-interactive deletes)
-        #[arg(long)]
-        yes: bool,
-    },
-}
-
-#[derive(Parser)]
-#[group(required = true, multiple = false)]
-pub struct ContentSource {
-    #[arg(long)]
-    pub content: Option<String>,
-    #[arg(long)]
-    pub file: Option<PathBuf>,
+pub struct PromptsArgs {
+    /// Print guidance and exit (use app-specific `llman x <app> prompts` commands for non-interactive usage)
+    #[arg(long = "no-interactive")]
+    pub no_interactive: bool,
 }
 
 #[derive(Parser)]
@@ -142,18 +82,6 @@ pub enum XCommands {
     /// Experimental SDD evaluation pipeline (playbook-driven)
     #[command(name = "sdd-eval")]
     SddEval(SddEvalArgs),
-}
-
-#[derive(ValueEnum, Debug, Clone, Copy)]
-pub enum PromptScopeArg {
-    Global,
-    Project,
-}
-
-#[derive(ValueEnum, Debug, Clone, Copy)]
-pub enum CodexTargetArg {
-    Agents,
-    Prompts,
 }
 
 pub fn run() -> Result<()> {
@@ -184,7 +112,7 @@ pub fn run() -> Result<()> {
     ensure_global_sample_config(&config_dir)?;
 
     match command {
-        Commands::Prompt(args) => handle_prompt_command(&args),
+        Commands::Prompts(args) => handle_prompts_command(&args),
         Commands::Skills(args) => crate::skills::cli::command::run(&args),
         Commands::Agents(args) => crate::agents::command::run(&args),
         Commands::Sdd(args) => crate::sdd::command::run(&args),
@@ -242,84 +170,59 @@ fn is_llman_dev_project_at(current_dir: &Path) -> bool {
         == Some("llman")
 }
 
-fn handle_prompt_command(args: &PromptArgs) -> Result<()> {
-    let prompt_cmd = PromptCommand::new()?;
+fn handle_prompts_command(args: &PromptsArgs) -> Result<()> {
+    if args.no_interactive {
+        print_prompts_delegation_guidance();
+        return Ok(());
+    }
 
-    match &args.command {
-        Some(PromptCommands::Gen {
-            interactive: true, ..
-        }) => {
-            prompt_cmd.generate_interactive()?;
-        }
-        Some(PromptCommands::Gen {
-            interactive: false,
-            app: Some(app),
-            template: Some(template),
-            scope,
-            target,
-            override_file,
-            name,
-            force,
-            ..
-        }) => {
-            let scopes: Vec<crate::prompt::PromptScope> =
-                scope.iter().copied().map(Into::into).collect();
-            let targets: Vec<crate::prompt::CodexPromptTarget> =
-                target.iter().copied().map(Into::into).collect();
-            prompt_cmd.generate_rules(
-                app,
-                template,
-                name.as_deref(),
-                crate::prompt::PromptGenerateOptions {
-                    scopes: &scopes,
-                    codex_targets: &targets,
-                    override_file: *override_file,
-                    force: *force,
-                },
-            )?;
-        }
-        Some(PromptCommands::Gen { .. }) => {
-            return Err(anyhow!(
-                "--app and --template are required unless --interactive"
-            ));
-        }
-        Some(PromptCommands::List { app }) => {
-            prompt_cmd.list_rules(app.as_deref())?;
-        }
-        Some(PromptCommands::Upsert { app, name, content }) => {
-            prompt_cmd.upsert_rule(
-                app,
-                name,
-                content.content.as_deref(),
-                content.file.as_deref().and_then(|p| p.to_str()),
-            )?;
-        }
-        Some(PromptCommands::Rm { app, name, yes }) => {
-            prompt_cmd.remove_rule(app, name, *yes, is_interactive())?;
-        }
-        None => {
-            prompt_cmd.generate_interactive()?;
+    if !is_interactive() {
+        return Err(anyhow!(
+            "`llman prompts` is interactive-only; use `--no-interactive` for guidance."
+        ));
+    }
+
+    let apps = vec![
+        crate::config::CURSOR_APP,
+        crate::config::CODEX_APP,
+        crate::config::CLAUDE_CODE_APP,
+    ];
+    let picked = inquire::MultiSelect::new("Select target app(s):", apps).prompt()?;
+    if picked.is_empty() {
+        println!("{}", t!("messages.operation_cancelled"));
+        return Ok(());
+    }
+
+    for app in picked {
+        match app {
+            crate::config::CURSOR_APP => {
+                crate::x::cursor::prompts::run(&crate::x::cursor::prompts::CursorPromptsArgs {
+                    command: None,
+                })?;
+            }
+            crate::config::CODEX_APP => {
+                crate::x::codex::prompts::run(&crate::x::codex::prompts::CodexPromptsArgs {
+                    command: None,
+                })?;
+            }
+            crate::config::CLAUDE_CODE_APP => {
+                crate::x::claude_code::prompts::run(
+                    &crate::x::claude_code::prompts::ClaudeCodePromptsArgs { command: None },
+                )?;
+            }
+            _ => unreachable!("selected app comes from validated interactive options"),
         }
     }
+
     Ok(())
 }
 
-impl From<PromptScopeArg> for crate::prompt::PromptScope {
-    fn from(value: PromptScopeArg) -> Self {
-        match value {
-            PromptScopeArg::Global => Self::Global,
-            PromptScopeArg::Project => Self::Project,
-        }
-    }
-}
-
-impl From<CodexTargetArg> for crate::prompt::CodexPromptTarget {
-    fn from(value: CodexTargetArg) -> Self {
-        match value {
-            CodexTargetArg::Agents => Self::Agents,
-            CodexTargetArg::Prompts => Self::Prompts,
-        }
-    }
+fn print_prompts_delegation_guidance() {
+    println!("`llman prompts` is interactive-only.");
+    println!("Use app-specific commands instead:");
+    println!("  - llman x cursor prompts");
+    println!("  - llman x codex prompts");
+    println!("  - llman x claude-code prompts");
 }
 
 fn handle_x_command(args: &XArgs) -> Result<()> {

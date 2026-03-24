@@ -4,6 +4,7 @@ use crate::x::cursor::database::CursorDatabase;
 use crate::x::cursor::models::{
     ConversationExport, ConversationKey, ConversationSummary, ConversationType,
 };
+use crate::x::cursor::prompts::CursorPromptsArgs;
 use crate::x::cursor::stats::CursorStatsArgs;
 use anyhow::{Result, anyhow};
 use chrono::Utc;
@@ -30,6 +31,8 @@ pub enum CursorCommands {
     Export(ExportArgs),
     /// View local usage statistics (tokens + time)
     Stats(CursorStatsArgs),
+    /// Manage Cursor prompt templates and rules
+    Prompts(CursorPromptsArgs),
 }
 
 #[derive(Args)]
@@ -75,6 +78,7 @@ pub fn run(args: &CursorArgs) -> Result<()> {
             }
         }
         CursorCommands::Stats(stats) => crate::x::cursor::stats::run_stats(stats),
+        CursorCommands::Prompts(prompts) => crate::x::cursor::prompts::run(prompts),
     }
 }
 

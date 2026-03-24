@@ -1,6 +1,11 @@
 use crate::config::resolve_config_dir;
 use crate::fs_utils::atomic_write_with_mode;
+use crate::managed_block::{
+    LLMAN_PROMPTS_MARKER_END, LLMAN_PROMPTS_MARKER_START, has_llman_prompt_markers,
+    update_text_with_markers,
+};
 use crate::path_utils::validate_path_segment;
+use crate::prompts::store as prompt_store;
 use crate::skills::cli::interactive::is_interactive;
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand, ValueEnum};
@@ -10,9 +15,6 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use toml::Value;
-
-const LLMAN_PROMPTS_MARKER_START: &str = "<!-- LLMAN-PROMPTS:START -->";
-const LLMAN_PROMPTS_MARKER_END: &str = "<!-- LLMAN-PROMPTS:END -->";
 
 #[derive(Args, Debug, Clone)]
 #[command(about = "Manage Codex custom agent configurations")]
@@ -668,10 +670,7 @@ fn describe_inject_state(managed: &Path) -> Result<String> {
         return Ok("no-developer_instructions".to_string());
     };
     let inner = &content[open_end..close];
-    let has_markers = inner
-        .lines()
-        .any(|l| l.trim() == LLMAN_PROMPTS_MARKER_START)
-        && inner.lines().any(|l| l.trim() == LLMAN_PROMPTS_MARKER_END);
+    let has_markers = has_llman_prompt_markers(inner);
     Ok(if has_markers { "managed" } else { "injectable" }.to_string())
 }
 
@@ -724,53 +723,13 @@ fn describe_agent_schema_state(managed: &Path) -> Result<String> {
 }
 
 fn list_codex_prompt_templates() -> Result<Vec<String>> {
-    let dir = resolve_config_dir(None)?
-        .join(crate::config::PROMPT_DIR)
-        .join(crate::config::CODEX_APP);
-    if !dir.exists() {
-        return Ok(Vec::new());
-    }
-
-    let mut names = Vec::new();
-    for entry in fs::read_dir(&dir).with_context(|| format!("read dir: {}", dir.display()))? {
-        let entry = entry?;
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) != Some(crate::config::CODEX_EXTENSION) {
-            continue;
-        }
-        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
-            continue;
-        };
-        names.push(stem.to_string());
-    }
-    names.sort();
-    names.dedup();
-    Ok(names)
+    let config = crate::config::Config::new()?;
+    prompt_store::list_templates(&config, crate::config::CODEX_APP)
 }
 
 fn build_injection_body(templates: &[String]) -> Result<String> {
-    if templates.is_empty() {
-        return Ok(String::new());
-    }
-
-    let dir = resolve_config_dir(None)?
-        .join(crate::config::PROMPT_DIR)
-        .join(crate::config::CODEX_APP);
-    let mut parts = Vec::new();
-    for name in templates {
-        let name = validate_path_segment(name, "template name")?;
-        let path = dir.join(format!("{name}.{}", crate::config::CODEX_EXTENSION));
-        let content = fs::read_to_string(&path)
-            .with_context(|| format!("read template: {}", path.display()))?;
-        parts.push(format!(
-            "## llman prompts: {name}\n\n{}",
-            content.trim_end()
-        ));
-    }
-    Ok(parts.join("\n\n"))
+    let config = crate::config::Config::new()?;
+    prompt_store::build_llman_prompts_body(&config, crate::config::CODEX_APP, templates)
 }
 
 fn inject_into_toml_developer_instructions(content: &str, body: &str) -> Result<Option<String>> {
@@ -785,7 +744,13 @@ fn inject_into_toml_developer_instructions(content: &str, body: &str) -> Result<
     })?;
 
     let existing = &content[open_end..close];
-    let updated_inner = update_text_with_markers(existing, body, true);
+    let updated_inner = update_text_with_markers(
+        existing,
+        body,
+        true,
+        LLMAN_PROMPTS_MARKER_START,
+        LLMAN_PROMPTS_MARKER_END,
+    );
     if updated_inner == existing {
         return Ok(Some(content.to_string()));
     }
@@ -847,62 +812,6 @@ fn dev_instructions_inner_range(content: &str) -> Option<(usize, usize)> {
     let (_open_start, open_end) = find_dev_instructions_open(content)?;
     let close = find_triple_quote_close(content, open_end)?;
     Some((open_end, close))
-}
-
-fn update_text_with_markers(existing: &str, body: &str, append_when_missing: bool) -> String {
-    let body = body.trim_end();
-
-    let mut start_idx: Option<usize> = None;
-    let mut end_idx: Option<usize> = None;
-
-    // Find markers on their own line (trimmed match), tracking byte indices.
-    let mut cursor = 0usize;
-    for line in existing.split_inclusive('\n') {
-        let line_start = cursor;
-        let line_end = cursor + line.len();
-        let trimmed = line.trim_matches(['\r', '\n']);
-        if trimmed.trim() == LLMAN_PROMPTS_MARKER_START {
-            start_idx = Some(line_start);
-        } else if trimmed.trim() == LLMAN_PROMPTS_MARKER_END {
-            end_idx = Some(line_end);
-            break;
-        }
-        cursor = line_end;
-    }
-
-    match (start_idx, end_idx) {
-        (Some(start), Some(end)) => {
-            let before = &existing[..start];
-            let after = &existing[end..];
-            let mut out = String::new();
-            out.push_str(before);
-            out.push_str(LLMAN_PROMPTS_MARKER_START);
-            out.push('\n');
-            out.push_str(body);
-            out.push('\n');
-            out.push_str(LLMAN_PROMPTS_MARKER_END);
-            out.push('\n');
-            out.push_str(after);
-            out
-        }
-        _ if append_when_missing => {
-            let mut out = existing.to_string();
-            if !out.ends_with('\n') && !out.is_empty() {
-                out.push('\n');
-            }
-            if !out.ends_with('\n') {
-                out.push('\n');
-            }
-            out.push_str(LLMAN_PROMPTS_MARKER_START);
-            out.push('\n');
-            out.push_str(body);
-            out.push('\n');
-            out.push_str(LLMAN_PROMPTS_MARKER_END);
-            out.push('\n');
-            out
-        }
-        _ => existing.to_string(),
-    }
 }
 
 #[cfg(test)]
