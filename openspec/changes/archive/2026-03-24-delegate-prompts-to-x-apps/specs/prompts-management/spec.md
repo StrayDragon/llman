@@ -1,9 +1,6 @@
-# prompts-management Specification
+# prompts-management Specification (Change: delegate-prompts-to-x-apps)
 
-## Purpose
-TBD - created by archiving change add-prompts-injection. Update Purpose after archive.
-
-## Requirements
+## ADDED Requirements
 
 ### Requirement: `llman prompts` 仅作为交互式编排入口
 `llman prompts` MUST 仅在交互环境中运行，并作为对 `llman x <app> prompts` 的编排入口（不承载具体的模板 CRUD 或注入落盘逻辑）。
@@ -14,6 +11,8 @@ TBD - created by archiving change add-prompts-injection. Update Purpose after ar
 - **WHEN** 用户运行 `llman prompts --no-interactive`
 - **THEN** 命令输出提示用户使用 `llman x cursor prompts` / `llman x codex prompts` / `llman x claude-code prompts`
 - **AND** 命令退出码为 0
+
+## MODIFIED Requirements
 
 ### Requirement: `prompts` 为主命令并保留 `prompt` 别名
 CLI MUST 将 `llman prompts` 作为主命令名，并且 MUST 接受 `llman prompt` 作为等价别名。

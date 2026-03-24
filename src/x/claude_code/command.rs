@@ -7,6 +7,7 @@ use crate::x::claude_code::env_injection::{
     EnvSyntax, env_syntax_for_current_platform, render_env_injection_lines,
 };
 use crate::x::claude_code::interactive;
+use crate::x::claude_code::prompts::ClaudeCodePromptsArgs;
 use crate::x::claude_code::security::{SecurityChecker, SecurityWarning};
 use crate::x::claude_code::stats::ClaudeCodeStatsArgs;
 use anyhow::{Context, Result, bail};
@@ -61,6 +62,8 @@ pub enum ClaudeCodeCommands {
     },
     /// View local usage statistics (tokens + time)
     Stats(ClaudeCodeStatsArgs),
+    /// Manage Claude Code prompt templates and memory injection
+    Prompts(ClaudeCodePromptsArgs),
 }
 
 #[derive(Subcommand)]
@@ -133,6 +136,7 @@ pub fn run(args: &ClaudeCodeArgs) -> Result<()> {
             handle_run_command(*interactive, group.as_deref(), args.clone())?;
         }
         Some(ClaudeCodeCommands::Stats(stats)) => crate::x::claude_code::stats::run_stats(stats)?,
+        Some(ClaudeCodeCommands::Prompts(prompts)) => crate::x::claude_code::prompts::run(prompts)?,
         None => {
             handle_main_command()?;
         }
