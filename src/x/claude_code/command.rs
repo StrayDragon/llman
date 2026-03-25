@@ -22,11 +22,19 @@ use std::process::Command;
     author,
     version,
     about,
-    long_about = "Commands for managing Claude Code configurations and API settings"
+    long_about = "Commands for managing Claude Code configurations and API settings",
+    args_conflicts_with_subcommands = true
 )]
 pub struct ClaudeCodeArgs {
     #[command(subcommand)]
     pub command: Option<ClaudeCodeCommands>,
+
+    #[arg(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        help = "Arguments to pass to claude when using the main command (use -- to separate)"
+    )]
+    pub args: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -138,14 +146,14 @@ pub fn run(args: &ClaudeCodeArgs) -> Result<()> {
         Some(ClaudeCodeCommands::Stats(stats)) => crate::x::claude_code::stats::run_stats(stats)?,
         Some(ClaudeCodeCommands::Prompts(prompts)) => crate::x::claude_code::prompts::run(prompts)?,
         None => {
-            handle_main_command()?;
+            handle_main_command(&args.args)?;
         }
     }
 
     Ok(())
 }
 
-fn handle_main_command() -> Result<()> {
+fn handle_main_command(args: &[String]) -> Result<()> {
     let config = Config::load().context(t!("claude_code.error.load_config_failed"))?;
 
     if config.is_empty() {
@@ -170,6 +178,9 @@ fn handle_main_command() -> Result<()> {
         // Execute claude command with all environment variables set
         let mut cmd = Command::new("claude");
         inject_env_vars(&mut cmd, group);
+        for arg in args {
+            cmd.arg(arg);
+        }
 
         let status = cmd
             .status()
