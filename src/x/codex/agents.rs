@@ -62,6 +62,18 @@ pub enum CodexAgentsCommand {
     Sync {
         #[arg(long, value_enum, default_value_t = SyncMode::Link)]
         mode: SyncMode,
+
+        /// Upsert `[agents.<name>] config_file = "agents/<file>.toml"` into Codex config.toml during sync
+        #[arg(long = "upsert-config")]
+        upsert_config: bool,
+
+        /// Agent name(s) to upsert into Codex config.toml (repeatable)
+        ///
+        /// Notes:
+        /// - `default` maps to `agents/defaults.toml`
+        /// - other names map to `agents/<name>.toml`
+        #[arg(long = "upsert-agent", value_delimiter = ',', action = clap::ArgAction::Append)]
+        upsert_agent: Vec<String>,
     },
     /// Inject prompt templates into developer_instructions in managed agent TOMLs
     Inject {
@@ -90,17 +102,52 @@ pub fn run(args: &CodexAgentsArgs) -> Result<()> {
         }
         Some(CodexAgentsCommand::Status) => run_status(args),
         Some(CodexAgentsCommand::Import) => run_import(args, interactive),
-        Some(CodexAgentsCommand::Sync { mode }) => run_sync(args, *mode, interactive),
+        Some(CodexAgentsCommand::Sync {
+            mode,
+            upsert_config,
+            upsert_agent,
+        }) => run_sync(args, *mode, interactive, *upsert_config, upsert_agent),
         Some(CodexAgentsCommand::Inject { template }) => run_inject(args, template, interactive),
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AgentConfigMapping {
+    agent_name: String,
+    file_stem: String,
+}
+
+impl std::fmt::Display for AgentConfigMapping {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} -> agents/{}.toml", self.agent_name, self.file_stem)
+    }
+}
+
+#[derive(Debug, Clone)]
+enum CodexConfigDoc {
+    Missing,
+    Invalid,
+    Loaded(Value),
 }
 
 fn run_status(args: &CodexAgentsArgs) -> Result<()> {
     let managed_dir = resolve_managed_dir(args)?;
     let target_dir = resolve_target_agents_dir(args)?;
+    let config_path = resolve_target_codex_config_path(args).ok();
+    let config_doc = match config_path.as_ref() {
+        Some(path) => match load_toml_value_if_exists(path) {
+            Ok(Some(doc)) => CodexConfigDoc::Loaded(doc),
+            Ok(None) => CodexConfigDoc::Missing,
+            Err(_) => CodexConfigDoc::Invalid,
+        },
+        None => CodexConfigDoc::Missing,
+    };
 
     println!("Managed agents dir: {}", managed_dir.display());
     println!("Target agents dir:  {}", target_dir.display());
+    if let Some(path) = config_path.as_ref() {
+        println!("Codex config file: {}", path.display());
+    }
 
     let managed = list_toml_stems(&managed_dir)?;
     if managed.is_empty() {
@@ -118,9 +165,10 @@ fn run_status(args: &CodexAgentsArgs) -> Result<()> {
         let schema_state = describe_agent_schema_state(&managed_file)?;
         let target_state = describe_target_state(&managed_file, &target_file)?;
         let inject_state = describe_inject_state(&managed_file)?;
+        let config_state = describe_config_state(&config_doc, &stem);
 
         println!(
-            "- {stem}: schema={schema_state}; target={target_state}; inject={inject_state}",
+            "- {stem}: schema={schema_state}; target={target_state}; inject={inject_state}; config={config_state}",
             stem = stem,
             schema_state = schema_state,
             target_state = target_state,
@@ -141,13 +189,31 @@ fn run_import(args: &CodexAgentsArgs, interactive: bool) -> Result<()> {
     apply_plan(plan, args, interactive)
 }
 
-fn run_sync(args: &CodexAgentsArgs, mode: SyncMode, interactive: bool) -> Result<()> {
+fn run_sync(
+    args: &CodexAgentsArgs,
+    mode: SyncMode,
+    interactive: bool,
+    upsert_config: bool,
+    upsert_agents: &[String],
+) -> Result<()> {
     let managed_dir = resolve_managed_dir(args)?;
     let target_dir = resolve_target_agents_dir(args)?;
     let available = list_toml_stems(&managed_dir)?;
     let selected = select_stems(&available, &args.only, "agent name")?;
 
-    let plan = plan_sync(&managed_dir, &target_dir, &selected, mode)?;
+    let mut plan = plan_sync(&managed_dir, &target_dir, &selected, mode)?;
+
+    let should_upsert_config = upsert_config || !upsert_agents.is_empty();
+    if should_upsert_config {
+        let config_path = resolve_target_codex_config_path(args)?;
+        extend_plan_with_agent_config_upserts(
+            &mut plan,
+            &config_path,
+            &managed_dir,
+            &selected,
+            upsert_agents,
+        )?;
+    }
     apply_plan(plan, args, interactive)
 }
 
@@ -248,10 +314,291 @@ fn run_wizard(args: &CodexAgentsArgs) -> Result<()> {
                 _ => unreachable!("validated selection"),
             };
 
-            let plan = plan_sync(&managed_dir, &target_dir, &selected, mode)?;
+            let mut plan = plan_sync(&managed_dir, &target_dir, &selected, mode)?;
+
+            let config_path_display = resolve_target_codex_config_path(args)
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| "codex config.toml".to_string());
+            let upsert_prompt =
+                format!("Upsert agent config_file entries into {config_path_display}?");
+
+            let upsert = Confirm::new(&upsert_prompt)
+                .with_default(false)
+                .prompt()
+                .context("confirm upsert config")?;
+
+            if upsert {
+                let candidates = build_upsert_candidates(&selected);
+                if candidates.is_empty() {
+                    plan.ops.push(PlanOp::Note {
+                        message: "skip config upsert (no candidates)".to_string(),
+                    });
+                } else {
+                    let defaults = default_upsert_candidate_indices(&candidates);
+                    let picked_prompt = "Select agent mappings to upsert:".to_string();
+                    let picked = MultiSelect::new(&picked_prompt, candidates)
+                        .with_default(defaults.as_slice())
+                        .prompt()
+                        .context("select upsert agents")?;
+                    if !picked.is_empty() {
+                        let config_path = resolve_target_codex_config_path(args)?;
+                        extend_plan_with_agent_config_mappings(
+                            &mut plan,
+                            &config_path,
+                            &managed_dir,
+                            &picked,
+                        )?;
+                    }
+                }
+            }
+
             apply_plan_with_override(plan, args, true, confirm_all)
         }
         _ => unreachable!("validated selection"),
+    }
+}
+
+fn build_upsert_candidates(stems: &[String]) -> Vec<AgentConfigMapping> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    for stem in stems {
+        let agent_name = agent_name_for_stem(stem);
+        if seen.contains(agent_name.as_str()) {
+            continue;
+        }
+        seen.insert(agent_name.clone());
+        out.push(AgentConfigMapping {
+            agent_name,
+            file_stem: stem.clone(),
+        });
+    }
+    out
+}
+
+fn default_upsert_candidate_indices(candidates: &[AgentConfigMapping]) -> Vec<usize> {
+    let official = ["default", "worker", "explorer"];
+    candidates
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, m)| {
+            if official.contains(&m.agent_name.as_str()) {
+                Some(idx)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn extend_plan_with_agent_config_upserts(
+    plan: &mut Plan,
+    config_path: &Path,
+    managed_dir: &Path,
+    selected_stems: &[String],
+    upsert_agents: &[String],
+) -> Result<()> {
+    let mut mappings = Vec::new();
+    let selected_set: HashSet<&str> = selected_stems.iter().map(|s| s.as_str()).collect();
+
+    if !upsert_agents.is_empty() {
+        for raw in upsert_agents {
+            let agent_name = validate_path_segment(raw, "agent name")?;
+            let file_stem = file_stem_for_agent_name(&agent_name);
+            if !selected_set.contains(file_stem.as_str()) {
+                plan.ops.push(PlanOp::Note {
+                    message: format!(
+                        "skip config upsert for {} (agent file not selected for sync)",
+                        agent_name
+                    ),
+                });
+                continue;
+            }
+            mappings.push(AgentConfigMapping {
+                agent_name,
+                file_stem,
+            });
+        }
+    } else {
+        for agent_name in ["default", "worker", "explorer"] {
+            let file_stem = file_stem_for_agent_name(agent_name);
+            if !selected_set.contains(file_stem.as_str()) {
+                continue;
+            }
+            mappings.push(AgentConfigMapping {
+                agent_name: agent_name.to_string(),
+                file_stem,
+            });
+        }
+        if mappings.is_empty() {
+            plan.ops.push(PlanOp::Note {
+                message: "skip config upsert (no official agents selected for sync)".to_string(),
+            });
+            return Ok(());
+        }
+    }
+
+    let mappings = dedup_agent_mappings(mappings);
+    extend_plan_with_agent_config_mappings(plan, config_path, managed_dir, &mappings)
+}
+
+fn extend_plan_with_agent_config_mappings(
+    plan: &mut Plan,
+    config_path: &Path,
+    managed_dir: &Path,
+    mappings: &[AgentConfigMapping],
+) -> Result<()> {
+    let mut wanted = Vec::new();
+    for mapping in mappings {
+        let managed_file = managed_dir.join(format!("{}.toml", mapping.file_stem));
+        if !managed_file.exists() {
+            plan.ops.push(PlanOp::Note {
+                message: format!(
+                    "skip config upsert for {} (missing managed file: {})",
+                    mapping.agent_name,
+                    managed_file.display()
+                ),
+            });
+            continue;
+        }
+        wanted.push(mapping.clone());
+    }
+
+    if wanted.is_empty() {
+        return Ok(());
+    }
+
+    if let Some(op) = plan_upsert_agent_config_file_mappings(config_path, &wanted)? {
+        plan.ops.push(op);
+    }
+
+    Ok(())
+}
+
+fn dedup_agent_mappings(mappings: Vec<AgentConfigMapping>) -> Vec<AgentConfigMapping> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    for mapping in mappings {
+        if seen.insert(mapping.agent_name.clone()) {
+            out.push(mapping);
+        }
+    }
+    out
+}
+
+fn plan_upsert_agent_config_file_mappings(
+    config_path: &Path,
+    mappings: &[AgentConfigMapping],
+) -> Result<Option<PlanOp>> {
+    let mut doc: Value = if config_path.exists() {
+        let content = fs::read_to_string(config_path)
+            .with_context(|| format!("read codex config: {}", config_path.display()))?;
+        toml::from_str(&content)
+            .with_context(|| format!("parse codex config: {}", config_path.display()))?
+    } else {
+        Value::Table(toml::map::Map::new())
+    };
+
+    let before = doc.clone();
+    let root = doc.as_table_mut().ok_or_else(|| {
+        anyhow::anyhow!(
+            "codex config is not a TOML table: {}",
+            config_path.display()
+        )
+    })?;
+
+    let agents = root
+        .entry("agents")
+        .or_insert_with(|| Value::Table(toml::map::Map::new()));
+    let Some(agents_table) = agents.as_table_mut() else {
+        bail!(
+            "codex config `agents` is not a TOML table: {}",
+            config_path.display()
+        );
+    };
+
+    for mapping in mappings {
+        let entry = agents_table
+            .entry(mapping.agent_name.clone())
+            .or_insert_with(|| Value::Table(toml::map::Map::new()));
+        let Some(agent_table) = entry.as_table_mut() else {
+            bail!(
+                "codex config `agents.{}` is not a TOML table: {}",
+                mapping.agent_name,
+                config_path.display()
+            );
+        };
+        agent_table.insert(
+            "config_file".into(),
+            Value::String(format!("agents/{}.toml", mapping.file_stem)),
+        );
+    }
+
+    if doc == before {
+        return Ok(None);
+    }
+
+    let output = toml::to_string_pretty(&doc)
+        .with_context(|| format!("serialize codex config: {}", config_path.display()))?;
+
+    Ok(Some(PlanOp::WriteFile {
+        path: config_path.to_path_buf(),
+        content: output,
+    }))
+}
+
+fn load_toml_value_if_exists(path: &Path) -> Result<Option<Value>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(path).with_context(|| format!("read: {}", path.display()))?;
+    let doc: Value =
+        toml::from_str(&content).with_context(|| format!("parse: {}", path.display()))?;
+    Ok(Some(doc))
+}
+
+fn describe_config_state(config_doc: &CodexConfigDoc, stem: &str) -> String {
+    let doc = match config_doc {
+        CodexConfigDoc::Missing => return "n/a".to_string(),
+        CodexConfigDoc::Invalid => return "invalid-toml".to_string(),
+        CodexConfigDoc::Loaded(doc) => doc,
+    };
+
+    let Some(root) = doc.as_table() else {
+        return "invalid".to_string();
+    };
+
+    let agent_name = agent_name_for_stem(stem);
+    let file_stem = stem;
+    let expected = format!("agents/{file_stem}.toml");
+
+    let current = root
+        .get("agents")
+        .and_then(|v| v.as_table())
+        .and_then(|agents| agents.get(&agent_name))
+        .and_then(|v| v.as_table())
+        .and_then(|t| t.get("config_file"))
+        .and_then(|v| v.as_str());
+
+    match current {
+        Some(v) if v == expected => "ok".to_string(),
+        Some(v) => format!("mismatch({v})"),
+        None => "missing".to_string(),
+    }
+}
+
+fn agent_name_for_stem(stem: &str) -> String {
+    if stem == "defaults" {
+        "default".to_string()
+    } else {
+        stem.to_string()
+    }
+}
+
+fn file_stem_for_agent_name(agent_name: &str) -> String {
+    if agent_name == "default" {
+        "defaults".to_string()
+    } else {
+        agent_name.to_string()
     }
 }
 
@@ -565,6 +912,33 @@ fn resolve_target_agents_dir(args: &CodexAgentsArgs) -> Result<PathBuf> {
     Ok(home.join("agents"))
 }
 
+fn resolve_target_codex_config_path(args: &CodexAgentsArgs) -> Result<PathBuf> {
+    Ok(resolve_target_codex_home_dir(args)?.join("config.toml"))
+}
+
+fn resolve_target_codex_home_dir(args: &CodexAgentsArgs) -> Result<PathBuf> {
+    if let Some(home) = args.codex_home.as_ref() {
+        return Ok(home.clone());
+    }
+
+    if let Some(agents_dir) = args.agents_dir.as_ref() {
+        if let Some(parent) = agents_dir.parent() {
+            return Ok(parent.to_path_buf());
+        }
+        bail!("--agents-dir has no parent; provide --codex-home to locate config.toml");
+    }
+
+    if let Ok(env_home) = env::var("CODEX_HOME") {
+        let trimmed = env_home.trim();
+        if trimmed.is_empty() {
+            return Ok(crate::config::home_dir()?.join(".codex"));
+        }
+        return Ok(PathBuf::from(trimmed));
+    }
+
+    Ok(crate::config::home_dir()?.join(".codex"))
+}
+
 fn list_toml_stems(dir: &Path) -> Result<Vec<String>> {
     if !dir.exists() {
         return Ok(Vec::new());
@@ -818,6 +1192,7 @@ fn dev_instructions_inner_range(content: &str) -> Option<(usize, usize)> {
 mod tests {
     use super::*;
     use crate::config::override_runtime_config_dir;
+    use crate::test_utils::TestProcess;
     use tempfile::TempDir;
 
     #[test]
@@ -864,6 +1239,7 @@ hello
 
     #[test]
     fn dry_run_plan_does_not_write_target_file() {
+        let _proc = TestProcess::new();
         let temp = TempDir::new().expect("temp dir");
         let _guard = override_runtime_config_dir(temp.path().join("llman-config"));
 
@@ -880,6 +1256,8 @@ hello
         let args = CodexAgentsArgs {
             command: Some(CodexAgentsCommand::Sync {
                 mode: SyncMode::Copy,
+                upsert_config: false,
+                upsert_agent: vec![],
             }),
             managed_dir: None,
             codex_home: Some(codex_home),
@@ -896,6 +1274,7 @@ hello
 
     #[test]
     fn non_interactive_write_requires_yes_or_force() {
+        let _proc = TestProcess::new();
         let temp = TempDir::new().expect("temp dir");
         let _guard = override_runtime_config_dir(temp.path().join("llman-config"));
 
@@ -912,6 +1291,8 @@ hello
         let args = CodexAgentsArgs {
             command: Some(CodexAgentsCommand::Sync {
                 mode: SyncMode::Copy,
+                upsert_config: false,
+                upsert_agent: vec![],
             }),
             managed_dir: None,
             codex_home: Some(codex_home),
@@ -925,5 +1306,158 @@ hello
         let err = run(&args).expect_err("should require --yes/--force in non-interactive mode");
         assert!(err.to_string().contains("--dry-run") || err.to_string().contains("--yes"));
         assert!(!target_dir.join("a.toml").exists());
+    }
+
+    #[test]
+    fn sync_can_upsert_agent_config_file_mappings_into_codex_config() {
+        let _proc = TestProcess::new();
+        let temp = TempDir::new().expect("temp dir");
+        let _guard = override_runtime_config_dir(temp.path().join("llman-config"));
+
+        let managed_dir = resolve_config_dir(None)
+            .unwrap()
+            .join("codex")
+            .join("agents");
+        let codex_home = temp.path().join("codex-home");
+
+        fs::create_dir_all(&managed_dir).unwrap();
+        fs::write(managed_dir.join("defaults.toml"), "x").unwrap();
+        fs::write(managed_dir.join("explorer.toml"), "x").unwrap();
+        fs::write(managed_dir.join("worker.toml"), "x").unwrap();
+
+        let args = CodexAgentsArgs {
+            command: Some(CodexAgentsCommand::Sync {
+                mode: SyncMode::Copy,
+                upsert_config: true,
+                upsert_agent: vec![],
+            }),
+            managed_dir: None,
+            codex_home: Some(codex_home.clone()),
+            agents_dir: None,
+            only: vec![],
+            dry_run: false,
+            yes: true,
+            force: false,
+        };
+
+        run(&args).expect("run");
+
+        let codex_config_path = codex_home.join("config.toml");
+        assert!(codex_config_path.exists());
+
+        let content = fs::read_to_string(&codex_config_path).unwrap();
+        let doc: Value = toml::from_str(&content).unwrap();
+        let root = doc.as_table().unwrap();
+        let agents = root.get("agents").unwrap().as_table().unwrap();
+
+        let default_agent = agents.get("default").unwrap().as_table().unwrap();
+        assert_eq!(
+            default_agent.get("config_file").and_then(|v| v.as_str()),
+            Some("agents/defaults.toml")
+        );
+
+        let explorer_agent = agents.get("explorer").unwrap().as_table().unwrap();
+        assert_eq!(
+            explorer_agent.get("config_file").and_then(|v| v.as_str()),
+            Some("agents/explorer.toml")
+        );
+
+        let worker_agent = agents.get("worker").unwrap().as_table().unwrap();
+        assert_eq!(
+            worker_agent.get("config_file").and_then(|v| v.as_str()),
+            Some("agents/worker.toml")
+        );
+    }
+
+    #[test]
+    fn sync_upsert_config_default_does_not_include_custom_agents() {
+        let _proc = TestProcess::new();
+        let temp = TempDir::new().expect("temp dir");
+        let _guard = override_runtime_config_dir(temp.path().join("llman-config"));
+
+        let managed_dir = resolve_config_dir(None)
+            .unwrap()
+            .join("codex")
+            .join("agents");
+        let codex_home = temp.path().join("codex-home");
+
+        fs::create_dir_all(&managed_dir).unwrap();
+        fs::write(managed_dir.join("defaults.toml"), "x").unwrap();
+        fs::write(managed_dir.join("explorer.toml"), "x").unwrap();
+        fs::write(managed_dir.join("worker.toml"), "x").unwrap();
+        fs::write(managed_dir.join("reviewer.toml"), "x").unwrap();
+
+        let args = CodexAgentsArgs {
+            command: Some(CodexAgentsCommand::Sync {
+                mode: SyncMode::Copy,
+                upsert_config: true,
+                upsert_agent: vec![],
+            }),
+            managed_dir: None,
+            codex_home: Some(codex_home.clone()),
+            agents_dir: None,
+            only: vec![],
+            dry_run: false,
+            yes: true,
+            force: false,
+        };
+
+        run(&args).expect("run");
+
+        let codex_config_path = codex_home.join("config.toml");
+        let content = fs::read_to_string(&codex_config_path).unwrap();
+        let doc: Value = toml::from_str(&content).unwrap();
+        let root = doc.as_table().unwrap();
+        let agents = root.get("agents").unwrap().as_table().unwrap();
+
+        assert!(agents.contains_key("default"));
+        assert!(agents.contains_key("explorer"));
+        assert!(agents.contains_key("worker"));
+        assert!(!agents.contains_key("reviewer"));
+    }
+
+    #[test]
+    fn sync_upsert_agent_implies_upsert_config() {
+        let _proc = TestProcess::new();
+        let temp = TempDir::new().expect("temp dir");
+        let _guard = override_runtime_config_dir(temp.path().join("llman-config"));
+
+        let managed_dir = resolve_config_dir(None)
+            .unwrap()
+            .join("codex")
+            .join("agents");
+        let codex_home = temp.path().join("codex-home");
+
+        fs::create_dir_all(&managed_dir).unwrap();
+        fs::write(managed_dir.join("reviewer.toml"), "x").unwrap();
+
+        let args = CodexAgentsArgs {
+            command: Some(CodexAgentsCommand::Sync {
+                mode: SyncMode::Copy,
+                upsert_config: false,
+                upsert_agent: vec!["reviewer".to_string()],
+            }),
+            managed_dir: None,
+            codex_home: Some(codex_home.clone()),
+            agents_dir: None,
+            only: vec![],
+            dry_run: false,
+            yes: true,
+            force: false,
+        };
+
+        run(&args).expect("run");
+
+        let codex_config_path = codex_home.join("config.toml");
+        let content = fs::read_to_string(&codex_config_path).unwrap();
+        let doc: Value = toml::from_str(&content).unwrap();
+        let root = doc.as_table().unwrap();
+        let agents = root.get("agents").unwrap().as_table().unwrap();
+
+        let reviewer = agents.get("reviewer").unwrap().as_table().unwrap();
+        assert_eq!(
+            reviewer.get("config_file").and_then(|v| v.as_str()),
+            Some("agents/reviewer.toml")
+        );
     }
 }
