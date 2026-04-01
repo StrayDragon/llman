@@ -1,23 +1,6 @@
-# sdd-ison-pipeline Specification
+# sdd-ison-pipeline Specification (Delta)
 
-## Purpose
-TBD - created by archiving change add-ison-first-sdd-pipeline. Update Purpose after archive.
-## Requirements
-### Requirement: ISON-First SDD Template Sources
-The SDD template system MUST support ISON source templates as the primary authoring format for the new style track.
-
-#### Scenario: New style template generation reads ISON source
-- **WHEN** a maintainer runs SDD template refresh for new style
-- **THEN** the system reads ISON source templates
-- **AND** renders Markdown outputs used by generated instructions and skills
-
-### Requirement: ISON Validation Before Render
-The system MUST validate ISON source templates before rendering outputs.
-
-#### Scenario: Invalid ISON source blocks rendering
-- **WHEN** a new style ISON template has structural or type errors
-- **THEN** SDD template generation fails with non-zero exit
-- **AND** no partial rendered output is written for that failed template
+## MODIFIED Requirements
 
 ### Requirement: Runtime Spec Parsing Uses ISON Container
 The SDD runtime MUST parse `llmanspec` main specs from `spec.md` ISON container payloads rather than Markdown heading structure.

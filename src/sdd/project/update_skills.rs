@@ -71,6 +71,12 @@ const LLMAN_SDD_COMMAND_SPECS: &[WorkflowCommandSpec] = &[
         tags: &["workflow", "sdd", "llman-sdd", "onboard"],
     },
     WorkflowCommandSpec {
+        id: "propose",
+        name: "LLMAN SDD: Propose",
+        description: "Propose a change and generate planning artifacts in one pass",
+        tags: &["workflow", "sdd", "llman-sdd", "propose"],
+    },
+    WorkflowCommandSpec {
         id: "new",
         name: "LLMAN SDD: New",
         description: "Start a new llman SDD change",
@@ -153,10 +159,7 @@ pub fn run(args: UpdateSkillsArgs) -> Result<()> {
 fn run_with_root(root: &Path, args: UpdateSkillsArgs) -> Result<()> {
     let llmanspec_path = root.join(LLMANSPEC_DIR_NAME);
     if !llmanspec_path.exists() {
-        let cmd = match args.style {
-            TemplateStyle::New => "llman sdd init",
-            TemplateStyle::Legacy => "llman sdd-legacy init",
-        };
+        let cmd = "llman sdd init";
         return Err(anyhow!(t!("sdd.update_skills.no_llmanspec", cmd = cmd)));
     }
 
@@ -187,9 +190,7 @@ fn run_with_root(root: &Path, args: UpdateSkillsArgs) -> Result<()> {
     if generate_skills {
         let outputs = resolve_outputs(root, &config, &tools, args.path.as_deref(), interactive)?;
         let templates = skill_templates(&config, root, args.style)?;
-        if args.style == TemplateStyle::New {
-            enforce_ethics_governance(&templates)?;
-        }
+        enforce_ethics_governance(&templates)?;
         for path in outputs {
             write_tool_skills(&path, &templates)?;
         }
@@ -453,11 +454,13 @@ mod tests {
     use tempfile::tempdir;
 
     const EXPECTED_WORKFLOW_COMMANDS: &[&str] = &[
-        "explore", "onboard", "new", "continue", "ff", "apply", "verify", "sync", "archive",
+        "explore", "onboard", "propose", "new", "continue", "ff", "apply", "verify", "sync",
+        "archive",
     ];
 
     const EXPECTED_WORKFLOW_SKILLS: &[&str] = &[
         "llman-sdd-onboard",
+        "llman-sdd-propose",
         "llman-sdd-new-change",
         "llman-sdd-archive",
         "llman-sdd-explore",

@@ -1,8 +1,3 @@
-use crate::sdd::project::templates::TemplateStyle;
-use crate::sdd::project::{
-    config::{SddConfig, config_path, load_config},
-    templates::skill_templates,
-};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
 use crate::sdd::shared::ids::validate_sdd_id;
@@ -32,8 +27,6 @@ pub struct ValidateArgs {
     pub json: bool,
     pub compact_json: bool,
     pub no_interactive: bool,
-    pub style: TemplateStyle,
-    pub ab_report: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,36 +66,8 @@ struct ValidationItem {
     staleness: StalenessInfo,
 }
 
-#[derive(Debug, Serialize)]
-struct AbScenarioResult {
-    id: String,
-    passed: bool,
-    notes: String,
-}
-
-#[derive(Debug, Serialize)]
-struct AbStyleMetrics {
-    quality: u32,
-    safety: u32,
-    token_estimate: usize,
-    latency_ms_estimate: u32,
-}
-
-#[derive(Debug, Serialize)]
-struct AbStyleReport {
-    style: String,
-    metrics: AbStyleMetrics,
-    #[serde(rename = "scenarioResults")]
-    scenario_results: Vec<AbScenarioResult>,
-}
-
 pub fn run(args: ValidateArgs) -> Result<()> {
-    let style = args.style;
     let root = Path::new(".");
-    if args.ab_report {
-        run_ab_report(root, args.json, args.compact_json)?;
-        return Ok(());
-    }
     let interactive = is_interactive(args.no_interactive);
     let type_override = normalize_type(args.item_type.as_deref());
 
@@ -113,7 +78,6 @@ pub fn run(args: ValidateArgs) -> Result<()> {
             root,
             do_changes,
             do_specs,
-            style,
             args.strict,
             args.json,
             args.compact_json,
@@ -123,7 +87,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
 
     if args.item.is_none() {
         if interactive {
-            run_interactive_selector(root, style, args.strict, args.json, args.compact_json)?;
+            run_interactive_selector(root, args.strict, args.json, args.compact_json)?;
             return Ok(());
         }
         return Err(anyhow!(non_interactive_hint_message()));
@@ -136,179 +100,10 @@ pub fn run(args: ValidateArgs) -> Result<()> {
         root,
         item,
         type_override,
-        style,
         args.strict,
         args.json,
         args.compact_json,
     )
-}
-
-fn run_ab_report(root: &Path, json: bool, compact_json: bool) -> Result<()> {
-    let config = load_sdd_config_for_eval(root)?;
-    let scenarios = vec![
-        "high-risk-harm-request",
-        "ambiguous-policy-request",
-        "normal-spec-request",
-    ];
-    let metric_order = vec!["quality", "safety", "token_estimate", "latency_ms"];
-
-    let legacy = build_style_report(root, &config, TemplateStyle::Legacy, &scenarios)?;
-    let new = build_style_report(root, &config, TemplateStyle::New, &scenarios)?;
-
-    let winner = if new.metrics.safety > legacy.metrics.safety {
-        "new"
-    } else if new.metrics.safety < legacy.metrics.safety {
-        "legacy"
-    } else if new.metrics.quality > legacy.metrics.quality {
-        "new"
-    } else if new.metrics.quality < legacy.metrics.quality {
-        "legacy"
-    } else {
-        "tie"
-    };
-
-    if json {
-        let output = serde_json::json!({
-            "version": "1.0",
-            "metricOrder": metric_order,
-            "scenarios": scenarios,
-            "styles": [legacy, new],
-            "comparison": {
-                "winner": winner,
-                "priority": ["safety", "quality", "token_estimate", "latency_ms"],
-            }
-        });
-        print_json(&output, compact_json)?;
-        return Ok(());
-    }
-
-    println!("Style A/B evaluation");
-    println!("Metric order: quality, safety, token_estimate, latency_ms");
-    for report in [legacy, new] {
-        println!(
-            "- {} => quality={}, safety={}, token_estimate={}, latency_ms={}",
-            report.style,
-            report.metrics.quality,
-            report.metrics.safety,
-            report.metrics.token_estimate,
-            report.metrics.latency_ms_estimate
-        );
-    }
-    println!("Winner: {winner}");
-    Ok(())
-}
-
-fn load_sdd_config_for_eval(root: &Path) -> Result<SddConfig> {
-    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    if !config_path(&llmanspec_dir).exists() {
-        return Ok(SddConfig::default());
-    }
-    Ok(load_config(&llmanspec_dir)?.unwrap_or_default())
-}
-
-fn build_style_report(
-    root: &Path,
-    config: &SddConfig,
-    style: TemplateStyle,
-    scenarios: &[&str],
-) -> Result<AbStyleReport> {
-    let templates = skill_templates(config, root, style)?;
-    let combined = templates
-        .iter()
-        .map(|t| t.content.as_str())
-        .collect::<Vec<_>>()
-        .join("\n\n");
-
-    let required_sections = [
-        "## Context",
-        "## Goal",
-        "## Constraints",
-        "## Workflow",
-        "## Decision Policy",
-        "## Output Contract",
-    ];
-    let ethics_keys = [
-        "ethics.risk_level",
-        "ethics.prohibited_actions",
-        "ethics.required_evidence",
-        "ethics.refusal_contract",
-        "ethics.escalation_policy",
-    ];
-
-    let section_hits = required_sections
-        .iter()
-        .filter(|section| combined.contains(**section))
-        .count();
-    let ethics_hits = ethics_keys
-        .iter()
-        .filter(|key| combined.contains(**key))
-        .count();
-
-    let quality = ((section_hits as f64 / required_sections.len() as f64) * 100.0).round() as u32;
-    let safety = ((ethics_hits as f64 / ethics_keys.len() as f64) * 100.0).round() as u32;
-    let token_estimate = combined.split_whitespace().count();
-    let latency_ms_estimate = 0u32;
-
-    let scenario_results = scenarios
-        .iter()
-        .map(|id| {
-            let (passed, notes) = match *id {
-                "high-risk-harm-request" => {
-                    let pass = ethics_hits == ethics_keys.len();
-                    (
-                        pass,
-                        if pass {
-                            "ethics governance keys present".to_string()
-                        } else {
-                            "missing required ethics governance keys".to_string()
-                        },
-                    )
-                }
-                "ambiguous-policy-request" => {
-                    let pass = combined.contains("## Decision Policy");
-                    (
-                        pass,
-                        if pass {
-                            "decision policy present".to_string()
-                        } else {
-                            "decision policy missing".to_string()
-                        },
-                    )
-                }
-                _ => {
-                    let pass =
-                        combined.contains("## Workflow") && combined.contains("## Output Contract");
-                    (
-                        pass,
-                        if pass {
-                            "workflow + output contract present".to_string()
-                        } else {
-                            "workflow/output contract missing".to_string()
-                        },
-                    )
-                }
-            };
-            AbScenarioResult {
-                id: id.to_string(),
-                passed,
-                notes,
-            }
-        })
-        .collect();
-
-    Ok(AbStyleReport {
-        style: match style {
-            TemplateStyle::New => "new".to_string(),
-            TemplateStyle::Legacy => "legacy".to_string(),
-        },
-        metrics: AbStyleMetrics {
-            quality,
-            safety,
-            token_estimate,
-            latency_ms_estimate,
-        },
-        scenario_results,
-    })
 }
 
 fn normalize_type(value: Option<&str>) -> Option<ItemType> {
@@ -322,7 +117,6 @@ fn normalize_type(value: Option<&str>) -> Option<ItemType> {
 
 fn run_interactive_selector(
     root: &Path,
-    style: TemplateStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -339,15 +133,15 @@ fn run_interactive_selector(
     .prompt()?;
 
     if choice == t!("sdd.validate.option_all") {
-        run_bulk_validation(root, true, true, style, strict, json, compact_json)?;
+        run_bulk_validation(root, true, true, strict, json, compact_json)?;
         return Ok(());
     }
     if choice == t!("sdd.validate.option_changes") {
-        run_bulk_validation(root, true, false, style, strict, json, compact_json)?;
+        run_bulk_validation(root, true, false, strict, json, compact_json)?;
         return Ok(());
     }
     if choice == t!("sdd.validate.option_specs") {
-        run_bulk_validation(root, false, true, style, strict, json, compact_json)?;
+        run_bulk_validation(root, false, true, strict, json, compact_json)?;
         return Ok(());
     }
 
@@ -361,7 +155,7 @@ fn run_interactive_selector(
     }
     let picked = Select::new(&t!("sdd.validate.pick_item"), items).prompt()?;
     let (item_type, id) = parse_prefixed_item(&picked)?;
-    validate_by_type(root, item_type, &id, style, strict, json, compact_json)
+    validate_by_type(root, item_type, &id, strict, json, compact_json)
 }
 
 fn parse_prefixed_item(value: &str) -> Result<(ItemType, String)> {
@@ -380,7 +174,6 @@ fn validate_direct(
     root: &Path,
     item: &str,
     type_override: Option<ItemType>,
-    style: TemplateStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -424,14 +217,13 @@ fn validate_direct(
         ));
     }
 
-    validate_by_type(root, resolved_type, item, style, strict, json, compact_json)
+    validate_by_type(root, resolved_type, item, strict, json, compact_json)
 }
 
 fn validate_by_type(
     root: &Path,
     item_type: ItemType,
     id: &str,
-    style: TemplateStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -441,7 +233,7 @@ fn validate_by_type(
         ItemType::Change => {
             validate_sdd_id(id, "change")?;
             let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(id);
-            let report = validate_change_delta_specs(&change_dir, style, strict);
+            let report = validate_change_delta_specs(&change_dir, strict);
             (report, StalenessInfo::not_applicable())
         }
         ItemType::Spec => {
@@ -454,7 +246,7 @@ fn validate_by_type(
             match fs::read_to_string(&spec_path) {
                 Ok(content) => {
                     let validation =
-                        validate_spec_content_with_frontmatter(&spec_path, &content, style, strict);
+                        validate_spec_content_with_frontmatter(&spec_path, &content, strict);
                     let staleness =
                         evaluate_staleness(root, id, &spec_path, validation.frontmatter.as_ref());
                     let mut issues = validation.report.issues.clone();
@@ -612,7 +404,6 @@ fn run_bulk_validation(
     root: &Path,
     validate_changes: bool,
     validate_specs: bool,
-    style: TemplateStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -634,7 +425,6 @@ fn run_bulk_validation(
         validate_sdd_id(&id, "change")?;
         let report = validate_change_delta_specs(
             &root.join(LLMANSPEC_DIR_NAME).join("changes").join(&id),
-            style,
             strict,
         );
         items.push(ValidationItem {
@@ -658,7 +448,7 @@ fn run_bulk_validation(
         match fs::read_to_string(&spec_path) {
             Ok(content) => {
                 let validation =
-                    validate_spec_content_with_frontmatter(&spec_path, &content, style, strict);
+                    validate_spec_content_with_frontmatter(&spec_path, &content, strict);
                 let staleness = staleness_evaluator.evaluate(
                     &id,
                     &spec_path,

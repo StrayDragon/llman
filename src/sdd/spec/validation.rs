@@ -1,7 +1,6 @@
 use crate::sdd::change::delta::{
     DeltaPlan, RequirementBlock, normalize_requirement_name, parse_delta_spec,
 };
-use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::spec::parser::{Requirement, parse_spec};
 use serde::Serialize;
 use std::fs;
@@ -53,7 +52,6 @@ pub struct SpecValidation {
 pub fn validate_spec_content_with_frontmatter(
     path: &Path,
     content: &str,
-    style: TemplateStyle,
     strict: bool,
 ) -> SpecValidation {
     let spec_name = path
@@ -67,7 +65,7 @@ pub fn validate_spec_content_with_frontmatter(
     let mut issues = parsed_frontmatter.issues;
     let body = parsed_frontmatter.body.clone();
 
-    match parse_spec(&body, &spec_name, style) {
+    match parse_spec(&body, &spec_name) {
         Ok(spec) => {
             if spec.name.trim() != spec_name {
                 issues.push(ValidationIssue {
@@ -309,11 +307,7 @@ Test
     }
 }
 
-pub fn validate_change_delta_specs(
-    change_dir: &Path,
-    style: TemplateStyle,
-    strict: bool,
-) -> ValidationReport {
+pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> ValidationReport {
     let mut issues = Vec::new();
     let specs_dir = change_dir.join("specs");
     let mut total_deltas = 0usize;
@@ -360,7 +354,7 @@ pub fn validate_change_delta_specs(
                 continue;
             }
         };
-        let plan = match parse_delta_spec(&content, style, &format!("delta spec `{}`", spec_name)) {
+        let plan = match parse_delta_spec(&content, &format!("delta spec `{}`", spec_name)) {
             Ok(plan) => plan,
             Err(err) => {
                 issues.push(ValidationIssue {

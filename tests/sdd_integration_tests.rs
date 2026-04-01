@@ -295,7 +295,7 @@ r1 s1 "" "doing the first thing" "it works"
 }
 
 #[test]
-fn test_sdd_rejects_legacy_json_payloads_and_sdd_legacy_accepts() {
+fn test_sdd_rejects_legacy_json_payloads_with_canonical_rewrite_guidance() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
 
@@ -363,25 +363,6 @@ llman_spec_evidence:
 
     git_commit_all(work_dir, "add legacy payloads");
 
-    let legacy_validate_spec = run_llman(
-        &[
-            "sdd-legacy",
-            "validate",
-            "sample",
-            "--type",
-            "spec",
-            "--strict",
-            "--no-interactive",
-            "--json",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&legacy_validate_spec);
-    let legacy_spec_json: Value =
-        serde_json::from_slice(&legacy_validate_spec.stdout).expect("legacy validate spec json");
-    assert_eq!(legacy_spec_json["items"][0]["valid"], true);
-
     let new_validate_spec = run_llman(
         &[
             "sdd",
@@ -406,32 +387,21 @@ llman_spec_evidence:
         .as_str()
         .unwrap_or_default();
     assert!(
-        message.contains("llman sdd-legacy"),
-        "expected legacy-command hint in error message: {message}"
+        !message.contains("sdd-legacy"),
+        "error message must not reference legacy commands: {message}"
     );
     assert!(
-        message.contains("legacy JSON detected"),
-        "expected sniff-based legacy JSON error: {message}"
+        message.contains("object.spec"),
+        "expected canonical guidance: {message}"
     );
-
-    let legacy_validate_change = run_llman(
-        &[
-            "sdd-legacy",
-            "validate",
-            "legacy-change",
-            "--type",
-            "change",
-            "--strict",
-            "--no-interactive",
-            "--json",
-        ],
-        work_dir,
-        work_dir,
+    assert!(
+        message.contains("table.requirements"),
+        "expected canonical guidance: {message}"
     );
-    assert_success(&legacy_validate_change);
-    let legacy_change_json: Value = serde_json::from_slice(&legacy_validate_change.stdout)
-        .expect("legacy validate change json");
-    assert_eq!(legacy_change_json["items"][0]["valid"], true);
+    assert!(
+        message.contains("table.scenarios"),
+        "expected canonical guidance: {message}"
+    );
 
     let new_validate_change = run_llman(
         &[
@@ -457,12 +427,20 @@ llman_spec_evidence:
         .as_str()
         .unwrap_or_default();
     assert!(
-        message.contains("llman sdd-legacy"),
-        "expected legacy-command hint in error message: {message}"
+        !message.contains("sdd-legacy"),
+        "error message must not reference legacy commands: {message}"
     );
     assert!(
-        message.contains("legacy JSON detected"),
-        "expected sniff-based legacy JSON error: {message}"
+        message.contains("object.delta"),
+        "expected canonical guidance: {message}"
+    );
+    assert!(
+        message.contains("table.ops"),
+        "expected canonical guidance: {message}"
+    );
+    assert!(
+        message.contains("table.op_scenarios"),
+        "expected canonical guidance: {message}"
     );
 }
 
@@ -987,54 +965,6 @@ added added "" "a new action is taken" "the new behavior happens"
 }
 
 #[test]
-fn test_sdd_validate_ab_report_json_orders_safety_priority_metrics() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    let init_output = run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&init_output);
-
-    let output = run_llman(
-        &[
-            "sdd",
-            "validate",
-            "--ab-report",
-            "--json",
-            "--no-interactive",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&output);
-
-    let parsed: Value = serde_json::from_slice(&output.stdout).expect("ab report json");
-    let metric_order = parsed["metricOrder"].as_array().expect("metric order");
-    assert_eq!(metric_order[0], "quality");
-    assert_eq!(metric_order[1], "safety");
-    assert_eq!(metric_order[2], "token_estimate");
-    assert_eq!(metric_order[3], "latency_ms");
-
-    let styles = parsed["styles"].as_array().expect("styles");
-    assert_eq!(styles.len(), 2);
-    let style_names: Vec<String> = styles
-        .iter()
-        .filter_map(|s| s["style"].as_str().map(|v| v.to_string()))
-        .collect();
-    assert!(style_names.contains(&"new".to_string()));
-    assert!(style_names.contains(&"legacy".to_string()));
-
-    let priority = parsed["comparison"]["priority"]
-        .as_array()
-        .expect("priority array");
-    assert_eq!(priority[0], "safety");
-    assert_eq!(priority[1], "quality");
-}
-
-#[test]
 fn test_sdd_update_recreates_llmanspec_agents_md() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
@@ -1058,30 +988,6 @@ fn test_sdd_update_recreates_llmanspec_agents_md() {
     assert!(content.contains("<!-- LLMANSPEC:START -->"));
     assert!(content.contains("LLMAN Spec-Driven Development (SDD)"));
     assert!(content.contains("llman sdd update-skills"));
-}
-
-#[test]
-fn test_sdd_update_legacy_style_routes_legacy_agents_template() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    let init_output = run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&init_output);
-
-    let agents_path = work_dir.join("llmanspec").join("AGENTS.md");
-    let before = fs::read_to_string(&agents_path).expect("read default agents");
-    assert!(before.contains("llman sdd list"));
-    assert!(!before.contains("llman sdd-legacy list"));
-
-    let update_output = run_llman(&["sdd-legacy", "update"], work_dir, work_dir);
-    assert_success(&update_output);
-
-    let after = fs::read_to_string(&agents_path).expect("read legacy agents");
-    assert!(after.contains("llman sdd-legacy list"));
 }
 
 #[test]
@@ -1151,56 +1057,6 @@ fn test_sdd_update_skills_writes_codex_skills_without_workflow_prompts() {
 
     let codex_prompts = work_dir.join(".codex/prompts");
     assert!(!codex_prompts.exists());
-}
-
-#[test]
-fn test_sdd_update_skills_legacy_style_routes_legacy_templates() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    let init_output = run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&init_output);
-
-    let output_dir = work_dir.join(".codex/skills");
-    let update_output = run_llman(
-        &[
-            "sdd-legacy",
-            "update-skills",
-            "--tool",
-            "codex",
-            "--no-interactive",
-            "--path",
-            ".codex/skills",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&update_output);
-
-    let compact_skill_path = output_dir.join("llman-sdd-specs-compact").join("SKILL.md");
-    let compact_skill = fs::read_to_string(&compact_skill_path).expect("read legacy compact skill");
-    assert!(
-        compact_skill.contains("legacy-track"),
-        "legacy style should render legacy unit marker"
-    );
-
-    for entry in fs::read_dir(&output_dir).expect("read legacy skills output dir") {
-        let entry = entry.expect("legacy skills entry");
-        let file_type = entry.file_type().expect("legacy skills entry file type");
-        if !file_type.is_dir() {
-            continue;
-        }
-        let skill_md = entry.path().join("SKILL.md");
-        if !skill_md.exists() {
-            continue;
-        }
-        let content = fs::read_to_string(&skill_md).expect("read legacy generated SKILL.md");
-        assert_no_disallowed_prompt_markers(&skill_md, &content);
-    }
 }
 
 #[test]
@@ -1635,97 +1491,4 @@ fn test_sdd_help_shows_import_export_and_hides_migrate() {
     assert!(stdout.contains("import"));
     assert!(stdout.contains("export"));
     assert!(!stdout.contains("migrate"));
-}
-
-#[test]
-fn test_sdd_migrate_to_ison_dry_run_does_not_write() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    fs::create_dir_all(work_dir.join("llmanspec/specs/sample")).expect("create spec dir");
-    let source = r#"## Purpose
-Describe sample behavior.
-
-## Requirements
-### Requirement: Existing behavior
-System MUST preserve existing behavior.
-
-#### Scenario: baseline
-- **WHEN** running the sample
-- **THEN** behavior is preserved
-"#;
-    let target = work_dir.join("llmanspec/specs/sample/spec.md");
-    fs::write(&target, source).expect("write source spec");
-
-    let output = run_llman(
-        &["sdd", "migrate", "--to-ison", "--dry-run"],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&output);
-
-    let after = fs::read_to_string(&target).expect("read target");
-    assert_eq!(after, source);
-}
-
-#[test]
-fn test_sdd_migrate_to_ison_writes_spec_and_delta() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    fs::create_dir_all(work_dir.join("llmanspec/specs/sample")).expect("create spec dir");
-    fs::write(
-        work_dir.join("llmanspec/specs/sample/spec.md"),
-        r#"---
-llman_spec_valid_scope:
-  - src
-llman_spec_valid_commands:
-  - cargo test
-llman_spec_evidence:
-  - tests
----
-
-## Purpose
-Describe sample behavior.
-
-## Requirements
-### Requirement: Existing behavior
-System MUST preserve existing behavior.
-
-#### Scenario: baseline
-- **WHEN** running the sample
-- **THEN** behavior is preserved
-"#,
-    )
-    .expect("write source spec");
-
-    fs::create_dir_all(work_dir.join("llmanspec/changes/add-sample/specs/sample"))
-        .expect("create delta dir");
-    fs::write(
-        work_dir.join("llmanspec/changes/add-sample/specs/sample/spec.md"),
-        r#"## ADDED Requirements
-### Requirement: Added behavior
-System MUST support the added behavior.
-
-#### Scenario: added
-- **WHEN** a new action is taken
-- **THEN** the new behavior happens
-"#,
-    )
-    .expect("write source delta");
-
-    let output = run_llman(&["sdd", "migrate", "--to-ison"], work_dir, work_dir);
-    assert_success(&output);
-
-    let spec_after = fs::read_to_string(work_dir.join("llmanspec/specs/sample/spec.md"))
-        .expect("read migrated spec");
-    assert!(spec_after.contains("```ison"));
-    assert!(spec_after.contains("\"kind\": \"llman.sdd.spec\""));
-
-    let delta_after =
-        fs::read_to_string(work_dir.join("llmanspec/changes/add-sample/specs/sample/spec.md"))
-            .expect("read migrated delta");
-    assert!(delta_after.contains("```ison"));
-    assert!(delta_after.contains("\"kind\": \"llman.sdd.delta\""));
-    assert!(delta_after.contains("\"op\": \"add_requirement\""));
 }

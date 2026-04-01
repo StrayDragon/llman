@@ -106,7 +106,7 @@
       "type": "object",
       "additionalProperties": {
         "title": "Variant",
-        "description": "Variant configuration (workflow style + ACP agent preset).",
+        "description": "Variant configuration (ACP agent preset).",
         "type": "object",
         "properties": {
           "agent": {
@@ -149,20 +149,10 @@
               "kind",
               "preset"
             ]
-          },
-          "style": {
-            "title": "Workflow Style",
-            "description": "Workflow style for the variant.",
-            "type": "string",
-            "enum": [
-              "sdd",
-              "sdd-legacy"
-            ]
           }
         },
         "additionalProperties": false,
         "required": [
-          "style",
           "agent"
         ]
       }

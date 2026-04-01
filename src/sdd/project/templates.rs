@@ -14,20 +14,17 @@ pub struct SkillTemplate {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TemplateStyle {
     New,
-    Legacy,
 }
 
 impl TemplateStyle {
     fn templates_root(self) -> &'static str {
-        match self {
-            Self::New => "templates/sdd",
-            Self::Legacy => "templates/sdd-legacy",
-        }
+        "templates/sdd"
     }
 }
 
 const SKILL_FILES: &[&str] = &[
     "llman-sdd-onboard.md",
+    "llman-sdd-propose.md",
     "llman-sdd-new-change.md",
     "llman-sdd-explore.md",
     "llman-sdd-continue.md",
@@ -44,6 +41,7 @@ const SKILL_FILES: &[&str] = &[
 const LLMAN_SDD_COMMAND_SKILLS: &[(&str, &str)] = &[
     ("explore", "llman-sdd-explore.md"),
     ("onboard", "llman-sdd-onboard.md"),
+    ("propose", "llman-sdd-propose.md"),
     ("new", "llman-sdd-new-change.md"),
     ("continue", "llman-sdd-continue.md"),
     ("ff", "llman-sdd-ff.md"),
@@ -287,6 +285,10 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/llman-sdd-onboard.md"
         ))),
+        "templates/sdd/en/skills/llman-sdd-propose.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/skills/llman-sdd-propose.md"
+        ))),
         "templates/sdd/en/skills/llman-sdd-new-change.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/llman-sdd-new-change.md"
@@ -368,6 +370,10 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/zh-Hans/skills/llman-sdd-onboard.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/skills/llman-sdd-onboard.md"
+        ))),
+        "templates/sdd/zh-Hans/skills/llman-sdd-propose.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/skills/llman-sdd-propose.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-new-change.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

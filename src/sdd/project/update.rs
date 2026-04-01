@@ -11,10 +11,7 @@ use std::path::Path;
 pub fn run(target: &Path, style: TemplateStyle) -> Result<()> {
     let llmanspec_path = target.join(LLMANSPEC_DIR_NAME);
     if !llmanspec_path.exists() {
-        let init_cmd = match style {
-            TemplateStyle::New => "llman sdd init",
-            TemplateStyle::Legacy => "llman sdd-legacy init",
-        };
+        let init_cmd = "llman sdd init";
         return Err(anyhow!(
             "No llmanspec directory found. Run '{init_cmd}' first."
         ));

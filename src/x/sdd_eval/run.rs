@@ -29,7 +29,6 @@ pub struct RunManifestV1 {
 #[serde(deny_unknown_fields)]
 pub struct VariantManifestV1 {
     pub name: String,
-    pub style: String,
     pub agent_kind: String,
     pub agent_preset: String,
     pub agent_command: String,
@@ -78,10 +77,6 @@ pub fn create_run(
 
         variants.push(VariantManifestV1 {
             name: variant_id.clone(),
-            style: match variant.style {
-                playbook::WorkflowStyle::Sdd => "sdd".to_string(),
-                playbook::WorkflowStyle::SddLegacy => "sdd-legacy".to_string(),
-            },
             agent_kind: match variant.agent.kind {
                 playbook::AgentKind::ClaudeCode => "claude-code-acp".to_string(),
                 playbook::AgentKind::Codex => "codex-acp".to_string(),
@@ -404,15 +399,6 @@ fn resolve_interpolation_path(path: &str, ctx: &InterpolationContext<'_>) -> Res
             .matrix_variant
             .map(|s| s.to_string())
             .ok_or_else(|| anyhow::anyhow!("`matrix.variant` is not available (not a matrix job)")),
-        "variant.style" => {
-            let Some(variant) = ctx.variant else {
-                bail!("`variant.style` is not available (no variant context)");
-            };
-            Ok(match variant.style {
-                playbook::WorkflowStyle::Sdd => "sdd".to_string(),
-                playbook::WorkflowStyle::SddLegacy => "sdd-legacy".to_string(),
-            })
-        }
         "variant.agent.kind" => {
             let Some(variant) = ctx.variant else {
                 bail!("`variant.agent.kind` is not available (no variant context)");
@@ -587,13 +573,10 @@ fn execute_run_step(
     Ok(())
 }
 
-fn init_workspace_sdd(workspace_root: &Path, style: playbook::WorkflowStyle) -> Result<()> {
+fn init_workspace_sdd(workspace_root: &Path) -> Result<()> {
     use crate::sdd::project::templates::TemplateStyle;
 
-    let template_style = match style {
-        playbook::WorkflowStyle::Sdd => TemplateStyle::New,
-        playbook::WorkflowStyle::SddLegacy => TemplateStyle::Legacy,
-    };
+    let template_style = TemplateStyle::New;
 
     let llmanspec = workspace_root.join(crate::sdd::shared::constants::LLMANSPEC_DIR_NAME);
     if !llmanspec.exists() {
@@ -723,11 +706,11 @@ fn builtin_workspace_prepare(
 }
 
 fn builtin_sdd_prepare(run_dir: &Path, pb: &playbook::Playbook, variant_id: &str) -> Result<()> {
-    let Some(variant) = pb.variants.get(variant_id) else {
+    if !pb.variants.contains_key(variant_id) {
         bail!("unknown variant id `{}`", variant_id);
-    };
+    }
     let paths = VariantPaths::new(run_dir, variant_id);
-    init_workspace_sdd(&paths.workspace_root, variant.style)
+    init_workspace_sdd(&paths.workspace_root)
         .with_context(|| format!("init SDD workspace for {}", variant_id))?;
     Ok(())
 }
@@ -773,7 +756,6 @@ fn builtin_acp_sdd_loop(
 
     let run_result = acp::run_variant(acp::VariantRunParams {
         workspace_root: paths.workspace_root.clone(),
-        style: variant.style,
         agent_command,
         agent_args: variant.agent.args.clone(),
         agent_env: preset.env,

@@ -14,7 +14,6 @@ Quick commands:
 - `llman sdd list`
 - `llman sdd show <item>`
 - `llman sdd validate <id> --strict --no-interactive`
-- `llman sdd validate --ab-report --json --no-interactive`
 - `llman sdd archive <id>`
 - `llman sdd update-skills --all`
 
@@ -25,7 +24,7 @@ Locale + skills:
 - `llmanspec/config.yaml` sets `locale` and skills paths.
 - Locale affects templates and skills only; CLI output stays English.
 - Regenerate skills with `llman sdd update-skills`.
-- Use `llman sdd` for the default (`new`) track. Use `llman sdd-legacy ...` for the compatibility track.
+- The SDD workflow is single-track: use `llman sdd ...` (canonical table/object ISON only).
 
 Only use AGENTS.md context injection.
 

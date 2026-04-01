@@ -2,7 +2,7 @@ use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
 use crate::sdd::project::templates::TemplateStyle;
-use crate::sdd::project::{init, interop, migrate, update, update_skills};
+use crate::sdd::project::{init, interop, update, update_skills};
 use crate::sdd::shared::{list, show, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -12,12 +12,6 @@ use std::path::PathBuf;
 pub struct SddArgs {
     #[command(subcommand)]
     pub command: SddCommands,
-}
-
-#[derive(Args)]
-pub struct SddLegacyArgs {
-    #[command(subcommand)]
-    pub command: SddLegacyCommands,
 }
 
 #[derive(Args)]
@@ -270,9 +264,6 @@ pub enum SddCommands {
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
-        /// Emit old-vs-new style A/B evaluation report
-        #[arg(long)]
-        ab_report: bool,
     },
     /// Archive workflow commands
     Archive {
@@ -309,189 +300,10 @@ pub enum SddCommands {
         /// Project root path (default: current directory)
         path: Option<PathBuf>,
     },
-    /// Migrate llmanspec specs to ISON payload containers
-    #[command(hide = true)]
-    Migrate {
-        /// Execute migration to ISON containers
-        #[arg(long)]
-        to_ison: bool,
-        /// Preview migrations without writing files
-        #[arg(long)]
-        dry_run: bool,
-        /// Project root path (default: current directory)
-        path: Option<PathBuf>,
-    },
     /// Canonical spec authoring helpers (table/object ISON)
     Spec(SddSpecArgs),
     /// Canonical delta authoring helpers (table/object ISON)
     Delta(SddDeltaArgs),
-}
-
-#[derive(Subcommand)]
-pub enum SddLegacyCommands {
-    /// Initialize llmanspec in your project
-    Init {
-        /// Target path (default: current directory)
-        path: Option<PathBuf>,
-        /// Locale for templates (default: en)
-        #[arg(long)]
-        lang: Option<String>,
-    },
-    /// Update llmanspec instruction files
-    Update {
-        /// Target path (default: current directory)
-        path: Option<PathBuf>,
-    },
-    /// Generate or update llman sdd skills
-    UpdateSkills {
-        /// Generate skills for all tools (llman sdd workflow commands only for Claude)
-        #[arg(long)]
-        all: bool,
-        /// Tool to generate skills for: claude,codex (repeatable; workflow commands only for claude)
-        #[arg(long, value_delimiter = ',')]
-        tool: Vec<String>,
-        /// Override output path for generated skills
-        #[arg(long)]
-        path: Option<PathBuf>,
-        /// Disable interactive prompts
-        #[arg(long)]
-        no_interactive: bool,
-        /// Generate only llman sdd workflow commands for Claude (no skills)
-        #[arg(long, conflicts_with = "skills_only")]
-        commands_only: bool,
-        /// Generate only skills (no llman sdd workflow commands)
-        #[arg(long, conflicts_with = "commands_only")]
-        skills_only: bool,
-    },
-    /// List changes or specs
-    List {
-        /// List specs instead of changes
-        #[arg(long)]
-        specs: bool,
-        /// List changes explicitly (default)
-        #[arg(long)]
-        changes: bool,
-        /// Sort order: "recent" (default) or "name"
-        #[arg(long, default_value = "recent")]
-        sort: String,
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
-        /// Emit compact JSON (no pretty whitespace). Requires `--json`.
-        #[arg(long, requires = "json")]
-        compact_json: bool,
-    },
-    /// Show a change or spec
-    Show {
-        /// Item name (change id or spec id)
-        item: Option<String>,
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
-        /// Emit compact JSON (no pretty whitespace). Requires `--json`.
-        #[arg(long, requires = "json")]
-        compact_json: bool,
-        /// Spec-only: output metadata only (no `requirements`). Requires `--json`.
-        #[arg(long, requires = "json")]
-        meta_only: bool,
-        /// Specify item type when ambiguous: change|spec
-        #[arg(long = "type")]
-        item_type: Option<String>,
-        /// Disable interactive prompts
-        #[arg(long)]
-        no_interactive: bool,
-        /// Change-only: show only deltas (JSON only)
-        #[arg(long)]
-        deltas_only: bool,
-        /// Change-only: alias for --deltas-only (deprecated)
-        #[arg(long)]
-        requirements_only: bool,
-        /// Spec-only: show only requirements (JSON only)
-        #[arg(long)]
-        requirements: bool,
-        /// Spec-only: exclude scenarios (JSON only)
-        #[arg(long)]
-        no_scenarios: bool,
-        /// Spec-only: show specific requirement by ID (1-based)
-        #[arg(short = 'r', long)]
-        requirement: Option<usize>,
-    },
-    /// Validate changes and specs
-    Validate {
-        /// Item name (change id or spec id)
-        item: Option<String>,
-        /// Validate all changes and specs
-        #[arg(long)]
-        all: bool,
-        /// Validate all changes
-        #[arg(long)]
-        changes: bool,
-        /// Validate all specs
-        #[arg(long)]
-        specs: bool,
-        /// Specify item type when ambiguous: change|spec
-        #[arg(long = "type")]
-        item_type: Option<String>,
-        /// Enable strict validation mode
-        #[arg(long)]
-        strict: bool,
-        /// Output validation results as JSON
-        #[arg(long)]
-        json: bool,
-        /// Emit compact JSON (no pretty whitespace). Requires `--json`.
-        #[arg(long, requires = "json")]
-        compact_json: bool,
-        /// Disable interactive prompts
-        #[arg(long)]
-        no_interactive: bool,
-        /// Emit old-vs-new style A/B evaluation report
-        #[arg(long)]
-        ab_report: bool,
-    },
-    /// Archive workflow commands
-    Archive {
-        /// Legacy: change id (equivalent to `archive run <change-id>`)
-        change: Option<String>,
-        /// Legacy: skip updating specs
-        #[arg(long)]
-        skip_specs: bool,
-        /// Legacy: dry run mode
-        #[arg(long)]
-        dry_run: bool,
-        /// Legacy: force archive even if validation fails
-        #[arg(long, hide = true)]
-        force: bool,
-        #[command(subcommand)]
-        command: Option<ArchiveLegacySubcommand>,
-    },
-    /// Import spec workflow content from external style
-    Import {
-        /// Source/target style (currently only: openspec)
-        #[arg(long)]
-        style: String,
-        /// Project root path (default: current directory)
-        path: Option<PathBuf>,
-    },
-    /// Export spec workflow content to external style
-    Export {
-        /// Source/target style (currently only: openspec)
-        #[arg(long)]
-        style: String,
-        /// Project root path (default: current directory)
-        path: Option<PathBuf>,
-    },
-    /// Migrate llmanspec specs to ISON payload containers
-    #[command(hide = true)]
-    Migrate {
-        /// Execute migration to ISON containers
-        #[arg(long)]
-        to_ison: bool,
-        /// Preview migrations without writing files
-        #[arg(long)]
-        dry_run: bool,
-        /// Project root path (default: current directory)
-        path: Option<PathBuf>,
-    },
 }
 
 #[derive(Subcommand)]
@@ -536,202 +348,8 @@ pub enum ArchiveSubcommand {
     },
 }
 
-#[derive(Subcommand)]
-pub enum ArchiveLegacySubcommand {
-    /// Archive a change and update main specs
-    Run {
-        /// Change id
-        change: Option<String>,
-        /// Skip updating specs
-        #[arg(long)]
-        skip_specs: bool,
-        /// Dry run mode
-        #[arg(long)]
-        dry_run: bool,
-        /// Force archive even if validation fails
-        #[arg(long, hide = true)]
-        force: bool,
-    },
-    /// Freeze archived change directories into a single cold-backup archive
-    Freeze {
-        /// Freeze entries older than this date (YYYY-MM-DD)
-        #[arg(long)]
-        before: Option<String>,
-        /// Keep N most recent candidates unfrozen
-        #[arg(long, default_value_t = 0)]
-        keep_recent: usize,
-        /// Dry run mode
-        #[arg(long)]
-        dry_run: bool,
-    },
-    /// Thaw archived changes from the cold-backup archive
-    Thaw {
-        /// Restore only these archived change directories (repeatable)
-        #[arg(long)]
-        change: Vec<String>,
-        /// Override thaw destination path
-        #[arg(long)]
-        dest: Option<PathBuf>,
-    },
-}
-
-impl SddLegacyCommands {
-    fn to_current(&self) -> SddCommands {
-        match self {
-            Self::Init { path, lang } => SddCommands::Init {
-                path: path.clone(),
-                lang: lang.clone(),
-            },
-            Self::Update { path } => SddCommands::Update { path: path.clone() },
-            Self::UpdateSkills {
-                all,
-                tool,
-                path,
-                no_interactive,
-                commands_only,
-                skills_only,
-            } => SddCommands::UpdateSkills {
-                all: *all,
-                tool: tool.clone(),
-                path: path.clone(),
-                no_interactive: *no_interactive,
-                commands_only: *commands_only,
-                skills_only: *skills_only,
-            },
-            Self::List {
-                specs,
-                changes,
-                sort,
-                json,
-                compact_json,
-            } => SddCommands::List {
-                specs: *specs,
-                changes: *changes,
-                sort: sort.clone(),
-                json: *json,
-                compact_json: *compact_json,
-            },
-            Self::Show {
-                item,
-                json,
-                compact_json,
-                meta_only,
-                item_type,
-                no_interactive,
-                deltas_only,
-                requirements_only,
-                requirements,
-                no_scenarios,
-                requirement,
-            } => SddCommands::Show {
-                item: item.clone(),
-                json: *json,
-                compact_json: *compact_json,
-                meta_only: *meta_only,
-                item_type: item_type.clone(),
-                no_interactive: *no_interactive,
-                deltas_only: *deltas_only,
-                requirements_only: *requirements_only,
-                requirements: *requirements,
-                no_scenarios: *no_scenarios,
-                requirement: *requirement,
-            },
-            Self::Validate {
-                item,
-                all,
-                changes,
-                specs,
-                item_type,
-                strict,
-                json,
-                compact_json,
-                no_interactive,
-                ab_report,
-            } => SddCommands::Validate {
-                item: item.clone(),
-                all: *all,
-                changes: *changes,
-                specs: *specs,
-                item_type: item_type.clone(),
-                strict: *strict,
-                json: *json,
-                compact_json: *compact_json,
-                no_interactive: *no_interactive,
-                ab_report: *ab_report,
-            },
-            Self::Archive {
-                change,
-                skip_specs,
-                dry_run,
-                force,
-                command,
-            } => SddCommands::Archive {
-                change: change.clone(),
-                skip_specs: *skip_specs,
-                dry_run: *dry_run,
-                pretty_ison: false,
-                force: *force,
-                command: command.as_ref().map(ArchiveLegacySubcommand::to_current),
-            },
-            Self::Import { style, path } => SddCommands::Import {
-                style: style.clone(),
-                path: path.clone(),
-            },
-            Self::Export { style, path } => SddCommands::Export {
-                style: style.clone(),
-                path: path.clone(),
-            },
-            Self::Migrate {
-                to_ison,
-                dry_run,
-                path,
-            } => SddCommands::Migrate {
-                to_ison: *to_ison,
-                dry_run: *dry_run,
-                path: path.clone(),
-            },
-        }
-    }
-}
-
-impl ArchiveLegacySubcommand {
-    fn to_current(&self) -> ArchiveSubcommand {
-        match self {
-            Self::Run {
-                change,
-                skip_specs,
-                dry_run,
-                force,
-            } => ArchiveSubcommand::Run {
-                change: change.clone(),
-                skip_specs: *skip_specs,
-                dry_run: *dry_run,
-                pretty_ison: false,
-                force: *force,
-            },
-            Self::Freeze {
-                before,
-                keep_recent,
-                dry_run,
-            } => ArchiveSubcommand::Freeze {
-                before: before.clone(),
-                keep_recent: *keep_recent,
-                dry_run: *dry_run,
-            },
-            Self::Thaw { change, dest } => ArchiveSubcommand::Thaw {
-                change: change.clone(),
-                dest: dest.clone(),
-            },
-        }
-    }
-}
-
 pub fn run(args: &SddArgs) -> Result<()> {
     run_with_style(args, TemplateStyle::New)
-}
-
-pub fn run_legacy(args: &SddLegacyArgs) -> Result<()> {
-    run_with_style_legacy(args, TemplateStyle::Legacy)
 }
 
 fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
@@ -773,7 +391,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
             sort: sort.clone(),
             json: *json,
             compact_json: *compact_json,
-            style,
         }),
         SddCommands::Show {
             item,
@@ -799,7 +416,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
             requirements: *requirements,
             no_scenarios: *no_scenarios,
             requirement: *requirement,
-            style,
         }),
         SddCommands::Validate {
             item,
@@ -811,7 +427,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
             json,
             compact_json,
             no_interactive,
-            ab_report,
         } => validate::run(validate::ValidateArgs {
             item: item.clone(),
             all: *all,
@@ -822,8 +437,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
             json: *json,
             compact_json: *compact_json,
             no_interactive: *no_interactive,
-            style,
-            ab_report: *ab_report,
         }),
         SddCommands::Archive {
             change,
@@ -845,7 +458,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                 dry_run: *dry_run,
                 pretty_ison: *pretty_ison,
                 force: *force,
-                style,
             }),
             Some(ArchiveSubcommand::Freeze {
                 before,
@@ -866,7 +478,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                 dry_run: *dry_run,
                 pretty_ison: *pretty_ison,
                 force: *force,
-                style,
             }),
         },
         SddCommands::Import { style, path } => interop::run_import(interop::InteropArgs {
@@ -875,15 +486,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
         }),
         SddCommands::Export { style, path } => interop::run_export(interop::InteropArgs {
             style: style.clone(),
-            path: path.clone(),
-        }),
-        SddCommands::Migrate {
-            to_ison,
-            dry_run,
-            path,
-        } => migrate::run(migrate::MigrateArgs {
-            to_ison: *to_ison,
-            dry_run: *dry_run,
             path: path.clone(),
         }),
         SddCommands::Spec(args) => match &args.command {
@@ -898,7 +500,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                     force: *force,
                     pretty_ison: *pretty_ison,
                 },
-                style,
             ),
             SddSpecCommands::AddRequirement {
                 capability,
@@ -915,7 +516,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                     statement: statement.clone(),
                     pretty_ison: *pretty_ison,
                 },
-                style,
             ),
             SddSpecCommands::AddScenario {
                 capability,
@@ -936,7 +536,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                     then_: then_.clone(),
                     pretty_ison: *pretty_ison,
                 },
-                style,
             ),
         },
         SddCommands::Delta(args) => match &args.command {
@@ -953,7 +552,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                     force: *force,
                     pretty_ison: *pretty_ison,
                 },
-                style,
             ),
             SddDeltaCommands::AddOp {
                 change_id,
@@ -980,7 +578,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                     name: name.clone(),
                     pretty_ison: *pretty_ison,
                 },
-                style,
             ),
             SddDeltaCommands::AddScenario {
                 change_id,
@@ -1003,15 +600,7 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                     then_: then_.clone(),
                     pretty_ison: *pretty_ison,
                 },
-                style,
             ),
         },
     }
-}
-
-fn run_with_style_legacy(args: &SddLegacyArgs, style: TemplateStyle) -> Result<()> {
-    let args = SddArgs {
-        command: args.command.to_current(),
-    };
-    run_with_style(&args, style)
 }

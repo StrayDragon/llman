@@ -8,6 +8,6 @@
 - 对每个 `now` 项，产出明确落地路径：
   - 后续 change id（`add-...`、`update-...`、`refactor-...`）
   - 受影响 capability/spec 路径
-  - 第一条可执行动作（`llman-sdd-new-change`、`llman-sdd-continue`、`llman-sdd-ff` 或 `llman-sdd-apply`）
+  - 第一条可执行动作（`llman-sdd-propose`、`llman-sdd-new-change`、`llman-sdd-continue`、`llman-sdd-ff` 或 `llman-sdd-apply`）
 - 保持可追溯性：在新 proposal/design/tasks 中引用来源 future 条目。
 - 若存在高不确定性，先暂停并提问，再创建新变更工件。

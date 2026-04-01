@@ -47,4 +47,4 @@ r1 happy "" "a trigger happens" "the outcome is observed"
 Notes:
 - Null is `~`. Empty string is `""`.
 - Keep ` ```ison ` blocks pure ISON (no pseudo-markers or template directives).
-- If the ` ```ison ` payload is JSON, use `llman sdd-legacy ...` or rewrite to canonical ISON.
+- If the ` ```ison ` payload is JSON, rewrite it to canonical table/object ISON (`object.spec` + `table.requirements` + `table.scenarios` for main specs; `object.delta` + `table.ops` + `table.op_scenarios` for deltas).

@@ -1,5 +1,4 @@
 use crate::fs_utils::atomic_write_with_mode;
-use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::spec::ison::{compose_with_frontmatter, split_frontmatter};
@@ -37,8 +36,7 @@ pub struct SpecAddScenarioArgs {
     pub pretty_ison: bool,
 }
 
-pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs, style: TemplateStyle) -> Result<()> {
-    ensure_new_style(style)?;
+pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
 
     let spec_path = spec_path(root, &args.capability);
@@ -71,12 +69,7 @@ pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs, style: TemplateStyle) -
     Ok(())
 }
 
-pub fn run_add_requirement(
-    root: &Path,
-    args: SpecAddRequirementArgs,
-    style: TemplateStyle,
-) -> Result<()> {
-    ensure_new_style(style)?;
+pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
     if args.title.trim().is_empty() {
@@ -140,12 +133,7 @@ pub fn run_add_requirement(
     Ok(())
 }
 
-pub fn run_add_scenario(
-    root: &Path,
-    args: SpecAddScenarioArgs,
-    style: TemplateStyle,
-) -> Result<()> {
-    ensure_new_style(style)?;
+pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
     validate_sdd_id(&args.scenario_id, "scenario")?;
@@ -208,15 +196,6 @@ pub fn run_add_scenario(
     let rebuilt = compose_with_frontmatter(Some(&frontmatter_yaml), &body);
     atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
     println!("{}", spec_path.display());
-    Ok(())
-}
-
-fn ensure_new_style(style: TemplateStyle) -> Result<()> {
-    if style != TemplateStyle::New {
-        return Err(anyhow!(
-            "`llman sdd-legacy` does not support canonical table/object ISON authoring helpers; use `llman sdd spec ...`"
-        ));
-    }
     Ok(())
 }
 

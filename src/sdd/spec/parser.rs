@@ -1,12 +1,11 @@
 use crate::sdd::change::delta::{DeltaPlan, RequirementBlock, parse_delta_spec};
-use crate::sdd::project::templates::TemplateStyle;
-use crate::sdd::spec::ison::{parse_ison_document, split_frontmatter};
+use crate::sdd::spec::ison::split_frontmatter;
 use crate::sdd::spec::ison_table::{
     expect_fields, extract_all_ison_fences, get_required_string, parse_and_merge_fences,
 };
 use anyhow::{Result, anyhow};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize)]
@@ -77,68 +76,8 @@ pub struct Delta {
     pub rename: Option<RenamePair>,
 }
 
-#[derive(Debug, Deserialize)]
-struct RawSpecDocument {
-    kind: Option<String>,
-    name: Option<String>,
-    purpose: String,
-    requirements: Vec<RawRequirement>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawRequirement {
-    statement: String,
-    scenarios: Vec<RawScenario>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawScenario {
-    text: String,
-}
-
-pub fn parse_spec(content: &str, name: &str, style: TemplateStyle) -> Result<Spec> {
-    match style {
-        TemplateStyle::Legacy => parse_spec_legacy_json(content, name),
-        TemplateStyle::New => parse_spec_table_object(content, name),
-    }
-}
-
-fn parse_spec_legacy_json(content: &str, name: &str) -> Result<Spec> {
-    let (_, body) = split_frontmatter(content);
-    let raw: RawSpecDocument = parse_ison_document(&body, "spec")?;
-
-    if let Some(kind) = raw.kind.as_ref()
-        && kind != "llman.sdd.spec"
-    {
-        return Err(anyhow!(
-            "spec kind must be `llman.sdd.spec`, got `{}`",
-            kind
-        ));
-    }
-
-    let requirements = raw
-        .requirements
-        .into_iter()
-        .map(|item| Requirement {
-            text: item.statement.trim().to_string(),
-            scenarios: item
-                .scenarios
-                .into_iter()
-                .map(|scenario| Scenario {
-                    raw_text: scenario.text.trim().to_string(),
-                })
-                .collect(),
-        })
-        .collect();
-
-    Ok(Spec {
-        name: raw.name.unwrap_or_else(|| name.to_string()),
-        overview: raw.purpose.trim().to_string(),
-        requirements,
-        metadata: SpecMetadata {
-            format: "llman-sdd-ison".to_string(),
-        },
-    })
+pub fn parse_spec(content: &str, name: &str) -> Result<Spec> {
+    parse_spec_table_object(content, name)
 }
 
 fn parse_spec_table_object(content: &str, name: &str) -> Result<Spec> {
@@ -151,7 +90,7 @@ fn parse_spec_table_object(content: &str, name: &str) -> Result<Spec> {
         if trimmed.starts_with('{') || trimmed.starts_with('[') {
             return Err(anyhow!(
                 "{context}: legacy JSON detected in ```ison payload at line {}. \
-`llman sdd` only supports canonical table/object ISON; try `llman sdd-legacy ...` or rewrite the payload to `object.spec` + `table.requirements` + `table.scenarios`.",
+`llman sdd` only supports canonical table/object ISON; rewrite the payload to `object.spec` + `table.requirements` + `table.scenarios`.",
                 fence.start_line
             ));
         }
@@ -311,18 +250,13 @@ fn parse_spec_table_object(content: &str, name: &str) -> Result<Spec> {
     })
 }
 
-pub fn parse_change(
-    content: &str,
-    name: &str,
-    change_dir: &Path,
-    style: TemplateStyle,
-) -> Result<Change> {
+pub fn parse_change(content: &str, name: &str, change_dir: &Path) -> Result<Change> {
     let why =
         extract_section(content, "Why").ok_or_else(|| anyhow!("Change must have a Why section"))?;
     let what_changes = extract_section(content, "What Changes")
         .ok_or_else(|| anyhow!("Change must have a What Changes section"))?;
 
-    let deltas = parse_change_deltas(&what_changes, change_dir, style)?;
+    let deltas = parse_change_deltas(&what_changes, change_dir)?;
 
     Ok(Change {
         name: name.to_string(),
@@ -335,19 +269,15 @@ pub fn parse_change(
     })
 }
 
-fn parse_change_deltas(
-    what_changes: &str,
-    change_dir: &Path,
-    style: TemplateStyle,
-) -> Result<Vec<Delta>> {
-    let spec_deltas = parse_delta_specs(change_dir, style)?;
+fn parse_change_deltas(what_changes: &str, change_dir: &Path) -> Result<Vec<Delta>> {
+    let spec_deltas = parse_delta_specs(change_dir)?;
     if !spec_deltas.is_empty() {
         return Ok(spec_deltas);
     }
     Ok(parse_simple_deltas(what_changes))
 }
 
-pub fn parse_delta_specs(change_dir: &Path, style: TemplateStyle) -> Result<Vec<Delta>> {
+pub fn parse_delta_specs(change_dir: &Path) -> Result<Vec<Delta>> {
     let mut deltas = Vec::new();
     let specs_dir = change_dir.join("specs");
     if !specs_dir.exists() {
@@ -365,7 +295,7 @@ pub fn parse_delta_specs(change_dir: &Path, style: TemplateStyle) -> Result<Vec<
             continue;
         }
         let content = std::fs::read_to_string(spec_file)?;
-        let plan = parse_delta_spec(&content, style, &format!("delta spec `{}`", spec_name))?;
+        let plan = parse_delta_spec(&content, &format!("delta spec `{}`", spec_name))?;
         deltas.extend(convert_plan_to_deltas(&spec_name, &plan));
     }
 

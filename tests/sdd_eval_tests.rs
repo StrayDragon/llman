@@ -42,7 +42,6 @@ sdd_loop:
 
 variants:
   v1:
-    style: sdd
     agent:
       kind: claude-code-acp
       preset: {group}
@@ -94,7 +93,6 @@ sdd_loop:
 
 variants:
   v1:
-    style: sdd
     agent:
       kind: claude-code-acp
       preset: {group}
@@ -449,7 +447,6 @@ task:
 
 variants:
   v1:
-    style: sdd
     agent:
       kind: claude-code-acp
       preset: test
@@ -495,7 +492,6 @@ task:
 
 variants:
   v1:
-    style: sdd
     agent:
       kind: claude-code-acp
       preset: test
