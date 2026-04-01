@@ -212,7 +212,9 @@ fi
 git_sha="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 timestamp_utc="$(date -u +%Y-%m-%dT%H%M%SZ)"
 
-resolve_promptfoo_base_api_key_env() {
+resolve_promptfoo_anthropic_key_source_env() {
+  # `anthropic:claude-agent-sdk` provider only checks ANTHROPIC_API_KEY (not auth tokens) when
+  # promptfoo pre-checks for missing keys. We therefore copy from a configured env var when needed.
   if [[ -n "$API_KEY_ENV" ]]; then
     if [[ -n "${!API_KEY_ENV:-}" ]]; then
       echo "$API_KEY_ENV"
@@ -223,10 +225,11 @@ resolve_promptfoo_base_api_key_env() {
 
   local candidates=(
     "ANTHROPIC_API_KEY"
+    "ANTHROPIC_AUTH_TOKEN"
+    "GLM_API_KEY"
     "CLAUDE_API_KEY"
     "CLAUDE_CODE_API_KEY"
     "CLAUDE_CODE_TOKEN"
-    "GLM_API_KEY"
   )
   local v
   for v in "${candidates[@]}"; do
@@ -238,37 +241,31 @@ resolve_promptfoo_base_api_key_env() {
   return 1
 }
 
-setup_promptfoo_api_keys() {
-  if [[ -n "${CLAUDE_AGENT_ISON_API_KEY:-}" && -n "${CLAUDE_AGENT_TOON_API_KEY:-}" && -n "${CLAUDE_AGENT_YAML_API_KEY:-}" ]]; then
+ensure_promptfoo_anthropic_api_key() {
+  if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
     return 0
   fi
 
-  local base_env
-  base_env="$(resolve_promptfoo_base_api_key_env || true)"
-  if [[ -z "$base_env" ]]; then
+  local source_env
+  source_env="$(resolve_promptfoo_anthropic_key_source_env || true)"
+  if [[ -z "$source_env" ]]; then
     cat <<EOF >&2
-Error: 缺少 Promptfoo/Claude Agent SDK 的 API key。
+Error: 缺少 Promptfoo/Claude Agent SDK 所需的 `ANTHROPIC_API_KEY`。
 
-Promptfoo provider 需要以下环境变量之一：
-  - CLAUDE_AGENT_ISON_API_KEY
-  - CLAUDE_AGENT_TOON_API_KEY
-  - CLAUDE_AGENT_YAML_API_KEY
+说明：
+- promptfoo 的 `anthropic:claude-agent-sdk` provider 在启动前会预检 `ANTHROPIC_API_KEY`
+- 但 Claude Code account env 注入通常提供 `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BASE_URL`
 
-你可以：
-  1) 使用 --cc-account 注入（推荐）：--cc-account glm-lite-150
-  2) 或者手动设置一个基础 key（例如 ANTHROPIC_API_KEY），或用 --api-key-env <VAR> 指定
+解决方式（二选一）：
+1) 显式提供 API key：export ANTHROPIC_API_KEY=...
+2) 或用 --api-key-env <VAR> 指定要复制到 ANTHROPIC_API_KEY 的环境变量（例如 ANTHROPIC_AUTH_TOKEN / GLM_API_KEY）
 EOF
     exit 1
   fi
 
-  local base_val="${!base_env}"
-  [[ -n "$base_val" ]] || die "环境变量为空：$base_env"
-
-  export CLAUDE_AGENT_ISON_API_KEY="${CLAUDE_AGENT_ISON_API_KEY:-$base_val}"
-  export CLAUDE_AGENT_TOON_API_KEY="${CLAUDE_AGENT_TOON_API_KEY:-$base_val}"
-  export CLAUDE_AGENT_YAML_API_KEY="${CLAUDE_AGENT_YAML_API_KEY:-$base_val}"
-
-  echo "== promptfoo api key source: $base_env -> CLAUDE_AGENT_{ISON,TOON,YAML}_API_KEY"
+  export ANTHROPIC_API_KEY="${!source_env}"
+  [[ -n "${ANTHROPIC_API_KEY:-}" ]] || die "环境变量为空：$source_env"
+  echo "== promptfoo api key source: $source_env -> ANTHROPIC_API_KEY"
 }
 
 init_workspace() {
@@ -503,17 +500,17 @@ lines.append("| provider | cases | ok | fail | err | turns(avg/max) | tokens(tot
 lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
 for pid, vals in summary["providers"].items():
     avg = vals["avg_turns"]
-    avg_s = f\"{avg:.2f}\" if isinstance(avg, (int, float)) else \"-\"
+    avg_s = f"{avg:.2f}" if isinstance(avg, (int, float)) else "-"
     lines.append(
-        f\"| `{pid}` | {vals['cases']} | {vals['successes']} | {vals['failures']} | {vals['errors']} \"
-        f\"| {avg_s}/{vals['num_turns_max']} \"
-        f\"| {vals['tokens_total']} \"
-        f\"| {vals['cost_usd']:.6f} \"
-        f\"| {vals['permission_denials']} |\"
+        f"| `{pid}` | {vals['cases']} | {vals['successes']} | {vals['failures']} | {vals['errors']} "
+        f"| {avg_s}/{vals['num_turns_max']} "
+        f"| {vals['tokens_total']} "
+        f"| {vals['cost_usd']:.6f} "
+        f"| {vals['permission_denials']} |"
     )
 
 with open(out_md_path, "w", encoding="utf-8") as f:
-    f.write(\"\\n\".join(lines) + \"\\n\")
+    f.write("\n".join(lines) + "\n")
 PY
 }
 
@@ -546,7 +543,7 @@ PY
     source <("$LLMAN_BIN" --config-dir "$CC_CONFIG_DIR" x claude-code account env "$CC_ACCOUNT")
   fi
   if [[ "$NO_RUN" != "1" ]]; then
-    setup_promptfoo_api_keys
+    ensure_promptfoo_anthropic_api_key
   fi
 
   local ws_ison="$workspaces_dir/ison"
@@ -613,7 +610,7 @@ PY
       eval_args+=(--no-cache)
     fi
     if [[ "$JUDGE" == "codex" ]]; then
-      eval_args+=(--grader "${JUDGE_GRADER:-openai:chat:gpt-5.2}")
+      eval_args+=(--grader "${JUDGE_GRADER:-openai:chat:gpt-5.4-mini}")
     fi
     if [[ "$JUDGE" == "claude" ]]; then
       eval_args+=(--grader "${JUDGE_GRADER:-anthropic:messages:claude-3-5-sonnet-latest}")
