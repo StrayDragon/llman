@@ -24,7 +24,9 @@ Locale + skills：
 - `llmanspec/config.yaml` 设置 `locale` 与 skills 路径。
 - locale 仅影响模板与 skills，CLI 输出保持英文。
 - 使用 `llman sdd update-skills` 刷新技能。
-- SDD 工作流已收敛为单轨：仅使用 `llman sdd ...`（仅支持 canonical table/object ISON）。
+- SDD spec/delta 的承载风格是项目级唯一选择：由 `llmanspec/config.yaml` 的 `spec_style: {{ spec_style }}` 决定。
+- 支持的风格：`ison`（默认）、`toon`（experimental）、`yaml`（experimental）。
+- 同一项目内不允许混用多种风格；跨风格迁移必须使用显式的 `llman sdd convert`。
 
 仅使用 AGENTS.md 的上下文注入方式。
 
@@ -51,8 +53,11 @@ Locale + skills：
 3. 选择唯一的 change id：kebab-case + 动词前缀（`add-`、`update-`、`remove-`、`refactor-`）。
 4. 创建 `llmanspec/changes/<change-id>/`，包含 `proposal.md`、`tasks.md` 和可选的 `design.md`。
 5. 为每个受影响能力添加 `llmanspec/changes/<change-id>/specs/<capability>/spec.md`：
-   - 使用 canonical ISON blocks：`object.delta` + `table.ops` + `table.op_scenarios`
-   - Null 用 `~`；空字符串用 `""`（例如：`given ""`）
+   - 必须匹配项目配置的 `spec_style`（不允许隐式转换）。
+   - 建议优先使用 authoring helpers，让 CLI 按 `spec_style` 输出正确格式：
+     - `llman sdd delta skeleton <change-id> <capability>`
+     - `llman sdd delta add-op ...`
+     - `llman sdd delta add-scenario ...`
 6. 校验：`llman sdd validate <change-id> --strict --no-interactive`。
 
 ## 阶段 2：实施变更
@@ -76,8 +81,14 @@ Locale + skills：
   - `llman_spec_valid_commands`
   - `llman_spec_evidence`
 - Delta specs 位于 `llmanspec/changes/<change-id>/specs/<feature-id>/spec.md`，且 MUST 不包含 YAML frontmatter。
-- 两类规范都以 canonical table/object ISON blocks 编写：
+- 两类规范都在 Markdown 中嵌入与 `spec_style` 匹配的 canonical fenced payload：
 
+{% if spec_style == "ison" -%}
 {{ unit("spec/ison-contract") }}
+{% elif spec_style == "toon" -%}
+{{ unit("spec/toon-contract") }}
+{% else -%}
+{{ unit("spec/yaml-contract") }}
+{% endif %}
 
 保留此托管块，便于 `llman sdd update` 刷新。

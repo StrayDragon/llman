@@ -17,7 +17,7 @@ This is a manual, reproducible protocol.
 2. For each delta spec at `llmanspec/changes/<id>/specs/<capability>/spec.md`:
    - Read the delta
    - Read (or create) the main spec: `llmanspec/specs/<capability>/spec.md`
-   - Apply `table.ops` + `table.op_scenarios` manually (add/modify/remove/rename)
+   - Apply the delta semantics manually (add/modify/remove/rename + scenarios), matching the project’s configured `spec_style` (`{{ spec_style }}`).
 3. Validate specs:
    ```bash
    llman sdd validate --specs --strict --no-interactive
@@ -25,6 +25,6 @@ This is a manual, reproducible protocol.
 4. Do NOT archive as part of sync. When ready, run `llman sdd archive run <id>`.
 
 {{ unit("skills/sdd-commands") }}
-{{ unit("skills/validation-hints") }}
+{{ unit_style("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

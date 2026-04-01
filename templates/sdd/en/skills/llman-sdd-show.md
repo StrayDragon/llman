@@ -18,6 +18,6 @@ Use this skill to inspect changes, specs, and JSON output.
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit("skills/validation-hints") }}
+{{ unit_style("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

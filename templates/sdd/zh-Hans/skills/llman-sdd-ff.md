@@ -33,7 +33,7 @@ metadata:
 6. 给出简短状态总结，并建议下一步（`llman-sdd-apply`）。
 
 {{ unit("skills/sdd-commands") }}
-{{ unit("skills/validation-hints") }}
+{{ unit_style("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

@@ -18,7 +18,11 @@ Create a new change with planning artifacts (proposal + delta specs + tasks; des
    - If the change already exists, STOP and suggest `llman-sdd-continue`.
 4. Create artifacts under `llmanspec/changes/<change-id>/`:
    - `proposal.md` (Why / What Changes / Capabilities / Impact)
-   - `specs/<capability>/spec.md` for each capability as canonical ISON (`object.delta` + `table.ops` + `table.op_scenarios`)
+   - `specs/<capability>/spec.md` for each capability, using the project’s configured `spec_style` (`{{ spec_style }}`):
+     - Prefer generating via authoring helpers so the fenced payload matches `spec_style`:
+       - `llman sdd delta skeleton <change-id> <capability>`
+       - `llman sdd delta add-op ...`
+       - `llman sdd delta add-scenario ...`
      - Include at least one `add_requirement`/`modify_requirement` op (statement MUST contain MUST/SHALL) and at least one matching op scenario row
    - `design.md` only when tradeoffs/migrations matter
    - `tasks.md` as an ordered checklist (include validation commands)
@@ -27,7 +31,7 @@ Create a new change with planning artifacts (proposal + delta specs + tasks; des
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit("skills/validation-hints") }}
+{{ unit_style("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

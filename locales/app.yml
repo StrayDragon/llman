@@ -1459,6 +1459,12 @@ sdd:
       en: "Failed to read llmanspec config: %{error}"
     parse_failed:
       en: "Failed to parse llmanspec config: %{error}"
+    missing:
+      en: "No llmanspec config found at %{path}. Run 'llman sdd init' first."
+    spec_style_missing:
+      en: "Missing required llmanspec config field 'spec_style' in %{path}. Set 'spec_style: ison|toon|yaml' before running spec/delta commands."
+    spec_style_invalid:
+      en: "Invalid llmanspec config 'spec_style' in %{path}: %{value}. Supported values: ison, toon, yaml."
     schema_invalid:
       en: "llmanspec config does not match schema: %{path} (%{error})"
     unsupported_version:
@@ -1467,6 +1473,14 @@ sdd:
       en: "Failed to serialize llmanspec config: %{error}"
     write_failed:
       en: "Failed to write llmanspec config: %{error}"
+
+  style:
+    pretty_ison_requires_ison:
+      en: "--pretty-ison is only supported when llmanspec config 'spec_style' is 'ison' (current: %{style})."
+
+  yaml:
+    lossless_fallback:
+      en: "YAML lossless update failed for %{path}; falling back to rewriting fenced YAML payload. Comments inside the YAML payload may be lost."
 
   templates:
     read_failed:

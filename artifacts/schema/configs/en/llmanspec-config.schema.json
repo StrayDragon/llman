@@ -29,6 +29,15 @@
         "codex_path": ".codex/skills"
       }
     },
+    "spec_style": {
+      "description": "Primary on-disk style for SDD spec/delta payloads.",
+      "type": "string",
+      "enum": [
+        "ison",
+        "toon",
+        "yaml"
+      ]
+    },
     "version": {
       "description": "Configuration schema version.",
       "type": "integer",
@@ -36,5 +45,8 @@
       "default": 1,
       "minimum": 0
     }
-  }
+  },
+  "required": [
+    "spec_style"
+  ]
 }

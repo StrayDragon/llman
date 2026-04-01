@@ -68,7 +68,7 @@ pub fn parse_spec_body(content: &str, context: &str) -> Result<CanonicalSpec> {
         if trimmed.starts_with('{') || trimmed.starts_with('[') {
             return Err(anyhow!(
                 "{context}: legacy JSON detected in ```ison payload at line {}. \
-`llman sdd` only supports canonical table/object ISON; rewrite the payload to `object.spec` + `table.requirements` + `table.scenarios`.",
+In `ison` style, `llman sdd` requires canonical table/object ISON; rewrite the payload to `object.spec` + `table.requirements` + `table.scenarios`.",
                 fence.start_line
             ));
         }
@@ -217,7 +217,7 @@ pub fn parse_delta_body(content: &str, context: &str) -> Result<CanonicalDelta> 
         if trimmed.starts_with('{') || trimmed.starts_with('[') {
             return Err(anyhow!(
                 "{context}: legacy JSON detected in ```ison payload at line {}. \
-`llman sdd` only supports canonical table/object ISON; rewrite the payload to `object.delta` + `table.ops` + `table.op_scenarios`.",
+In `ison` style, `llman sdd` requires canonical table/object ISON; rewrite the payload to `object.delta` + `table.ops` + `table.op_scenarios`.",
                 fence.start_line
             ));
         }

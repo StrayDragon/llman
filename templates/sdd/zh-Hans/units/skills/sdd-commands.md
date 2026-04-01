@@ -5,6 +5,7 @@
 - `llman sdd show <id>`（查看 change/spec）
 - `llman sdd validate <id>`（校验变更或 spec）
 - `llman sdd validate --all`（批量校验）
+- `llman sdd convert --to <style> --project`（显式风格迁移；toon/yaml 为 experimental）
 - `llman sdd archive run <id>`（归档变更）
 - `llman sdd archive <id>`（`archive run` 的兼容别名）
 - `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（将已归档目录冻结到单一冷备文件）

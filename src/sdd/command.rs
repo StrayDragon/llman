@@ -2,7 +2,7 @@ use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
 use crate::sdd::project::templates::TemplateStyle;
-use crate::sdd::project::{init, interop, update, update_skills};
+use crate::sdd::project::{convert, init, interop, update, update_skills};
 use crate::sdd::shared::{list, show, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -22,18 +22,18 @@ pub struct SddSpecArgs {
 
 #[derive(Subcommand)]
 pub enum SddSpecCommands {
-    /// Generate a main spec skeleton for a capability
+    /// Generate a main spec skeleton for a capability (format depends on llmanspec spec_style)
     Skeleton {
         /// Capability / spec id
         capability: String,
         /// Overwrite existing files
         #[arg(long)]
         force: bool,
-        /// Pretty-align ISON tables for review (whitespace-only)
+        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
         #[arg(long)]
         pretty_ison: bool,
     },
-    /// Add a requirement row to a spec
+    /// Add a requirement row to a spec (format depends on llmanspec spec_style)
     AddRequirement {
         /// Capability / spec id
         capability: String,
@@ -45,11 +45,11 @@ pub enum SddSpecCommands {
         /// Requirement statement (MUST/SHALL)
         #[arg(long)]
         statement: String,
-        /// Pretty-align ISON tables for review (whitespace-only)
+        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
         #[arg(long)]
         pretty_ison: bool,
     },
-    /// Add a scenario row to a spec
+    /// Add a scenario row to a spec (format depends on llmanspec spec_style)
     AddScenario {
         /// Capability / spec id
         capability: String,
@@ -66,7 +66,7 @@ pub enum SddSpecCommands {
         /// THEN (required)
         #[arg(long = "then")]
         then_: String,
-        /// Pretty-align ISON tables for review (whitespace-only)
+        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
         #[arg(long)]
         pretty_ison: bool,
     },
@@ -78,9 +78,16 @@ pub struct SddDeltaArgs {
     pub command: SddDeltaCommands,
 }
 
+#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+pub enum ConvertStyle {
+    Ison,
+    Toon,
+    Yaml,
+}
+
 #[derive(Subcommand)]
 pub enum SddDeltaCommands {
-    /// Generate a delta spec skeleton for a change + capability (no YAML frontmatter)
+    /// Generate a delta spec skeleton for a change + capability (format depends on llmanspec spec_style; no YAML frontmatter)
     Skeleton {
         /// Change id
         change_id: String,
@@ -89,11 +96,11 @@ pub enum SddDeltaCommands {
         /// Overwrite existing files
         #[arg(long)]
         force: bool,
-        /// Pretty-align ISON tables for review (whitespace-only)
+        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
         #[arg(long)]
         pretty_ison: bool,
     },
-    /// Add a delta op row
+    /// Add a delta op row (format depends on llmanspec spec_style)
     AddOp {
         /// Change id
         change_id: String,
@@ -118,11 +125,11 @@ pub enum SddDeltaCommands {
         /// Name hint (optional for remove)
         #[arg(long)]
         name: Option<String>,
-        /// Pretty-align ISON tables for review (whitespace-only)
+        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
         #[arg(long)]
         pretty_ison: bool,
     },
-    /// Add a delta op scenario row (add/modify ops only)
+    /// Add a delta op scenario row (add/modify ops only; format depends on llmanspec spec_style)
     AddScenario {
         /// Change id
         change_id: String,
@@ -141,7 +148,7 @@ pub enum SddDeltaCommands {
         /// THEN (required)
         #[arg(long = "then")]
         then_: String,
-        /// Pretty-align ISON tables for review (whitespace-only)
+        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
         #[arg(long)]
         pretty_ison: bool,
     },
@@ -275,7 +282,7 @@ pub enum SddCommands {
         /// Legacy: dry run mode
         #[arg(long)]
         dry_run: bool,
-        /// Pretty-align ISON tables for review (whitespace-only). Applies to `llman sdd` write paths.
+        /// Pretty-align ISON tables for review (whitespace-only; ison projects only). Applies to `llman sdd` write paths.
         #[arg(long)]
         pretty_ison: bool,
         /// Legacy: force archive even if validation fails
@@ -300,9 +307,27 @@ pub enum SddCommands {
         /// Project root path (default: current directory)
         path: Option<PathBuf>,
     },
-    /// Canonical spec authoring helpers (table/object ISON)
+    /// Convert SDD spec/delta payload style within llmanspec (experimental for toon/yaml)
+    Convert {
+        /// Target style
+        #[arg(long = "to", value_enum)]
+        to: ConvertStyle,
+        /// Convert the entire project (main specs + active change delta specs) in place
+        #[arg(long, conflicts_with = "file")]
+        project: bool,
+        /// Convert a single file (main spec or delta spec)
+        #[arg(long, conflicts_with = "project")]
+        file: Option<PathBuf>,
+        /// Write converted output to a file (file mode only). If omitted, prints to stdout.
+        #[arg(long, requires = "file")]
+        output: Option<PathBuf>,
+        /// Dry-run: show what would be converted without writing
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Spec authoring helpers (emit the configured spec_style; experimental for toon/yaml)
     Spec(SddSpecArgs),
-    /// Canonical delta authoring helpers (table/object ISON)
+    /// Delta authoring helpers (emit the configured spec_style; experimental for toon/yaml)
     Delta(SddDeltaArgs),
 }
 
@@ -318,7 +343,7 @@ pub enum ArchiveSubcommand {
         /// Dry run mode
         #[arg(long)]
         dry_run: bool,
-        /// Pretty-align ISON tables for review (whitespace-only). Applies to `llman sdd` write paths.
+        /// Pretty-align ISON tables for review (whitespace-only; ison projects only). Applies to `llman sdd` write paths.
         #[arg(long)]
         pretty_ison: bool,
         /// Force archive even if validation fails
@@ -488,6 +513,26 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
             style: style.clone(),
             path: path.clone(),
         }),
+        SddCommands::Convert {
+            to,
+            project,
+            file,
+            output,
+            dry_run,
+        } => convert::run(
+            std::path::Path::new("."),
+            convert::ConvertArgs {
+                to: match to {
+                    ConvertStyle::Ison => crate::sdd::project::config::SpecStyle::Ison,
+                    ConvertStyle::Toon => crate::sdd::project::config::SpecStyle::Toon,
+                    ConvertStyle::Yaml => crate::sdd::project::config::SpecStyle::Yaml,
+                },
+                project: *project,
+                file: file.clone(),
+                output: output.clone(),
+                dry_run: *dry_run,
+            },
+        ),
         SddCommands::Spec(args) => match &args.command {
             SddSpecCommands::Skeleton {
                 capability,

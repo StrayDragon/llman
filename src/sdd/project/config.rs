@@ -12,6 +12,25 @@ use std::path::{Path, PathBuf};
 
 const CONFIG_VERSION: u32 = 1;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+#[schemars(description = "Primary on-disk style for SDD spec/delta payloads.")]
+pub enum SpecStyle {
+    Ison,
+    Toon,
+    Yaml,
+}
+
+impl SpecStyle {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SpecStyle::Ison => "ison",
+            SpecStyle::Toon => "toon",
+            SpecStyle::Yaml => "yaml",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[schemars(description = "Skills output paths used by llman SDD.")]
 pub struct SkillsConfig {
@@ -43,6 +62,8 @@ pub struct SddConfig {
     #[serde(default = "default_locale")]
     #[schemars(description = "Locale used for SDD templates and skills.")]
     pub locale: String,
+    #[schemars(description = "Primary on-disk style for SDD spec/delta payloads.")]
+    pub spec_style: SpecStyle,
     #[serde(default)]
     #[schemars(description = "SDD skills output configuration.")]
     pub skills: SkillsConfig,
@@ -53,6 +74,7 @@ impl Default for SddConfig {
         Self {
             version: default_version(),
             locale: default_locale(),
+            spec_style: SpecStyle::Ison,
             skills: SkillsConfig::default(),
         }
     }
@@ -95,6 +117,7 @@ pub fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
         .map_err(|err| anyhow!(t!("sdd.config.read_failed", error = err)))?;
     let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
         .map_err(|err| anyhow!(t!("sdd.config.parse_failed", error = err)))?;
+    validate_spec_style_field(&yaml_value, &path)?;
     if let Err(error) = validate_yaml_value(ConfigSchemaKind::Llmanspec, &yaml_value) {
         return Err(anyhow!(t!(
             "sdd.config.schema_invalid",
@@ -113,8 +136,54 @@ pub fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
     Ok(Some(SddConfig {
         version: CONFIG_VERSION,
         locale: normalize_locale(&config.locale),
+        spec_style: config.spec_style,
         skills: config.skills,
     }))
+}
+
+pub fn load_required_config(llmanspec_dir: &Path) -> Result<SddConfig> {
+    load_config(llmanspec_dir)?.ok_or_else(|| {
+        let path = config_path(llmanspec_dir);
+        anyhow!(t!("sdd.config.missing", path = path.display()))
+    })
+}
+
+fn validate_spec_style_field(value: &serde_yaml::Value, path: &Path) -> Result<()> {
+    let Some(mapping) = value.as_mapping() else {
+        return Err(anyhow!(t!(
+            "sdd.config.spec_style_missing",
+            path = path.display()
+        )));
+    };
+    let key = serde_yaml::Value::String("spec_style".to_string());
+    let Some(spec_style) = mapping.get(&key) else {
+        return Err(anyhow!(t!(
+            "sdd.config.spec_style_missing",
+            path = path.display()
+        )));
+    };
+    let Some(spec_style) = spec_style.as_str() else {
+        return Err(anyhow!(t!(
+            "sdd.config.spec_style_invalid",
+            path = path.display(),
+            value = format!("{spec_style:?}")
+        )));
+    };
+    let trimmed = spec_style.trim();
+    if trimmed.is_empty() {
+        return Err(anyhow!(t!(
+            "sdd.config.spec_style_missing",
+            path = path.display()
+        )));
+    }
+    match trimmed {
+        "ison" | "toon" | "yaml" => Ok(()),
+        other => Err(anyhow!(t!(
+            "sdd.config.spec_style_invalid",
+            path = path.display(),
+            value = other
+        ))),
+    }
 }
 
 pub fn load_or_create_config(llmanspec_dir: &Path) -> Result<SddConfig> {
@@ -220,7 +289,7 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let llmanspec_dir = dir.path();
         let path = config_path(llmanspec_dir);
-        let content = "version: 1\nlocale: zh-cn\nskills:\n  claude_path: .claude/skills\n  codex_path: .codex/skills\n";
+        let content = "version: 1\nlocale: zh-cn\nspec_style: ison\nskills:\n  claude_path: .claude/skills\n  codex_path: .codex/skills\n";
         fs::write(&path, content).expect("write config");
         let config = load_config(llmanspec_dir).expect("load").expect("config");
         assert_eq!(config.locale, "zh-Hans");

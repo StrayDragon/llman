@@ -1,9 +1,13 @@
 use crate::fs_utils::atomic_write_with_mode;
+use crate::sdd::project::config::{SpecStyle, load_required_config};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
+use crate::sdd::spec::backend::yaml_overlay::{
+    YamlWriteBackMode, update_main_spec_markdown_with_overlay_or_fallback,
+};
+use crate::sdd::spec::backend::{DumpOptions, backend_for_style};
+use crate::sdd::spec::fence::render_code_fence;
 use crate::sdd::spec::ison::{compose_with_frontmatter, split_frontmatter};
-use crate::sdd::spec::ison_table::render_ison_fence;
-use crate::sdd::spec::ison_v1;
 use crate::sdd::spec::staleness::evaluate_staleness_with_override;
 use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, validate_spec_content_with_frontmatter,
@@ -43,6 +47,16 @@ pub fn run(args: ArchiveArgs) -> Result<()> {
 }
 
 fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir)?;
+    let style = config.spec_style;
+    if args.pretty_ison && config.spec_style != SpecStyle::Ison {
+        return Err(anyhow!(t!(
+            "sdd.style.pretty_ison_requires_ison",
+            style = config.spec_style.as_str()
+        )));
+    }
+
     let change_name = args
         .change
         .as_ref()
@@ -66,6 +80,7 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
                 &updates,
                 change_name,
                 root,
+                style,
                 validate_specs,
                 args.pretty_ison,
             )?;
@@ -145,22 +160,28 @@ fn prepare_updates(
     updates: &[SpecUpdate],
     change_name: &str,
     root: &Path,
+    style: SpecStyle,
     validate_specs: bool,
     pretty_ison: bool,
 ) -> Result<Vec<(SpecUpdate, String, ApplyCounts)>> {
     let mut prepared = Vec::new();
     for update in updates {
-        let built = build_updated_spec(update, change_name, pretty_ison)?;
+        let built = build_updated_spec(update, change_name, style, pretty_ison)?;
         if validate_specs {
-            validate_rebuilt_spec(update, &built.0, root)?;
+            validate_rebuilt_spec(update, &built.0, root, style)?;
         }
         prepared.push((clone_update(update), built.0, built.1));
     }
     Ok(prepared)
 }
 
-fn validate_rebuilt_spec(update: &SpecUpdate, content: &str, root: &Path) -> Result<()> {
-    let validation = validate_spec_content_with_frontmatter(&update.target, content, true);
+fn validate_rebuilt_spec(
+    update: &SpecUpdate,
+    content: &str,
+    root: &Path,
+    style: SpecStyle,
+) -> Result<()> {
+    let validation = validate_spec_content_with_frontmatter(&update.target, content, style, true);
     let mut issues = validation.report.issues;
 
     if let Some(frontmatter) = validation.frontmatter.as_ref() {
@@ -209,18 +230,12 @@ fn format_issues(issues: &[ValidationIssue]) -> String {
 fn build_updated_spec(
     update: &SpecUpdate,
     change_name: &str,
+    style: SpecStyle,
     pretty_ison: bool,
 ) -> Result<(String, ApplyCounts)> {
-    build_updated_spec_table_object(update, change_name, pretty_ison)
-}
-
-fn build_updated_spec_table_object(
-    update: &SpecUpdate,
-    change_name: &str,
-    pretty_ison: bool,
-) -> Result<(String, ApplyCounts)> {
+    let backend = backend_for_style(style);
     let delta_content = fs::read_to_string(&update.source)?;
-    let delta = ison_v1::parse_delta_body(
+    let delta = backend.parse_delta_spec(
         &delta_content,
         &format!("delta spec `{}` during archive merge", update.capability),
     )?;
@@ -234,7 +249,10 @@ fn build_updated_spec_table_object(
     }
 
     if !update.target_exists {
-        let has_non_add = delta.ops.iter().any(|op| op.op != "add_requirement");
+        let has_non_add = delta
+            .ops
+            .iter()
+            .any(|op| !op.op.trim().eq_ignore_ascii_case("add_requirement"));
         if has_non_add {
             return Err(anyhow!(t!(
                 "sdd.archive.new_spec_only_added",
@@ -243,32 +261,46 @@ fn build_updated_spec_table_object(
         }
     }
 
-    let (frontmatter_yaml, mut spec_doc) = if update.target_exists {
-        let target_content = fs::read_to_string(&update.target)?;
-        let (frontmatter_yaml, body) = split_frontmatter(&target_content);
-        let spec = ison_v1::parse_spec_body(
-            &body,
-            &format!("spec `{}` during archive merge", update.capability),
-        )?;
-        (frontmatter_yaml, spec)
-    } else {
-        let spec = ison_v1::CanonicalSpec {
-            meta: ison_v1::SpecMeta {
-                kind: ison_v1::SPEC_KIND.to_string(),
+    let (frontmatter_yaml, mut spec_doc, original_target_content, old_spec_doc) =
+        if update.target_exists {
+            let target_content = fs::read_to_string(&update.target)?;
+            let (frontmatter_yaml, body) = split_frontmatter(&target_content);
+            let spec = backend.parse_main_spec(
+                &body,
+                &format!("spec `{}` during archive merge", update.capability),
+            )?;
+            (
+                frontmatter_yaml,
+                spec.clone(),
+                Some(target_content),
+                Some(spec),
+            )
+        } else {
+            let spec = crate::sdd::spec::ir::MainSpecDoc {
+                kind: "llman.sdd.spec".to_string(),
                 name: update.capability.clone(),
                 purpose: format!(
                     "TBD - created by archiving change {change}. Update purpose after archive.",
                     change = change_name
                 ),
-            },
-            requirements: Vec::new(),
-            scenarios: Vec::new(),
+                requirements: Vec::new(),
+                scenarios: Vec::new(),
+            };
+            (
+                Some(default_frontmatter_yaml(change_name)),
+                spec,
+                None,
+                None,
+            )
         };
-        (Some(default_frontmatter_yaml(change_name)), spec)
-    };
 
-    let mut scenarios_by_req: HashMap<String, Vec<ison_v1::ScenarioRow>> = HashMap::new();
-    for row in delta.scenarios {
+    // Ensure canonical metadata.
+    spec_doc.kind = "llman.sdd.spec".to_string();
+    spec_doc.name = update.capability.clone();
+
+    let mut scenarios_by_req: HashMap<String, Vec<crate::sdd::spec::ir::ScenarioEntry>> =
+        HashMap::new();
+    for row in delta.op_scenarios {
         scenarios_by_req
             .entry(row.req_id.clone())
             .or_default()
@@ -277,7 +309,8 @@ fn build_updated_spec_table_object(
 
     let mut add_or_modify_ids = std::collections::HashSet::new();
     for op in &delta.ops {
-        if op.op == "add_requirement" || op.op == "modify_requirement" {
+        let kind = op.op.trim().to_ascii_lowercase();
+        if kind == "add_requirement" || kind == "modify_requirement" {
             add_or_modify_ids.insert(op.req_id.clone());
         }
     }
@@ -294,9 +327,9 @@ fn build_updated_spec_table_object(
     let mut counts = ApplyCounts::default();
 
     fn replace_scenarios(
-        scenarios: &mut Vec<ison_v1::ScenarioRow>,
+        scenarios: &mut Vec<crate::sdd::spec::ir::ScenarioEntry>,
         req_id: &str,
-        new_rows: Vec<ison_v1::ScenarioRow>,
+        new_rows: Vec<crate::sdd::spec::ir::ScenarioEntry>,
     ) {
         let insert_pos = scenarios
             .iter()
@@ -307,15 +340,24 @@ fn build_updated_spec_table_object(
     }
 
     for op in delta.ops {
-        match op.op.as_str() {
+        let op_kind = op.op.trim().to_ascii_lowercase();
+        match op_kind.as_str() {
             "add_requirement" => {
                 counts.added += 1;
                 let title = op
                     .title
-                    .ok_or_else(|| anyhow!("add_requirement missing title"))?;
+                    .as_deref()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| anyhow!("add_requirement missing title"))?
+                    .to_string();
                 let statement = op
                     .statement
-                    .ok_or_else(|| anyhow!("add_requirement missing statement"))?;
+                    .as_deref()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| anyhow!("add_requirement missing statement"))?
+                    .to_string();
 
                 if spec_doc
                     .requirements
@@ -329,11 +371,13 @@ fn build_updated_spec_table_object(
                     )));
                 }
 
-                spec_doc.requirements.push(ison_v1::RequirementRow {
-                    req_id: op.req_id.clone(),
-                    title,
-                    statement,
-                });
+                spec_doc
+                    .requirements
+                    .push(crate::sdd::spec::ir::RequirementEntry {
+                        req_id: op.req_id.clone(),
+                        title,
+                        statement,
+                    });
 
                 let scenarios = scenarios_by_req.remove(&op.req_id).unwrap_or_default();
                 if scenarios.is_empty() {
@@ -349,10 +393,18 @@ fn build_updated_spec_table_object(
                 counts.modified += 1;
                 let title = op
                     .title
-                    .ok_or_else(|| anyhow!("modify_requirement missing title"))?;
+                    .as_deref()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| anyhow!("modify_requirement missing title"))?
+                    .to_string();
                 let statement = op
                     .statement
-                    .ok_or_else(|| anyhow!("modify_requirement missing statement"))?;
+                    .as_deref()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| anyhow!("modify_requirement missing statement"))?
+                    .to_string();
 
                 let Some(req) = spec_doc
                     .requirements
@@ -382,7 +434,12 @@ fn build_updated_spec_table_object(
                 counts.removed += 1;
                 let key = op.req_id.clone();
                 if !spec_doc.requirements.iter().any(|req| req.req_id == key) {
-                    let missing_name = op.name.as_deref().unwrap_or(&op.req_id);
+                    let missing_name = op
+                        .name
+                        .as_deref()
+                        .map(|v| v.trim())
+                        .filter(|v| !v.is_empty())
+                        .unwrap_or_else(|| op.req_id.trim());
                     return Err(anyhow!(t!(
                         "sdd.archive.remove_missing",
                         spec = update.capability,
@@ -400,6 +457,9 @@ fn build_updated_spec_table_object(
                 let to = op
                     .to
                     .ok_or_else(|| anyhow!("rename_requirement missing to"))?;
+                if to.trim().is_empty() {
+                    return Err(anyhow!("rename_requirement missing to"));
+                }
 
                 if spec_doc
                     .requirements
@@ -471,9 +531,36 @@ fn build_updated_spec_table_object(
         ));
     }
 
-    let payload = ison_v1::dump_spec_payload(&spec_doc, pretty_ison);
-    let body = render_ison_fence(&payload);
-    let rebuilt = compose_with_frontmatter(frontmatter_yaml.as_deref(), &body);
+    let payload = backend.dump_main_spec(&spec_doc, DumpOptions { pretty_ison })?;
+    let rebuilt = if style == SpecStyle::Yaml && update.target_exists {
+        let original_target_content = original_target_content
+            .as_ref()
+            .expect("target exists implies original_target_content");
+        let old_spec_doc = old_spec_doc
+            .as_ref()
+            .expect("target exists implies old_spec_doc");
+
+        let writeback = update_main_spec_markdown_with_overlay_or_fallback(
+            original_target_content,
+            old_spec_doc,
+            &spec_doc,
+            &payload,
+        )?;
+        if writeback.mode == YamlWriteBackMode::FencedRewrite {
+            eprintln!(
+                "{}",
+                t!(
+                    "sdd.yaml.lossless_fallback",
+                    path = display_llmanspec_path(&update.target)
+                )
+            );
+        }
+        writeback.content
+    } else {
+        let body = render_code_fence(style.as_str(), &payload);
+        compose_with_frontmatter(frontmatter_yaml.as_deref(), &body)
+    };
+
     Ok((rebuilt, counts))
 }
 
@@ -625,7 +712,8 @@ new-capability new-capability "" "a request arrives" "it succeeds"
             target_exists: false,
         };
 
-        let result = build_updated_spec(&update, "add-thing", false).expect("build spec");
+        let result =
+            build_updated_spec(&update, "add-thing", SpecStyle::Ison, false).expect("build spec");
         assert!(result.0.contains("object.spec"));
         assert!(result.0.contains("llman.sdd.spec"));
         assert!(result.0.contains("\"New capability\""));
@@ -661,7 +749,7 @@ req_id id given when then
             target_exists: false,
         };
 
-        let result = build_updated_spec(&update, "remove-thing", false);
+        let result = build_updated_spec(&update, "remove-thing", SpecStyle::Ison, false);
         assert!(result.is_err());
     }
 
@@ -718,7 +806,7 @@ alpha alpha "" "alpha is used" "it works"
             target_exists: true,
         };
 
-        let result = build_updated_spec(&update, "update-thing", false);
+        let result = build_updated_spec(&update, "update-thing", SpecStyle::Ison, false);
         assert!(result.is_err());
     }
 

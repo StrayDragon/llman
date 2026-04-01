@@ -54,7 +54,7 @@ fn parse_delta_spec_table_object(content: &str, context: &str) -> Result<DeltaPl
         if trimmed.starts_with('{') || trimmed.starts_with('[') {
             return Err(anyhow!(
                 "{context}: legacy JSON detected in ```ison payload at line {}. \
-`llman sdd` only supports canonical table/object ISON; rewrite the payload to `object.delta` + `table.ops` + `table.op_scenarios`.",
+In `ison` style, `llman sdd` requires canonical table/object ISON; rewrite the payload to `object.delta` + `table.ops` + `table.op_scenarios`.",
                 fence.start_line
             ));
         }
