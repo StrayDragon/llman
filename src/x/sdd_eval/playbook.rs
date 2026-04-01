@@ -106,14 +106,12 @@ sdd_loop:
 
 variants:
   sdd-cc:
-    style: sdd
     agent:
       kind: claude-code-acp
       preset: production
       command: claude-agent-acp
 
-  sdd-legacy-codex:
-    style: sdd-legacy
+  sdd-codex:
     agent:
       kind: codex-acp
       preset: openai
@@ -124,7 +122,7 @@ workflow:
     eval:
       strategy:
         matrix:
-          variant: [sdd-cc, sdd-legacy-codex]
+          variant: [sdd-cc, sdd-codex]
       steps:
         - uses: builtin:sdd-eval/workspace.prepare
         - uses: builtin:sdd-eval/sdd.prepare
@@ -399,11 +397,9 @@ pub struct BuiltinWithV1 {}
 #[serde(deny_unknown_fields)]
 #[schemars(
     title = "Variant",
-    description = "Variant configuration (workflow style + ACP agent preset)."
+    description = "Variant configuration (ACP agent preset)."
 )]
 pub struct VariantConfig {
-    #[schemars(description = "Workflow style for the variant.")]
-    pub style: WorkflowStyle,
     #[schemars(description = "ACP agent configuration for the variant.")]
     pub agent: AgentConfig,
 }
@@ -413,16 +409,6 @@ impl VariantConfig {
         self.agent.validate().context("validate agent")?;
         Ok(())
     }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
-#[schemars(title = "Workflow Style", description = "Workflow style selector.")]
-pub enum WorkflowStyle {
-    #[serde(rename = "sdd")]
-    Sdd,
-    #[serde(rename = "sdd-legacy")]
-    SddLegacy,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]

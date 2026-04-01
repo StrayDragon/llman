@@ -2,7 +2,6 @@ pub mod config;
 pub mod fs_utils;
 pub mod init;
 pub mod interop;
-pub mod migrate;
 pub mod regions;
 pub mod templates;
 pub mod update;

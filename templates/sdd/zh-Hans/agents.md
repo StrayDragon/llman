@@ -14,7 +14,6 @@
 - `llman sdd list`
 - `llman sdd show <item>`
 - `llman sdd validate <id> --strict --no-interactive`
-- `llman sdd validate --ab-report --json --no-interactive`
 - `llman sdd archive <id>`
 - `llman sdd update-skills --all`
 
@@ -25,7 +24,7 @@ Locale + skills：
 - `llmanspec/config.yaml` 设置 `locale` 与 skills 路径。
 - locale 仅影响模板与 skills，CLI 输出保持英文。
 - 使用 `llman sdd update-skills` 刷新技能。
-- 默认使用 `llman sdd`（`new` 风格）；如需兼容旧风格请使用 `llman sdd-legacy ...`。
+- SDD 工作流已收敛为单轨：仅使用 `llman sdd ...`（仅支持 canonical table/object ISON）。
 
 仅使用 AGENTS.md 的上下文注入方式。
 

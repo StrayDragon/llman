@@ -42,9 +42,10 @@ The runner MUST create the run directory, write the manifest/playbook copy, and 
 A playbook MUST define one or more `variants` that the workflow can execute.
 
 Each variant MUST specify:
-- a workflow `style` (`sdd` or `sdd-legacy`)
 - an ACP `agent` definition (e.g. `claude-code-acp` or `codex-acp`)
 - an account preset reference (Claude Code: `llman x cc` group; Codex: `llman x codex` group)
+
+The workflow style for this pipeline MUST be new-style SDD only; legacy styles (for example `sdd-legacy`) MUST NOT be supported.
 
 Variants MUST be addressable by a stable id (for example `variants.a`, `variants.b`) so that jobs can reference them via `strategy.matrix.variant`.
 
@@ -59,15 +60,13 @@ Variants MUST be addressable by a stable id (for example `variants.a`, `variants
 - **AND** the error explains that the matrix references a missing variant id
 
 ### Requirement: Workflow initialization is performed per variant
-For each variant workspace, the runner MUST be able to initialize SDD templates corresponding to the variant workflow style:
-- for `sdd`: initialize in “new” style
-- for `sdd-legacy`: initialize in “legacy” style
+For each variant workspace, the runner MUST initialize/update SDD templates using new-style SDD.
 
 In workflow-based playbooks, initialization MUST be exposed as a built-in action (for example `builtin:sdd-eval/sdd.prepare`) so it can be composed as an explicit step.
 
-#### Scenario: Legacy variant produces legacy templates
-- **WHEN** a variant uses style `sdd-legacy`
-- **THEN** the variant workspace is initialized using legacy SDD templates (equivalent to `llman sdd-legacy init` + `llman sdd-legacy update`)
+#### Scenario: Variant workspace is initialized using new-style templates
+- **WHEN** a variant workspace is prepared for a run
+- **THEN** the variant workspace is initialized using new-style SDD templates (equivalent to `llman sdd init` + `llman sdd update`)
 
 ### Requirement: ACP agents are launched with preset env injection (without leaking secrets)
 The runner MUST support launching ACP agent processes for Claude Code and Codex.

@@ -47,4 +47,4 @@ r1 happy "" "发生触发条件" "观察到预期结果"
 备注：
 - Null 用 `~`；空字符串用 `""`。
 - ` ```ison ` block 内保持纯 ISON（不要放伪标记或模板指令）。
-- 如果 ` ```ison ` payload 是 JSON，请使用 `llman sdd-legacy ...` 或手工改写为 canonical ISON。
+- 如果 ` ```ison ` payload 是 JSON，请手工改写为 canonical table/object ISON（main spec 使用 `object.spec` + `table.requirements` + `table.scenarios`；delta spec 使用 `object.delta` + `table.ops` + `table.op_scenarios`）。

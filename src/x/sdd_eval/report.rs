@@ -29,7 +29,6 @@ pub struct RunReportV1 {
 #[serde(deny_unknown_fields)]
 pub struct VariantReportV1 {
     pub name: String,
-    pub style: String,
     pub agent_kind: String,
     pub agent_preset: String,
 
@@ -87,7 +86,6 @@ pub struct HumanPackV1 {
 #[serde(deny_unknown_fields)]
 pub struct HumanPackVariantV1 {
     pub name: String,
-    pub style: String,
     pub agent_kind: String,
     pub agent_preset: String,
     pub workspace_dir: String,
@@ -253,7 +251,6 @@ fn build_variant_report(
 
     VariantReportV1 {
         name: mv.name.clone(),
-        style: mv.style.clone(),
         agent_kind: mv.agent_kind.clone(),
         agent_preset: mv.agent_preset.clone(),
         iterations_attempted: metrics.iterations_attempted,
@@ -277,7 +274,6 @@ fn build_human_pack(
         .iter()
         .map(|v| HumanPackVariantV1 {
             name: v.name.clone(),
-            style: v.style.clone(),
             agent_kind: v.agent_kind.clone(),
             agent_preset: v.agent_preset.clone(),
             workspace_dir: run_dir
@@ -332,8 +328,8 @@ fn render_report_md(report: &RunReportV1) -> String {
     }
 
     out.push_str("## Variants\n\n");
-    out.push_str("| variant | style | agent | preset | iters | files_written | bytes_written | term(ok/total) | denied | ai_score | human_score |\n");
-    out.push_str("|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|\n");
+    out.push_str("| variant | agent | preset | iters | files_written | bytes_written | term(ok/total) | denied | ai_score | human_score |\n");
+    out.push_str("|---|---|---|---:|---:|---:|---:|---:|---:|---:|\n");
 
     for v in &report.variants {
         let ai_score = v.ai_score.as_ref().map(|s| s.score).unwrap_or(f64::NAN);
@@ -351,9 +347,8 @@ fn render_report_md(report: &RunReportV1) -> String {
         };
 
         out.push_str(&format!(
-            "| {name} | {style} | {agent} | {preset} | {iters} | {fw} | {bw} | {ok}/{total} | {denied} | {ai} | {human} |\n",
+            "| {name} | {agent} | {preset} | {iters} | {fw} | {bw} | {ok}/{total} | {denied} | {ai} | {human} |\n",
             name = v.name,
-            style = v.style,
             agent = v.agent_kind,
             preset = v.agent_preset,
             iters = v.iterations_attempted,
@@ -411,11 +406,10 @@ impl OpenAiJudge {
     ) -> Result<AiJudgeScoreV1> {
         let system = "You are a strict evaluator. Return ONLY JSON with fields {\"score\": number, \"reason\": string}. Score range: 0..10.";
         let user = format!(
-            "Task: {title}\n\nPrompt:\n{prompt}\n\nVariant: {name}\nstyle: {style}\nagent: {agent}\npreset: {preset}\n\nObjective metrics:\n- iterations_attempted: {iters}\n- files_written: {fw}\n- bytes_written: {bw}\n- terminal_commands: {tc}\n- terminal_success: {ok}\n- denied_operations: {denied}\n\nReturn JSON only.",
+            "Task: {title}\n\nPrompt:\n{prompt}\n\nVariant: {name}\nagent: {agent}\npreset: {preset}\n\nObjective metrics:\n- iterations_attempted: {iters}\n- files_written: {fw}\n- bytes_written: {bw}\n- terminal_commands: {tc}\n- terminal_success: {ok}\n- denied_operations: {denied}\n\nReturn JSON only.",
             title = task.title,
             prompt = task.prompt,
             name = variant.name,
-            style = variant.style,
             agent = variant.agent_kind,
             preset = variant.agent_preset,
             iters = variant.iterations_attempted,

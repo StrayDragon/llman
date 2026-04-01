@@ -1,5 +1,4 @@
 use crate::fs_utils::atomic_write_with_mode;
-use crate::x::sdd_eval::playbook;
 use crate::x::sdd_eval::process::{
     CapturedOutput, run_command_capture_tail, should_insert_stderr_separator,
 };
@@ -103,7 +102,6 @@ pub struct AcpRunResult {
 
 pub struct VariantRunParams {
     pub workspace_root: PathBuf,
-    pub style: playbook::WorkflowStyle,
     pub agent_command: String,
     pub agent_args: Vec<String>,
     pub agent_env: HashMap<String, String>,
@@ -127,7 +125,6 @@ pub fn run_variant(params: VariantRunParams) -> Result<AcpRunResult> {
 async fn run_variant_async(params: VariantRunParams) -> Result<AcpRunResult> {
     let VariantRunParams {
         workspace_root,
-        style,
         agent_command,
         agent_args,
         agent_env,
@@ -217,7 +214,7 @@ async fn run_variant_async(params: VariantRunParams) -> Result<AcpRunResult> {
     let session_id = session_resp.session_id;
 
     for iter_idx in 1..=max_iterations {
-        let prompt = build_prompt(style, &task_title, &task_prompt, iter_idx, max_iterations);
+        let prompt = build_prompt(&task_title, &task_prompt, iter_idx, max_iterations);
         metrics.lock().expect("metrics lock").iterations_attempted += 1;
         let resp = conn
             .prompt(acp::PromptRequest::new(
@@ -243,22 +240,10 @@ async fn run_variant_async(params: VariantRunParams) -> Result<AcpRunResult> {
     Ok(AcpRunResult { metrics: out })
 }
 
-fn build_prompt(
-    style: playbook::WorkflowStyle,
-    task_title: &str,
-    task_prompt: &str,
-    iter_idx: u32,
-    max_iterations: u32,
-) -> String {
-    let style_str = match style {
-        playbook::WorkflowStyle::Sdd => "sdd",
-        playbook::WorkflowStyle::SddLegacy => "sdd-legacy",
-    };
-
+fn build_prompt(task_title: &str, task_prompt: &str, iter_idx: u32, max_iterations: u32) -> String {
     if iter_idx == 1 {
         return format!(
             "You are running inside an automated evaluation pipeline.\n\
-Workflow style: {style_str}\n\
 Max iterations: {max_iterations}\n\
 \n\
 Task: {task_title}\n\

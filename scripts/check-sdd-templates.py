@@ -195,13 +195,8 @@ def main() -> int:
     templates_root = repo_root / "templates"
     errors: List[str] = []
     sdd_root = templates_root / "sdd"
-    legacy_root = templates_root / "sdd-legacy"
 
     sdd_locales = validate_markdown_root(sdd_root, errors)
-
-    legacy_locales: List[str] = []
-    if legacy_root.exists():
-        legacy_locales = validate_markdown_root(legacy_root, errors)
 
     if errors:
         print("SDD template checks failed:")
@@ -210,13 +205,7 @@ def main() -> int:
         return 1
 
     locale_list = ", ".join(sdd_locales)
-    if legacy_locales:
-        legacy_list = ", ".join(legacy_locales)
-        print(
-            f"SDD template checks passed for locales: {locale_list} (legacy: {legacy_list})"
-        )
-    else:
-        print(f"SDD template checks passed for locales: {locale_list}")
+    print(f"SDD template checks passed for locales: {locale_list}")
     return 0
 
 

@@ -33,6 +33,7 @@ Use this skill when the user wants to think through ideas, investigate problems,
 
 ## Exiting explore mode
 When the user is ready to implement, suggest:
+- `llman-sdd-propose` (propose + generate artifacts)
 - `llman-sdd-new-change` (start a change)
 - `llman-sdd-ff` (create all artifacts quickly)
 - `llman-sdd-apply` (implement tasks)

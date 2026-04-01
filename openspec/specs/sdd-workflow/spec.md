@@ -611,20 +611,6 @@ SDD MUST 提供 llman sdd workflow commands 的工具适配文件，并由 `llma
 - **WHEN** delta specs 已合并到主 specs
 - **THEN** skill 运行 `llman sdd validate --specs` 验证合并结果
 
-### Requirement: Style Routing for SDD Commands
-`llman sdd` command flows MUST support explicit style selection for new vs legacy tracks.
-
-#### Scenario: Update commands accept style selection
-- **WHEN** a user runs `llman sdd update` or `llman sdd update-skills` with style selector
-- **THEN** the command routes template loading and output generation through the selected style track
-
-### Requirement: Default Style Is New
-The default SDD style MUST be new when style selector is omitted.
-
-#### Scenario: Show and validate default to new style
-- **WHEN** a user runs `llman sdd show` or `llman sdd validate` without style selector
-- **THEN** the command evaluates and displays new style outputs by default
-
 ### Requirement: Archive Merge Emits ISON Spec Payload
 `llman sdd archive` MUST merge delta changes into main specs using structured ISON semantics and emit ISON payload output.
 
@@ -632,22 +618,6 @@ The default SDD style MUST be new when style selector is omitted.
 - **WHEN** a change contains delta spec ops and a user runs `llman sdd archive <change>`
 - **THEN** archive applies add/modify/remove/rename operations over requirement ids
 - **AND** the resulting `llmanspec/specs/<capability>/spec.md` contains merged ISON payload as canonical spec content
-
-### Requirement: Legacy Workflow Command Preserves JSON Parsing
-The CLI MUST provide a legacy workflow command to preserve the previous JSON-in-` ```ison ` parsing behavior for `llmanspec` specs and delta specs.
-
-This legacy command MUST:
-- be exposed as `llman sdd-legacy ...`
-- preserve the previous parsing/validation semantics for legacy repositories
-- continue to support existing repositories whose ` ```ison ` payload is JSON (including any JSON repair behavior already present)
-- include the workflow subcommands referenced by `templates/sdd-legacy/**` (at minimum: `init`, `update`, `update-skills`, `list`, `show`, `validate`, and `archive` including archive subcommands like freeze/thaw as applicable)
-
-`llman sdd` (the new default) MUST be allowed to evolve without needing to accept legacy JSON payloads.
-
-#### Scenario: Legacy repo remains usable via sdd-legacy
-- **WHEN** a repository contains JSON-in-` ```ison ` payloads under `llmanspec/specs/**` or `llmanspec/changes/**/specs/**`
-- **THEN** `llman sdd-legacy show/validate/archive` continues to operate successfully
-- **AND** `llman sdd show/validate/archive` fails fast with a legacy-command hint and canonical rewrite guidance
 
 ### Requirement: SDD Provides ISON Authoring Commands
 `llman sdd` MUST provide an explicit command group for ISON spec authoring/editing to reduce manual edits of `llmanspec/**/spec.md`.
@@ -679,7 +649,7 @@ At minimum, `llman sdd show` MUST support a JSON metadata-only mode for specs:
 - output MUST NOT include `requirements` when `--meta-only` is set.
 
 If the CLI provides a `--compact-json` mode, it MUST emit JSON without pretty formatting whitespace (token-friendly) while keeping field order stable.
-This MUST apply to `llman sdd list/show/validate` (and `llman sdd-legacy list/show/validate`) whenever `--json` is used.
+This MUST apply to `llman sdd list/show/validate` whenever `--json` is used.
 
 #### Scenario: Agent fetches spec feature name cheaply
 - **WHEN** an agent needs the spec feature name/purpose for prompt assembly
@@ -690,21 +660,28 @@ This MUST apply to `llman sdd list/show/validate` (and `llman sdd-legacy list/sh
 `llman sdd validate` MUST fail when any `llmanspec` main spec or delta spec contains a fenced ` ```ison ` payload that is JSON.
 
 The error MUST be actionable and MUST include:
-- a concrete hint to temporarily use the legacy command (`llman sdd-legacy ...`).
+- a concrete hint to rewrite the payload into canonical table/object ISON (for example: main spec uses `object.spec` + `table.requirements` + `table.scenarios`; delta spec uses `object.delta` + `table.ops` + `table.op_scenarios`).
 
 #### Scenario: Validate blocks legacy payloads
 - **WHEN** a user runs `llman sdd validate` (with or without `--strict`) on a project containing JSON-in-` ```ison ` payloads
 - **THEN** validation fails with non-zero exit
-- **AND** output includes an explicit legacy-command hint
+- **AND** output includes explicit canonical rewrite guidance (no legacy-command hint)
 
 ### Requirement: No Automatic Migration Is Required for Legacy Repos
-The system MUST support a “two command” posture:
-- `llman sdd` enforces canonical table/object ISON.
-- `llman sdd-legacy` preserves the legacy JSON parsing behavior.
+The system MUST enforce canonical table/object ISON for `llmanspec` specs and deltas.
 
-The system MUST NOT require an automatic migration command as part of the new-style workflow. Users MAY manually rewrite legacy payloads into the canonical table/object ISON schema when they choose to switch from `llman sdd-legacy` to `llman sdd`.
+The system MUST NOT require (or depend on) an automatic migration command as part of the workflow. Users MUST manually rewrite legacy JSON-in-` ```ison ` payloads into the canonical table/object ISON schema before using `llman sdd` successfully.
 
 #### Scenario: User chooses when to switch formats
-- **WHEN** a repository remains on legacy JSON payloads
-- **THEN** users can continue using `llman sdd-legacy`
-- **AND** switching to `llman sdd` requires rewriting payloads into canonical table/object ISON, but no automatic migration command is required
+- **WHEN** a repository remains on legacy JSON-in-` ```ison ` payloads
+- **THEN** `llman sdd validate` fails with a clear canonical rewrite hint
+- **AND** no automatic migration command is required or implied
+
+### Requirement: SDD Propose Skill
+`llman-sdd-propose` skill MUST guide an AI assistant to create a new change and generate all planning artifacts in one pass (proposal + delta specs + tasks; design optional), then run validation and suggest next actions.
+
+#### Scenario: Propose creates a change and artifacts
+- **WHEN** a user invokes `llman-sdd-propose` with a change description (and/or a change id)
+- **THEN** the assistant creates `llmanspec/changes/<change-id>/` with `proposal.md`, `specs/**`, and `tasks.md` (and `design.md` when needed)
+- **AND** the assistant runs `llman sdd validate <change-id> --strict --no-interactive`
+- **AND** the assistant suggests `llman-sdd-apply` for implementation

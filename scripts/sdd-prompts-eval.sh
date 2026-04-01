@@ -130,9 +130,9 @@ echo "== init temp llmanspec project"
 run_llman "$REPO_ROOT" sdd init "$project_dir" --lang "$LOCALE" 2>&1 | tee "$meta_dir/sdd-init.txt"
 
 echo
-echo "== sdd validate --ab-report (locale-scoped)"
-run_llman "$project_dir" sdd validate --ab-report --json --no-interactive \
-  2> "$meta_dir/sdd-ab-report.stderr" | tee "$meta_dir/sdd-ab-report.json" >/dev/null
+echo "== sdd validate (locale-scoped)"
+run_llman "$project_dir" sdd validate --all --strict --json --no-interactive \
+  2> "$meta_dir/sdd-validate.stderr" | tee "$meta_dir/sdd-validate.json" >/dev/null
 
 strip_frontmatter() {
   awk '
@@ -150,11 +150,11 @@ render_skill_prompt() {
 
   local cmd="sdd"
   if [[ "$style" == "legacy" ]]; then
-    cmd="sdd-legacy"
+    die "legacy style 已移除：请使用 new"
   elif [[ "$style" == "new" ]]; then
     cmd="sdd"
   else
-    die "未知 style：$style（应为 new 或 legacy）"
+    die "未知 style：$style（应为 new）"
   fi
 
   if ! run_llman "$project_dir" "$cmd" update-skills \

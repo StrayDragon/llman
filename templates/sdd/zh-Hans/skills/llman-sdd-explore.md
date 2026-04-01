@@ -33,6 +33,7 @@ metadata:
 
 ## 退出探索模式
 当用户准备开始实现时，建议：
+- `llman-sdd-propose`（提出提案并生成工件）
 - `llman-sdd-new-change`（创建 change）
 - `llman-sdd-ff`（一次性创建所有 artifacts）
 - `llman-sdd-apply`（按 tasks 实施）

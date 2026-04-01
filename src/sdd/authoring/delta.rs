@@ -1,5 +1,4 @@
 use crate::fs_utils::atomic_write_with_mode;
-use crate::sdd::project::templates::TemplateStyle;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::spec::ison_table::render_ison_fence;
@@ -45,8 +44,7 @@ pub struct DeltaAddScenarioArgs {
     pub pretty_ison: bool,
 }
 
-pub fn run_skeleton(root: &Path, args: DeltaSkeletonArgs, style: TemplateStyle) -> Result<()> {
-    ensure_new_style(style)?;
+pub fn run_skeleton(root: &Path, args: DeltaSkeletonArgs) -> Result<()> {
     validate_sdd_id(&args.change_id, "change")?;
     validate_sdd_id(&args.capability, "spec")?;
 
@@ -75,8 +73,7 @@ pub fn run_skeleton(root: &Path, args: DeltaSkeletonArgs, style: TemplateStyle) 
     Ok(())
 }
 
-pub fn run_add_op(root: &Path, args: DeltaAddOpArgs, style: TemplateStyle) -> Result<()> {
-    ensure_new_style(style)?;
+pub fn run_add_op(root: &Path, args: DeltaAddOpArgs) -> Result<()> {
     validate_sdd_id(&args.change_id, "change")?;
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
@@ -117,12 +114,7 @@ pub fn run_add_op(root: &Path, args: DeltaAddOpArgs, style: TemplateStyle) -> Re
     Ok(())
 }
 
-pub fn run_add_scenario(
-    root: &Path,
-    args: DeltaAddScenarioArgs,
-    style: TemplateStyle,
-) -> Result<()> {
-    ensure_new_style(style)?;
+pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs) -> Result<()> {
     validate_sdd_id(&args.change_id, "change")?;
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
@@ -191,15 +183,6 @@ pub fn run_add_scenario(
     let rebuilt = render_ison_fence(&payload);
     atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
     println!("{}", delta_path.display());
-    Ok(())
-}
-
-fn ensure_new_style(style: TemplateStyle) -> Result<()> {
-    if style != TemplateStyle::New {
-        return Err(anyhow!(
-            "`llman sdd-legacy` does not support canonical table/object ISON authoring helpers; use `llman sdd delta ...`"
-        ));
-    }
     Ok(())
 }
 

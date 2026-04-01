@@ -1,7 +1,7 @@
 use crate::agents::command::AgentsArgs;
 use crate::config::{ENV_CONFIG_DIR, override_runtime_config_dir, resolve_config_dir_with};
 use crate::config_schema::ensure_global_sample_config;
-use crate::sdd::command::{SddArgs, SddLegacyArgs};
+use crate::sdd::command::SddArgs;
 use crate::self_command::SelfArgs;
 use crate::skills::cli::command::SkillsArgs;
 use crate::skills::cli::interactive::is_interactive;
@@ -46,8 +46,6 @@ pub enum Commands {
     Agents(AgentsArgs),
     /// Spec-driven development workflow
     Sdd(SddArgs),
-    /// Legacy SDD workflow (JSON-in-` ```ison `)
-    SddLegacy(SddLegacyArgs),
     /// Experimental commands
     X(XArgs),
     /// Developer tools
@@ -116,7 +114,6 @@ pub fn run() -> Result<()> {
         Commands::Skills(args) => crate::skills::cli::command::run(&args),
         Commands::Agents(args) => crate::agents::command::run(&args),
         Commands::Sdd(args) => crate::sdd::command::run(&args),
-        Commands::SddLegacy(args) => crate::sdd::command::run_legacy(&args),
         Commands::X(args) => handle_x_command(&args),
         Commands::Tool(args) => handle_tool_command(&args),
         Commands::SelfCommand(args) => crate::self_command::run(&args),

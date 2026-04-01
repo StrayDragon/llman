@@ -2,9 +2,7 @@
 
 ## Purpose
 Define the workflow/jobs/steps DSL for `llman x sdd-eval` playbooks, including job dependencies, matrix variant expansion, built-in actions, minimal interpolation, and `run` step sandboxing.
-
 ## Requirements
-
 ### Requirement: Playbook Uses a Workflow/Jobs/Steps Model
 The `llman x sdd-eval` playbook MUST be a YAML document that defines a workflow to execute.
 
@@ -59,8 +57,9 @@ Each `variant_id` MUST:
 - be used as the directory name under `<run_dir>/variants/<variant_id>/`
 
 Each variant configuration MUST define:
-- `style`: `sdd` or `sdd-legacy`
 - `agent`: an ACP agent definition (kind/preset + optional command/args)
+
+The workflow style MUST be new-style SDD only; legacy styles (for example `sdd-legacy`) MUST NOT be supported, and playbooks MUST NOT include a `variants.<id>.style` field.
 
 A job MAY define `strategy.matrix.variant` as an array of `variant_id`.
 If present, the runner MUST expand the job into one job-execution per listed `variant_id`.
@@ -83,6 +82,7 @@ Expanded executions MUST run sequentially in the order listed in `strategy.matri
 - **AND** it runs the `b` execution before the `a` execution
 
 ### Requirement: Job `needs` Dependencies Are Resolved Deterministically
+The runner MUST resolve job `needs` dependencies deterministically.
 Jobs MAY declare `needs: [job_id...]` to depend on other jobs.
 
 The runner MUST:
@@ -102,7 +102,7 @@ The runner MUST:
 - **AND** the error explains that cycles are not allowed
 
 ### Requirement: Step Kind Is Either `uses` or `run`
-Each job defines an ordered list of `steps`.
+Each job MUST define an ordered list of `steps`.
 Each step MUST specify exactly one of:
 - `uses`: reference a built-in action
 - `run`: execute a local command
@@ -167,9 +167,7 @@ The following stable semantics MUST be implemented:
   - MUST ensure `logs/` and `artifacts/` directories exist for the variant.
 
 - `builtin:sdd-eval/sdd.prepare`
-  - MUST initialize/update SDD templates inside the workspace according to `variant.style`:
-    - `sdd` → new style
-    - `sdd-legacy` → legacy style
+  - MUST initialize/update SDD templates inside the workspace using new-style SDD only.
 
 - `builtin:sdd-eval/acp.sdd-loop`
   - MUST resolve the variant agent preset and inject env vars into the spawned ACP agent process only.
@@ -207,7 +205,6 @@ The runner MUST apply interpolation before executing a step, at minimum for:
 
 At minimum, the following paths MUST be supported:
 - `matrix.variant` (current variant id for matrix-expanded jobs)
-- `variant.style`
 - `variant.agent.kind`
 - `task.title`
 - `task.prompt`
