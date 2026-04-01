@@ -658,7 +658,14 @@ done
 if [[ "$OPEN_UI" == "1" && -n "$LAST_PROMPTFOO_DIR" ]]; then
   echo
   echo "== promptfoo view (UI)"
-  "${PROMPTFOO_CMD[@]}" view -y --port "$UI_PORT" "$LAST_PROMPTFOO_DIR"
+  ui_pid=""
+  trap 'if [[ -n "$ui_pid" ]]; then echo; echo "== stopping promptfoo UI"; kill "$ui_pid" 2>/dev/null || true; fi' INT
+  set +e
+  "${PROMPTFOO_CMD[@]}" view -y --port "$UI_PORT" "$LAST_PROMPTFOO_DIR" &
+  ui_pid="$!"
+  wait "$ui_pid"
+  set -e
+  trap - INT
 fi
 
 exit "$overall_exit"
