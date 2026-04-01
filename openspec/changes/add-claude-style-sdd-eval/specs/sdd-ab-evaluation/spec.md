@@ -1,0 +1,42 @@
+# sdd-ab-evaluation (Delta)
+
+## ADDED Requirements
+
+### Requirement: Claude Code agentic 评测可通过 Promptfoo 自动运行
+SDD workflow MUST 提供一个可复现的评测脚手架，用于通过 Promptfoo 驱动 Claude Code agent 在隔离 workspace 内进行多轮交互，并允许真实执行命令/写文件以模拟真实开发过程。该脚手架 MUST 使用确定性硬门禁（例如 `llman sdd validate --all --strict --no-interactive`）来判断评测是否通过。
+
+#### Scenario: 运行一次 Claude Code agentic 评测
+- **WHEN** 维护者运行一个 Promptfoo fixture 来驱动 Claude Code agent 完成一轮 SDD authoring + validate 流程
+- **THEN** 评测输出包含 `results.json` 与 `results.html`
+- **AND** 评测以 `llman sdd validate --all --strict --no-interactive` 作为硬门禁（失败则整体评测失败）
+
+### Requirement: Multi-style（ison/toon/yaml）在同一任务集下可对比
+评测脚手架 MUST 在同一语义任务集下分别运行 `spec_style: ison`、`spec_style: toon`、`spec_style: yaml` 的三个隔离 workspace，并输出每种风格的通过情况与关键指标（例如 turns/token/cost）。
+
+#### Scenario: 同一任务在三种 spec_style 下跑通
+- **WHEN** 维护者执行 multi-style 评测
+- **THEN** 系统为 ison/toon/yaml 创建三个隔离 workspace 并分别运行相同任务
+- **AND** 输出报告包含每个 style 的 pass/fail 与基础指标
+
+### Requirement: 每次评测 run 产出可观测快照与元数据
+评测脚手架 MUST 为每次运行创建独立的临时根目录（不自动清理），并在其中产出可观测快照（推荐使用 git repo 形式）与元数据目录（meta）。元数据 MUST 至少包含 workspace 的 `git log/diff/status`（或等价快照）以及关键命令输出（validate/show）。
+
+#### Scenario: 评测产物包含 meta 快照
+- **WHEN** 一次评测运行结束
+- **THEN** 临时根目录下存在 `meta/`（或等价）用于保存快照与日志
+- **AND** 其中包含每个 workspace 的 `git log/diff/status`（或等价信息）
+
+### Requirement: 支持 human / Codex / Claude 的可选软评分
+评测脚手架 SHOULD 支持可选的软评分层：人工打分（human）与 LLM rubric（例如 Codex/Claude judge）。该软评分层 MUST 可选，且不得替代硬门禁（validate）作为唯一通过条件。
+
+#### Scenario: 同时启用硬门禁与可选 rubric
+- **WHEN** 维护者启用 rubric judge（Codex 或 Claude）或 human judge
+- **THEN** 评测仍以硬门禁为基础，同时输出 rubric/human 的评分结果
+
+### Requirement: 提供可复现的 Docker runner（支持阿里云镜像参数）
+评测脚手架 MUST 提供一个 docker 运行方式，用于在受限网络/不同机器上复现。Dockerfile MUST 支持通过 build args 配置镜像源（至少覆盖 apt、npm、pypi）以切换到阿里云 mirror。docker runner MUST 支持挂载输出目录以持久化 `results.*` 与 workspaces。
+
+#### Scenario: 使用 docker + aliyun mirror 构建并运行评测
+- **WHEN** 维护者使用传入的 build args（apt/npm/pypi mirror）构建 docker 镜像并运行评测
+- **THEN** 评测可在容器内完成
+- **AND** 输出目录通过 volume 挂载持久化到宿主机
