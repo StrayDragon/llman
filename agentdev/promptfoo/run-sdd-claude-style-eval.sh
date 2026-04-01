@@ -30,6 +30,7 @@ usage() {
   --max-turns <N>                 默认：18
   --runs <N>                      默认：1（独立 run 次数，每次新 seed 根目录）
   --repeat <N>                    透传给 promptfoo eval --repeat（注意：同一 run 内会复用 workspace）
+  --api-key-env <VAR>             可选；从指定环境变量读取 API key（默认自动探测）
   --judge <off|human|codex|claude> 默认：off（可选软评分；不替代硬门禁）
   --judge-grader <provider>       可选；judge=codex/claude 时覆盖 promptfoo --grader
   --llman-bin <path>              可选；覆盖 llman 可执行文件路径
@@ -37,6 +38,8 @@ usage() {
   --delay <ms>                    透传给 promptfoo eval --delay
   --no-cache                      透传给 promptfoo eval --no-cache
   --no-run                        只生成 workspaces + promptfoo 目录，不执行 promptfoo eval
+  --ui                            评测结束后启动 Promptfoo Web UI（promptfoo view -y；会阻塞）
+  --ui-port <N>                   Web UI 端口（默认：15500）
 
 Claude Code account 注入（敏感：请勿直接运行 env 子命令输出到终端）：
   --cc-account <name>             例如：glm-lite-150 / glm-lite-156
@@ -61,11 +64,14 @@ MAX_CONCURRENCY=""
 DELAY_MS=""
 NO_CACHE="0"
 NO_RUN="0"
+OPEN_UI="0"
+UI_PORT="15500"
 
 JUDGE="off"
 JUDGE_GRADER=""
 
 LLMAN_BIN_OVERRIDE=""
+API_KEY_ENV=""
 
 CC_ACCOUNT=""
 CC_CONFIG_DIR="${HOME}/.config/llman"
@@ -84,6 +90,8 @@ while [[ $# -gt 0 ]]; do
       RUNS="${2:-}"; shift 2;;
     --repeat)
       REPEAT="${2:-}"; shift 2;;
+    --api-key-env)
+      API_KEY_ENV="${2:-}"; shift 2;;
     --max-concurrency)
       MAX_CONCURRENCY="${2:-}"; shift 2;;
     --delay)
@@ -92,6 +100,10 @@ while [[ $# -gt 0 ]]; do
       NO_CACHE="1"; shift 1;;
     --no-run)
       NO_RUN="1"; shift 1;;
+    --ui)
+      OPEN_UI="1"; shift 1;;
+    --ui-port)
+      UI_PORT="${2:-}"; shift 2;;
     --judge)
       JUDGE="${2:-}"; shift 2;;
     --judge-grader)
@@ -120,6 +132,9 @@ fi
 if [[ -n "$DELAY_MS" ]]; then
   [[ "$DELAY_MS" =~ ^[0-9]+$ ]] || die "--delay 必须是整数（ms）"
 fi
+if [[ -n "$UI_PORT" ]]; then
+  [[ "$UI_PORT" =~ ^[0-9]+$ ]] || die "--ui-port 必须是整数"
+fi
 
 case "$JUDGE" in
   off|human|codex|claude) ;;
@@ -128,7 +143,40 @@ esac
 
 need_cmd git
 need_cmd python3
-need_cmd promptfoo
+need_cmd node
+
+PROMPTFOO_CMD=(promptfoo)
+if ! promptfoo --version >/dev/null 2>&1; then
+  # Some promptfoo installs may break due to native better-sqlite3 bindings. Fallback to a working
+  # pnpm global store entry if possible (doesn't require re-installing in the repo).
+  if command -v pnpm >/dev/null 2>&1; then
+    global_root="$(pnpm root -g 2>/dev/null || true)"
+    global_store=""
+    if [[ -n "$global_root" ]]; then
+      global_store="$(dirname "$global_root")/.pnpm"
+    fi
+
+    promptfoo_main_js=""
+    if [[ -n "$global_store" && -d "$global_store" ]]; then
+      while IFS= read -r dir; do
+        candidate="$dir/node_modules/promptfoo/dist/src/main.js"
+        if [[ -f "$candidate" ]] && node "$candidate" --version >/dev/null 2>&1; then
+          promptfoo_main_js="$candidate"
+          break
+        fi
+      done < <(ls -d "$global_store"/promptfoo@* 2>/dev/null | sort -r || true)
+    fi
+
+    if [[ -n "$promptfoo_main_js" ]]; then
+      PROMPTFOO_CMD=(node "$promptfoo_main_js")
+      echo "== promptfoo: fallback to pnpm global store entry"
+    else
+      die "promptfoo 无法运行（可能是 better-sqlite3 原生依赖问题）。请安装/修复 promptfoo，或使用 Docker runner。"
+    fi
+  else
+    die "promptfoo 无法运行，且未检测到 pnpm 可用于回退。请安装/修复 promptfoo，或使用 Docker runner。"
+  fi
+fi
 
 if [[ -n "$LLMAN_BIN_OVERRIDE" ]]; then
   LLMAN_BIN="$LLMAN_BIN_OVERRIDE"
@@ -163,6 +211,65 @@ fi
 
 git_sha="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 timestamp_utc="$(date -u +%Y-%m-%dT%H%M%SZ)"
+
+resolve_promptfoo_base_api_key_env() {
+  if [[ -n "$API_KEY_ENV" ]]; then
+    if [[ -n "${!API_KEY_ENV:-}" ]]; then
+      echo "$API_KEY_ENV"
+      return 0
+    fi
+    die "--api-key-env 指定的环境变量未设置或为空：$API_KEY_ENV"
+  fi
+
+  local candidates=(
+    "ANTHROPIC_API_KEY"
+    "CLAUDE_API_KEY"
+    "CLAUDE_CODE_API_KEY"
+    "CLAUDE_CODE_TOKEN"
+    "GLM_API_KEY"
+  )
+  local v
+  for v in "${candidates[@]}"; do
+    if [[ -n "${!v:-}" ]]; then
+      echo "$v"
+      return 0
+    fi
+  done
+  return 1
+}
+
+setup_promptfoo_api_keys() {
+  if [[ -n "${CLAUDE_AGENT_ISON_API_KEY:-}" && -n "${CLAUDE_AGENT_TOON_API_KEY:-}" && -n "${CLAUDE_AGENT_YAML_API_KEY:-}" ]]; then
+    return 0
+  fi
+
+  local base_env
+  base_env="$(resolve_promptfoo_base_api_key_env || true)"
+  if [[ -z "$base_env" ]]; then
+    cat <<EOF >&2
+Error: 缺少 Promptfoo/Claude Agent SDK 的 API key。
+
+Promptfoo provider 需要以下环境变量之一：
+  - CLAUDE_AGENT_ISON_API_KEY
+  - CLAUDE_AGENT_TOON_API_KEY
+  - CLAUDE_AGENT_YAML_API_KEY
+
+你可以：
+  1) 使用 --cc-account 注入（推荐）：--cc-account glm-lite-150
+  2) 或者手动设置一个基础 key（例如 ANTHROPIC_API_KEY），或用 --api-key-env <VAR> 指定
+EOF
+    exit 1
+  fi
+
+  local base_val="${!base_env}"
+  [[ -n "$base_val" ]] || die "环境变量为空：$base_env"
+
+  export CLAUDE_AGENT_ISON_API_KEY="${CLAUDE_AGENT_ISON_API_KEY:-$base_val}"
+  export CLAUDE_AGENT_TOON_API_KEY="${CLAUDE_AGENT_TOON_API_KEY:-$base_val}"
+  export CLAUDE_AGENT_YAML_API_KEY="${CLAUDE_AGENT_YAML_API_KEY:-$base_val}"
+
+  echo "== promptfoo api key source: $base_env -> CLAUDE_AGENT_{ISON,TOON,YAML}_API_KEY"
+}
 
 init_workspace() {
   local style="$1"
@@ -410,6 +517,8 @@ with open(out_md_path, "w", encoding="utf-8") as f:
 PY
 }
 
+LAST_PROMPTFOO_DIR=""
+
 run_one() {
   local run_idx="$1"
 
@@ -435,6 +544,9 @@ PY
     echo "== source claude-code account env: $CC_ACCOUNT"
     # WARNING: do NOT print env exports (sensitive). `source <(...)` keeps it out of stdout.
     source <("$LLMAN_BIN" --config-dir "$CC_CONFIG_DIR" x claude-code account env "$CC_ACCOUNT")
+  fi
+  if [[ "$NO_RUN" != "1" ]]; then
+    setup_promptfoo_api_keys
   fi
 
   local ws_ison="$workspaces_dir/ison"
@@ -476,15 +588,18 @@ PY
 
   echo
   echo "== promptfoo validate config"
-  (cd "$promptfoo_dir" && promptfoo validate config -c "$promptfoo_dir/promptfooconfig.yaml")
+  (cd "$promptfoo_dir" && "${PROMPTFOO_CMD[@]}" validate config -c "$promptfoo_dir/promptfooconfig.yaml")
 
+  LAST_PROMPTFOO_DIR="$promptfoo_dir"
+
+  local eval_exit="0"
   if [[ "$NO_RUN" == "1" ]]; then
     echo
     echo "（跳过 promptfoo eval：因为传入了 --no-run）"
   else
     echo
     echo "== promptfoo eval"
-    eval_args=(promptfoo eval --config "$promptfoo_dir/promptfooconfig.yaml" --output "$promptfoo_dir/results.json" --output "$promptfoo_dir/results.html")
+    eval_args=("${PROMPTFOO_CMD[@]}" eval --config "$promptfoo_dir/promptfooconfig.yaml" --output "$promptfoo_dir/results.json" --output "$promptfoo_dir/results.html")
     if [[ -n "$REPEAT" ]]; then
       eval_args+=(--repeat "$REPEAT")
     fi
@@ -503,7 +618,12 @@ PY
     if [[ "$JUDGE" == "claude" ]]; then
       eval_args+=(--grader "${JUDGE_GRADER:-anthropic:messages:claude-3-5-sonnet-latest}")
     fi
-    (cd "$promptfoo_dir" && "${eval_args[@]}")
+    if (cd "$promptfoo_dir" && "${eval_args[@]}"); then
+      eval_exit="0"
+    else
+      eval_exit="$?"
+      echo "!! promptfoo eval failed (exit=$eval_exit). Continuing to write meta snapshots." >&2
+    fi
   fi
 
   echo
@@ -523,12 +643,25 @@ PY
   echo "== done"
   echo "promptfoo_dir: $promptfoo_dir"
   echo "meta_dir:      $meta_dir"
+
+  return "$eval_exit"
 }
 
 if (( RUNS < 1 )); then
   die "--runs 必须 >= 1"
 fi
 
+overall_exit="0"
 for i in $(seq 1 "$RUNS"); do
-  run_one "$i"
+  if ! run_one "$i"; then
+    overall_exit="1"
+  fi
 done
+
+if [[ "$OPEN_UI" == "1" && -n "$LAST_PROMPTFOO_DIR" ]]; then
+  echo
+  echo "== promptfoo view (UI)"
+  "${PROMPTFOO_CMD[@]}" view -y --port "$UI_PORT" "$LAST_PROMPTFOO_DIR"
+fi
+
+exit "$overall_exit"
