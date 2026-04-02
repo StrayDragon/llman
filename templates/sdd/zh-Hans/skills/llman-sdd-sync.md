@@ -17,7 +17,7 @@ metadata:
 2. 对每个 delta spec：`llmanspec/changes/<id>/specs/<capability>/spec.md`
    - 阅读 delta
    - 阅读（或创建）主 spec：`llmanspec/specs/<capability>/spec.md`
-   - 按 `table.ops` + `table.op_scenarios` 手动应用（add/modify/remove/rename）
+   - 按 delta 语义手动应用（add/modify/remove/rename + scenarios），并匹配项目配置的 `spec_style`（`{{ spec_style }}`）
 3. 校验 specs：
    ```bash
    llman sdd validate --specs --strict --no-interactive
@@ -25,6 +25,6 @@ metadata:
 4. sync 不负责归档；准备好后执行 `llman sdd archive run <id>`。
 
 {{ unit("skills/sdd-commands") }}
-{{ unit("skills/validation-hints") }}
+{{ unit_style("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

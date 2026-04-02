@@ -1,3 +1,4 @@
+use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
 use crate::sdd::shared::ids::validate_sdd_id;
@@ -185,8 +186,11 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
     }
 
     if args.json {
+        let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+        let config = load_required_config(&llmanspec_dir)?;
+
         let content = fs::read_to_string(&proposal_path)?;
-        let change = parse_change(&content, change_id, &change_dir)?;
+        let change = parse_change(&content, change_id, &change_dir, config.spec_style)?;
         let title = extract_title(&content, change_id);
         let deltas = change.deltas;
         if args.requirements_only {
@@ -209,6 +213,9 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
 
 fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
     validate_sdd_id(spec_id, "spec")?;
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir)?;
+
     let spec_path = root
         .join(LLMANSPEC_DIR_NAME)
         .join("specs")
@@ -223,7 +230,7 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
             return Err(anyhow!(t!("sdd.show.requirements_conflict")));
         }
         let content = fs::read_to_string(&spec_path)?;
-        let spec = parse_spec(&content, spec_id)?;
+        let spec = parse_spec(&content, spec_id, config.spec_style)?;
         if args.meta_only {
             let output = serde_json::json!({
                 "id": spec_id,

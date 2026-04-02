@@ -28,7 +28,7 @@ metadata:
    - 归档（准备好后）：`llman sdd archive <id>`
 
 {{ unit("skills/sdd-commands") }}
-{{ unit("skills/validation-hints") }}
+{{ unit_style("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

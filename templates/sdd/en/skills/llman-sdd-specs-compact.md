@@ -45,6 +45,6 @@ Use this skill to reduce specs bloat while preserving MUST/Scenario behavior.
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit("skills/validation-hints") }}
+{{ unit_style("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

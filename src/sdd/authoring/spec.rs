@@ -1,10 +1,14 @@
 use crate::fs_utils::atomic_write_with_mode;
+use crate::sdd::project::config::{SpecStyle, load_required_config};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
+use crate::sdd::spec::backend::yaml_overlay::{
+    YamlWriteBackMode, update_main_spec_markdown_with_overlay_or_fallback,
+};
+use crate::sdd::spec::backend::{DumpOptions, backend_for_style};
+use crate::sdd::spec::fence::render_code_fence;
+use crate::sdd::spec::ir::{MainSpecDoc, RequirementEntry, ScenarioEntry};
 use crate::sdd::spec::ison::{compose_with_frontmatter, split_frontmatter};
-use crate::sdd::spec::ison_table::render_ison_fence;
-use crate::sdd::spec::ison_v1::{CanonicalSpec, RequirementRow, ScenarioRow, SpecMeta};
-use crate::sdd::spec::ison_v1::{SPEC_KIND, dump_spec_payload, parse_spec_body};
 use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -38,6 +42,14 @@ pub struct SpecAddScenarioArgs {
 
 pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir)?;
+    if args.pretty_ison && config.spec_style != SpecStyle::Ison {
+        return Err(anyhow!(t!(
+            "sdd.style.pretty_ison_requires_ison",
+            style = config.spec_style.as_str()
+        )));
+    }
 
     let spec_path = spec_path(root, &args.capability);
     if spec_path.exists() && !args.force {
@@ -51,17 +63,21 @@ pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
     }
 
     let frontmatter = default_spec_frontmatter_yaml();
-    let spec = CanonicalSpec {
-        meta: SpecMeta {
-            kind: SPEC_KIND.to_string(),
-            name: args.capability.clone(),
-            purpose: "TODO: Describe this capability and its purpose.".to_string(),
-        },
+    let backend = backend_for_style(config.spec_style);
+    let spec = MainSpecDoc {
+        kind: "llman.sdd.spec".to_string(),
+        name: args.capability.clone(),
+        purpose: "TODO: Describe this capability and its purpose.".to_string(),
         requirements: Vec::new(),
         scenarios: Vec::new(),
     };
-    let payload = dump_spec_payload(&spec, args.pretty_ison);
-    let body = render_ison_fence(&payload);
+    let payload = backend.dump_main_spec(
+        &spec,
+        DumpOptions {
+            pretty_ison: args.pretty_ison,
+        },
+    )?;
+    let body = render_code_fence(config.spec_style.as_str(), &payload);
     let rebuilt = compose_with_frontmatter(Some(&frontmatter), &body);
 
     atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
@@ -72,6 +88,14 @@ pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
 pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir)?;
+    if args.pretty_ison && config.spec_style != SpecStyle::Ison {
+        return Err(anyhow!(t!(
+            "sdd.style.pretty_ison_requires_ison",
+            style = config.spec_style.as_str()
+        )));
+    }
     if args.title.trim().is_empty() {
         return Err(anyhow!("title must not be empty"));
     }
@@ -95,10 +119,12 @@ pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<
     };
 
     let context = format!("spec `{}`", args.capability);
-    let mut spec = parse_spec_body(&body, &context)?;
+    let backend = backend_for_style(config.spec_style);
+    let old_doc = backend.parse_main_spec(&body, &context)?;
+    let mut spec = old_doc.clone();
 
-    spec.meta.kind = SPEC_KIND.to_string();
-    spec.meta.name = args.capability.clone();
+    spec.kind = "llman.sdd.spec".to_string();
+    spec.name = args.capability.clone();
 
     if spec
         .requirements
@@ -111,24 +137,46 @@ pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<
         ));
     }
 
-    spec.requirements.push(RequirementRow {
+    spec.requirements.push(RequirementEntry {
         req_id: args.req_id.trim().to_string(),
         title: args.title.trim().to_string(),
         statement: args.statement.trim().to_string(),
     });
 
-    spec.scenarios.push(ScenarioRow {
+    spec.scenarios.push(ScenarioEntry {
         req_id: args.req_id.trim().to_string(),
         id: "baseline".to_string(),
         given: "".to_string(),
-        when: "TODO: describe the trigger".to_string(),
-        then: "TODO: describe the expected result".to_string(),
+        when_: "TODO: describe the trigger".to_string(),
+        then_: "TODO: describe the expected result".to_string(),
     });
 
-    let payload = dump_spec_payload(&spec, args.pretty_ison);
-    let body = render_ison_fence(&payload);
-    let rebuilt = compose_with_frontmatter(Some(&frontmatter_yaml), &body);
-    atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
+    let payload = backend.dump_main_spec(
+        &spec,
+        DumpOptions {
+            pretty_ison: args.pretty_ison,
+        },
+    )?;
+
+    if config.spec_style == SpecStyle::Yaml {
+        let writeback = update_main_spec_markdown_with_overlay_or_fallback(
+            &content, &old_doc, &spec, &payload,
+        )?;
+        if writeback.mode == YamlWriteBackMode::FencedRewrite {
+            eprintln!(
+                "{}",
+                t!(
+                    "sdd.yaml.lossless_fallback",
+                    path = display_llmanspec_path(&spec_path)
+                )
+            );
+        }
+        atomic_write_with_mode(&spec_path, writeback.content.as_bytes(), None)?;
+    } else {
+        let body = render_code_fence(config.spec_style.as_str(), &payload);
+        let rebuilt = compose_with_frontmatter(Some(&frontmatter_yaml), &body);
+        atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
+    }
     println!("{}", spec_path.display());
     Ok(())
 }
@@ -137,6 +185,14 @@ pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
     validate_sdd_id(&args.scenario_id, "scenario")?;
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir)?;
+    if args.pretty_ison && config.spec_style != SpecStyle::Ison {
+        return Err(anyhow!(t!(
+            "sdd.style.pretty_ison_requires_ison",
+            style = config.spec_style.as_str()
+        )));
+    }
     if args.when_.trim().is_empty() {
         return Err(anyhow!("--when must not be empty"));
     }
@@ -157,10 +213,12 @@ pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs) -> Result<()> {
     };
 
     let context = format!("spec `{}`", args.capability);
-    let mut spec = parse_spec_body(&body, &context)?;
+    let backend = backend_for_style(config.spec_style);
+    let old_doc = backend.parse_main_spec(&body, &context)?;
+    let mut spec = old_doc.clone();
 
-    spec.meta.kind = SPEC_KIND.to_string();
-    spec.meta.name = args.capability.clone();
+    spec.kind = "llman.sdd.spec".to_string();
+    spec.name = args.capability.clone();
 
     if !spec
         .requirements
@@ -183,18 +241,39 @@ pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs) -> Result<()> {
         ));
     }
 
-    spec.scenarios.push(ScenarioRow {
+    spec.scenarios.push(ScenarioEntry {
         req_id: args.req_id.trim().to_string(),
         id: args.scenario_id.trim().to_string(),
         given: args.given.trim().to_string(),
-        when: args.when_.trim().to_string(),
-        then: args.then_.trim().to_string(),
+        when_: args.when_.trim().to_string(),
+        then_: args.then_.trim().to_string(),
     });
 
-    let payload = dump_spec_payload(&spec, args.pretty_ison);
-    let body = render_ison_fence(&payload);
-    let rebuilt = compose_with_frontmatter(Some(&frontmatter_yaml), &body);
-    atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
+    let payload = backend.dump_main_spec(
+        &spec,
+        DumpOptions {
+            pretty_ison: args.pretty_ison,
+        },
+    )?;
+    if config.spec_style == SpecStyle::Yaml {
+        let writeback = update_main_spec_markdown_with_overlay_or_fallback(
+            &content, &old_doc, &spec, &payload,
+        )?;
+        if writeback.mode == YamlWriteBackMode::FencedRewrite {
+            eprintln!(
+                "{}",
+                t!(
+                    "sdd.yaml.lossless_fallback",
+                    path = display_llmanspec_path(&spec_path)
+                )
+            );
+        }
+        atomic_write_with_mode(&spec_path, writeback.content.as_bytes(), None)?;
+    } else {
+        let body = render_code_fence(config.spec_style.as_str(), &payload);
+        let rebuilt = compose_with_frontmatter(Some(&frontmatter_yaml), &body);
+        atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
+    }
     println!("{}", spec_path.display());
     Ok(())
 }
@@ -221,4 +300,12 @@ fn default_spec_frontmatter_yaml() -> String {
 
 fn contains_shall_or_must(text: &str) -> bool {
     text.contains("SHALL") || text.contains("MUST")
+}
+
+fn display_llmanspec_path(path: &Path) -> String {
+    let display = path.display().to_string();
+    if let Some(idx) = display.find(LLMANSPEC_DIR_NAME) {
+        return display[idx..].to_string();
+    }
+    display
 }

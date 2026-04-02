@@ -24,7 +24,9 @@ Locale + skills:
 - `llmanspec/config.yaml` sets `locale` and skills paths.
 - Locale affects templates and skills only; CLI output stays English.
 - Regenerate skills with `llman sdd update-skills`.
-- The SDD workflow is single-track: use `llman sdd ...` (canonical table/object ISON only).
+- SDD spec/delta payload style is project-wide: `llmanspec/config.yaml` sets `spec_style: {{ spec_style }}`.
+- Supported styles: `ison` (default), `toon` (experimental), `yaml` (experimental).
+- Do not mix styles inside one project. Use `llman sdd convert` for explicit migrations.
 
 Only use AGENTS.md context injection.
 
@@ -51,8 +53,11 @@ Workflow:
 3. Choose a unique change id: kebab-case, verb prefix (`add-`, `update-`, `remove-`, `refactor-`).
 4. Create `llmanspec/changes/<change-id>/` with `proposal.md`, `tasks.md`, and optional `design.md`.
 5. For each affected capability, add `llmanspec/changes/<change-id>/specs/<capability>/spec.md` using:
-   - Canonical ISON blocks: `object.delta` + `table.ops` + `table.op_scenarios`
-   - Use `~` for nulls and `""` for empty strings (for example: `given ""`)
+   - The project’s configured `spec_style` (no implicit conversion).
+   - Prefer using authoring helpers so the file is emitted in the correct style:
+     - `llman sdd delta skeleton <change-id> <capability>`
+     - `llman sdd delta add-op ...`
+     - `llman sdd delta add-scenario ...`
 6. Validate: `llman sdd validate <change-id> --strict --no-interactive`.
 
 ## Phase 2: Implement
@@ -76,8 +81,14 @@ After deployment:
   - `llman_spec_valid_commands`
   - `llman_spec_evidence`
 - Delta specs live at `llmanspec/changes/<change-id>/specs/<feature-id>/spec.md` and MUST NOT include YAML frontmatter.
-- Both spec types are authored as canonical table/object ISON blocks:
+- Both spec types embed a single canonical fenced payload that MUST match `spec_style`:
 
+{% if spec_style == "ison" -%}
 {{ unit("spec/ison-contract") }}
+{% elif spec_style == "toon" -%}
+{{ unit("spec/toon-contract") }}
+{% else -%}
+{{ unit("spec/yaml-contract") }}
+{% endif %}
 
 Keep this managed block so `llman sdd update` can refresh it.

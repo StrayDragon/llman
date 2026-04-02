@@ -1,8 +1,7 @@
-use crate::sdd::change::delta::{DeltaPlan, RequirementBlock, parse_delta_spec};
+use crate::sdd::project::config::SpecStyle;
+use crate::sdd::spec::backend::backend_for_style;
+use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
 use crate::sdd::spec::ison::split_frontmatter;
-use crate::sdd::spec::ison_table::{
-    expect_fields, extract_all_ison_fences, get_required_string, parse_and_merge_fences,
-};
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use serde::Serialize;
@@ -76,187 +75,26 @@ pub struct Delta {
     pub rename: Option<RenamePair>,
 }
 
-pub fn parse_spec(content: &str, name: &str) -> Result<Spec> {
-    parse_spec_table_object(content, name)
-}
-
-fn parse_spec_table_object(content: &str, name: &str) -> Result<Spec> {
+pub fn parse_spec(content: &str, name: &str, style: SpecStyle) -> Result<Spec> {
     let context = format!("spec `{}`", name);
     let (_, body) = split_frontmatter(content);
-    let fences = extract_all_ison_fences(&body, &context)?;
-
-    for fence in &fences {
-        let trimmed = fence.payload.trim_start();
-        if trimmed.starts_with('{') || trimmed.starts_with('[') {
-            return Err(anyhow!(
-                "{context}: legacy JSON detected in ```ison payload at line {}. \
-`llman sdd` only supports canonical table/object ISON; rewrite the payload to `object.spec` + `table.requirements` + `table.scenarios`.",
-                fence.start_line
-            ));
-        }
-    }
-
-    let merged = parse_and_merge_fences(&fences, &context)?;
-    let allowed_blocks = ["object.spec", "table.requirements", "table.scenarios"];
-    for key in merged.blocks().keys() {
-        if !allowed_blocks.contains(&key.as_str()) {
-            return Err(anyhow!(
-                "{context}: unknown canonical block `{}` (expected: {})",
-                key,
-                allowed_blocks.join(", ")
-            ));
-        }
-    }
-
-    let meta = merged
-        .get("object", "spec")
-        .ok_or_else(|| anyhow!("{context}: missing required block `object.spec`"))?;
-    expect_fields(meta, &["kind", "name", "purpose"], &context)?;
-    if meta.rows.len() != 1 {
-        return Err(anyhow!(
-            "{context}: `object.spec` must have exactly 1 row, got {}",
-            meta.rows.len()
-        ));
-    }
-    let meta_row = &meta.rows[0];
-    let kind = get_required_string(meta_row, "kind", &context, false)?
-        .trim()
-        .to_string();
-    let feature_id = get_required_string(meta_row, "name", &context, false)?
-        .trim()
-        .to_string();
-    let purpose = get_required_string(meta_row, "purpose", &context, false)?
-        .trim()
-        .to_string();
-
-    if kind != "llman.sdd.spec" {
-        return Err(anyhow!(
-            "{context}: spec kind must be `llman.sdd.spec`, got `{}`",
-            kind
-        ));
-    }
-
-    let requirements_block = merged
-        .get("table", "requirements")
-        .ok_or_else(|| anyhow!("{context}: missing required block `table.requirements`"))?;
-    expect_fields(
-        requirements_block,
-        &["req_id", "title", "statement"],
-        &context,
-    )?;
-
-    let mut req_id_order: Vec<String> = Vec::new();
-    let mut req_id_seen = std::collections::HashSet::new();
-    let mut req_statement_by_id: std::collections::HashMap<String, String> =
-        std::collections::HashMap::new();
-    for (idx, row) in requirements_block.rows.iter().enumerate() {
-        let row_ctx = format!("{context}: table.requirements row {}", idx + 1);
-        let req_id = get_required_string(row, "req_id", &row_ctx, false)?
-            .trim()
-            .to_string();
-        let statement = get_required_string(row, "statement", &row_ctx, false)?
-            .trim()
-            .to_string();
-        if !req_id_seen.insert(req_id.clone()) {
-            return Err(anyhow!(
-                "{context}: duplicate requirement `req_id` `{}`",
-                req_id
-            ));
-        }
-        req_id_order.push(req_id.clone());
-        req_statement_by_id.insert(req_id, statement);
-    }
-
-    let scenarios_block = merged
-        .get("table", "scenarios")
-        .ok_or_else(|| anyhow!("{context}: missing required block `table.scenarios`"))?;
-    expect_fields(
-        scenarios_block,
-        &["req_id", "id", "given", "when", "then"],
-        &context,
-    )?;
-
-    let mut scenario_seen = std::collections::HashSet::new();
-    let mut scenarios_by_req: std::collections::HashMap<String, Vec<Scenario>> =
-        std::collections::HashMap::new();
-    for (idx, row) in scenarios_block.rows.iter().enumerate() {
-        let row_ctx = format!("{context}: table.scenarios row {}", idx + 1);
-        let req_id = get_required_string(row, "req_id", &row_ctx, false)?
-            .trim()
-            .to_string();
-        if !req_id_seen.contains(&req_id) {
-            return Err(anyhow!(
-                "{context}: scenario references unknown requirement `req_id` `{}`",
-                req_id
-            ));
-        }
-        let scenario_id = get_required_string(row, "id", &row_ctx, false)?
-            .trim()
-            .to_string();
-        let key = format!("{}::{}", req_id, scenario_id);
-        if !scenario_seen.insert(key) {
-            return Err(anyhow!(
-                "{context}: duplicate scenario `(req_id, id)` = (`{}`, `{}`)",
-                req_id,
-                scenario_id
-            ));
-        }
-
-        let given = get_required_string(row, "given", &row_ctx, true)?
-            .trim()
-            .to_string();
-        let when = get_required_string(row, "when", &row_ctx, false)?
-            .trim()
-            .to_string();
-        let then = get_required_string(row, "then", &row_ctx, false)?
-            .trim()
-            .to_string();
-
-        let raw_text = if given.is_empty() {
-            format!("WHEN: {when}\nTHEN: {then}")
-        } else {
-            format!("GIVEN: {given}\nWHEN: {when}\nTHEN: {then}")
-        };
-
-        scenarios_by_req
-            .entry(req_id)
-            .or_default()
-            .push(Scenario { raw_text });
-    }
-
-    let requirements = req_id_order
-        .into_iter()
-        .map(|req_id| Requirement {
-            text: req_statement_by_id
-                .remove(&req_id)
-                .unwrap_or_default()
-                .trim()
-                .to_string(),
-            scenarios: scenarios_by_req.remove(&req_id).unwrap_or_default(),
-        })
-        .collect();
-
-    Ok(Spec {
-        name: if feature_id.is_empty() {
-            name.to_string()
-        } else {
-            feature_id
-        },
-        overview: purpose,
-        requirements,
-        metadata: SpecMetadata {
-            format: "llman-sdd-ison".to_string(),
-        },
-    })
+    let backend = backend_for_style(style);
+    let doc = backend.parse_main_spec(&body, &context)?;
+    Ok(convert_main_doc_to_spec(&doc, name, style))
 }
 
-pub fn parse_change(content: &str, name: &str, change_dir: &Path) -> Result<Change> {
+pub fn parse_change(
+    content: &str,
+    name: &str,
+    change_dir: &Path,
+    style: SpecStyle,
+) -> Result<Change> {
     let why =
         extract_section(content, "Why").ok_or_else(|| anyhow!("Change must have a Why section"))?;
     let what_changes = extract_section(content, "What Changes")
         .ok_or_else(|| anyhow!("Change must have a What Changes section"))?;
 
-    let deltas = parse_change_deltas(&what_changes, change_dir)?;
+    let deltas = parse_change_deltas(&what_changes, change_dir, style)?;
 
     Ok(Change {
         name: name.to_string(),
@@ -269,15 +107,19 @@ pub fn parse_change(content: &str, name: &str, change_dir: &Path) -> Result<Chan
     })
 }
 
-fn parse_change_deltas(what_changes: &str, change_dir: &Path) -> Result<Vec<Delta>> {
-    let spec_deltas = parse_delta_specs(change_dir)?;
+fn parse_change_deltas(
+    what_changes: &str,
+    change_dir: &Path,
+    style: SpecStyle,
+) -> Result<Vec<Delta>> {
+    let spec_deltas = parse_delta_specs(change_dir, style)?;
     if !spec_deltas.is_empty() {
         return Ok(spec_deltas);
     }
     Ok(parse_simple_deltas(what_changes))
 }
 
-pub fn parse_delta_specs(change_dir: &Path) -> Result<Vec<Delta>> {
+pub fn parse_delta_specs(change_dir: &Path, style: SpecStyle) -> Result<Vec<Delta>> {
     let mut deltas = Vec::new();
     let specs_dir = change_dir.join("specs");
     if !specs_dir.exists() {
@@ -294,86 +136,197 @@ pub fn parse_delta_specs(change_dir: &Path) -> Result<Vec<Delta>> {
         if !spec_file.exists() {
             continue;
         }
-        let content = std::fs::read_to_string(spec_file)?;
-        let plan = parse_delta_spec(&content, &format!("delta spec `{}`", spec_name))?;
-        deltas.extend(convert_plan_to_deltas(&spec_name, &plan));
+        let content = std::fs::read_to_string(&spec_file)?;
+        let context = format!("delta spec `{}`", spec_name);
+        let backend = backend_for_style(style);
+        let doc = backend.parse_delta_spec(&content, &context)?;
+        deltas.extend(convert_delta_doc_to_deltas(&spec_name, &doc)?);
     }
 
     Ok(deltas)
 }
 
-fn convert_plan_to_deltas(spec_name: &str, plan: &DeltaPlan) -> Vec<Delta> {
-    let mut deltas = Vec::new();
-    for block in &plan.added {
-        let requirement = requirement_from_block(block);
-        deltas.push(Delta {
-            spec: spec_name.to_string(),
-            operation: DeltaOperation::Added,
-            description: format!("Add requirement: {}", block.name),
-            requirement: Some(requirement.clone()),
-            requirements: Some(vec![requirement]),
-            rename: None,
-        });
-    }
-    for block in &plan.modified {
-        let requirement = requirement_from_block(block);
-        deltas.push(Delta {
-            spec: spec_name.to_string(),
-            operation: DeltaOperation::Modified,
-            description: format!("Modify requirement: {}", block.name),
-            requirement: Some(requirement.clone()),
-            requirements: Some(vec![requirement]),
-            rename: None,
-        });
-    }
-    for removed in &plan.removed {
-        let text = removed
-            .name
-            .clone()
-            .unwrap_or_else(|| removed.req_id.clone());
-        let requirement = Requirement {
-            text: text.clone(),
-            scenarios: Vec::new(),
-        };
-        deltas.push(Delta {
-            spec: spec_name.to_string(),
-            operation: DeltaOperation::Removed,
-            description: format!("Remove requirement: {}", text),
-            requirement: Some(requirement.clone()),
-            requirements: Some(vec![requirement]),
-            rename: None,
-        });
-    }
-    for rename in &plan.renamed {
-        deltas.push(Delta {
-            spec: spec_name.to_string(),
-            operation: DeltaOperation::Renamed,
-            description: format!(
-                "Rename requirement from \"{}\" to \"{}\"",
-                rename.from, rename.to
-            ),
-            requirement: None,
-            requirements: None,
-            rename: Some(RenamePair {
-                from: rename.from.clone(),
-                to: rename.to.clone(),
-            }),
-        });
+fn convert_main_doc_to_spec(doc: &MainSpecDoc, fallback_name: &str, style: SpecStyle) -> Spec {
+    let mut scenarios_by_req: std::collections::HashMap<&str, Vec<Scenario>> =
+        std::collections::HashMap::new();
+    for scenario in &doc.scenarios {
+        scenarios_by_req
+            .entry(scenario.req_id.as_str())
+            .or_default()
+            .push(Scenario {
+                raw_text: render_scenario_text(
+                    scenario.given.trim(),
+                    scenario.when_.trim(),
+                    scenario.then_.trim(),
+                ),
+            });
     }
 
-    deltas
+    let requirements = doc
+        .requirements
+        .iter()
+        .map(|req| Requirement {
+            text: req.statement.trim().to_string(),
+            scenarios: scenarios_by_req
+                .remove(req.req_id.as_str())
+                .unwrap_or_default(),
+        })
+        .collect::<Vec<_>>();
+
+    Spec {
+        name: if doc.name.trim().is_empty() {
+            fallback_name.to_string()
+        } else {
+            doc.name.trim().to_string()
+        },
+        overview: doc.purpose.trim().to_string(),
+        requirements,
+        metadata: SpecMetadata {
+            format: format!("llman-sdd-{}", style.as_str()),
+        },
+    }
 }
 
-fn requirement_from_block(block: &RequirementBlock) -> Requirement {
-    Requirement {
-        text: block.statement.clone(),
-        scenarios: block
-            .scenarios
-            .iter()
-            .map(|scenario| Scenario {
-                raw_text: scenario.text.clone(),
-            })
-            .collect(),
+fn convert_delta_doc_to_deltas(spec_name: &str, doc: &DeltaSpecDoc) -> Result<Vec<Delta>> {
+    let mut scenarios_by_req: std::collections::HashMap<&str, Vec<Scenario>> =
+        std::collections::HashMap::new();
+    for scenario in &doc.op_scenarios {
+        scenarios_by_req
+            .entry(scenario.req_id.as_str())
+            .or_default()
+            .push(Scenario {
+                raw_text: render_scenario_text(
+                    scenario.given.trim(),
+                    scenario.when_.trim(),
+                    scenario.then_.trim(),
+                ),
+            });
+    }
+
+    let mut deltas = Vec::new();
+    for op in &doc.ops {
+        let op_kind = op.op.trim().to_ascii_lowercase();
+        match op_kind.as_str() {
+            "add_requirement" => {
+                let title = op
+                    .title
+                    .as_deref()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| anyhow!("delta spec `{}`: add_requirement op for req_id `{}` is missing `title`", spec_name, op.req_id))?;
+                let statement = op
+                    .statement
+                    .as_deref()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| anyhow!("delta spec `{}`: add_requirement op for req_id `{}` is missing `statement`", spec_name, op.req_id))?;
+                let requirement = Requirement {
+                    text: statement.to_string(),
+                    scenarios: scenarios_by_req
+                        .remove(op.req_id.as_str())
+                        .unwrap_or_default(),
+                };
+                deltas.push(Delta {
+                    spec: spec_name.to_string(),
+                    operation: DeltaOperation::Added,
+                    description: format!("Add requirement: {}", title),
+                    requirement: Some(requirement.clone()),
+                    requirements: Some(vec![requirement]),
+                    rename: None,
+                });
+            }
+            "modify_requirement" => {
+                let title = op
+                    .title
+                    .as_deref()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| anyhow!("delta spec `{}`: modify_requirement op for req_id `{}` is missing `title`", spec_name, op.req_id))?;
+                let statement = op
+                    .statement
+                    .as_deref()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| anyhow!("delta spec `{}`: modify_requirement op for req_id `{}` is missing `statement`", spec_name, op.req_id))?;
+                let requirement = Requirement {
+                    text: statement.to_string(),
+                    scenarios: scenarios_by_req
+                        .remove(op.req_id.as_str())
+                        .unwrap_or_default(),
+                };
+                deltas.push(Delta {
+                    spec: spec_name.to_string(),
+                    operation: DeltaOperation::Modified,
+                    description: format!("Modify requirement: {}", title),
+                    requirement: Some(requirement.clone()),
+                    requirements: Some(vec![requirement]),
+                    rename: None,
+                });
+            }
+            "remove_requirement" => {
+                let text = op
+                    .name
+                    .as_deref()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .unwrap_or_else(|| op.req_id.trim())
+                    .to_string();
+                let requirement = Requirement {
+                    text: text.clone(),
+                    scenarios: Vec::new(),
+                };
+                deltas.push(Delta {
+                    spec: spec_name.to_string(),
+                    operation: DeltaOperation::Removed,
+                    description: format!("Remove requirement: {}", text),
+                    requirement: Some(requirement.clone()),
+                    requirements: Some(vec![requirement]),
+                    rename: None,
+                });
+            }
+            "rename_requirement" => {
+                let from = op
+                    .from
+                    .as_deref()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| anyhow!("delta spec `{}`: rename_requirement op for req_id `{}` is missing `from`", spec_name, op.req_id))?;
+                let to = op
+                    .to
+                    .as_deref()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| anyhow!("delta spec `{}`: rename_requirement op for req_id `{}` is missing `to`", spec_name, op.req_id))?;
+                deltas.push(Delta {
+                    spec: spec_name.to_string(),
+                    operation: DeltaOperation::Renamed,
+                    description: format!("Rename requirement from \"{}\" to \"{}\"", from, to),
+                    requirement: None,
+                    requirements: None,
+                    rename: Some(RenamePair {
+                        from: from.to_string(),
+                        to: to.to_string(),
+                    }),
+                });
+            }
+            other => {
+                return Err(anyhow!(
+                    "delta spec `{}`: unsupported op `{}` (expected add_requirement/modify_requirement/remove_requirement/rename_requirement)",
+                    spec_name,
+                    other
+                ));
+            }
+        }
+    }
+
+    Ok(deltas)
+}
+
+fn render_scenario_text(given: &str, when_: &str, then_: &str) -> String {
+    if given.trim().is_empty() {
+        format!("WHEN: {when_}\nTHEN: {then_}")
+    } else {
+        format!("GIVEN: {given}\nWHEN: {when_}\nTHEN: {then_}")
     }
 }
 

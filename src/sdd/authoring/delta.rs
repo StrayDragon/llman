@@ -1,11 +1,13 @@
 use crate::fs_utils::atomic_write_with_mode;
+use crate::sdd::project::config::{SpecStyle, load_required_config};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
-use crate::sdd::spec::ison_table::render_ison_fence;
-use crate::sdd::spec::ison_v1::{
-    CanonicalDelta, DELTA_KIND, DeltaMeta, DeltaOpRow, ScenarioRow, dump_delta_payload,
-    parse_delta_body,
+use crate::sdd::spec::backend::yaml_overlay::{
+    YamlWriteBackMode, update_delta_spec_markdown_with_overlay_or_fallback,
 };
+use crate::sdd::spec::backend::{DumpOptions, backend_for_style};
+use crate::sdd::spec::fence::render_code_fence;
+use crate::sdd::spec::ir::{DeltaOpEntry, DeltaSpecDoc, ScenarioEntry};
 use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -47,6 +49,14 @@ pub struct DeltaAddScenarioArgs {
 pub fn run_skeleton(root: &Path, args: DeltaSkeletonArgs) -> Result<()> {
     validate_sdd_id(&args.change_id, "change")?;
     validate_sdd_id(&args.capability, "spec")?;
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir)?;
+    if args.pretty_ison && config.spec_style != SpecStyle::Ison {
+        return Err(anyhow!(t!(
+            "sdd.style.pretty_ison_requires_ison",
+            style = config.spec_style.as_str()
+        )));
+    }
 
     let delta_path = delta_path(root, &args.change_id, &args.capability);
     if delta_path.exists() && !args.force {
@@ -59,15 +69,19 @@ pub fn run_skeleton(root: &Path, args: DeltaSkeletonArgs) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
 
-    let delta = CanonicalDelta {
-        meta: DeltaMeta {
-            kind: DELTA_KIND.to_string(),
-        },
+    let backend = backend_for_style(config.spec_style);
+    let delta = DeltaSpecDoc {
+        kind: "llman.sdd.delta".to_string(),
         ops: Vec::new(),
-        scenarios: Vec::new(),
+        op_scenarios: Vec::new(),
     };
-    let payload = dump_delta_payload(&delta, args.pretty_ison);
-    let rebuilt = render_ison_fence(&payload);
+    let payload = backend.dump_delta_spec(
+        &delta,
+        DumpOptions {
+            pretty_ison: args.pretty_ison,
+        },
+    )?;
+    let rebuilt = render_code_fence(config.spec_style.as_str(), &payload);
     atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
     println!("{}", delta_path.display());
     Ok(())
@@ -77,6 +91,14 @@ pub fn run_add_op(root: &Path, args: DeltaAddOpArgs) -> Result<()> {
     validate_sdd_id(&args.change_id, "change")?;
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir)?;
+    if args.pretty_ison && config.spec_style != SpecStyle::Ison {
+        return Err(anyhow!(t!(
+            "sdd.style.pretty_ison_requires_ison",
+            style = config.spec_style.as_str()
+        )));
+    }
 
     let delta_path = delta_path(root, &args.change_id, &args.capability);
     let content = fs::read_to_string(&delta_path).map_err(|err| {
@@ -91,9 +113,10 @@ pub fn run_add_op(root: &Path, args: DeltaAddOpArgs) -> Result<()> {
         "delta spec `{}` for change `{}`",
         args.capability, args.change_id
     );
-    let mut delta = parse_delta_body(&content, &context)?;
-
-    delta.meta.kind = DELTA_KIND.to_string();
+    let backend = backend_for_style(config.spec_style);
+    let old_doc = backend.parse_delta_spec(&content, &context)?;
+    let mut delta = old_doc.clone();
+    delta.kind = "llman.sdd.delta".to_string();
 
     let req_id = args.req_id.trim().to_string();
     if delta.ops.iter().any(|row| row.req_id.trim() == req_id) {
@@ -107,9 +130,30 @@ pub fn run_add_op(root: &Path, args: DeltaAddOpArgs) -> Result<()> {
     let row = build_op_row(&context, &op, &req_id, &args)?;
     delta.ops.push(row);
 
-    let payload = dump_delta_payload(&delta, args.pretty_ison);
-    let rebuilt = render_ison_fence(&payload);
-    atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
+    let payload = backend.dump_delta_spec(
+        &delta,
+        DumpOptions {
+            pretty_ison: args.pretty_ison,
+        },
+    )?;
+    if config.spec_style == SpecStyle::Yaml {
+        let writeback = update_delta_spec_markdown_with_overlay_or_fallback(
+            &content, &old_doc, &delta, &payload,
+        )?;
+        if writeback.mode == YamlWriteBackMode::FencedRewrite {
+            eprintln!(
+                "{}",
+                t!(
+                    "sdd.yaml.lossless_fallback",
+                    path = display_llmanspec_path(&delta_path)
+                )
+            );
+        }
+        atomic_write_with_mode(&delta_path, writeback.content.as_bytes(), None)?;
+    } else {
+        let rebuilt = render_code_fence(config.spec_style.as_str(), &payload);
+        atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
+    }
     println!("{}", delta_path.display());
     Ok(())
 }
@@ -119,6 +163,14 @@ pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
     validate_sdd_id(&args.scenario_id, "scenario")?;
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir)?;
+    if args.pretty_ison && config.spec_style != SpecStyle::Ison {
+        return Err(anyhow!(t!(
+            "sdd.style.pretty_ison_requires_ison",
+            style = config.spec_style.as_str()
+        )));
+    }
     if args.when_.trim().is_empty() {
         return Err(anyhow!("--when must not be empty"));
     }
@@ -139,8 +191,10 @@ pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs) -> Result<()> {
         "delta spec `{}` for change `{}`",
         args.capability, args.change_id
     );
-    let mut delta = parse_delta_body(&content, &context)?;
-    delta.meta.kind = DELTA_KIND.to_string();
+    let backend = backend_for_style(config.spec_style);
+    let old_doc = backend.parse_delta_spec(&content, &context)?;
+    let mut delta = old_doc.clone();
+    delta.kind = "llman.sdd.delta".to_string();
 
     let req_id = args.req_id.trim();
     let op = delta
@@ -160,7 +214,7 @@ pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs) -> Result<()> {
     }
 
     if delta
-        .scenarios
+        .op_scenarios
         .iter()
         .any(|row| row.req_id.trim() == req_id && row.id.trim() == args.scenario_id.trim())
     {
@@ -171,17 +225,38 @@ pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs) -> Result<()> {
         ));
     }
 
-    delta.scenarios.push(ScenarioRow {
+    delta.op_scenarios.push(ScenarioEntry {
         req_id: args.req_id.trim().to_string(),
         id: args.scenario_id.trim().to_string(),
         given: args.given.trim().to_string(),
-        when: args.when_.trim().to_string(),
-        then: args.then_.trim().to_string(),
+        when_: args.when_.trim().to_string(),
+        then_: args.then_.trim().to_string(),
     });
 
-    let payload = dump_delta_payload(&delta, args.pretty_ison);
-    let rebuilt = render_ison_fence(&payload);
-    atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
+    let payload = backend.dump_delta_spec(
+        &delta,
+        DumpOptions {
+            pretty_ison: args.pretty_ison,
+        },
+    )?;
+    if config.spec_style == SpecStyle::Yaml {
+        let writeback = update_delta_spec_markdown_with_overlay_or_fallback(
+            &content, &old_doc, &delta, &payload,
+        )?;
+        if writeback.mode == YamlWriteBackMode::FencedRewrite {
+            eprintln!(
+                "{}",
+                t!(
+                    "sdd.yaml.lossless_fallback",
+                    path = display_llmanspec_path(&delta_path)
+                )
+            );
+        }
+        atomic_write_with_mode(&delta_path, writeback.content.as_bytes(), None)?;
+    } else {
+        let rebuilt = render_code_fence(config.spec_style.as_str(), &payload);
+        atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
+    }
     println!("{}", delta_path.display());
     Ok(())
 }
@@ -200,7 +275,7 @@ fn build_op_row(
     op: &str,
     req_id: &str,
     args: &DeltaAddOpArgs,
-) -> Result<DeltaOpRow> {
+) -> Result<DeltaOpEntry> {
     match op {
         "add_requirement" | "modify_requirement" => {
             let title = args
@@ -220,7 +295,7 @@ fn build_op_row(
                     "{context}: `--statement` must contain MUST or SHALL"
                 ));
             }
-            Ok(DeltaOpRow {
+            Ok(DeltaOpEntry {
                 op: op.to_string(),
                 req_id: req_id.to_string(),
                 title: Some(title.to_string()),
@@ -237,7 +312,7 @@ fn build_op_row(
                 .map(|v| v.trim())
                 .filter(|v| !v.is_empty())
                 .map(|v| v.to_string());
-            Ok(DeltaOpRow {
+            Ok(DeltaOpEntry {
                 op: op.to_string(),
                 req_id: req_id.to_string(),
                 title: None,
@@ -260,7 +335,7 @@ fn build_op_row(
                 .map(|v| v.trim())
                 .filter(|v| !v.is_empty())
                 .ok_or_else(|| anyhow!("{context}: `--to` is required for op `{}`", op))?;
-            Ok(DeltaOpRow {
+            Ok(DeltaOpEntry {
                 op: op.to_string(),
                 req_id: req_id.to_string(),
                 title: None,
@@ -279,4 +354,12 @@ fn build_op_row(
 
 fn contains_shall_or_must(text: &str) -> bool {
     text.contains("SHALL") || text.contains("MUST")
+}
+
+fn display_llmanspec_path(path: &Path) -> String {
+    let display = path.display().to_string();
+    if let Some(idx) = display.find(LLMANSPEC_DIR_NAME) {
+        return display[idx..].to_string();
+    }
+    display
 }

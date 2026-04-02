@@ -1,3 +1,6 @@
+pub mod backend;
+pub mod fence;
+pub mod ir;
 pub mod ison;
 pub mod ison_table;
 pub mod ison_v1;

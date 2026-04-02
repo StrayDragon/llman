@@ -21,7 +21,11 @@ metadata:
    - 若变更已存在，STOP 并建议使用 `llman-sdd-continue`。
 4. 在 `llmanspec/changes/<change-id>/` 下创建工件：
    - `proposal.md`（Why / What Changes / Capabilities / Impact）
-   - 为每个 capability 创建 `specs/<capability>/spec.md`，使用 canonical ISON（`object.delta` + `table.ops` + `table.op_scenarios`）
+   - 为每个 capability 创建 `specs/<capability>/spec.md`，并匹配项目配置的 `spec_style`（`{{ spec_style }}`）：
+     - 建议优先通过 authoring helpers 生成，确保 fenced payload 与 `spec_style` 一致：
+       - `llman sdd delta skeleton <change-id> <capability>`
+       - `llman sdd delta add-op ...`
+       - `llman sdd delta add-scenario ...`
      - 至少包含一个 `add_requirement`/`modify_requirement` op（statement 必须含 MUST/SHALL），并且至少包含一行匹配的 op scenario
    - 仅在涉及权衡/迁移时创建 `design.md`
    - `tasks.md`：按顺序拆分为可勾选清单（包含校验命令）
@@ -32,7 +36,7 @@ metadata:
 6. 总结已创建内容，并建议使用 `llman-sdd-apply` 进入实现阶段。
 
 {{ unit("skills/sdd-commands") }}
-{{ unit("skills/validation-hints") }}
+{{ unit_style("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

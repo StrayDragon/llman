@@ -1,7 +1,6 @@
-use crate::sdd::change::delta::{
-    DeltaPlan, RequirementBlock, normalize_requirement_name, parse_delta_spec,
-};
-use crate::sdd::spec::parser::{Requirement, parse_spec};
+use crate::sdd::project::config::SpecStyle;
+use crate::sdd::spec::backend::backend_for_style;
+use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
@@ -52,6 +51,7 @@ pub struct SpecValidation {
 pub fn validate_spec_content_with_frontmatter(
     path: &Path,
     content: &str,
+    style: SpecStyle,
     strict: bool,
 ) -> SpecValidation {
     let spec_name = path
@@ -65,21 +65,23 @@ pub fn validate_spec_content_with_frontmatter(
     let mut issues = parsed_frontmatter.issues;
     let body = parsed_frontmatter.body.clone();
 
-    match parse_spec(&body, &spec_name) {
-        Ok(spec) => {
-            if spec.name.trim() != spec_name {
+    let context = format!("spec `{}`", spec_name);
+    let backend = backend_for_style(style);
+    match backend.parse_main_spec(&body, &context) {
+        Ok(doc) => {
+            if doc.name.trim() != spec_name {
                 issues.push(ValidationIssue {
                     level: ValidationLevel::Warning,
                     path: format!("{}/meta.name", spec_name),
                     message: format!(
                         "Spec feature id must match spec directory name: `{}` != `{}`",
-                        spec.name.trim(),
+                        doc.name.trim(),
                         spec_name
                     ),
                 });
             }
 
-            issues.extend(validate_requirements(&spec.requirements, &spec_name));
+            issues.extend(validate_main_spec_doc(&doc, &spec_name));
             SpecValidation {
                 report: build_report(issues, strict),
                 frontmatter: parsed_frontmatter.frontmatter,
@@ -307,7 +309,11 @@ Test
     }
 }
 
-pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> ValidationReport {
+pub fn validate_change_delta_specs(
+    change_dir: &Path,
+    style: SpecStyle,
+    strict: bool,
+) -> ValidationReport {
     let mut issues = Vec::new();
     let specs_dir = change_dir.join("specs");
     let mut total_deltas = 0usize;
@@ -354,8 +360,9 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
                 continue;
             }
         };
-        let plan = match parse_delta_spec(&content, &format!("delta spec `{}`", spec_name)) {
-            Ok(plan) => plan,
+        let backend = backend_for_style(style);
+        let doc = match backend.parse_delta_spec(&content, &format!("delta spec `{}`", spec_name)) {
+            Ok(doc) => doc,
             Err(err) => {
                 issues.push(ValidationIssue {
                     level: ValidationLevel::Error,
@@ -366,9 +373,8 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
             }
         };
 
-        total_deltas +=
-            plan.added.len() + plan.modified.len() + plan.removed.len() + plan.renamed.len();
-        issues.extend(validate_delta_plan(&spec_name, &plan));
+        total_deltas += doc.ops.len();
+        issues.extend(validate_delta_doc(&spec_name, &doc));
     }
 
     if total_deltas == 0 {
@@ -382,125 +388,91 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
     build_report(issues, strict)
 }
 
-fn validate_requirements(requirements: &[Requirement], spec_name: &str) -> Vec<ValidationIssue> {
+fn validate_main_spec_doc(doc: &MainSpecDoc, spec_name: &str) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
-    for (idx, req) in requirements.iter().enumerate() {
-        if !contains_shall_or_must(&req.text) {
+
+    let mut req_id_seen = std::collections::HashSet::new();
+    for (idx, req) in doc.requirements.iter().enumerate() {
+        if !req_id_seen.insert(req.req_id.trim()) {
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
                 path: format!("{}/requirements[{}]", spec_name, idx),
-                message: format!("Requirement must contain SHALL or MUST: {}", req.text),
+                message: format!("Duplicate requirement req_id: {}", req.req_id),
             });
         }
-        if req.scenarios.is_empty() {
+
+        if !contains_shall_or_must(req.statement.trim()) {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: format!("{}/requirements[{}]", spec_name, idx),
+                message: format!(
+                    "Requirement must contain SHALL or MUST: {}",
+                    req.statement.trim()
+                ),
+            });
+        }
+    }
+
+    let mut scenario_key_seen = std::collections::HashSet::new();
+    let mut scenarios_by_req: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::new();
+
+    for scenario in &doc.scenarios {
+        let req_id = scenario.req_id.trim();
+        if !req_id_seen.contains(req_id) {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: format!("{spec_name}/scenarios"),
+                message: format!(
+                    "Scenario references unknown requirement `req_id` `{}`",
+                    scenario.req_id
+                ),
+            });
+        }
+
+        let scenario_id = scenario.id.trim();
+        let key = format!("{}::{}", req_id, scenario_id);
+        if !scenario_key_seen.insert(key) {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: format!("{spec_name}/scenarios"),
+                message: format!(
+                    "Duplicate scenario `(req_id, id)` = (`{}`, `{}`)",
+                    scenario.req_id, scenario.id
+                ),
+            });
+        }
+
+        if scenario.when_.trim().is_empty() {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: format!("{spec_name}/scenarios"),
+                message: "Scenario `when` must not be empty".to_string(),
+            });
+        }
+        if scenario.then_.trim().is_empty() {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: format!("{spec_name}/scenarios"),
+                message: "Scenario `then` must not be empty".to_string(),
+            });
+        }
+
+        *scenarios_by_req.entry(req_id).or_insert(0) += 1;
+    }
+
+    for (idx, req) in doc.requirements.iter().enumerate() {
+        let count = scenarios_by_req
+            .get(req.req_id.trim())
+            .copied()
+            .unwrap_or(0);
+        if count == 0 {
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
                 path: format!("{}/requirements[{}]", spec_name, idx),
                 message: scenario_missing_message(),
             });
         }
-    }
-    issues
-}
-
-fn validate_delta_plan(spec_name: &str, plan: &DeltaPlan) -> Vec<ValidationIssue> {
-    let mut issues = Vec::new();
-    let entry_path = format!("{}/spec.md", spec_name);
-
-    let mut added_names = Vec::new();
-    let mut modified_names = Vec::new();
-    let mut removed_req_ids = Vec::new();
-    let mut renamed_req_ids = Vec::new();
-
-    for block in &plan.added {
-        issues.extend(validate_requirement_block(&entry_path, "ADDED", block));
-        added_names.push(normalize_requirement_name(&block.req_id));
-    }
-    for block in &plan.modified {
-        issues.extend(validate_requirement_block(&entry_path, "MODIFIED", block));
-        modified_names.push(normalize_requirement_name(&block.req_id));
-    }
-    for removed in &plan.removed {
-        removed_req_ids.push(normalize_requirement_name(&removed.req_id));
-    }
-    for pair in &plan.renamed {
-        renamed_req_ids.push(normalize_requirement_name(&pair.req_id));
-    }
-
-    issues.extend(check_duplicates(&entry_path, "ADDED", &added_names));
-    issues.extend(check_duplicates(&entry_path, "MODIFIED", &modified_names));
-    issues.extend(check_duplicates(&entry_path, "REMOVED", &removed_req_ids));
-    issues.extend(check_duplicates(
-        &entry_path,
-        "RENAMED REQUIREMENT",
-        &renamed_req_ids,
-    ));
-
-    for name in &modified_names {
-        if removed_req_ids.contains(name) || added_names.contains(name) {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: entry_path.clone(),
-                message: format!("Requirement id present in multiple operations: {}", name),
-            });
-        }
-    }
-    for name in &added_names {
-        if removed_req_ids.contains(name) {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: entry_path.clone(),
-                message: format!("Requirement id present in multiple operations: {}", name),
-            });
-        }
-    }
-
-    for pair in &plan.renamed {
-        if pair.from.trim().is_empty() || pair.to.trim().is_empty() {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: entry_path.clone(),
-                message: format!(
-                    "RENAME op for requirement id `{}` must include non-empty from/to titles",
-                    pair.req_id
-                ),
-            });
-        }
-    }
-
-    issues
-}
-
-fn validate_requirement_block(
-    path: &str,
-    section: &str,
-    block: &RequirementBlock,
-) -> Vec<ValidationIssue> {
-    let mut issues = Vec::new();
-    if !contains_shall_or_must(&block.statement) {
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Error,
-            path: path.to_string(),
-            message: format!("{} \"{}\" must contain SHALL or MUST", section, block.name),
-        });
-    }
-
-    let scenario_count = block
-        .scenarios
-        .iter()
-        .filter(|scenario| !scenario.text.trim().is_empty())
-        .count();
-    if scenario_count < 1 {
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Warning,
-            path: path.to_string(),
-            message: format!(
-                "{} \"{}\": {}",
-                section,
-                block.name,
-                scenario_missing_message()
-            ),
-        });
     }
 
     issues
@@ -526,18 +498,226 @@ fn delta_missing_message() -> String {
     )
 }
 
-fn check_duplicates(path: &str, label: &str, names: &[String]) -> Vec<ValidationIssue> {
+fn validate_delta_doc(spec_name: &str, doc: &DeltaSpecDoc) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    for name in names {
-        if !seen.insert(name) {
+    let entry_path = format!("{}/spec.md", spec_name);
+
+    if doc.kind.trim() != "llman.sdd.delta" {
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Error,
+            path: entry_path.clone(),
+            message: format!(
+                "Delta spec kind must be `llman.sdd.delta`, got `{}`",
+                doc.kind.trim()
+            ),
+        });
+    }
+
+    let mut op_by_req: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+    for op in &doc.ops {
+        let req_id = op.req_id.trim();
+        if req_id.is_empty() {
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
-                path: path.to_string(),
-                message: format!("Duplicate requirement in {}: {}", label, name),
+                path: entry_path.clone(),
+                message: "Delta op `req_id` must not be empty".to_string(),
+            });
+            continue;
+        }
+        if op_by_req.insert(req_id, op.op.trim()).is_some() {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: entry_path.clone(),
+                message: format!("Duplicate op for req_id: {}", op.req_id),
+            });
+        }
+
+        let op_kind = op.op.trim().to_ascii_lowercase();
+        match op_kind.as_str() {
+            "add_requirement" | "modify_requirement" => {
+                if op.title.as_deref().unwrap_or("").trim().is_empty() {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: entry_path.clone(),
+                        message: format!(
+                            "{} op for req_id `{}` is missing `title`",
+                            op_kind, op.req_id
+                        ),
+                    });
+                }
+                let statement = op.statement.as_deref().unwrap_or("").trim();
+                if statement.is_empty() {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: entry_path.clone(),
+                        message: format!(
+                            "{} op for req_id `{}` is missing `statement`",
+                            op_kind, op.req_id
+                        ),
+                    });
+                } else if !contains_shall_or_must(statement) {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: entry_path.clone(),
+                        message: format!(
+                            "{} op for req_id `{}`: statement must contain SHALL or MUST",
+                            op_kind, op.req_id
+                        ),
+                    });
+                }
+                if op.from.is_some() || op.to.is_some() || op.name.is_some() {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: entry_path.clone(),
+                        message: format!(
+                            "{} op for req_id `{}` must not set from/to/name",
+                            op_kind, op.req_id
+                        ),
+                    });
+                }
+            }
+            "remove_requirement" => {
+                if op.title.is_some()
+                    || op.statement.is_some()
+                    || op.from.is_some()
+                    || op.to.is_some()
+                {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: entry_path.clone(),
+                        message: format!(
+                            "remove_requirement op for req_id `{}` must not set title/statement/from/to",
+                            op.req_id
+                        ),
+                    });
+                }
+            }
+            "rename_requirement" => {
+                if op.title.is_some() || op.statement.is_some() || op.name.is_some() {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: entry_path.clone(),
+                        message: format!(
+                            "rename_requirement op for req_id `{}` must not set title/statement/name",
+                            op.req_id
+                        ),
+                    });
+                }
+                if op.from.as_deref().unwrap_or("").trim().is_empty()
+                    || op.to.as_deref().unwrap_or("").trim().is_empty()
+                {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: entry_path.clone(),
+                        message: format!(
+                            "rename_requirement op for req_id `{}` must include non-empty from/to",
+                            op.req_id
+                        ),
+                    });
+                }
+            }
+            _ => {
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Error,
+                    path: entry_path.clone(),
+                    message: format!(
+                        "Unsupported op `{}` (expected add_requirement/modify_requirement/remove_requirement/rename_requirement)",
+                        op.op
+                    ),
+                });
+            }
+        }
+    }
+
+    let mut scenario_key_seen = std::collections::HashSet::new();
+    let mut scenario_count_by_req: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::new();
+    for scenario in &doc.op_scenarios {
+        let req_id = scenario.req_id.trim();
+        if req_id.is_empty() {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: entry_path.clone(),
+                message: "Delta op scenario req_id must not be empty".to_string(),
+            });
+            continue;
+        }
+        let Some(op_kind) = op_by_req.get(req_id).copied() else {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: entry_path.clone(),
+                message: format!(
+                    "op_scenarios references unknown `req_id` `{}` (must match an add/modify op)",
+                    scenario.req_id
+                ),
+            });
+            continue;
+        };
+        let op_kind = op_kind.to_ascii_lowercase();
+        if op_kind != "add_requirement" && op_kind != "modify_requirement" {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: entry_path.clone(),
+                message: format!(
+                    "op_scenarios is only allowed for add/modify ops; found `{}` for `req_id` `{}`",
+                    op_kind, scenario.req_id
+                ),
+            });
+        }
+
+        let scenario_id = scenario.id.trim();
+        if scenario_id.is_empty() {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: entry_path.clone(),
+                message: "Delta op scenario `id` must not be empty".to_string(),
+            });
+        }
+        let key = format!("{}::{}", req_id, scenario_id);
+        if !scenario_key_seen.insert(key) {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: entry_path.clone(),
+                message: format!(
+                    "Duplicate delta scenario `(req_id, id)` = (`{}`, `{}`)",
+                    scenario.req_id, scenario.id
+                ),
+            });
+        }
+
+        if scenario.when_.trim().is_empty() {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: entry_path.clone(),
+                message: "Delta op scenario `when` must not be empty".to_string(),
+            });
+        }
+        if scenario.then_.trim().is_empty() {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: entry_path.clone(),
+                message: "Delta op scenario `then` must not be empty".to_string(),
+            });
+        }
+
+        *scenario_count_by_req.entry(req_id).or_insert(0) += 1;
+    }
+
+    for (req_id, op_kind) in op_by_req {
+        let op_kind = op_kind.to_ascii_lowercase();
+        if op_kind != "add_requirement" && op_kind != "modify_requirement" {
+            continue;
+        }
+        let count = scenario_count_by_req.get(req_id).copied().unwrap_or(0);
+        if count < 1 {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Warning,
+                path: entry_path.clone(),
+                message: scenario_missing_message(),
             });
         }
     }
+
     issues
 }
 

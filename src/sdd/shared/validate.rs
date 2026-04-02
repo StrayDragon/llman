@@ -1,3 +1,4 @@
+use crate::sdd::project::config::{SpecStyle, load_required_config};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
 use crate::sdd::shared::ids::validate_sdd_id;
@@ -68,6 +69,10 @@ struct ValidationItem {
 
 pub fn run(args: ValidateArgs) -> Result<()> {
     let root = Path::new(".");
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir)?;
+    let style = config.spec_style;
+
     let interactive = is_interactive(args.no_interactive);
     let type_override = normalize_type(args.item_type.as_deref());
 
@@ -78,6 +83,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
             root,
             do_changes,
             do_specs,
+            style,
             args.strict,
             args.json,
             args.compact_json,
@@ -87,7 +93,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
 
     if args.item.is_none() {
         if interactive {
-            run_interactive_selector(root, args.strict, args.json, args.compact_json)?;
+            run_interactive_selector(root, style, args.strict, args.json, args.compact_json)?;
             return Ok(());
         }
         return Err(anyhow!(non_interactive_hint_message()));
@@ -100,6 +106,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
         root,
         item,
         type_override,
+        style,
         args.strict,
         args.json,
         args.compact_json,
@@ -117,6 +124,7 @@ fn normalize_type(value: Option<&str>) -> Option<ItemType> {
 
 fn run_interactive_selector(
     root: &Path,
+    style: SpecStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -133,15 +141,15 @@ fn run_interactive_selector(
     .prompt()?;
 
     if choice == t!("sdd.validate.option_all") {
-        run_bulk_validation(root, true, true, strict, json, compact_json)?;
+        run_bulk_validation(root, true, true, style, strict, json, compact_json)?;
         return Ok(());
     }
     if choice == t!("sdd.validate.option_changes") {
-        run_bulk_validation(root, true, false, strict, json, compact_json)?;
+        run_bulk_validation(root, true, false, style, strict, json, compact_json)?;
         return Ok(());
     }
     if choice == t!("sdd.validate.option_specs") {
-        run_bulk_validation(root, false, true, strict, json, compact_json)?;
+        run_bulk_validation(root, false, true, style, strict, json, compact_json)?;
         return Ok(());
     }
 
@@ -155,7 +163,7 @@ fn run_interactive_selector(
     }
     let picked = Select::new(&t!("sdd.validate.pick_item"), items).prompt()?;
     let (item_type, id) = parse_prefixed_item(&picked)?;
-    validate_by_type(root, item_type, &id, strict, json, compact_json)
+    validate_by_type(root, item_type, &id, style, strict, json, compact_json)
 }
 
 fn parse_prefixed_item(value: &str) -> Result<(ItemType, String)> {
@@ -174,6 +182,7 @@ fn validate_direct(
     root: &Path,
     item: &str,
     type_override: Option<ItemType>,
+    style: SpecStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -217,13 +226,14 @@ fn validate_direct(
         ));
     }
 
-    validate_by_type(root, resolved_type, item, strict, json, compact_json)
+    validate_by_type(root, resolved_type, item, style, strict, json, compact_json)
 }
 
 fn validate_by_type(
     root: &Path,
     item_type: ItemType,
     id: &str,
+    style: SpecStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -233,7 +243,7 @@ fn validate_by_type(
         ItemType::Change => {
             validate_sdd_id(id, "change")?;
             let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(id);
-            let report = validate_change_delta_specs(&change_dir, strict);
+            let report = validate_change_delta_specs(&change_dir, style, strict);
             (report, StalenessInfo::not_applicable())
         }
         ItemType::Spec => {
@@ -246,7 +256,7 @@ fn validate_by_type(
             match fs::read_to_string(&spec_path) {
                 Ok(content) => {
                     let validation =
-                        validate_spec_content_with_frontmatter(&spec_path, &content, strict);
+                        validate_spec_content_with_frontmatter(&spec_path, &content, style, strict);
                     let staleness =
                         evaluate_staleness(root, id, &spec_path, validation.frontmatter.as_ref());
                     let mut issues = validation.report.issues.clone();
@@ -404,6 +414,7 @@ fn run_bulk_validation(
     root: &Path,
     validate_changes: bool,
     validate_specs: bool,
+    style: SpecStyle,
     strict: bool,
     json: bool,
     compact_json: bool,
@@ -425,6 +436,7 @@ fn run_bulk_validation(
         validate_sdd_id(&id, "change")?;
         let report = validate_change_delta_specs(
             &root.join(LLMANSPEC_DIR_NAME).join("changes").join(&id),
+            style,
             strict,
         );
         items.push(ValidationItem {
@@ -448,7 +460,7 @@ fn run_bulk_validation(
         match fs::read_to_string(&spec_path) {
             Ok(content) => {
                 let validation =
-                    validate_spec_content_with_frontmatter(&spec_path, &content, strict);
+                    validate_spec_content_with_frontmatter(&spec_path, &content, style, strict);
                 let staleness = staleness_evaluator.evaluate(
                     &id,
                     &spec_path,

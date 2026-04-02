@@ -33,7 +33,7 @@ Use this skill to create **all** artifacts for a new change quickly (proposal â†
 6. Show a short status summary and suggest next actions (`llman-sdd-apply`).
 
 {{ unit("skills/sdd-commands") }}
-{{ unit("skills/validation-hints") }}
+{{ unit_style("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

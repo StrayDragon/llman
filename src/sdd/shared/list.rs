@@ -1,3 +1,4 @@
+use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
 use crate::sdd::spec::parser::parse_spec;
@@ -135,6 +136,9 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
 }
 
 fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir)?;
+
     let specs_dir = root.join(LLMANSPEC_DIR_NAME).join("specs");
     if !specs_dir.exists() {
         if args.json {
@@ -158,14 +162,11 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     let mut specs = Vec::new();
     for id in spec_ids {
         let spec_path = specs_dir.join(&id).join("spec.md");
-        let requirement_count = match fs::read_to_string(&spec_path) {
-            Ok(content) => match parse_spec(&content, &id) {
-                Ok(spec) => spec.requirements.len(),
-                Err(_) => 0,
-            },
-            Err(_) => 0,
-        };
-        specs.push((id, requirement_count));
+        let content = fs::read_to_string(&spec_path)
+            .map_err(|err| anyhow!("failed to read spec {}: {}", spec_path.display(), err))?;
+        let spec = parse_spec(&content, &id, config.spec_style)
+            .map_err(|err| anyhow!("{}: {}", spec_path.display(), err))?;
+        specs.push((id, spec.requirements.len()));
     }
 
     specs.sort_by(|a, b| a.0.cmp(&b.0));
