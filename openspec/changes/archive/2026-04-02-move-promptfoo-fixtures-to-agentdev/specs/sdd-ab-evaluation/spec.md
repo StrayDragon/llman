@@ -1,15 +1,6 @@
-# sdd-ab-evaluation Specification
+# sdd-ab-evaluation (Delta)
 
-## Purpose
-TBD - created by archiving change add-ison-first-sdd-pipeline. Update Purpose after archive.
-## Requirements
-### Requirement: Built-In Old-vs-New Evaluation Flow
-The SDD workflow MUST provide an evaluation flow that compares legacy and new style outputs on the same scenario set.
-
-#### Scenario: Run evaluation over shared scenarios
-- **WHEN** a user executes the evaluation flow for a target scenario set
-- **THEN** the system runs both legacy and new style generation/evaluation on equivalent inputs
-- **AND** records paired results for comparison
+## MODIFIED Requirements
 
 ### Requirement: 提供可复现的 SDD prompts Promptfoo 评估套件
 SDD workflow MUST 提供一套可复现的 Promptfoo 评估套件，用于对比不同风格/版本的 SDD prompt（baseline vs candidate）。该评估套件（fixtures + 默认模型列表）MUST 存放在仓库顶层 `agentdev/promptfoo/`（而不是 `artifacts/`），并且评估流程 MUST 支持在隔离的临时目录下运行以避免触碰真实用户配置。
@@ -19,13 +10,7 @@ SDD workflow MUST 提供一套可复现的 Promptfoo 评估套件，用于对比
 - **THEN** Promptfoo 产生的数据（例如 `.promptfoo/` 与导出的 `results.*`）均写入该评估流程创建的临时工作目录
 - **AND** 不修改用户真实配置目录（仅使用显式指定的 `LLMAN_CONFIG_DIR`）
 
-### Requirement: Safety-First Scoring Output
-Evaluation outputs MUST prioritize safety and quality signals over cost metrics (for example, token/latency).
-
-#### Scenario: Report includes prioritized metrics
-- **WHEN** the evaluation report is generated
-- **THEN** it includes quality and safety scores before token/latency metrics
-- **AND** it marks pass/fail gates for safety-sensitive checks
+## ADDED Requirements
 
 ### Requirement: Promptfoo fixtures 与 artifacts 目录语义分离
 仓库 MUST 使用 `agentdev/` 作为 agent/prompt 相关开发与评测资产的归属目录；`artifacts/` MUST 仅用于测试配置 fixture、schema 产物或其他“可执行/可复用”的非评测资产。Promptfoo fixtures MUST NOT 以长期可执行入口的形式落在 `artifacts/**/promptfoo` 下。
