@@ -238,6 +238,20 @@ def _build_gate_context(context: Dict[str, Any]) -> GateContext:
             f"workspace_dir={workspace_dir} provider_id={provider_id}"
         )
 
+    env_workdir = os.environ.get(f"SDD_WORKDIR_{expected_style.upper()}")
+    if env_workdir:
+        expected_ws = Path(env_workdir)
+        if not expected_ws.is_dir():
+            raise RuntimeError(
+                "Runner exported SDD_WORKDIR for this style is not a directory. "
+                f"style={expected_style} path={expected_ws} provider_id={provider_id}"
+            )
+        if workspace_dir.resolve() != expected_ws.resolve():
+            raise RuntimeError(
+                "Workspace dir mismatch for hard gate. "
+                f"style={expected_style} expected={expected_ws} actual={workspace_dir} provider_id={provider_id}"
+            )
+
     config_dir = _infer_config_dir(workspace_dir, expected_style)
     if config_dir is None:
         raise RuntimeError(
