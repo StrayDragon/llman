@@ -1,0 +1,91 @@
+description: llman SDD agentic multi-style evaluation (v2 format-sensitive; Claude Code via Promptfoo)
+
+# NOTE:
+# - This fixture is intended to be copied to a temp directory by the runner.
+# - The runner patches placeholders like __WORKDIR_ISON__ / __MAX_TURNS__ / __MODEL__.
+
+providers:
+  - anthropic:claude-agent-sdk:
+      id: anthropic:claude_agent_ison
+      label: claude-agent (ison)
+      config:
+        model: "__MODEL__"
+        max_turns: __MAX_TURNS__
+        working_dir: "__WORKDIR_ISON__"
+        allow_all_tools: true
+        permission_mode: bypassPermissions
+        allow_dangerously_skip_permissions: true
+        ask_user_question:
+          behavior: first_option
+        # Keep MCP strict by default; avoid accidental tool exposure.
+        strict_mcp_config: true
+        append_system_prompt: |
+          You are running an automated evaluation inside an isolated workspace.
+          - Do not touch parent directories; operate only within the current working directory.
+          - The runner has pre-seeded the workspace with a valid baseline spec + change.
+          - You MUST use the Read tool to inspect spec.md files before editing them.
+          - For required changes, edit the spec.md files directly (file-level edit).
+          - After major milestones, create a git commit so the runner can snapshot progress.
+          - Always finish by running: llman sdd validate --all --strict --no-interactive
+      env:
+        LLMAN_CONFIG_DIR: "__CONFIGDIR_ISON__"
+        PATH: "__PATH_ISON__"
+  - anthropic:claude-agent-sdk:
+      id: anthropic:claude_agent_toon
+      label: claude-agent (toon)
+      config:
+        model: "__MODEL__"
+        max_turns: __MAX_TURNS__
+        working_dir: "__WORKDIR_TOON__"
+        allow_all_tools: true
+        permission_mode: bypassPermissions
+        allow_dangerously_skip_permissions: true
+        ask_user_question:
+          behavior: first_option
+        strict_mcp_config: true
+        append_system_prompt: |
+          You are running an automated evaluation inside an isolated workspace.
+          - Do not touch parent directories; operate only within the current working directory.
+          - The runner has pre-seeded the workspace with a valid baseline spec + change.
+          - You MUST use the Read tool to inspect spec.md files before editing them.
+          - For required changes, edit the spec.md files directly (file-level edit).
+          - After major milestones, create a git commit so the runner can snapshot progress.
+          - Always finish by running: llman sdd validate --all --strict --no-interactive
+      env:
+        LLMAN_CONFIG_DIR: "__CONFIGDIR_TOON__"
+        PATH: "__PATH_TOON__"
+  - anthropic:claude-agent-sdk:
+      id: anthropic:claude_agent_yaml
+      label: claude-agent (yaml)
+      config:
+        model: "__MODEL__"
+        max_turns: __MAX_TURNS__
+        working_dir: "__WORKDIR_YAML__"
+        allow_all_tools: true
+        permission_mode: bypassPermissions
+        allow_dangerously_skip_permissions: true
+        ask_user_question:
+          behavior: first_option
+        strict_mcp_config: true
+        append_system_prompt: |
+          You are running an automated evaluation inside an isolated workspace.
+          - Do not touch parent directories; operate only within the current working directory.
+          - The runner has pre-seeded the workspace with a valid baseline spec + change.
+          - You MUST use the Read tool to inspect spec.md files before editing them.
+          - For required changes, edit the spec.md files directly (file-level edit).
+          - After major milestones, create a git commit so the runner can snapshot progress.
+          - Always finish by running: llman sdd validate --all --strict --no-interactive
+      env:
+        LLMAN_CONFIG_DIR: "__CONFIGDIR_YAML__"
+        PATH: "__PATH_YAML__"
+
+prompts:
+  - file://prompts/agent_task.md
+
+tests: file://tests.yaml
+
+defaultTest:
+  assert:
+    - type: python
+      value: file://assertions/sdd_gate.py:get_assert
+    # __JUDGE_ASSERT_BLOCK__ (patched by runner when enabled)

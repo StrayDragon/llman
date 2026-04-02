@@ -26,6 +26,7 @@ usage() {
   - agentdev/promptfoo/node_modules/@anthropic-ai/claude-agent-sdk（首次需安装）
 
 常用选项：
+  --fixture <v1|v2>               默认：v1（v2 为 format-sensitive；runner 预置 baseline + 生成 batch aggregate）
   --model <alias>                 默认：sonnet（Claude Code SDK 模型别名）
   --max-turns <N>                 默认：18
   --runs <N>                      默认：1（独立 run 次数，每次新 seed 根目录）
@@ -33,6 +34,7 @@ usage() {
   --api-key-env <VAR>             可选；从指定环境变量读取 API key（默认自动探测）
   --judge <off|human|codex|claude> 默认：off（可选软评分；不替代硬门禁）
   --judge-grader <provider>       可选；judge=codex/claude 时覆盖 promptfoo --grader
+  --eval-retries <N>              默认：2（promptfoo eval 失败时最多重试 N 次；总尝试次数=1+N）
   --llman-bin <path>              可选；覆盖 llman 可执行文件路径
   --max-concurrency <N>           透传给 promptfoo eval --max-concurrency
   --delay <ms>                    透传给 promptfoo eval --delay
@@ -59,6 +61,7 @@ need_cmd() {
 MODEL="sonnet"
 MAX_TURNS="18"
 RUNS="1"
+FIXTURE="v1"
 REPEAT=""
 MAX_CONCURRENCY=""
 DELAY_MS=""
@@ -69,6 +72,7 @@ UI_PORT="15500"
 
 JUDGE="off"
 JUDGE_GRADER=""
+EVAL_RETRIES="2"
 
 LLMAN_BIN_OVERRIDE=""
 API_KEY_ENV=""
@@ -82,6 +86,8 @@ while [[ $# -gt 0 ]]; do
       usage
       exit 0
       ;;
+    --fixture)
+      FIXTURE="${2:-}"; shift 2;;
     --model)
       MODEL="${2:-}"; shift 2;;
     --max-turns)
@@ -108,6 +114,8 @@ while [[ $# -gt 0 ]]; do
       JUDGE="${2:-}"; shift 2;;
     --judge-grader)
       JUDGE_GRADER="${2:-}"; shift 2;;
+    --eval-retries)
+      EVAL_RETRIES="${2:-}"; shift 2;;
     --llman-bin)
       LLMAN_BIN_OVERRIDE="${2:-}"; shift 2;;
     --cc-account)
@@ -123,6 +131,10 @@ done
 [[ -n "$MODEL" ]] || die "--model 不能为空"
 [[ "$MAX_TURNS" =~ ^[0-9]+$ ]] || die "--max-turns 必须是整数"
 [[ "$RUNS" =~ ^[0-9]+$ ]] || die "--runs 必须是整数"
+case "$FIXTURE" in
+  v1|v2) ;;
+  *) die "--fixture 取值应为 v1|v2" ;;
+esac
 if [[ -n "$REPEAT" ]]; then
   [[ "$REPEAT" =~ ^[0-9]+$ ]] || die "--repeat 必须是整数"
 fi
@@ -135,6 +147,7 @@ fi
 if [[ -n "$UI_PORT" ]]; then
   [[ "$UI_PORT" =~ ^[0-9]+$ ]] || die "--ui-port 必须是整数"
 fi
+[[ "$EVAL_RETRIES" =~ ^[0-9]+$ ]] || die "--eval-retries 必须是整数"
 
 case "$JUDGE" in
   off|human|codex|claude) ;;
@@ -293,6 +306,51 @@ init_workspace() {
   git -C "$workspace_dir" commit -qm "baseline"
 }
 
+seed_workspace_v2() {
+  local style="$1"
+  local workspace_dir="$2"
+  local config_dir="$3"
+
+  echo "== seed baseline (v2) ($style): $workspace_dir"
+
+  (
+    cd "$workspace_dir"
+
+    LLMAN_CONFIG_DIR="$config_dir" "$LLMAN_BIN" sdd spec skeleton "eval-style-cap" --force >/dev/null
+    LLMAN_CONFIG_DIR="$config_dir" "$LLMAN_BIN" sdd spec add-requirement "eval-style-cap" "REQ_STYLE_0" \
+      --title "Baseline context" \
+      --statement "The evaluation MUST be format-sensitive across styles." >/dev/null
+    LLMAN_CONFIG_DIR="$config_dir" "$LLMAN_BIN" sdd spec add-scenario "eval-style-cap" "REQ_STYLE_0" "s1" \
+      --when "the suite runs" \
+      --then "it compares style-specific costs" >/dev/null
+
+    LLMAN_CONFIG_DIR="$config_dir" "$LLMAN_BIN" sdd spec add-requirement "eval-style-cap" "REQ_STYLE_1" \
+      --title "Marker edit target" \
+      --statement "The evaluation MUST validate under strict mode. (TODO_V2_EDIT_MAIN)" >/dev/null
+    LLMAN_CONFIG_DIR="$config_dir" "$LLMAN_BIN" sdd spec add-scenario "eval-style-cap" "REQ_STYLE_1" "s1" \
+      --when "validation runs" \
+      --then "it passes in strict mode" >/dev/null
+
+    mkdir -p "llmanspec/changes/eval-style-change"
+    cat >"llmanspec/changes/eval-style-change/proposal.md" <<'EOF'
+# eval-style-change
+
+This change exists to create a delta spec so the evaluation can measure read/edit cost across styles.
+EOF
+
+    LLMAN_CONFIG_DIR="$config_dir" "$LLMAN_BIN" sdd delta skeleton "eval-style-change" "eval-style-cap" --force >/dev/null
+    LLMAN_CONFIG_DIR="$config_dir" "$LLMAN_BIN" sdd delta add-op "eval-style-change" "eval-style-cap" add_requirement "REQ_STYLE_2" \
+      --title "Delta marker edit target" \
+      --statement "The change MUST include at least one op scenario. (TODO_V2_EDIT_DELTA)" >/dev/null
+    LLMAN_CONFIG_DIR="$config_dir" "$LLMAN_BIN" sdd delta add-scenario "eval-style-change" "eval-style-cap" "REQ_STYLE_2" "s1" \
+      --when "validation runs" \
+      --then "it passes in strict mode" >/dev/null
+
+    git add -A
+    git commit -qm "seed: baseline specs (v2)"
+  )
+}
+
 patch_promptfoo_fixture() {
   local promptfoo_dir="$1"
   local workdir_ison="$2"
@@ -402,6 +460,16 @@ write_meta_workspace() {
   ) > "$out_dir/validate.txt" 2>&1 || true
 }
 
+reset_workspace_to_sha() {
+  local style="$1"
+  local workspace_dir="$2"
+  local sha="$3"
+
+  echo "== reset workspace ($style) -> $sha"
+  git -C "$workspace_dir" reset --hard "$sha" >/dev/null
+  git -C "$workspace_dir" clean -fdx >/dev/null
+}
+
 summarize_results() {
   local results_json="$1"
   local out_json="$2"
@@ -493,8 +561,8 @@ with open(out_json_path, "w", encoding="utf-8") as f:
     json.dump(summary, f, ensure_ascii=False, indent=2)
 
 lines = []
-lines.append(f"# Promptfoo Summary\\n")
-lines.append(f"- evalId: `{summary.get('evalId')}`\\n")
+lines.append("# Promptfoo Summary")
+lines.append(f"- evalId: `{summary.get('evalId')}`")
 lines.append("")
 lines.append("| provider | cases | ok | fail | err | turns(avg/max) | tokens(total) | cost(usd) | permission_denials |")
 lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
@@ -514,7 +582,215 @@ with open(out_md_path, "w", encoding="utf-8") as f:
 PY
 }
 
+aggregate_batch_results() {
+  local batch_dir="$1"
+  local out_json="$2"
+  local out_md="$3"
+
+  python3 - "$batch_dir" "$out_json" "$out_md" "$FIXTURE" "$MODEL" "$MAX_TURNS" "$RUNS" "$REPEAT" "$JUDGE" <<'PY'
+from __future__ import annotations
+
+import json
+import math
+import os
+import sys
+from dataclasses import dataclass
+from glob import glob
+from typing import Any, Dict, List, Optional
+
+(
+    batch_dir,
+    out_json_path,
+    out_md_path,
+    fixture,
+    model,
+    max_turns,
+    runs,
+    repeat,
+    judge,
+) = sys.argv[1:]
+
+max_turns_i = int(max_turns)
+runs_i = int(runs)
+repeat_i: Optional[int] = int(repeat) if repeat else None
+
+
+def select_style(provider_id: str) -> str:
+    lowered = provider_id.lower()
+    if "ison" in lowered:
+        return "ison"
+    if "toon" in lowered:
+        return "toon"
+    if "yaml" in lowered:
+        return "yaml"
+    return "unknown"
+
+
+def to_int(value: Any) -> Optional[int]:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return None
+
+
+def percentile(sorted_values: List[float], p: float) -> Optional[float]:
+    if not sorted_values:
+        return None
+    if p <= 0:
+        return float(sorted_values[0])
+    if p >= 1:
+        return float(sorted_values[-1])
+    idx = int(math.ceil(p * len(sorted_values)) - 1)
+    idx = max(0, min(idx, len(sorted_values) - 1))
+    return float(sorted_values[idx])
+
+
+def stats(values: List[float]) -> Dict[str, Any]:
+    values_sorted = sorted(values)
+    n = len(values_sorted)
+    if n == 0:
+        return {"n": 0, "mean": None, "median": None, "p90": None}
+    mean = sum(values_sorted) / n
+    if n % 2 == 1:
+        median = float(values_sorted[n // 2])
+    else:
+        median = (values_sorted[n // 2 - 1] + values_sorted[n // 2]) / 2.0
+    return {
+        "n": n,
+        "mean": mean,
+        "median": median,
+        "p90": percentile(values_sorted, 0.90),
+    }
+
+
+@dataclass
+class Row:
+    style: str
+    success: bool
+    error: bool
+    tokens_total: Optional[int]
+    turns: Optional[int]
+    cost_usd: Optional[float]
+
+
+rows: List[Row] = []
+
+result_paths = sorted(glob(os.path.join(batch_dir, "runs", "*", "promptfoo", "results.json")))
+for path in result_paths:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        continue
+
+    items = data.get("results", {}).get("results", []) or []
+    for item in items:
+        provider = item.get("provider") or {}
+        provider_id = provider.get("id") if isinstance(provider, dict) else str(provider)
+        style = select_style(provider_id)
+
+        is_error = bool(item.get("error"))
+        is_success = (item.get("success") is True) and not is_error
+
+        cost = item.get("cost")
+        cost_f = float(cost) if isinstance(cost, (int, float)) else None
+
+        resp = item.get("response") or {}
+        tu = resp.get("tokenUsage") or {}
+        tokens_total = to_int(tu.get("total"))
+
+        meta = resp.get("metadata") or {}
+        turns = to_int(meta.get("numTurns"))
+
+        rows.append(
+            Row(
+                style=style,
+                success=is_success,
+                error=is_error,
+                tokens_total=tokens_total,
+                turns=turns,
+                cost_usd=cost_f,
+            )
+        )
+
+styles = ["ison", "toon", "yaml"]
+style_stats: Dict[str, Any] = {}
+for style in styles:
+    style_rows = [r for r in rows if r.style == style]
+    total = len(style_rows)
+    ok = sum(1 for r in style_rows if r.success)
+    err = sum(1 for r in style_rows if r.error)
+    fail = total - ok - err
+
+    tokens_vals = [float(r.tokens_total) for r in style_rows if r.tokens_total is not None]
+    turns_vals = [float(r.turns) for r in style_rows if r.turns is not None]
+    cost_vals = [float(r.cost_usd) for r in style_rows if r.cost_usd is not None]
+
+    style_stats[style] = {
+        "cases": total,
+        "successes": ok,
+        "failures": fail,
+        "errors": err,
+        "pass_rate": (ok / total) if total else None,
+        "tokens_total": stats(tokens_vals),
+        "turns": stats(turns_vals),
+        "cost_usd": stats(cost_vals),
+    }
+
+summary = {
+    "batch_dir": batch_dir,
+    "config": {
+        "fixture": fixture,
+        "model": model,
+        "max_turns": max_turns_i,
+        "runs": runs_i,
+        "repeat": repeat_i,
+        "judge": judge,
+    },
+    "inputs": {
+        "result_paths": result_paths,
+    },
+    "styles": style_stats,
+}
+
+with open(out_json_path, "w", encoding="utf-8") as f:
+    json.dump(summary, f, ensure_ascii=False, indent=2)
+
+lines = []
+lines.append("# Batch Aggregate Summary\n")
+lines.append(f"- batch_dir: `{batch_dir}`\n")
+lines.append(f"- fixture: `{fixture}`\n")
+lines.append(f"- model: `{model}`\n")
+lines.append(f"- max_turns: `{max_turns_i}`\n")
+lines.append(f"- runs: `{runs_i}`\n")
+if repeat_i is not None:
+    lines.append(f"- repeat: `{repeat_i}`\n")
+lines.append(f"- judge: `{judge}`\n")
+lines.append("")
+lines.append("| style | cases | pass_rate | tokens(mean/med/p90) | turns(mean/med/p90) | cost_usd(mean/med/p90) |")
+lines.append("|---|---:|---:|---:|---:|---:|")
+for style in styles:
+    s = style_stats[style]
+    pr = s["pass_rate"]
+    pr_s = f"{pr:.2%}" if isinstance(pr, (int, float)) else "-"
+
+    def fmt(triple: Dict[str, Any]) -> str:
+        if triple.get("n", 0) == 0:
+            return "-"
+        return f"{triple['mean']:.2f}/{triple['median']:.2f}/{triple['p90']:.2f}"
+
+    lines.append(
+        f"| `{style}` | {s['cases']} | {pr_s} | {fmt(s['tokens_total'])} | {fmt(s['turns'])} | {fmt(s['cost_usd'])} |"
+    )
+
+with open(out_md_path, "w", encoding="utf-8") as f:
+    f.write("\n".join(lines) + "\n")
+PY
+}
+
 LAST_PROMPTFOO_DIR=""
+LAST_BATCH_DIR=""
 
 run_one() {
   local run_idx="$1"
@@ -526,7 +802,7 @@ print(os.urandom(4).hex())
 PY
 )"
 
-  local work_dir="$REPO_ROOT/.tmp/sdd-claude-style-eval/${timestamp_utc}_${git_sha}_r${run_idx}_${seed}"
+  local work_dir="$BATCH_DIR/runs/r${run_idx}_${seed}"
   local workspaces_dir="$work_dir/workspaces"
   local configs_dir="$work_dir/configs"
   local meta_dir="$work_dir/meta"
@@ -558,6 +834,21 @@ PY
   init_workspace "toon" "$ws_toon" "$cfg_toon"
   init_workspace "yaml" "$ws_yaml" "$cfg_yaml"
 
+  if [[ "$FIXTURE" == "v2" ]]; then
+    echo
+    echo "== seed baseline (v2)"
+    seed_workspace_v2 "ison" "$ws_ison" "$cfg_ison"
+    seed_workspace_v2 "toon" "$ws_toon" "$cfg_toon"
+    seed_workspace_v2 "yaml" "$ws_yaml" "$cfg_yaml"
+  fi
+
+  local baseline_sha_ison
+  local baseline_sha_toon
+  local baseline_sha_yaml
+  baseline_sha_ison="$(git -C "$ws_ison" rev-parse HEAD)"
+  baseline_sha_toon="$(git -C "$ws_toon" rev-parse HEAD)"
+  baseline_sha_yaml="$(git -C "$ws_yaml" rev-parse HEAD)"
+
   local path_ison="$ws_ison/.llman-bin:$PATH"
   local path_toon="$ws_toon/.llman-bin:$PATH"
   local path_yaml="$ws_yaml/.llman-bin:$PATH"
@@ -572,7 +863,7 @@ PY
 
   echo
   echo "== prepare promptfoo fixture"
-  fixture_src="$REPO_ROOT/agentdev/promptfoo/sdd_llmanspec_styles_v1"
+  fixture_src="$REPO_ROOT/agentdev/promptfoo/sdd_llmanspec_styles_${FIXTURE}"
   [[ -d "$fixture_src" ]] || die "找不到 promptfoo fixture：$fixture_src"
   cp -R "$fixture_src/." "$promptfoo_dir/"
 
@@ -615,11 +906,30 @@ PY
     if [[ "$JUDGE" == "claude" ]]; then
       eval_args+=(--grader "${JUDGE_GRADER:-anthropic:messages:claude-3-5-sonnet-latest}")
     fi
-    if (cd "$promptfoo_dir" && "${eval_args[@]}"); then
-      eval_exit="0"
-    else
+
+    max_attempts="$((EVAL_RETRIES + 1))"
+    for attempt in $(seq 1 "$max_attempts"); do
+      if (( attempt > 1 )); then
+        echo
+        echo "== retrying promptfoo eval (attempt $attempt/$max_attempts)"
+        reset_workspace_to_sha "ison" "$ws_ison" "$baseline_sha_ison"
+        reset_workspace_to_sha "toon" "$ws_toon" "$baseline_sha_toon"
+        reset_workspace_to_sha "yaml" "$ws_yaml" "$baseline_sha_yaml"
+        # Small backoff to avoid immediate rate-limit loops.
+        sleep 2
+      fi
+
+      if (cd "$promptfoo_dir" && "${eval_args[@]}"); then
+        eval_exit="0"
+        break
+      fi
+
       eval_exit="$?"
-      echo "!! promptfoo eval failed (exit=$eval_exit). Continuing to write meta snapshots." >&2
+      echo "!! promptfoo eval failed (exit=$eval_exit) (attempt $attempt/$max_attempts)" >&2
+    done
+
+    if [[ "$eval_exit" != "0" ]]; then
+      echo "!! promptfoo eval failed after $max_attempts attempts. Continuing to write meta snapshots." >&2
     fi
   fi
 
@@ -648,12 +958,33 @@ if (( RUNS < 1 )); then
   die "--runs 必须 >= 1"
 fi
 
+batch_seed="$(python3 - <<'PY'
+import os
+print(os.urandom(4).hex())
+PY
+)"
+BATCH_DIR="$REPO_ROOT/.tmp/sdd-claude-style-eval/${timestamp_utc}_${git_sha}_${FIXTURE}_b${batch_seed}"
+mkdir -p "$BATCH_DIR/meta" "$BATCH_DIR/runs"
+echo "== batch_dir: $BATCH_DIR"
+LAST_BATCH_DIR="$BATCH_DIR"
+
 overall_exit="0"
 for i in $(seq 1 "$RUNS"); do
   if ! run_one "$i"; then
     overall_exit="1"
   fi
 done
+
+if (( RUNS >= 2 )) && [[ "$NO_RUN" != "1" ]]; then
+  aggregate_out_json="$BATCH_DIR/meta/aggregate.json"
+  aggregate_out_md="$BATCH_DIR/meta/aggregate.md"
+  if ls "$BATCH_DIR"/runs/*/promptfoo/results.json >/dev/null 2>&1; then
+    echo
+    echo "== aggregate batch results"
+    aggregate_batch_results "$BATCH_DIR" "$aggregate_out_json" "$aggregate_out_md"
+    echo "aggregate: $aggregate_out_md"
+  fi
+fi
 
 if [[ "$OPEN_UI" == "1" && -n "$LAST_PROMPTFOO_DIR" ]]; then
   echo
