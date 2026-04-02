@@ -48,6 +48,8 @@ def _tool_calls(context: Dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(meta, dict):
         return []
     tool_calls = meta.get("toolCalls")
+    if tool_calls is None:
+        tool_calls = meta.get("tool_calls")
     if isinstance(tool_calls, list):
         out: list[dict[str, Any]] = []
         for item in tool_calls:
@@ -82,6 +84,8 @@ def _maybe_workspace_from_pwd_toolcall(tool_call: dict[str, Any]) -> Optional[Pa
         return None
 
     output = tool_call.get("output")
+    if output is None:
+        output = tool_call.get("result")
     if not isinstance(output, str) or not output.strip():
         return None
     first_line = output.splitlines()[0].strip()
