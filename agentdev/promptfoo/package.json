@@ -1,0 +1,9 @@
+{
+  "name": "llman-agentdev-promptfoo",
+  "private": true,
+  "description": "Local dependencies for llman agentdev Promptfoo suites (do not publish).",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.2.90"
+  }
+}

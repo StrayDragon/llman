@@ -91,6 +91,10 @@ check-sdd-templates:
 sdd-prompts-eval *args:
     bash ./scripts/sdd-prompts-eval.sh {{args}}
 
+# Claude Code agentic multi-style eval（ison/toon/yaml；硬门禁：sdd validate --strict）
+sdd-claude-style-eval *args:
+    bash ./scripts/sdd-claude-style-eval.sh {{args}}
+
 # 检查配置 schema
 check-schemas:
     LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo run -- self schema check
