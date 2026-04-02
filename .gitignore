@@ -27,3 +27,7 @@ target/
 node_modules/
 npm-debug.log*
 pnpm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
