@@ -2,17 +2,19 @@ from __future__ import annotations
 
 import os
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 
-@dataclass(frozen=True)
 class GateContext:
-    provider: str
-    workspace_dir: Path
-    config_dir: Path
-    expected_style: str
+    # NOTE: Avoid `@dataclass` here. Promptfoo loads Python assertions via a custom importlib flow
+    # (see `promptfoo/dist/src/python/wrapper.py`), and on some Python versions the dataclasses
+    # decorator expects the module to be registered in `sys.modules`, which isn't guaranteed.
+    def __init__(self, provider: str, workspace_dir: Path, config_dir: Path, expected_style: str) -> None:
+        self.provider = provider
+        self.workspace_dir = workspace_dir
+        self.config_dir = config_dir
+        self.expected_style = expected_style
 
 
 def _provider_id(context: Dict[str, Any]) -> str:
