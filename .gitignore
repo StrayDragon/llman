@@ -22,3 +22,8 @@ target/
 
 # User Custom
 .tmp
+
+# Node (agentdev promptfoo deps)
+node_modules/
+npm-debug.log*
+pnpm-debug.log*

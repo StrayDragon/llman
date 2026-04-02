@@ -13,3 +13,6 @@ Non-goals:
 - Do not commit secrets or credentials.
 
 If you are looking for Promptfoo suites, see `agentdev/promptfoo/`.
+
+Docker runners:
+- `agentdev/docker/sdd-claude-style-eval/`: reproducible env for Claude Code agentic multi-style eval (supports mirror build args)

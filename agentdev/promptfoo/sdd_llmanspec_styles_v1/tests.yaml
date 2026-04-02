@@ -1,0 +1,41 @@
+- description: sdd_llmanspec_multi_style_end_to_end
+  vars:
+    task_prompt: |
+      Goal: create a minimal-but-real llmanspec project update that passes strict validation.
+
+      You MUST do all work in the current directory.
+
+      Steps:
+      1) Show where you are:
+         - Run `pwd` and `ls -la`
+      2) Confirm spec_style:
+         - Show `llmanspec/config.yaml` and state the configured `spec_style`
+      3) Create a main spec and make it valid:
+         - Create capability: `eval-style-cap`
+           - `llman sdd spec skeleton eval-style-cap --force`
+         - Add a requirement `REQ_STYLE_1` with a MUST/SHALL statement:
+           - `llman sdd spec add-requirement eval-style-cap REQ_STYLE_1 --title "Style smoke" --statement "The evaluation MUST validate under strict mode."`
+         - Add a scenario `s1` for `REQ_STYLE_1`:
+           - `llman sdd spec add-scenario eval-style-cap REQ_STYLE_1 s1 --when "validation runs" --then "it passes in strict mode"`
+         - Commit: `git add -A && git commit -m "spec: add eval-style-cap"`
+      4) Create a change + delta spec that also passes strict validation:
+         - Create `llmanspec/changes/eval-style-change/proposal.md` (short content is fine)
+         - Create delta skeleton:
+           - `llman sdd delta skeleton eval-style-change eval-style-cap --force`
+         - Add one `add_requirement` delta op for `REQ_STYLE_2`:
+           - `llman sdd delta add-op eval-style-change eval-style-cap add_requirement REQ_STYLE_2 --title "Delta smoke" --statement "The change MUST include at least one op scenario."`
+         - Add one op scenario `s1` for `REQ_STYLE_2`:
+           - `llman sdd delta add-scenario eval-style-change eval-style-cap REQ_STYLE_2 s1 --when "validation runs" --then "it passes in strict mode"`
+         - Commit: `git add -A && git commit -m "change: add eval-style-change"`
+      5) Hard gate:
+         - Run `llman sdd validate --all --strict --no-interactive`
+      6) Final response:
+         - Summarize what you changed and confirm validation passed.
+    rubric: |
+      Score the final response for being:
+      - Concise and actionable
+      - Clear about what changed (files and commands)
+      - Explicit that strict validation passed
+      - No unsafe actions outside workspace
+
+      Return a single score in [0, 1].
