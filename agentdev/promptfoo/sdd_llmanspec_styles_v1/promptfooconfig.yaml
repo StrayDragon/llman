@@ -6,7 +6,7 @@ description: llman SDD agentic multi-style evaluation (Claude Code via Promptfoo
 
 providers:
   - anthropic:claude-agent-sdk:
-      id: claude-agent-ison
+      id: claude_agent_ison
       label: claude-agent (ison)
       config:
         model: "__MODEL__"
@@ -29,7 +29,7 @@ providers:
         LLMAN_CONFIG_DIR: "__CONFIGDIR_ISON__"
         PATH: "__PATH_ISON__"
   - anthropic:claude-agent-sdk:
-      id: claude-agent-toon
+      id: claude_agent_toon
       label: claude-agent (toon)
       config:
         model: "__MODEL__"
@@ -51,7 +51,7 @@ providers:
         LLMAN_CONFIG_DIR: "__CONFIGDIR_TOON__"
         PATH: "__PATH_TOON__"
   - anthropic:claude-agent-sdk:
-      id: claude-agent-yaml
+      id: claude_agent_yaml
       label: claude-agent (yaml)
       config:
         model: "__MODEL__"

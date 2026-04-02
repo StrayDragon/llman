@@ -17,3 +17,4 @@ Notes:
 Examples:
 - Local dry-run (no API calls): `bash scripts/sdd-claude-style-eval.sh --no-run`
 - With Claude Code account env injection (sensitive): `bash scripts/sdd-claude-style-eval.sh --cc-account glm-lite-150`
+- Open Promptfoo Web UI after eval: `bash scripts/sdd-claude-style-eval.sh --cc-account glm-lite-150 --ui`

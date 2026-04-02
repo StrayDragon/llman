@@ -17,6 +17,10 @@ class GateContext:
 
 def _provider_id(context: Dict[str, Any]) -> str:
     provider = context.get("provider")
+    if isinstance(provider, dict):
+        provider_id = provider.get("id")
+        if isinstance(provider_id, str) and provider_id.strip():
+            return provider_id.strip()
     if isinstance(provider, str) and provider.strip():
         return provider.strip()
     return "unknown-provider"
