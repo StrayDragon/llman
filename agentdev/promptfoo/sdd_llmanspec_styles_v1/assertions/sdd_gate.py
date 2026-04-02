@@ -57,14 +57,28 @@ def _tool_calls(context: Dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def _find_workspace_root(path: Path) -> Optional[Path]:
+    # In case the agent runs `pwd` from a subdirectory, walk up a few levels to
+    # find the workspace root that contains llmanspec/config.yaml.
+    cur = path
+    for _ in range(6):
+        if (cur / "llmanspec" / "config.yaml").exists():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    return None
+
+
 def _maybe_workspace_from_pwd_toolcall(tool_call: dict[str, Any]) -> Optional[Path]:
-    if tool_call.get("name") != "Bash":
+    name = tool_call.get("name")
+    if not isinstance(name, str) or name.lower() != "bash":
         return None
     tc_input = tool_call.get("input")
     if not isinstance(tc_input, dict):
         return None
     command = tc_input.get("command")
-    if not isinstance(command, str) or "pwd" not in command:
+    if not isinstance(command, str) or "pwd" not in command.lower():
         return None
 
     output = tool_call.get("output")
@@ -74,18 +88,21 @@ def _maybe_workspace_from_pwd_toolcall(tool_call: dict[str, Any]) -> Optional[Pa
     if not first_line.startswith("/"):
         return None
     candidate = Path(first_line)
-    if candidate.is_dir():
-        return candidate
-    return None
+    if not candidate.is_dir():
+        return None
+    return _find_workspace_root(candidate)
 
 
 def _maybe_workspace_from_config_read_toolcall(tool_call: dict[str, Any]) -> Optional[Path]:
-    if tool_call.get("name") != "Read":
+    name = tool_call.get("name")
+    if not isinstance(name, str) or name.lower() != "read":
         return None
     tc_input = tool_call.get("input")
     if not isinstance(tc_input, dict):
         return None
     file_path = tc_input.get("file_path")
+    if file_path is None:
+        file_path = tc_input.get("filePath")
     if not isinstance(file_path, str) or not file_path.strip():
         return None
 
@@ -97,19 +114,20 @@ def _maybe_workspace_from_config_read_toolcall(tool_call: dict[str, Any]) -> Opt
 
     workspace_dir = path.parent.parent
     if workspace_dir.is_dir():
-        return workspace_dir
+        return _find_workspace_root(workspace_dir) or workspace_dir
     return None
 
 
 def _infer_workspace_dir(context: Dict[str, Any]) -> Optional[Path]:
     # Prefer reading from toolCalls because provider objects are not reliably serializable.
+    # The Read toolcall for llmanspec/config.yaml is the most reliable signal.
     for tc in _tool_calls(context):
-        ws = _maybe_workspace_from_pwd_toolcall(tc)
+        ws = _maybe_workspace_from_config_read_toolcall(tc)
         if ws is not None:
             return ws
 
     for tc in _tool_calls(context):
-        ws = _maybe_workspace_from_config_read_toolcall(tc)
+        ws = _maybe_workspace_from_pwd_toolcall(tc)
         if ws is not None:
             return ws
 
@@ -121,7 +139,11 @@ def _parse_spec_style_from_config(config_text: str) -> Optional[str]:
     # Accept simple forms:
     #   spec_style: ison
     #   spec_style: "ison"
-    m = re.search(r"^\s*spec_style\s*:\s*([A-Za-z0-9_-]+)\s*$", config_text, flags=re.MULTILINE)
+    m = re.search(
+        r"^\s*spec_style\s*:\s*[\"']?([A-Za-z0-9_-]+)[\"']?\s*(?:#.*)?$",
+        config_text,
+        flags=re.MULTILINE,
+    )
     if not m:
         return None
     style = m.group(1).strip().lower()
@@ -188,23 +210,36 @@ def _build_gate_context(context: Dict[str, Any]) -> GateContext:
 
     workspace_dir = _infer_workspace_dir(context)
     if workspace_dir is None:
+        # Fallback (best-effort): some promptfoo contexts may omit toolCalls; in that case,
+        # try mapping via provider id + runner exported env vars.
+        expected_style = _select_style(provider_id)
+        workdir_str, configdir_str = _workspace_paths_for(expected_style)
+        if workdir_str and configdir_str:
+            return GateContext(
+                provider=provider_id,
+                workspace_dir=Path(workdir_str),
+                config_dir=Path(configdir_str),
+                expected_style=expected_style,
+            )
         raise RuntimeError(
             "Unable to infer workspace_dir from assertion context. "
-            "Expected providerResponse.metadata.toolCalls to include `pwd` output or a config.yaml read."
+            "Expected providerResponse.metadata.toolCalls to include `pwd` output or a config.yaml read. "
+            f"provider_id={provider_id}"
         )
 
     expected_style = _infer_style_from_workspace(workspace_dir)
     if expected_style is None:
         raise RuntimeError(
             "Unable to infer spec_style from workspace llmanspec/config.yaml. "
-            f"workspace_dir={workspace_dir}"
+            f"workspace_dir={workspace_dir} provider_id={provider_id}"
         )
 
     config_dir = _infer_config_dir(workspace_dir, expected_style)
     if config_dir is None:
         raise RuntimeError(
             "Unable to infer config_dir for hard gate. "
-            f"Expected SDD_CONFIGDIR_{expected_style.upper()} or runner layout <work_dir>/configs/{expected_style}."
+            f"Expected SDD_CONFIGDIR_{expected_style.upper()} or runner layout <work_dir>/configs/{expected_style}. "
+            f"workspace_dir={workspace_dir} provider_id={provider_id}"
         )
 
     return GateContext(
@@ -220,7 +255,8 @@ def _check_style_fences(gate: GateContext) -> Optional[str]:
     if not config_path.exists():
         return f"Missing config: {config_path}"
     config_text = _read_text(config_path)
-    if f"spec_style: {gate.expected_style}" not in config_text:
+    parsed_style = _parse_spec_style_from_config(config_text)
+    if parsed_style != gate.expected_style:
         return (
             f"Spec style mismatch. Expected spec_style: {gate.expected_style}. "
             f"Found config:\n{config_text}"
