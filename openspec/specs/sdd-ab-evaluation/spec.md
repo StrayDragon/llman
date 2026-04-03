@@ -1,7 +1,7 @@
 # sdd-ab-evaluation Specification
 
 ## Purpose
-TBD - created by archiving change add-ison-first-sdd-pipeline. Update Purpose after archive.
+Define reproducible evaluation suites for SDD prompts and agentic workflows, including multi-style comparisons and hard-gated validation.
 
 ## Requirements
 ### Requirement: Built-In Old-vs-New Evaluation Flow
@@ -44,6 +44,21 @@ SDD workflow MUST 提供一个可复现的评测脚手架，用于通过 Promptf
 - **THEN** 评测输出包含 `results.json` 与 `results.html`
 - **AND** 评测以 `llman sdd validate --all --strict --no-interactive` 作为硬门禁（失败则整体评测失败）
 
+### Requirement: Format-Sensitive Agentic Tasks
+The evaluation suite MUST include at least one agentic task that requires reading and editing the style-specific spec files (main spec and/or delta spec), so that format differences (ison/toon/yaml) materially affect the agent’s context and actions.
+
+#### Scenario: Agent reads and edits main spec file
+- **WHEN** the multi-style agentic eval runs for `spec_style: ison|toon|yaml`
+- **THEN** the agent reads `llmanspec/specs/**/spec.md` in the current workspace
+- **AND** makes a file-level edit that changes the spec content
+- **AND** `llman sdd validate --all --strict --no-interactive` passes
+
+#### Scenario: Agent reads and edits delta spec file
+- **WHEN** the eval includes a change under `llmanspec/changes/**`
+- **THEN** the agent reads `llmanspec/changes/**/specs/**/spec.md`
+- **AND** makes a file-level edit that changes the delta content
+- **AND** `llman sdd validate --all --strict --no-interactive` passes
+
 ### Requirement: Multi-style（ison/toon/yaml）在同一任务集下可对比
 评测脚手架 MUST 在同一语义任务集下分别运行 `spec_style: ison`、`spec_style: toon`、`spec_style: yaml` 的三个隔离 workspace，并输出每种风格的通过情况与关键指标（例如 turns/token/cost）。
 
@@ -52,6 +67,15 @@ SDD workflow MUST 提供一个可复现的评测脚手架，用于通过 Promptf
 - **THEN** 系统为 ison/toon/yaml 创建三个隔离 workspace 并分别运行相同任务
 - **AND** 输出报告包含每个 style 的 pass/fail 与基础指标
 
+### Requirement: Seeded Baseline Content Is Semantically Equivalent Across Styles
+The eval runner MUST pre-seed each style workspace with semantically equivalent baseline specs/changes before starting Promptfoo evaluation, so that outcomes can be compared with reduced variance.
+
+#### Scenario: Runner seeds baseline before evaluation
+- **WHEN** a new eval run starts
+- **THEN** the runner creates three isolated workspaces (`ison/toon/yaml`)
+- **AND** seeds the same logical capability + change content in each workspace
+- **AND** the seeded content is style-correct for that workspace
+
 ### Requirement: 每次评测 run 产出可观测快照与元数据
 评测脚手架 MUST 为每次运行创建独立的临时根目录（不自动清理），并在其中产出可观测快照（推荐使用 git repo 形式）与元数据目录（meta）。元数据 MUST 至少包含 workspace 的 `git log/diff/status`（或等价快照）以及关键命令输出（validate/show）。
 
@@ -59,6 +83,14 @@ SDD workflow MUST 提供一个可复现的评测脚手架，用于通过 Promptf
 - **WHEN** 一次评测运行结束
 - **THEN** 临时根目录下存在 `meta/`（或等价）用于保存快照与日志
 - **AND** 其中包含每个 workspace 的 `git log/diff/status`（或等价信息）
+
+### Requirement: Multi-Run Aggregate Metrics Report
+When the runner is executed with `--runs N` (N ≥ 2), it MUST generate an aggregate report that summarizes pass rate and token/turn/cost distributions per style across runs.
+
+#### Scenario: Aggregation outputs a batch report
+- **WHEN** a maintainer runs `just sdd-claude-style-eval --runs 10` (or equivalent)
+- **THEN** the runner writes an aggregate summary to a batch-level `meta/aggregate.md` (and/or `meta/aggregate.json`)
+- **AND** the report includes at least: pass rate, mean/median/p90 of total tokens and turns per style
 
 ### Requirement: 支持 human / Codex / Claude 的可选软评分
 评测脚手架 SHOULD 支持可选的软评分层：人工打分（human）与 LLM rubric（例如 Codex/Claude judge）。该软评分层 MUST 可选，且不得替代硬门禁（validate）作为唯一通过条件。

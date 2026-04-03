@@ -1,0 +1,32 @@
+- description: sdd_llmanspec_multi_style_end_to_end_v2
+  vars:
+    task_prompt: |
+      Goal: perform a small but real edit to the pre-seeded llmanspec project by reading + editing style-specific spec.md files (format-sensitive).
+
+      You MUST do all work in the current directory.
+
+      Steps:
+      1) Show where you are:
+         - Run `pwd` and `ls -la`
+      2) Confirm spec_style:
+         - Read `llmanspec/config.yaml` and state the configured `spec_style`
+      3) Inspect the pre-seeded baseline specs (use Read tool, not `cat`):
+         - Read main spec: `llmanspec/specs/eval-style-cap/spec.md`
+         - Read delta spec: `llmanspec/changes/eval-style-change/specs/eval-style-cap/spec.md`
+      4) File-level edits (do NOT use `llman sdd spec add-*` / `llman sdd delta add-*` for these edits):
+         - In the main spec, replace the marker `TODO_V2_EDIT_MAIN` with `V2_EDIT_OK`
+         - In the delta spec, replace the marker `TODO_V2_EDIT_DELTA` with `V2_EDIT_OK`
+         - Keep the correct style fence (` ```ison` / ` ```toon` / ` ```yaml`) intact
+         - Commit: `git add -A && git commit -m "spec: v2 format-sensitive edits"`
+      5) Hard gate:
+         - Run `llman sdd validate --all --strict --no-interactive`
+      6) Final response:
+         - Summarize what you changed (files + markers) and confirm strict validation passed.
+    rubric: |
+      Score the final response for being:
+      - Concise and actionable
+      - Clear about exactly what changed (files and markers)
+      - Explicit that strict validation passed
+      - No unsafe actions outside workspace
+
+      Return a single score in [0, 1].

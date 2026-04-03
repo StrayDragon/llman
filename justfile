@@ -91,7 +91,7 @@ check-sdd-templates:
 sdd-prompts-eval *args:
     bash ./scripts/sdd-prompts-eval.sh {{args}}
 
-# Claude Code agentic multi-style eval（ison/toon/yaml；硬门禁：sdd validate --strict）
+# Claude Code agentic multi-style eval（ison/toon/yaml；硬门禁：sdd validate --strict；支持 --fixture v1|v2；--runs N>=2 生成 aggregate）
 sdd-claude-style-eval *args:
     bash ./scripts/sdd-claude-style-eval.sh {{args}}
 

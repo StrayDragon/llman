@@ -10,6 +10,14 @@ This fixture is designed to be executed via:
 
 - `agentdev/promptfoo/run-sdd-claude-style-eval.sh`
 
+## What v1 measures (vs v2)
+
+v1 is a baseline that mainly exercises **CLI-driven spec generation** (`llman sdd spec add-*` / `llman sdd delta add-*`) and strict validation.
+
+If you want a **format-sensitive** eval that forces the agent to read/edit style-specific `spec.md` files, use:
+
+- `agentdev/promptfoo/run-sdd-claude-style-eval.sh --fixture v2`
+
 ## Hard gate
 
 Assertions include a deterministic hard gate:
