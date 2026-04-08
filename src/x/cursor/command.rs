@@ -1,5 +1,6 @@
 use crate::fs_utils::atomic_write_with_mode;
 use crate::path_utils::validate_path_str;
+use crate::tool::command::{SyncIgnoreArgs as ToolSyncIgnoreArgs, SyncIgnoreTarget};
 use crate::x::cursor::database::CursorDatabase;
 use crate::x::cursor::models::{
     ConversationExport, ConversationKey, ConversationSummary, ConversationType,
@@ -33,6 +34,42 @@ pub enum CursorCommands {
     Stats(CursorStatsArgs),
     /// Manage Cursor prompt templates and rules
     Prompts(CursorPromptsArgs),
+    /// Sync ignore rules to Cursor / other targets (forward to `llman tool sync-ignore`)
+    #[command(name = "sync-ignore", alias = "si")]
+    SyncIgnore(CursorSyncIgnoreArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct CursorSyncIgnoreArgs {
+    /// Apply changes (default: dry-run preview)
+    #[arg(short = 'y', long, action = clap::ArgAction::SetTrue)]
+    pub yes: bool,
+
+    /// Interactive mode (MultiSelect targets + preview + confirm)
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub interactive: bool,
+
+    /// Force execution even when no git repository is found
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub force: bool,
+
+    /// Verbose output
+    #[arg(long, short = 'v', action = clap::ArgAction::SetTrue)]
+    pub verbose: bool,
+
+    /// Output target(s) to sync (default: cursor)
+    #[arg(
+        long,
+        short = 't',
+        value_enum,
+        value_delimiter = ',',
+        default_value = "cursor"
+    )]
+    pub target: Vec<SyncIgnoreTarget>,
+
+    /// Additional input file path(s) to include as sources (repeatable)
+    #[arg(long, short = 'i')]
+    pub input: Vec<PathBuf>,
 }
 
 #[derive(Args)]
@@ -79,6 +116,16 @@ pub fn run(args: &CursorArgs) -> Result<()> {
         }
         CursorCommands::Stats(stats) => crate::x::cursor::stats::run_stats(stats),
         CursorCommands::Prompts(prompts) => crate::x::cursor::prompts::run(prompts),
+        CursorCommands::SyncIgnore(sync_args) => {
+            crate::tool::sync_ignore::run(&ToolSyncIgnoreArgs {
+                yes: sync_args.yes,
+                interactive: sync_args.interactive,
+                force: sync_args.force,
+                verbose: sync_args.verbose,
+                target: sync_args.target.clone(),
+                input: sync_args.input.clone(),
+            })
+        }
     }
 }
 

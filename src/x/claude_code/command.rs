@@ -2,6 +2,7 @@ use crate::arg_utils::split_shell_args;
 use crate::editor::{parse_editor_command, select_editor_raw};
 use crate::fs_utils::atomic_write_new_with_mode;
 use crate::path_utils::safe_parent_for_creation;
+use crate::tool::command::{SyncIgnoreArgs as ToolSyncIgnoreArgs, SyncIgnoreTarget};
 use crate::x::claude_code::config::{Config, ConfigGroup};
 use crate::x::claude_code::env_injection::{
     EnvSyntax, env_syntax_for_current_platform, render_env_injection_lines,
@@ -14,7 +15,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Args)]
@@ -72,6 +73,42 @@ pub enum ClaudeCodeCommands {
     Stats(ClaudeCodeStatsArgs),
     /// Manage Claude Code prompt templates and memory injection
     Prompts(ClaudeCodePromptsArgs),
+    /// Sync ignore rules to Claude Code settings (forward to `llman tool sync-ignore`)
+    #[command(name = "sync-ignore", alias = "si")]
+    SyncIgnore(ClaudeCodeSyncIgnoreArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct ClaudeCodeSyncIgnoreArgs {
+    /// Apply changes (default: dry-run preview)
+    #[arg(short = 'y', long, action = clap::ArgAction::SetTrue)]
+    pub yes: bool,
+
+    /// Interactive mode (MultiSelect targets + preview + confirm)
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub interactive: bool,
+
+    /// Force execution even when no git repository is found
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub force: bool,
+
+    /// Verbose output
+    #[arg(long, short = 'v', action = clap::ArgAction::SetTrue)]
+    pub verbose: bool,
+
+    /// Output target(s) to sync (default: claude-shared)
+    #[arg(
+        long,
+        short = 't',
+        value_enum,
+        value_delimiter = ',',
+        default_value = "claude-shared"
+    )]
+    pub target: Vec<SyncIgnoreTarget>,
+
+    /// Additional input file path(s) to include as sources (repeatable)
+    #[arg(long, short = 'i')]
+    pub input: Vec<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -145,6 +182,16 @@ pub fn run(args: &ClaudeCodeArgs) -> Result<()> {
         }
         Some(ClaudeCodeCommands::Stats(stats)) => crate::x::claude_code::stats::run_stats(stats)?,
         Some(ClaudeCodeCommands::Prompts(prompts)) => crate::x::claude_code::prompts::run(prompts)?,
+        Some(ClaudeCodeCommands::SyncIgnore(sync_args)) => {
+            crate::tool::sync_ignore::run(&ToolSyncIgnoreArgs {
+                yes: sync_args.yes,
+                interactive: sync_args.interactive,
+                force: sync_args.force,
+                verbose: sync_args.verbose,
+                target: sync_args.target.clone(),
+                input: sync_args.input.clone(),
+            })?;
+        }
         None => {
             handle_main_command(&args.args)?;
         }

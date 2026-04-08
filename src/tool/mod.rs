@@ -3,4 +3,5 @@ pub mod command;
 pub mod config;
 pub mod processor;
 pub mod rm_empty_dirs;
+pub mod sync_ignore;
 pub mod tree_sitter_processor;
