@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: 统一解析与 union 同步
-系统必须提供 `llman tool sync-ignore` 命令，用于在项目内对以下 ignore 配置进行统一解析，并以 union（并集）方式同步到选定 targets：
+系统 MUST 提供 `llman tool sync-ignore` 命令，用于在项目内对以下 ignore 配置进行统一解析，并以 union（并集）方式同步到选定 targets：
 
 - OpenCode：`.ignore`
 - Cursor：`.cursorignore`
@@ -31,7 +31,7 @@
 - **AND** 不修改其他目标文件
 
 ### Requirement: `.ignore` / `.cursorignore` 的 include（`!pattern`）解析
-系统必须支持解析 gitignore 风格的 include 规则，并写回到 gitignore-like 文件中。
+系统 MUST 支持解析 gitignore 风格的 include 规则，并写回到 gitignore-like 文件中。
 
 #### Scenario: `.ignore` 中的 include
 - **GIVEN** `.ignore` 内容包含 `!dist/`
@@ -43,7 +43,7 @@
 - **THEN** 必须以稳定顺序输出：先输出所有 ignore，再输出所有 include（以 `!` 前缀）
 
 ### Requirement: Claude Code settings 的读写与保留策略
-系统必须能解析并更新项目内 Claude Code settings，并尽量保留 JSONC 注释（best-effort）。
+系统 MUST 能解析并更新项目内 Claude Code settings，并尽量保留 JSONC 注释（best-effort）。
 
 #### Scenario: 仅转换 `permissions.deny` 的 `Read(...)`
 - **GIVEN** `.claude/settings.json` 的 `permissions.deny` 中包含 `Read(./secrets/**)`
@@ -62,7 +62,7 @@
 - **THEN** 必须保留这些非 Read 项（不得删除）
 
 ### Requirement: git repo 强制检查 + `--force`
-系统必须强制检查 git root，避免在非项目目录误写入文件。
+系统 MUST 强制检查 git root，避免在非项目目录误写入文件。
 
 #### Scenario: 非 git 目录报错
 - **GIVEN** 当前目录向上遍历找不到 `.git`
@@ -76,7 +76,7 @@
 - **THEN** 系统将当前目录视为 root 并继续执行（仍默认 dry-run）
 
 ### Requirement: 交互式模式（inquire）
-系统必须提供交互式模式用于选择 targets、预览与确认执行。
+系统 MUST 提供交互式模式用于选择 targets、预览与确认执行。
 
 #### Scenario: MultiSelect 选择 targets + 反选删除提示
 - **WHEN** 用户执行 `llman tool sync-ignore --interactive`
@@ -90,7 +90,7 @@
 - **AND** 仅在确认后才实际写入/删除
 
 ### Requirement: x 子命令快捷方式（可选但推荐）
-系统 SHOULD 通过 `llman x` 子命令提供便捷的快捷方式。
+系统 SHOULD 通过 `llman x` 子命令提供便捷的快捷方式；若提供该快捷方式，则系统 MUST 使用目标 app 的合理默认 target（例如 cc→claude-shared，cursor→cursor）。
 
 #### Scenario: 通过 cc 子命令同步到 Claude Code
 - **WHEN** 用户执行 `llman x cc sync-ignore`
