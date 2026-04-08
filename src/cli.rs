@@ -241,6 +241,7 @@ fn handle_tool_command(args: &ToolArgs) -> Result<()> {
             eprintln!("{}", t!("tool.rm_empty_dirs.deprecated_alias_warning"));
             crate::tool::rm_empty_dirs::run(args)
         }
+        ToolCommands::SyncIgnore(args) => crate::tool::sync_ignore::run(args),
     }
 }
 

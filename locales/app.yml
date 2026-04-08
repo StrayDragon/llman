@@ -715,6 +715,149 @@ tool:
       tree_sitter_failed:
         en: "Tree-sitter processing failed for %{path}: %{error}"
 
+  sync_ignore:
+    start:
+      en: "Sync ignore rules"
+
+    dry_run_hint:
+      en: "Dry-run only. Re-run with -y/--yes to apply changes."
+
+    apply_done:
+      en: "Done."
+
+    cancelled:
+      en: "Operation cancelled."
+
+    preview:
+      root:
+        en: "Root: %{path}"
+
+      sources_title:
+        en: "Sources:"
+
+      sources_none:
+        en: "(none found)"
+
+      union_stats:
+        en: "Union: ignore=%{ignore}, include=%{include}"
+
+      targets_title:
+        en: "Targets:"
+
+      detail_title:
+        en: "=== Write preview: %{path} ==="
+
+      claude_added_title:
+        en: "=== Claude additions: %{path} (+%{count}) ==="
+
+      dry_run_default:
+        en: "Default mode is dry-run."
+
+      action:
+        create:
+          en: "create"
+        update:
+          en: "update"
+        unchanged:
+          en: "unchanged"
+        delete:
+          en: "delete"
+
+      table:
+        header:
+          target:
+            en: "TARGET"
+          action:
+            en: "ACTION"
+          ignore:
+            en: "ignore"
+          include:
+            en: "include"
+          notes:
+            en: "notes"
+        value:
+          none:
+            en: "-"
+
+      notes:
+        claude_added:
+          en: "+%{count} Read()"
+        warn_count:
+          en: "warn=%{count}"
+
+      warnings_title:
+        en: "Warnings:"
+
+      notes_title:
+        en: "Notes:"
+
+      truncated_lines:
+        en: "... (%{count} more line(s); use -v for full output)"
+
+      truncated_items:
+        en: "... (%{count} more item(s); use -v for full output)"
+
+      delete_title:
+        en: "=== Delete: %{path} ==="
+
+    interactive:
+      select_targets:
+        en: "Select outputs to sync:"
+
+      exists:
+        en: "exists"
+
+      missing:
+        en: "missing"
+
+      confirm_delete:
+        en: "You deselected %{path}. Delete it?"
+
+      confirm_apply:
+        en: "Apply changes?"
+
+    warn:
+      include_not_supported_in_claude:
+        en: "Claude Code deny rules do not support include (!pattern); skipped %{count} include pattern(s)."
+      claude_jsonc_patch_fallback:
+        en: "Could not patch JSONC in-place for %{path}; overwriting with pretty JSON (comments may be lost)."
+
+    note:
+      no_sources:
+        en: "No source ignore files found."
+
+      claude_skip_non_read:
+        en: "Claude deny rule skipped (only Read(...) is supported): %{rule}"
+
+      claude_missing_permissions:
+        en: "Note: Claude settings has no 'permissions' object; one will be created if applying."
+
+    error:
+      no_git_repo:
+        en: "No git repository detected; re-run with --force to use the current directory as root."
+      unsupported_json_input:
+        en: "Unsupported JSON input: %{path} (only .claude/settings*.json is supported)."
+      gitignore_not_supported:
+        en: "This tool does not process .gitignore (it is already respected by most tools): %{path}"
+
+      read_failed:
+        en: "Failed to read %{path}"
+
+      parse_claude_failed:
+        en: "Failed to parse Claude Code settings (JSON/JSONC)."
+
+      serialize_failed:
+        en: "Failed to serialize updated settings."
+
+      create_dir_failed:
+        en: "Failed to create directory: %{path}"
+
+      write_failed:
+        en: "Failed to write %{path}"
+
+      delete_failed:
+        en: "Failed to delete %{path}"
+
   config:
     not_found:
       en: "Configuration file not found: %{path}"

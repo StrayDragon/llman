@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -17,6 +17,9 @@ pub enum ToolCommands {
     /// Deprecated: use rm-useless-dirs instead
     #[command(hide = true)]
     RmEmptyDirs(RmUselessDirsArgs),
+    /// Sync ignore rules across OpenCode/Cursor/Claude Code
+    #[command(alias = "si")]
+    SyncIgnore(SyncIgnoreArgs),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -77,4 +80,48 @@ pub struct RmUselessDirsArgs {
     /// Verbose output
     #[arg(long, short = 'v')]
     pub verbose: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum SyncIgnoreTarget {
+    /// Project root `.ignore` (OpenCode / ripgrep)
+    Opencode,
+    /// Project root `.cursorignore`
+    Cursor,
+    /// `.claude/settings.json`
+    ClaudeShared,
+    /// `.claude/settings.local.json`
+    ClaudeLocal,
+    /// All supported targets
+    All,
+}
+
+#[derive(Parser, Debug, Clone)]
+#[command(
+    after_help = "Examples:\n  llman tool sync-ignore\n  llman tool sync-ignore -y\n  llman tool sync-ignore --target cursor --target claude-shared -y\n  llman tool sync-ignore --interactive\n"
+)]
+pub struct SyncIgnoreArgs {
+    /// Apply changes (default: dry-run preview)
+    #[arg(short = 'y', long, action = clap::ArgAction::SetTrue)]
+    pub yes: bool,
+
+    /// Interactive mode (MultiSelect targets + preview + confirm)
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub interactive: bool,
+
+    /// Force execution even when no git repository is found
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub force: bool,
+
+    /// Verbose output
+    #[arg(long, short = 'v', action = clap::ArgAction::SetTrue)]
+    pub verbose: bool,
+
+    /// Output target(s) to sync (repeatable, or comma-separated)
+    #[arg(long, short = 't', value_enum, value_delimiter = ',')]
+    pub target: Vec<SyncIgnoreTarget>,
+
+    /// Additional input file path(s) to include as sources (repeatable)
+    #[arg(long, short = 'i')]
+    pub input: Vec<PathBuf>,
 }
