@@ -32,6 +32,7 @@ Cargo equivalents use `cargo +nightly ...`.
 ## Testing Guidelines
 - Add unit tests near the code when possible, and integration tests under `tests/`.
 - Name new integration test files `*_tests.rs` and keep test names descriptive.
+- Interactive CLI flows (e.g. `inquire` prompts) do not require automated tests; test the core, non-interactive logic instead.
 - Use `LLMAN_CONFIG_DIR=./artifacts/testing_config_home` to avoid touching real user config.
 - Avoid workspace pollution: tests that may create files/dirs MUST use `tempfile::TempDir` (or `TestEnvironment`) and write only inside it so everything is auto-cleaned.
 - Avoid parallel test collisions: don’t use fixed relative paths/identifiers in the repo root (e.g. `config`, `config.yaml`); prefer unique temp paths and guard env/cwd changes with `crate::test_utils::TestProcess`.
