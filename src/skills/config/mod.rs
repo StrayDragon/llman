@@ -263,14 +263,6 @@ fn default_targets_with(
             enabled: true,
             mode: codex_repo_mode,
         },
-        ConfigEntry {
-            id: "agent_global".to_string(),
-            agent: "agent".to_string(),
-            scope: "global".to_string(),
-            path: default_agent_global_dir_with(home_dir)?,
-            enabled: true,
-            mode: TargetMode::Link,
-        },
     ])
 }
 
@@ -293,10 +285,6 @@ fn default_codex_user_dir_with(
     }
 
     expand_path_with("~/.codex/skills", home_dir, |_key| None)
-}
-
-fn default_agent_global_dir_with(home_dir: Option<&Path>) -> Result<PathBuf> {
-    expand_path_with("~/.skills", home_dir, |_key| None)
 }
 
 fn default_repo_scope_dir(cwd: &Path, relative: &str) -> (PathBuf, TargetMode) {

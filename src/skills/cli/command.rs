@@ -446,15 +446,6 @@ fn select_target(config: &SkillsConfig) -> Result<Option<ConfigEntry>> {
             continue;
         }
 
-        if agent == "agent" && scope_choices.len() == 1 {
-            let target = scope_choices[0].target.clone();
-            if target.mode == TargetMode::Skip {
-                println!("{}", t!("skills.manager.read_only"));
-                continue;
-            }
-            return Ok(Some(target));
-        }
-
         let mut choices: Vec<ScopeSelection> = scope_choices
             .into_iter()
             .map(|choice| ScopeSelection::Scope { choice })
@@ -554,10 +545,7 @@ fn scopes_for_agent(config: &SkillsConfig, agent: &str) -> Vec<ScopeChoice> {
 }
 
 fn display_agent_label(agent: &str) -> String {
-    match agent {
-        "agent" => "_agentskills_".to_string(),
-        other => other.to_string(),
-    }
+    agent.to_string()
 }
 
 fn display_scope_label(agent: &str, scope: &str) -> String {
@@ -566,7 +554,6 @@ fn display_scope_label(agent: &str, scope: &str) -> String {
         ("claude", "project") => "Project (This project only)".to_string(),
         ("codex", "user") => "User (All your projects)".to_string(),
         ("codex", "repo") => "Repo (This project only)".to_string(),
-        ("agent", "global") => "Global".to_string(),
         _ => scope.to_string(),
     }
 }
@@ -575,8 +562,7 @@ fn agent_order(agent: &str) -> u8 {
     match agent {
         "claude" => 0,
         "codex" => 1,
-        "agent" => 2,
-        _ => 3,
+        _ => 2,
     }
 }
 
@@ -586,7 +572,6 @@ fn scope_order(agent: &str, scope: &str) -> u8 {
         ("claude", "project") => 1,
         ("codex", "user") => 0,
         ("codex", "repo") => 1,
-        ("agent", "global") => 0,
         _ => 10,
     }
 }
@@ -1092,20 +1077,12 @@ mod tests {
                     enabled: true,
                     mode: TargetMode::Link,
                 },
-                ConfigEntry {
-                    id: "agent_global".to_string(),
-                    agent: "agent".to_string(),
-                    scope: "global".to_string(),
-                    path: PathBuf::from("/tmp/agent-global"),
-                    enabled: true,
-                    mode: TargetMode::Link,
-                },
             ],
         };
 
         let agents = selectable_agents(&config);
         let labels: Vec<String> = agents.iter().map(|choice| choice.label.clone()).collect();
-        assert_eq!(labels, vec!["claude", "codex", "_agentskills_"]);
+        assert_eq!(labels, vec!["claude", "codex"]);
     }
 
     #[test]
@@ -1126,7 +1103,6 @@ mod tests {
             display_scope_label("codex", "repo"),
             "Repo (This project only)"
         );
-        assert_eq!(display_scope_label("agent", "global"), "Global");
     }
 
     #[test]

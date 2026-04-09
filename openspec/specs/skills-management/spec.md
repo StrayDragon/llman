@@ -68,6 +68,7 @@
 - **THEN** skill_id 为 `slint-gui-expert`
 
 ### Requirement: 可配置目标并提供默认值
+
 技能管理器 MUST 解析 skills 根目录，优先级如下：
 1) CLI `--skills-dir`
 2) 环境变量 `LLMAN_SKILLS_DIR`
@@ -81,7 +82,6 @@
 默认 targets MUST 同时覆盖个人范围与项目范围：
 - Claude：`user` 与 `project`
 - Codex：`user` 与 `repo`
-- Agent Skills：`global`
 
 项目范围目标路径 MUST 基于 git 根目录解析：
 - Claude project: `<repo_root>/.claude/skills`
@@ -93,7 +93,7 @@ Codex user 目标路径 MUST 优先使用 `.agents/skills` 体系，并兼容已
 
 #### Scenario: 缺省配置时使用默认目标
 - **WHEN** `<skills_root>/config.toml` 不存在
-- **THEN** 管理器使用默认 targets（claude user/project、codex user/repo、agent global）
+- **THEN** 管理器使用默认 targets（claude user/project、codex user/repo）
 
 #### Scenario: 仓库内启用项目目标
 - **WHEN** 当前目录位于 git 仓库内且配置文件缺失
@@ -127,29 +127,7 @@ Codex user 目标路径 MUST 优先使用 `.agents/skills` 体系，并兼容已
 - **WHEN** 当前目录存在 `.llman/config.yaml` 且其中设置 `skills.dir`
 - **THEN** 管理器忽略本地配置并继续使用全局配置或默认值
 
-#### Scenario: 缺省回退到默认路径
-- **WHEN** CLI/ENV/config 均未提供 skills 根目录
-- **THEN** 管理器使用 `LLMAN_CONFIG_DIR/skills` 作为 skills 根目录
-
-#### Scenario: 不支持的配置版本
-- **WHEN** `config.toml` 中 `version` 不是 2
-- **THEN** 命令返回错误并提示迁移到 v2
-
-#### Scenario: source 配置被拒绝
-- **WHEN** `config.toml` 中包含 `[[source]]`
-- **THEN** 命令返回错误并提示仅支持 targets-only 的 v2 配置
-
-#### Scenario: 目标 mode 缺省为 link
-- **WHEN** target 配置缺失 `mode`
-- **THEN** 该目标使用 `link` 模式
-
-#### Scenario: 目标 mode=skip 被跳过
-- **WHEN** target 配置为 `mode = "skip"`
-- **THEN** 管理器不同步该目标且在交互式管理器中以只读状态展示
-
-#### Scenario: 不支持的目标 mode
-- **WHEN** target 配置包含 `mode = "copy"` 或其他未知值
-- **THEN** 命令返回错误并提示仅支持 `link/skip`
+---
 
 ### Requirement: 单一来源扫描
 技能管理器 MUST 以 `<skills_root>` 作为唯一来源扫描技能目录；来源路径不可配置。
@@ -184,9 +162,10 @@ Skills 模块重构 MUST 保持技能发现、目标链接、冲突处理与 CLI
 - **THEN** 命令整体 abort 且不应用任何变更，并以成功状态退出
 
 ### Requirement: 交互菜单必须展示 agent 与 scope 语义
+
 交互菜单 MUST 展示与工具语义一致的文案，而不是直接暴露内部 target id。
 
-- Agent 菜单必须包含：`claude`、`codex`、`_agentskills_`、`Exit`
+- Agent 菜单必须包含：`claude`、`codex`、`Exit`
 - Claude scope 菜单必须包含：`Personal (All your projects)`、`Project (This project only)`、`Exit`
 - Codex scope 菜单必须包含：`User (All your projects)`、`Repo (This project only)`、`Exit`
 
@@ -197,10 +176,6 @@ Skills 模块重构 MUST 保持技能发现、目标链接、冲突处理与 CLI
 #### Scenario: Codex scope 文案
 - **WHEN** 用户选择 `codex`
 - **THEN** scope 菜单展示 `User (All your projects)` 与 `Repo (This project only)`
-
-#### Scenario: Agent skills 文案
-- **WHEN** 用户选择 `_agentskills_`
-- **THEN** 管理器直接进入其可用目标（global）并继续技能多选
 
 ### Requirement: 项目范围菜单应隐藏用户范围已管理技能
 当用户在 `project/repo` scope 下管理技能时，技能列表 SHOULD 隐藏“仅由同 agent 的 `user` scope 链接且当前 scope 未链接”的技能，减少重复噪音；若某技能已在当前 scope 链接，则即使也存在于 user scope，仍 MUST 展示。
