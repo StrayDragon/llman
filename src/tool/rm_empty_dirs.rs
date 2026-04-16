@@ -651,12 +651,15 @@ fn resolve_gitignore_path(target: &Path, args: &RmUselessDirsArgs) -> Result<Opt
         return Ok(Some(path.clone()));
     }
 
-    let default_path = target.join(".gitignore");
-    if default_path.is_file() {
-        Ok(Some(default_path))
-    } else {
-        Ok(None)
+    if let Some(repo_root) = find_git_repo_root(target) {
+        let repo_gitignore = repo_root.join(".gitignore");
+        if repo_gitignore.is_file() {
+            return Ok(Some(repo_gitignore));
+        }
     }
+
+    let default_path = target.join(".gitignore");
+    Ok(default_path.is_file().then_some(default_path))
 }
 
 fn load_gitignore(path: &Path) -> Result<Gitignore> {
@@ -672,4 +675,11 @@ fn load_gitignore(path: &Path) -> Result<Gitignore> {
         );
     }
     Ok(gitignore)
+}
+
+fn find_git_repo_root(target: &Path) -> Option<PathBuf> {
+    target
+        .ancestors()
+        .find(|candidate| candidate.join(".git").exists())
+        .map(Path::to_path_buf)
 }

@@ -69,7 +69,7 @@ pub struct RmUselessDirsArgs {
     #[arg(short = 'y', long)]
     pub yes: bool,
 
-    /// Path to a .gitignore file to honor (default: ./.gitignore)
+    /// Path to a .gitignore file to honor (default: repo root .gitignore, else <target>/.gitignore)
     #[arg(long)]
     pub gitignore: Option<PathBuf>,
 

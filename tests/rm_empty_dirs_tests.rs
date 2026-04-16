@@ -330,3 +330,159 @@ fn test_rm_useless_dirs_skips_targets_in_protected_subtree() {
 
     assert!(root.join("some/.git/objects/pack").exists());
 }
+
+#[test]
+fn test_rm_useless_dirs_prune_ignored_python_module_rename_cleanup() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let root = temp_dir.path();
+
+    fs::create_dir_all(root.join(".git")).expect("Failed to create .git dir");
+    fs::write(root.join(".gitignore"), "__pycache__/\n*.py[cod]\n")
+        .expect("Failed to create .gitignore");
+
+    fs::create_dir_all(root.join("src/new_pkg")).expect("Failed to create src/new_pkg");
+    fs::write(root.join("src/new_pkg/__init__.py"), "from .api import x\n")
+        .expect("Failed to create __init__.py");
+
+    fs::create_dir_all(root.join("src/old_pkg/__pycache__"))
+        .expect("Failed to create src/old_pkg/__pycache__");
+    fs::write(
+        root.join("src/old_pkg/__pycache__/old_pkg.cpython-313.pyc"),
+        "pyc",
+    )
+    .expect("Failed to create ignored pyc");
+    fs::write(root.join("src/old_pkg/orphan.pyc"), "pyc").expect("Failed to create orphan.pyc");
+
+    let live_args = RmUselessDirsArgs {
+        config: None,
+        path: Some(root.join("src")),
+        yes: true,
+        gitignore: None,
+        prune_ignored: true,
+        verbose: false,
+    };
+
+    run(&live_args).expect("Live run failed");
+
+    assert!(!root.join("src/old_pkg").exists());
+    assert!(root.join("src/new_pkg").exists());
+    assert!(root.join("src/new_pkg/__init__.py").exists());
+    assert!(root.join("src").exists());
+}
+
+#[test]
+fn test_rm_useless_dirs_prunes_parent_dir_with_only_pycache() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let root = temp_dir.path();
+
+    fs::create_dir_all(root.join("src/pkg_only_cache/__pycache__"))
+        .expect("Failed to create src/pkg_only_cache/__pycache__");
+    fs::write(
+        root.join("src/pkg_only_cache/__pycache__/pkg.cpython-313.pyc"),
+        "pyc",
+    )
+    .expect("Failed to create ignored pyc");
+
+    fs::create_dir_all(root.join("src/pkg_keep/__pycache__"))
+        .expect("Failed to create src/pkg_keep/__pycache__");
+    fs::write(root.join("src/pkg_keep/__init__.py"), "# pkg").expect("Failed to create __init__");
+    fs::write(
+        root.join("src/pkg_keep/__pycache__/pkg_keep.cpython-313.pyc"),
+        "pyc",
+    )
+    .expect("Failed to create pyc");
+
+    let live_args = RmUselessDirsArgs {
+        config: None,
+        path: Some(root.join("src")),
+        yes: true,
+        gitignore: None,
+        prune_ignored: false,
+        verbose: false,
+    };
+
+    run(&live_args).expect("Live run failed");
+
+    assert!(!root.join("src/pkg_only_cache").exists());
+    assert!(root.join("src/pkg_keep").exists());
+    assert!(root.join("src/pkg_keep/__init__.py").exists());
+}
+
+#[test]
+fn test_rm_useless_dirs_prunes_parent_dirs_with_only_other_useless_caches() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let root = temp_dir.path();
+
+    let cases = [
+        ("pytest_cache", ".pytest_cache"),
+        ("mypy_cache", ".mypy_cache"),
+        ("ruff_cache", ".ruff_cache"),
+        ("basedpyright", ".basedpyright"),
+        ("pytype", ".pytype"),
+        ("pyre", ".pyre"),
+        ("ty", ".ty"),
+        ("ty_cache", ".ty_cache"),
+        ("ty_cache_dash", ".ty-cache"),
+    ];
+
+    for (token, useless_dir) in cases {
+        fs::create_dir_all(
+            root.join("src")
+                .join(format!("pkg_only_{token}"))
+                .join(useless_dir),
+        )
+        .expect("Failed to create useless-only package dir");
+        fs::write(
+            root.join("src")
+                .join(format!("pkg_only_{token}"))
+                .join(useless_dir)
+                .join("data"),
+            "data",
+        )
+        .expect("Failed to create data file");
+
+        fs::create_dir_all(
+            root.join("src")
+                .join(format!("pkg_keep_{token}"))
+                .join(useless_dir),
+        )
+        .expect("Failed to create keep package dir");
+        fs::write(
+            root.join("src")
+                .join(format!("pkg_keep_{token}"))
+                .join("__init__.py"),
+            "# pkg",
+        )
+        .expect("Failed to create __init__.py");
+        fs::write(
+            root.join("src")
+                .join(format!("pkg_keep_{token}"))
+                .join(useless_dir)
+                .join("data"),
+            "data",
+        )
+        .expect("Failed to create data file");
+    }
+
+    let live_args = RmUselessDirsArgs {
+        config: None,
+        path: Some(root.join("src")),
+        yes: true,
+        gitignore: None,
+        prune_ignored: false,
+        verbose: false,
+    };
+
+    run(&live_args).expect("Live run failed");
+
+    for (token, _) in cases {
+        assert!(!root.join("src").join(format!("pkg_only_{token}")).exists());
+        assert!(root.join("src").join(format!("pkg_keep_{token}")).exists());
+        assert!(
+            root.join("src")
+                .join(format!("pkg_keep_{token}"))
+                .join("__init__.py")
+                .exists()
+        );
+    }
+}
