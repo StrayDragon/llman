@@ -65,11 +65,20 @@ The tool MUST NOT accept legacy config keys for this tool. If legacy keys such a
 - **WHEN** config contains `tools.rm-empty-dirs`
 - **THEN** loading fails and reports the legacy key as unsupported.
 
-### Requirement: 默认 gitignore 必须相对扫描目标解析
-当提供扫描目标路径时，工具 MUST 将默认 `.gitignore` 解析为 `<target>/.gitignore`（当其存在且为文件）。工具 MUST NOT 对其它 target 隐式使用当前工作目录的 `.gitignore`。
+### Requirement: 默认 gitignore 必须相对扫描仓库/目标解析
+当用户未传 `--gitignore` 时，工具 MUST 按以下优先级解析默认 `.gitignore`：
+1) 若扫描目标位于 Git 仓库内，且 `<repo_root>/.gitignore` 存在且为文件，则工具使用它。
+2) 否则若 `<target>/.gitignore` 存在且为文件，则工具使用它。
+3) 否则工具不启用 gitignore 匹配。
+
+工具 MUST NOT 对其它 target 隐式使用当前工作目录的 `.gitignore`（即：解析基于扫描目标所属仓库或扫描目标自身，而非调用者 CWD）。
 
 #### Scenario: 非 CWD target 使用自己的 gitignore
 - **WHEN** 用户运行 `llman tool rm-useless-dirs /tmp/project` 且未传 `--gitignore`
+- **THEN** 若 `/tmp/project/.gitignore` 存在，则工具使用它
+
+#### Scenario: 扫描子目录时使用仓库根 gitignore
+- **WHEN** 用户运行 `llman tool rm-useless-dirs /tmp/project/src` 且未传 `--gitignore`，并且 `/tmp/project/.git` 存在
 - **THEN** 若 `/tmp/project/.gitignore` 存在，则工具使用它
 
 ### Requirement: protected 名称在整棵路径树中生效
