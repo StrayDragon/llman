@@ -1,7 +1,7 @@
 use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
-use crate::sdd::project::{init, interop, update, update_skills};
+use crate::sdd::project::{init, interop};
 use crate::sdd::shared::{list, show, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -130,30 +130,16 @@ pub enum SddDeltaCommands {
 
 #[derive(Subcommand)]
 pub enum SddCommands {
-    /// Initialize llmanspec in your project
+    /// Initialize llmanspec in your project (use --update to refresh existing)
     Init {
         /// Target path (default: current directory)
         path: Option<PathBuf>,
         /// Locale for templates (default: en)
         #[arg(long)]
         lang: Option<String>,
-    },
-    /// Update llmanspec instruction files
-    Update {
-        /// Target path (default: current directory)
-        path: Option<PathBuf>,
-    },
-    /// Generate or update llman sdd skills
-    UpdateSkills {
-        /// Disable interactive prompts
+        /// Update existing llmanspec instead of creating new
         #[arg(long)]
-        no_interactive: bool,
-        /// Generate only llman sdd workflow commands for Claude (no skills)
-        #[arg(long, conflicts_with = "skills_only")]
-        commands_only: bool,
-        /// Generate only skills (no llman sdd workflow commands)
-        #[arg(long, conflicts_with = "commands_only")]
-        skills_only: bool,
+        update: bool,
     },
     /// List changes or specs
     List {
@@ -316,22 +302,11 @@ pub enum ArchiveSubcommand {
 
 pub fn run(args: &SddArgs) -> Result<()> {
     match &args.command {
-        SddCommands::Init { path, lang } => init::run(
+        SddCommands::Init { path, lang, update } => init::run(
             path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
             lang.as_deref(),
+            *update,
         ),
-        SddCommands::Update { path } => {
-            update::run(path.as_deref().unwrap_or_else(|| std::path::Path::new(".")))
-        }
-        SddCommands::UpdateSkills {
-            no_interactive,
-            commands_only,
-            skills_only,
-        } => update_skills::run(update_skills::UpdateSkillsArgs {
-            no_interactive: *no_interactive,
-            commands_only: *commands_only,
-            skills_only: *skills_only,
-        }),
         SddCommands::List {
             specs,
             changes,

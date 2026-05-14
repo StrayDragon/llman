@@ -4,5 +4,4 @@ pub mod init;
 pub mod interop;
 pub mod regions;
 pub mod templates;
-pub mod update;
 pub mod update_skills;

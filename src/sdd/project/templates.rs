@@ -28,19 +28,6 @@ const SKILL_FILES: &[&str] = &[
     "llman-sdd-specs-compact.md",
 ];
 
-const LLMAN_SDD_COMMAND_SKILLS: &[(&str, &str)] = &[
-    ("explore", "llman-sdd-explore.md"),
-    ("onboard", "llman-sdd-onboard.md"),
-    ("propose", "llman-sdd-propose.md"),
-    ("new", "llman-sdd-new-change.md"),
-    ("continue", "llman-sdd-continue.md"),
-    ("ff", "llman-sdd-ff.md"),
-    ("apply", "llman-sdd-apply.md"),
-    ("verify", "llman-sdd-verify.md"),
-    ("sync", "llman-sdd-sync.md"),
-    ("archive", "llman-sdd-archive.md"),
-];
-
 const UNIT_FILES: &[&str] = &[
     "skills/sdd-commands.md",
     "skills/validation-hints.md",
@@ -73,23 +60,6 @@ pub fn skill_templates(config: &SddConfig, root: &Path) -> Result<Vec<SkillTempl
         files.push(SkillTemplate { name, content });
     }
     Ok(files)
-}
-
-pub struct WorkflowCommandTemplate {
-    pub id: &'static str,
-    pub content: String,
-}
-
-pub fn workflow_command_templates(
-    config: &SddConfig,
-    root: &Path,
-) -> Result<Vec<WorkflowCommandTemplate>> {
-    let mut templates = Vec::new();
-    for &(id, skill_file) in LLMAN_SDD_COMMAND_SKILLS {
-        let content = load_template(config, root, &format!("skills/{skill_file}"))?;
-        templates.push(WorkflowCommandTemplate { id, content });
-    }
-    Ok(templates)
 }
 
 pub fn root_stub_content(config: &SddConfig, root: &Path) -> Result<String> {
