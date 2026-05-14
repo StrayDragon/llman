@@ -12,6 +12,46 @@ use std::path::{Path, PathBuf};
 
 const EXPECTED_SCHEMA: &str = "spec-driven";
 
+const DEFAULT_CONFIG_EN: &str = r#"schema: spec-driven
+locale: en
+
+# Project context (optional)
+# Tech stack, conventions, constraints. Shown to AI during artifact creation.
+# context: |
+#   Tech stack: TypeScript, React, Node.js
+#   We use conventional commits
+#   Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Map of artifact_id -> string[].
+# rules:
+#   proposal:
+#     - Keep proposals under 500 words
+#     - Always include a "Non-goals" section
+#   tasks:
+#     - Break tasks into chunks of max 2 hours
+"#;
+
+const DEFAULT_CONFIG_ZH_HANS: &str = r#"schema: spec-driven
+locale: zh-Hans
+
+# 项目上下文（可选）
+# 技术栈、约定、约束等。在 AI 创建 artifact 时会展示。
+# context: |
+#   Tech stack: TypeScript, React, Node.js
+#   We use conventional commits
+#   Domain: e-commerce platform
+
+# 按 artifact 的规则（可选）
+# artifact_id -> string[] 的映射。
+# rules:
+#   proposal:
+#     - 提案保持在 500 字以内
+#     - 必须包含"非目标"章节
+#   tasks:
+#     - 每个任务不超过 2 小时
+"#;
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[schemars(description = "SDD project configuration for llmanspec.")]
 pub struct SddConfig {
@@ -124,12 +164,26 @@ pub fn load_required_config(llmanspec_dir: &Path) -> Result<SddConfig> {
     })
 }
 
+pub fn write_default_config(llmanspec_dir: &Path, locale: &str) -> Result<()> {
+    let path = config_path(llmanspec_dir);
+    let raw = match normalize_locale(locale).as_str() {
+        "zh-Hans" => DEFAULT_CONFIG_ZH_HANS,
+        _ => DEFAULT_CONFIG_EN,
+    };
+    let content = prepend_schema_header(raw, LLMANSPEC_SCHEMA_URL);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    atomic_write_with_mode(&path, content.as_bytes(), None)?;
+    Ok(())
+}
+
 pub fn load_or_create_config(llmanspec_dir: &Path) -> Result<SddConfig> {
     match load_config(llmanspec_dir)? {
         Some(config) => Ok(config),
         None => {
             let config = SddConfig::default();
-            write_config(llmanspec_dir, &config)?;
+            write_default_config(llmanspec_dir, &config.locale)?;
             Ok(config)
         }
     }
@@ -247,5 +301,77 @@ mod tests {
         assert_eq!(config.locale, "en");
         assert!(config.context.is_none());
         assert!(config.rules.is_none());
+    }
+
+    #[test]
+    fn write_default_config_writes_en_template() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        write_default_config(llmanspec_dir, "en").expect("write default config");
+        let path = config_path(llmanspec_dir);
+        assert!(path.exists());
+        let content = fs::read_to_string(&path).expect("read config");
+        assert!(
+            content.contains("yaml-language-server"),
+            "should have schema header"
+        );
+        assert!(content.contains("schema: spec-driven"));
+        assert!(content.contains("locale: en"));
+        assert!(
+            content.contains("# context:"),
+            "en template should have context comment"
+        );
+        assert!(
+            content.contains("# rules:"),
+            "en template should have rules comment"
+        );
+    }
+
+    #[test]
+    fn write_default_config_writes_zh_hans_template() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        write_default_config(llmanspec_dir, "zh-Hans").expect("write default config");
+        let path = config_path(llmanspec_dir);
+        assert!(path.exists());
+        let content = fs::read_to_string(&path).expect("read config");
+        assert!(content.contains("yaml-language-server"));
+        assert!(content.contains("schema: spec-driven"));
+        assert!(content.contains("locale: zh-Hans"));
+        assert!(
+            content.contains("# context:"),
+            "zh-Hans template should have context comment"
+        );
+    }
+
+    #[test]
+    fn write_default_config_round_trip_parses_correctly() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        write_default_config(llmanspec_dir, "en").expect("write default config");
+        let config = load_config(llmanspec_dir)
+            .expect("load should succeed")
+            .expect("config should exist");
+        assert_eq!(config.schema, "spec-driven");
+        assert_eq!(config.locale, "en");
+        // Comments are stripped by serde; context/rules default to None
+        assert!(config.context.is_none());
+        assert!(config.rules.is_none());
+    }
+
+    #[test]
+    fn write_config_still_outputs_compact_yaml() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        let config = SddConfig::default();
+        write_config(llmanspec_dir, &config).expect("write config");
+        let path = config_path(llmanspec_dir);
+        let content = fs::read_to_string(&path).expect("read config");
+        // write_config uses serde — no comments, just compact YAML
+        assert!(
+            !content.contains("# Project context"),
+            "serde output should not have comments"
+        );
+        assert!(content.contains("schema: spec-driven"));
     }
 }

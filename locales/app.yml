@@ -1644,34 +1644,6 @@ sdd:
   update_skills:
     no_llmanspec:
       en: "No llmanspec directory found. Run '%{cmd}' first."
-    tools_required:
-      en: "Specify --all or --tool in non-interactive mode."
-    select_tools:
-      en: "Select tools to generate skills for:"
-    no_tools_selected:
-      en: "No tools selected."
-    invalid_tool:
-      en: "Invalid tool: %{tool}"
-    prompt_path:
-      en: "Output path for %{tool} skills:"
-    multi_tool_path_conflict:
-      en: "Cannot use --path when generating multiple tools. Run per tool (e.g. --tool claude --path ...) or omit --path."
-    commands_only_requires_claude:
-      en: "No selected tool supports llman sdd workflow commands. Use --tool claude for commands, or switch to --skills-only for Codex."
-    legacy_requires_interactive:
-      en: "Legacy OpenSpec command bindings detected. Re-run without --no-interactive to migrate to /llman-sdd:*."
-    legacy_detected:
-      en: "Legacy OpenSpec command bindings detected (will be removed and replaced by /llman-sdd:*):\n- %{paths}"
-    legacy_confirm:
-      en: "Migrate now and remove the legacy bindings?"
-    legacy_aborted:
-      en: "Migration canceled."
-    legacy_confirm_phrase:
-      en: "MIGRATE"
-    legacy_confirm_prompt:
-      en: "Type %{phrase} to confirm migration:"
-    legacy_phrase_mismatch:
-      en: "Confirmation phrase mismatch. Migration canceled."
     missing_workflow_command_template:
       en: "Missing llman sdd workflow command template for %{id}."
 

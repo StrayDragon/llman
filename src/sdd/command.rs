@@ -145,15 +145,6 @@ pub enum SddCommands {
     },
     /// Generate or update llman sdd skills
     UpdateSkills {
-        /// Generate skills for all tools (llman sdd workflow commands only for Claude)
-        #[arg(long)]
-        all: bool,
-        /// Tool to generate skills for: claude,codex (repeatable; workflow commands only for claude)
-        #[arg(long, value_delimiter = ',')]
-        tool: Vec<String>,
-        /// Override output path for generated skills
-        #[arg(long)]
-        path: Option<PathBuf>,
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
@@ -333,16 +324,10 @@ pub fn run(args: &SddArgs) -> Result<()> {
             update::run(path.as_deref().unwrap_or_else(|| std::path::Path::new(".")))
         }
         SddCommands::UpdateSkills {
-            all,
-            tool,
-            path,
             no_interactive,
             commands_only,
             skills_only,
         } => update_skills::run(update_skills::UpdateSkillsArgs {
-            all: *all,
-            tool: tool.clone(),
-            path: path.clone(),
             no_interactive: *no_interactive,
             commands_only: *commands_only,
             skills_only: *skills_only,

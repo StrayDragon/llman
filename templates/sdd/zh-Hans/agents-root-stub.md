@@ -1,14 +1,7 @@
 # LLMAN 规范驱动开发
 
-本仓库使用 llman SDD，项目上下文和规则在 `llmanspec/config.yaml`。
+本项目使用 llman SDD。阅读 `llmanspec/config.yaml` 了解项目上下文与规则。
 
-常用命令:
-- `llman sdd list`
-- `llman sdd show <item>`
-- `llman sdd validate <id> --strict --no-interactive`
-- `llman sdd archive <id>`
-- `llman sdd update-skills --all`
-
-Spec 格式: TOON (```toon 代码块)。
+使用 `/llman-sdd-onboard` 开始，然后使用 `/llman-sdd-*` 技能进行工作流。
 
 保留此托管块，便于 `llman sdd update` 刷新。

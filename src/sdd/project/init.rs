@@ -1,6 +1,7 @@
-use super::config::{SddConfig, config_with_locale, write_config};
+use super::config::{SddConfig, config_with_locale, write_default_config};
 use super::fs_utils::update_file_with_markers;
 use super::templates::root_stub_content;
+use super::update_skills::{self, UpdateSkillsArgs};
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS};
 use anyhow::{Result, anyhow};
 use std::fs;
@@ -16,8 +17,16 @@ pub fn run(target: &Path, locale: Option<&str>) -> Result<()> {
 
     create_structure(&llmanspec_path)?;
     let config = config_with_locale(locale);
-    write_config(&llmanspec_path, &config)?;
+    write_default_config(&llmanspec_path, &config.locale)?;
     write_root_agents_file(target, &config)?;
+    update_skills::run_with_root(
+        target,
+        UpdateSkillsArgs {
+            no_interactive: true,
+            commands_only: false,
+            skills_only: false,
+        },
+    )?;
 
     Ok(())
 }
