@@ -35,3 +35,9 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
+      - id: schema-generate
+        name: llman schema generate
+        entry: bash -c 'LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo run -- self schema generate && git add artifacts/schema/'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
