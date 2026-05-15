@@ -18,10 +18,6 @@ path = "src/main.rs"
 name = "llman"
 path = "src/lib.rs"
 
-[features]
-# Keep `agents-ai` as a behavior flag for `llman agents new --ai` only.
-agents-ai = []
-
 [dependencies]
 anyhow = "1.0.102"
 adk-core = "0.3.2"
@@ -51,7 +47,7 @@ chrono = { version = "0.4.44", features = ["serde"] }
 glob = "0.3.3"
 ignore = "0.4.25"
 futures = "0.3.32"
-tokio = { version = "1.49.0", features = ["rt-multi-thread", "time"] }
+tokio = { version = "1.49.0", features = ["rt-multi-thread", "time", "process"] }
 tokio-util = { version = "0.7.18", features = ["compat"] }
 reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "json", "rustls"] }
 tempfile = "3.26.0"

@@ -1,7 +1,7 @@
 use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
-use crate::sdd::project::{init, interop};
+use crate::sdd::project::init;
 use crate::sdd::shared::{list, show, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -239,22 +239,6 @@ pub enum SddCommands {
         #[command(subcommand)]
         command: Option<ArchiveSubcommand>,
     },
-    /// Import spec workflow content from external style
-    Import {
-        /// Source/target style (currently only: openspec)
-        #[arg(long)]
-        style: String,
-        /// Project root path (default: current directory)
-        path: Option<PathBuf>,
-    },
-    /// Export spec workflow content to external style
-    Export {
-        /// Source/target style (currently only: openspec)
-        #[arg(long)]
-        style: String,
-        /// Project root path (default: current directory)
-        path: Option<PathBuf>,
-    },
     /// Spec authoring helpers
     Spec(SddSpecArgs),
     /// Delta authoring helpers
@@ -404,14 +388,6 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 force: *force,
             }),
         },
-        SddCommands::Import { style, path } => interop::run_import(interop::InteropArgs {
-            style: style.clone(),
-            path: path.clone(),
-        }),
-        SddCommands::Export { style, path } => interop::run_export(interop::InteropArgs {
-            style: style.clone(),
-            path: path.clone(),
-        }),
         SddCommands::Spec(args) => match &args.command {
             SddSpecCommands::Skeleton { capability, force } => authoring::spec::run_skeleton(
                 std::path::Path::new("."),
