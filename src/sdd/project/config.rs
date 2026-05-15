@@ -12,6 +12,16 @@ use std::path::{Path, PathBuf};
 
 const EXPECTED_SCHEMA: &str = "spec-driven";
 
+pub(crate) const OPTIONAL_SKILL_NAMES: &[&str] = &[
+    "llman-sdd-new-change",
+    "llman-sdd-continue",
+    "llman-sdd-ff",
+    "llman-sdd-show",
+    "llman-sdd-sync",
+    "llman-sdd-validate",
+    "llman-sdd-verify",
+];
+
 const DEFAULT_CONFIG_EN: &str = r#"schema: spec-driven
 locale: en
 
@@ -30,6 +40,16 @@ locale: en
 #     - Always include a "Non-goals" section
 #   tasks:
 #     - Break tasks into chunks of max 2 hours
+
+# Optional extra skills (disabled by default, uncomment to enable)
+# extra_skills:
+#   - llman-sdd-new-change
+#   - llman-sdd-continue
+#   - llman-sdd-ff
+#   - llman-sdd-show
+#   - llman-sdd-sync
+#   - llman-sdd-validate
+#   - llman-sdd-verify
 "#;
 
 const DEFAULT_CONFIG_ZH_HANS: &str = r#"schema: spec-driven
@@ -50,6 +70,16 @@ locale: zh-Hans
 #     - 必须包含"非目标"章节
 #   tasks:
 #     - 每个任务不超过 2 小时
+
+# 可选额外技能（默认禁用，取消注释以启用）
+# extra_skills:
+#   - llman-sdd-new-change
+#   - llman-sdd-continue
+#   - llman-sdd-ff
+#   - llman-sdd-show
+#   - llman-sdd-sync
+#   - llman-sdd-validate
+#   - llman-sdd-verify
 "#;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -73,6 +103,13 @@ pub struct SddConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(description = "Per-artifact rules. Map of artifact_id -> string[].")]
     pub rules: Option<BTreeMap<String, Vec<String>>>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(description = "Optional SDD skills to enable beyond the default set. \
+        Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, \
+        llman-sdd-show, llman-sdd-sync, llman-sdd-validate, llman-sdd-verify.")]
+    pub extra_skills: Option<Vec<String>>,
 }
 
 impl Default for SddConfig {
@@ -82,6 +119,7 @@ impl Default for SddConfig {
             locale: default_locale(),
             context: None,
             rules: None,
+            extra_skills: None,
         }
     }
 }
@@ -133,11 +171,25 @@ pub fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
         ));
     }
 
+    if let Some(ref extra) = config.extra_skills {
+        let valid: HashSet<&str> = OPTIONAL_SKILL_NAMES.iter().copied().collect();
+        for name in extra {
+            if !valid.contains(name.as_str()) {
+                return Err(anyhow!(
+                    "Unknown extra_skills entry '{}'. Valid options: {}",
+                    name,
+                    OPTIONAL_SKILL_NAMES.join(", ")
+                ));
+            }
+        }
+    }
+
     Ok(Some(SddConfig {
         schema: EXPECTED_SCHEMA.to_string(),
         locale: normalize_locale(&config.locale),
         context: config.context,
         rules: config.rules,
+        extra_skills: config.extra_skills,
     }))
 }
 
@@ -301,6 +353,7 @@ mod tests {
         assert_eq!(config.locale, "en");
         assert!(config.context.is_none());
         assert!(config.rules.is_none());
+        assert!(config.extra_skills.is_none());
     }
 
     #[test]
@@ -325,6 +378,10 @@ mod tests {
             content.contains("# rules:"),
             "en template should have rules comment"
         );
+        assert!(
+            content.contains("# extra_skills:"),
+            "en template should have extra_skills comment"
+        );
     }
 
     #[test]
@@ -342,6 +399,10 @@ mod tests {
             content.contains("# context:"),
             "zh-Hans template should have context comment"
         );
+        assert!(
+            content.contains("# extra_skills:"),
+            "zh-Hans template should have extra_skills comment"
+        );
     }
 
     #[test]
@@ -357,6 +418,7 @@ mod tests {
         // Comments are stripped by serde; context/rules default to None
         assert!(config.context.is_none());
         assert!(config.rules.is_none());
+        assert!(config.extra_skills.is_none());
     }
 
     #[test]
@@ -373,5 +435,38 @@ mod tests {
             "serde output should not have comments"
         );
         assert!(content.contains("schema: spec-driven"));
+    }
+
+    #[test]
+    fn load_config_rejects_unknown_extra_skills() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        let path = config_path(llmanspec_dir);
+        let content = "schema: spec-driven\nlocale: en\nextra_skills:\n  - nonexistent-skill\n";
+        fs::write(&path, content).expect("write config");
+        let result = load_config(llmanspec_dir);
+        assert!(result.is_err(), "expected error for unknown extra_skills");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Unknown extra_skills entry"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn load_config_accepts_valid_extra_skills() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        let path = config_path(llmanspec_dir);
+        let content = "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-verify\n  - llman-sdd-show\n";
+        fs::write(&path, content).expect("write config");
+        let config = load_config(llmanspec_dir).expect("load").expect("config");
+        assert_eq!(
+            config.extra_skills,
+            Some(vec![
+                "llman-sdd-verify".to_string(),
+                "llman-sdd-show".to_string(),
+            ])
+        );
     }
 }

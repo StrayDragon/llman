@@ -70,15 +70,11 @@ mod tests {
 
     const EXPECTED_WORKFLOW_SKILLS: &[&str] = &[
         "llman-sdd-onboard",
-        "llman-sdd-propose",
-        "llman-sdd-new-change",
-        "llman-sdd-archive",
         "llman-sdd-explore",
-        "llman-sdd-continue",
-        "llman-sdd-ff",
+        "llman-sdd-propose",
         "llman-sdd-apply",
-        "llman-sdd-verify",
-        "llman-sdd-sync",
+        "llman-sdd-specs-compact",
+        "llman-sdd-archive",
     ];
 
     #[test]
@@ -156,6 +152,81 @@ description: "override for test"
         assert!(
             err.contains("no llmanspec"),
             "unexpected error message: {err}"
+        );
+    }
+
+    #[test]
+    fn update_skills_does_not_write_optional_skills_by_default() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        fs::create_dir_all(root.join(LLMANSPEC_DIR_NAME)).expect("create llmanspec");
+
+        super::run_with_root(root).expect("update-skills");
+
+        let optional_skills = [
+            "llman-sdd-new-change",
+            "llman-sdd-continue",
+            "llman-sdd-ff",
+            "llman-sdd-show",
+            "llman-sdd-sync",
+            "llman-sdd-validate",
+            "llman-sdd-verify",
+        ];
+        for skill in &optional_skills {
+            assert!(
+                !root
+                    .join(".agents/skills")
+                    .join(skill)
+                    .join("SKILL.md")
+                    .exists(),
+                "optional skill {skill} should not be written by default"
+            );
+        }
+    }
+
+    #[test]
+    fn update_skills_writes_extra_skills_when_configured() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+        fs::create_dir_all(&llmanspec_dir).expect("create llmanspec");
+
+        let config_path = llmanspec_dir.join("config.yaml");
+        fs::write(
+            &config_path,
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-verify\n  - llman-sdd-show\n",
+        )
+        .expect("write config");
+
+        super::run_with_root(root).expect("update-skills");
+
+        // Default skills present
+        assert!(
+            root.join(".agents/skills/llman-sdd-onboard/SKILL.md")
+                .exists()
+        );
+        assert!(
+            root.join(".agents/skills/llman-sdd-apply/SKILL.md")
+                .exists()
+        );
+
+        // Enabled extra skills present
+        assert!(
+            root.join(".agents/skills/llman-sdd-verify/SKILL.md")
+                .exists()
+        );
+        assert!(root.join(".agents/skills/llman-sdd-show/SKILL.md").exists());
+
+        // Non-enabled optional skills absent
+        assert!(
+            !root
+                .join(".agents/skills/llman-sdd-new-change/SKILL.md")
+                .exists()
+        );
+        assert!(
+            !root
+                .join(".agents/skills/llman-sdd-continue/SKILL.md")
+                .exists()
         );
     }
 }

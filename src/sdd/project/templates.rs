@@ -1,7 +1,7 @@
 use super::config::{SddConfig, locale_fallbacks};
 use anyhow::{Context, Result, anyhow};
 use minijinja::{Environment, ErrorKind, UndefinedBehavior};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -12,20 +12,23 @@ pub struct SkillTemplate {
     pub content: String,
 }
 
-const SKILL_FILES: &[&str] = &[
+const DEFAULT_SKILL_FILES: &[&str] = &[
     "llman-sdd-onboard.md",
-    "llman-sdd-propose.md",
-    "llman-sdd-new-change.md",
     "llman-sdd-explore.md",
+    "llman-sdd-propose.md",
+    "llman-sdd-apply.md",
+    "llman-sdd-specs-compact.md",
+    "llman-sdd-archive.md",
+];
+
+const OPTIONAL_SKILL_FILES: &[&str] = &[
+    "llman-sdd-new-change.md",
     "llman-sdd-continue.md",
     "llman-sdd-ff.md",
-    "llman-sdd-apply.md",
-    "llman-sdd-verify.md",
-    "llman-sdd-sync.md",
     "llman-sdd-show.md",
+    "llman-sdd-sync.md",
     "llman-sdd-validate.md",
-    "llman-sdd-archive.md",
-    "llman-sdd-specs-compact.md",
+    "llman-sdd-verify.md",
 ];
 
 const UNIT_FILES: &[&str] = &[
@@ -53,9 +56,28 @@ impl TemplateUnitRegistry {
     }
 }
 
+fn resolve_optional_skills(config: &SddConfig) -> Vec<&'static str> {
+    let Some(ref extra) = config.extra_skills else {
+        return Vec::new();
+    };
+    let enabled: HashSet<&str> = extra.iter().map(|s| s.as_str()).collect();
+    OPTIONAL_SKILL_FILES
+        .iter()
+        .filter(|name| {
+            let stem = name.trim_end_matches(".md");
+            enabled.contains(stem)
+        })
+        .copied()
+        .collect()
+}
+
 pub fn skill_templates(config: &SddConfig, root: &Path) -> Result<Vec<SkillTemplate>> {
     let mut files = Vec::new();
-    for name in SKILL_FILES {
+    for name in DEFAULT_SKILL_FILES {
+        let content = load_template(config, root, &format!("skills/{}", name))?;
+        files.push(SkillTemplate { name, content });
+    }
+    for name in resolve_optional_skills(config) {
         let content = load_template(config, root, &format!("skills/{}", name))?;
         files.push(SkillTemplate { name, content });
     }
