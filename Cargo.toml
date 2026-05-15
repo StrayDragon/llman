@@ -1,6 +1,6 @@
 [package]
 name = "llman"
-version = "0.0.26"
+version = "0.0.27"
 # Project is pinned to a nightly toolchain in rust-toolchain.toml
 # CI must use the same pinned nightly baseline
 edition = "2024"
