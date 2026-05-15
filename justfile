@@ -95,6 +95,7 @@ sdd-prompts-eval *args:
 sdd-claude-style-eval *args:
     bash ./scripts/sdd-claude-style-eval.sh {{args}}
 
-# 检查配置 schema
+# 重新生成并检查配置 schema
 check-schemas:
+    LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo run -- self schema generate
     LLMAN_CONFIG_DIR=./artifacts/testing_config_home cargo run -- self schema check
