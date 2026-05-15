@@ -1,4 +1,3 @@
-<!-- llman-template-version: 1 -->
 ## Archive 冷备引导
 - 当 archive 目录增长过大时，使用冷备维护：
   - 预览冻结候选：`llman sdd archive freeze --dry-run`

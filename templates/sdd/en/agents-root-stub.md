@@ -1,9 +1,14 @@
-<!-- llman-template-version: 1 -->
 # LLMAN Spec-Driven Development
 
-This repository uses llman SDD. The full methodology lives in `llmanspec/AGENTS.md`.
+This repository uses llman SDD. Project context and rules live in `llmanspec/config.yaml`.
 
-- Read `llmanspec/AGENTS.md` before planning or implementing changes.
-- Use `llman sdd` commands to list, validate, and archive changes.
+Quick commands:
+- `llman sdd list`
+- `llman sdd show <item>`
+- `llman sdd validate <id> --strict --no-interactive`
+- `llman sdd archive <id>`
+- `llman sdd update-skills --all`
+
+Spec format: TOON (```toon code blocks).
 
 Keep this managed block so `llman sdd update` can refresh it.

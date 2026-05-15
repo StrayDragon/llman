@@ -1,4 +1,3 @@
-<!-- llman-template-version: 1 -->
 ## Archive Cold Backup Guidance
 - If archived directories are growing too large, use cold backup maintenance:
   - Preview freeze candidates: `llman sdd archive freeze --dry-run`

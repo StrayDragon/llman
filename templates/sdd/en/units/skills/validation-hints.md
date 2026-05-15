@@ -1,4 +1,3 @@
-<!-- llman-template-version: 2 -->
 Validation fixes (minimal examples):
 
 1) Missing YAML frontmatter (main specs only):

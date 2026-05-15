@@ -1,4 +1,3 @@
-<!-- llman-template-version: 1 -->
 ## Context
 - Gather the current change/spec state before acting.
 

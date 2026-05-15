@@ -1,15 +1,12 @@
 use super::config::{SddConfig, config_with_locale, write_config};
 use super::fs_utils::update_file_with_markers;
-use super::templates::{
-    TemplateStyle, default_agents_file, render_project_template, root_stub_content,
-};
-use crate::fs_utils::atomic_write_with_mode;
+use super::templates::root_stub_content;
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS};
 use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::Path;
 
-pub fn run(target: &Path, locale: Option<&str>, style: TemplateStyle) -> Result<()> {
+pub fn run(target: &Path, locale: Option<&str>) -> Result<()> {
     ensure_directory(target)?;
 
     let llmanspec_path = target.join(LLMANSPEC_DIR_NAME);
@@ -20,9 +17,7 @@ pub fn run(target: &Path, locale: Option<&str>, style: TemplateStyle) -> Result<
     create_structure(&llmanspec_path)?;
     let config = config_with_locale(locale);
     write_config(&llmanspec_path, &config)?;
-    write_project_file(&llmanspec_path, target, &config, style)?;
-    write_agents_file(&llmanspec_path, target, &config, style)?;
-    write_root_agents_file(target, &config, style)?;
+    write_root_agents_file(target, &config)?;
 
     Ok(())
 }
@@ -44,37 +39,9 @@ fn create_structure(llmanspec_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn write_project_file(
-    llmanspec_path: &Path,
-    target: &Path,
-    config: &SddConfig,
-    style: TemplateStyle,
-) -> Result<()> {
-    let project_name = target
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("Project");
-    let content = render_project_template(project_name, config, target, style)?;
-    let path = llmanspec_path.join("project.md");
-    atomic_write_with_mode(&path, content.as_bytes(), None)?;
-    Ok(())
-}
-
-fn write_agents_file(
-    llmanspec_path: &Path,
-    target: &Path,
-    config: &SddConfig,
-    style: TemplateStyle,
-) -> Result<()> {
-    let agents_path = llmanspec_path.join("AGENTS.md");
-    let content = default_agents_file(config, target, style)?;
-    atomic_write_with_mode(&agents_path, content.as_bytes(), None)?;
-    Ok(())
-}
-
-fn write_root_agents_file(target: &Path, config: &SddConfig, style: TemplateStyle) -> Result<()> {
+fn write_root_agents_file(target: &Path, config: &SddConfig) -> Result<()> {
     let agents_path = target.join("AGENTS.md");
-    let content = root_stub_content(config, target, style)?;
+    let content = root_stub_content(config, target)?;
     update_file_with_markers(
         &agents_path,
         &content,

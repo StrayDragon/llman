@@ -1,4 +1,3 @@
-<!-- llman-template-version: 1 -->
 ## Future 到执行的规划
 - 将 `llmanspec/changes/<id>/future.md` 视为候选待办池，而不是静态备注。
 - 审查 `Deferred Items`、`Branch Options`、`Triggers to Reopen`，并把每项归类为：

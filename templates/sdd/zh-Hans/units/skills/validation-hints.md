@@ -1,4 +1,3 @@
-<!-- llman-template-version: 2 -->
 校验修复最小示例：
 
 1) 缺少 YAML frontmatter（仅 main specs 需要）：

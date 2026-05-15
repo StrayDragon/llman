@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-ff"
 description: "Fast-forward：一次性创建 proposal/specs/design/tasks。"
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD Fast-Forward (FF)
@@ -33,7 +31,7 @@ metadata:
 6. 给出简短状态总结，并建议下一步（`llman-sdd-apply`）。
 
 {{ unit("skills/sdd-commands") }}
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

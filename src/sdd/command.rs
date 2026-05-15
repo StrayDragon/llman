@@ -1,8 +1,7 @@
 use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
-use crate::sdd::project::templates::TemplateStyle;
-use crate::sdd::project::{convert, init, interop, update, update_skills};
+use crate::sdd::project::{init, interop, update, update_skills};
 use crate::sdd::shared::{list, show, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -22,18 +21,15 @@ pub struct SddSpecArgs {
 
 #[derive(Subcommand)]
 pub enum SddSpecCommands {
-    /// Generate a main spec skeleton for a capability (format depends on llmanspec spec_style)
+    /// Generate a main spec skeleton for a capability
     Skeleton {
         /// Capability / spec id
         capability: String,
         /// Overwrite existing files
         #[arg(long)]
         force: bool,
-        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
-        #[arg(long)]
-        pretty_ison: bool,
     },
-    /// Add a requirement row to a spec (format depends on llmanspec spec_style)
+    /// Add a requirement row to a spec
     AddRequirement {
         /// Capability / spec id
         capability: String,
@@ -45,11 +41,8 @@ pub enum SddSpecCommands {
         /// Requirement statement (MUST/SHALL)
         #[arg(long)]
         statement: String,
-        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
-        #[arg(long)]
-        pretty_ison: bool,
     },
-    /// Add a scenario row to a spec (format depends on llmanspec spec_style)
+    /// Add a scenario row to a spec
     AddScenario {
         /// Capability / spec id
         capability: String,
@@ -66,9 +59,6 @@ pub enum SddSpecCommands {
         /// THEN (required)
         #[arg(long = "then")]
         then_: String,
-        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
-        #[arg(long)]
-        pretty_ison: bool,
     },
 }
 
@@ -78,16 +68,9 @@ pub struct SddDeltaArgs {
     pub command: SddDeltaCommands,
 }
 
-#[derive(clap::ValueEnum, Clone, Copy, Debug)]
-pub enum ConvertStyle {
-    Ison,
-    Toon,
-    Yaml,
-}
-
 #[derive(Subcommand)]
 pub enum SddDeltaCommands {
-    /// Generate a delta spec skeleton for a change + capability (format depends on llmanspec spec_style; no YAML frontmatter)
+    /// Generate a delta spec skeleton for a change + capability (no YAML frontmatter)
     Skeleton {
         /// Change id
         change_id: String,
@@ -96,11 +79,8 @@ pub enum SddDeltaCommands {
         /// Overwrite existing files
         #[arg(long)]
         force: bool,
-        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
-        #[arg(long)]
-        pretty_ison: bool,
     },
-    /// Add a delta op row (format depends on llmanspec spec_style)
+    /// Add a delta op row
     AddOp {
         /// Change id
         change_id: String,
@@ -125,11 +105,8 @@ pub enum SddDeltaCommands {
         /// Name hint (optional for remove)
         #[arg(long)]
         name: Option<String>,
-        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
-        #[arg(long)]
-        pretty_ison: bool,
     },
-    /// Add a delta op scenario row (add/modify ops only; format depends on llmanspec spec_style)
+    /// Add a delta op scenario row (add/modify ops only)
     AddScenario {
         /// Change id
         change_id: String,
@@ -148,9 +125,6 @@ pub enum SddDeltaCommands {
         /// THEN (required)
         #[arg(long = "then")]
         then_: String,
-        /// Pretty-align ISON tables for review (whitespace-only; ison projects only)
-        #[arg(long)]
-        pretty_ison: bool,
     },
 }
 
@@ -282,9 +256,6 @@ pub enum SddCommands {
         /// Legacy: dry run mode
         #[arg(long)]
         dry_run: bool,
-        /// Pretty-align ISON tables for review (whitespace-only; ison projects only). Applies to `llman sdd` write paths.
-        #[arg(long)]
-        pretty_ison: bool,
         /// Legacy: force archive even if validation fails
         #[arg(long, hide = true)]
         force: bool,
@@ -307,27 +278,9 @@ pub enum SddCommands {
         /// Project root path (default: current directory)
         path: Option<PathBuf>,
     },
-    /// Convert SDD spec/delta payload style within llmanspec (experimental for toon/yaml)
-    Convert {
-        /// Target style
-        #[arg(long = "to", value_enum)]
-        to: ConvertStyle,
-        /// Convert the entire project (main specs + active change delta specs) in place
-        #[arg(long, conflicts_with = "file")]
-        project: bool,
-        /// Convert a single file (main spec or delta spec)
-        #[arg(long, conflicts_with = "project")]
-        file: Option<PathBuf>,
-        /// Write converted output to a file (file mode only). If omitted, prints to stdout.
-        #[arg(long, requires = "file")]
-        output: Option<PathBuf>,
-        /// Dry-run: show what would be converted without writing
-        #[arg(long)]
-        dry_run: bool,
-    },
-    /// Spec authoring helpers (emit the configured spec_style; experimental for toon/yaml)
+    /// Spec authoring helpers
     Spec(SddSpecArgs),
-    /// Delta authoring helpers (emit the configured spec_style; experimental for toon/yaml)
+    /// Delta authoring helpers
     Delta(SddDeltaArgs),
 }
 
@@ -343,9 +296,6 @@ pub enum ArchiveSubcommand {
         /// Dry run mode
         #[arg(long)]
         dry_run: bool,
-        /// Pretty-align ISON tables for review (whitespace-only; ison projects only). Applies to `llman sdd` write paths.
-        #[arg(long)]
-        pretty_ison: bool,
         /// Force archive even if validation fails
         #[arg(long, hide = true)]
         force: bool,
@@ -374,20 +324,14 @@ pub enum ArchiveSubcommand {
 }
 
 pub fn run(args: &SddArgs) -> Result<()> {
-    run_with_style(args, TemplateStyle::New)
-}
-
-fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
     match &args.command {
         SddCommands::Init { path, lang } => init::run(
             path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
             lang.as_deref(),
-            style,
         ),
-        SddCommands::Update { path } => update::run(
-            path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
-            style,
-        ),
+        SddCommands::Update { path } => {
+            update::run(path.as_deref().unwrap_or_else(|| std::path::Path::new(".")))
+        }
         SddCommands::UpdateSkills {
             all,
             tool,
@@ -402,7 +346,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
             no_interactive: *no_interactive,
             commands_only: *commands_only,
             skills_only: *skills_only,
-            style,
         }),
         SddCommands::List {
             specs,
@@ -467,7 +410,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
             change,
             skip_specs,
             dry_run,
-            pretty_ison,
             force,
             command,
         } => match command {
@@ -475,13 +417,11 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                 change,
                 skip_specs,
                 dry_run,
-                pretty_ison,
                 force,
             }) => archive::run(archive::ArchiveArgs {
                 change: change.clone(),
                 skip_specs: *skip_specs,
                 dry_run: *dry_run,
-                pretty_ison: *pretty_ison,
                 force: *force,
             }),
             Some(ArchiveSubcommand::Freeze {
@@ -501,7 +441,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                 change: change.clone(),
                 skip_specs: *skip_specs,
                 dry_run: *dry_run,
-                pretty_ison: *pretty_ison,
                 force: *force,
             }),
         },
@@ -513,37 +452,12 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
             style: style.clone(),
             path: path.clone(),
         }),
-        SddCommands::Convert {
-            to,
-            project,
-            file,
-            output,
-            dry_run,
-        } => convert::run(
-            std::path::Path::new("."),
-            convert::ConvertArgs {
-                to: match to {
-                    ConvertStyle::Ison => crate::sdd::project::config::SpecStyle::Ison,
-                    ConvertStyle::Toon => crate::sdd::project::config::SpecStyle::Toon,
-                    ConvertStyle::Yaml => crate::sdd::project::config::SpecStyle::Yaml,
-                },
-                project: *project,
-                file: file.clone(),
-                output: output.clone(),
-                dry_run: *dry_run,
-            },
-        ),
         SddCommands::Spec(args) => match &args.command {
-            SddSpecCommands::Skeleton {
-                capability,
-                force,
-                pretty_ison,
-            } => authoring::spec::run_skeleton(
+            SddSpecCommands::Skeleton { capability, force } => authoring::spec::run_skeleton(
                 std::path::Path::new("."),
                 authoring::spec::SpecSkeletonArgs {
                     capability: capability.clone(),
                     force: *force,
-                    pretty_ison: *pretty_ison,
                 },
             ),
             SddSpecCommands::AddRequirement {
@@ -551,7 +465,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                 req_id,
                 title,
                 statement,
-                pretty_ison,
             } => authoring::spec::run_add_requirement(
                 std::path::Path::new("."),
                 authoring::spec::SpecAddRequirementArgs {
@@ -559,7 +472,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                     req_id: req_id.clone(),
                     title: title.clone(),
                     statement: statement.clone(),
-                    pretty_ison: *pretty_ison,
                 },
             ),
             SddSpecCommands::AddScenario {
@@ -569,7 +481,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                 given,
                 when_,
                 then_,
-                pretty_ison,
             } => authoring::spec::run_add_scenario(
                 std::path::Path::new("."),
                 authoring::spec::SpecAddScenarioArgs {
@@ -579,7 +490,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                     given: given.clone(),
                     when_: when_.clone(),
                     then_: then_.clone(),
-                    pretty_ison: *pretty_ison,
                 },
             ),
         },
@@ -588,14 +498,12 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                 change_id,
                 capability,
                 force,
-                pretty_ison,
             } => authoring::delta::run_skeleton(
                 std::path::Path::new("."),
                 authoring::delta::DeltaSkeletonArgs {
                     change_id: change_id.clone(),
                     capability: capability.clone(),
                     force: *force,
-                    pretty_ison: *pretty_ison,
                 },
             ),
             SddDeltaCommands::AddOp {
@@ -608,7 +516,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                 from,
                 to,
                 name,
-                pretty_ison,
             } => authoring::delta::run_add_op(
                 std::path::Path::new("."),
                 authoring::delta::DeltaAddOpArgs {
@@ -621,7 +528,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                     from: from.clone(),
                     to: to.clone(),
                     name: name.clone(),
-                    pretty_ison: *pretty_ison,
                 },
             ),
             SddDeltaCommands::AddScenario {
@@ -632,7 +538,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                 given,
                 when_,
                 then_,
-                pretty_ison,
             } => authoring::delta::run_add_scenario(
                 std::path::Path::new("."),
                 authoring::delta::DeltaAddScenarioArgs {
@@ -643,7 +548,6 @@ fn run_with_style(args: &SddArgs, style: TemplateStyle) -> Result<()> {
                     given: given.clone(),
                     when_: when_.clone(),
                     then_: then_.clone(),
-                    pretty_ison: *pretty_ison,
                 },
             ),
         },

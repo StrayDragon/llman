@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-specs-compact"
 description: "Compact and refactor llman SDD specs while preserving normative behavior."
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD Specs Compact
@@ -45,6 +43,6 @@ Use this skill to reduce specs bloat while preserving MUST/Scenario behavior.
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}

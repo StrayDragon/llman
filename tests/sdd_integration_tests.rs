@@ -56,47 +56,6 @@ fn assert_no_disallowed_prompt_markers(path: &Path, content: &str) {
     }
 }
 
-fn normalize_whitespace_preserving_lines(content: &str) -> String {
-    content
-        .lines()
-        .map(|line| {
-            if line.trim().is_empty() {
-                return String::new();
-            }
-            line.split_whitespace().collect::<Vec<_>>().join(" ")
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn set_spec_style(work_dir: &Path, style: &str) {
-    let config_path = work_dir.join("llmanspec").join("config.yaml");
-    let content = fs::read_to_string(&config_path).expect("read config");
-    let updated = content
-        .lines()
-        .map(|line| {
-            if line.trim_start().starts_with("spec_style:") {
-                format!("spec_style: {}", style)
-            } else {
-                line.to_string()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    fs::write(&config_path, updated).expect("write config");
-}
-
-fn remove_spec_style(work_dir: &Path) {
-    let config_path = work_dir.join("llmanspec").join("config.yaml");
-    let content = fs::read_to_string(&config_path).expect("read config");
-    let updated = content
-        .lines()
-        .filter(|line| !line.trim_start().starts_with("spec_style:"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    fs::write(&config_path, updated).expect("write config");
-}
-
 fn author_sample_spec(work_dir: &Path) {
     assert_success(&run_llman(
         &["sdd", "spec", "skeleton", "sample"],
@@ -196,8 +155,8 @@ fn test_sdd_init_and_list_specs_json() {
     );
     assert_success(&init_output);
 
-    let agents_path = work_dir.join("llmanspec").join("AGENTS.md");
-    assert!(agents_path.exists());
+    let config_path = work_dir.join("llmanspec").join("config.yaml");
+    assert!(config_path.exists());
 
     let list_output = run_llman(&["sdd", "list", "--specs", "--json"], work_dir, work_dir);
     assert_success(&list_output);
@@ -209,7 +168,7 @@ fn test_sdd_init_and_list_specs_json() {
 }
 
 #[test]
-fn test_sdd_init_writes_spec_style_default_ison() {
+fn test_sdd_init_writes_schema_spec_driven() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
 
@@ -223,131 +182,12 @@ fn test_sdd_init_writes_spec_style_default_ison() {
     let config_path = work_dir.join("llmanspec").join("config.yaml");
     let config = fs::read_to_string(&config_path).expect("read config");
     assert!(
-        config.contains("spec_style: ison"),
-        "expected init config to include spec_style: ison; got:\n{config}"
-    );
-}
-
-#[test]
-fn test_sdd_missing_spec_style_blocks_spec_commands() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    assert_success(&run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    ));
-
-    remove_spec_style(work_dir);
-
-    let out = run_llman(&["sdd", "spec", "skeleton", "sample"], work_dir, work_dir);
-    assert!(
-        !out.status.success(),
-        "expected spec skeleton to fail without spec_style"
-    );
-    let combined = format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
+        config.contains("schema: spec-driven"),
+        "expected init config to include schema: spec-driven; got:\n{config}"
     );
     assert!(
-        combined.contains("Missing required llmanspec config field 'spec_style'"),
-        "expected missing spec_style error; got: {combined}"
-    );
-}
-
-#[test]
-fn test_sdd_invalid_spec_style_blocks_spec_commands() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    assert_success(&run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    ));
-
-    set_spec_style(work_dir, "bogus");
-
-    let out = run_llman(&["sdd", "spec", "skeleton", "sample"], work_dir, work_dir);
-    assert!(
-        !out.status.success(),
-        "expected spec skeleton to fail with invalid spec_style"
-    );
-    let combined = format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert!(
-        combined.contains("Invalid llmanspec config 'spec_style'"),
-        "expected invalid spec_style error; got: {combined}"
-    );
-}
-
-#[test]
-fn test_sdd_pretty_ison_is_rejected_in_non_ison_project() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    assert_success(&run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    ));
-    set_spec_style(work_dir, "toon");
-
-    assert_success(&run_llman(
-        &["sdd", "spec", "skeleton", "sample"],
-        work_dir,
-        work_dir,
-    ));
-    assert_success(&run_llman(
-        &[
-            "sdd",
-            "spec",
-            "add-requirement",
-            "sample",
-            "r1",
-            "--title",
-            "R1",
-            "--statement",
-            "System MUST support R1.",
-        ],
-        work_dir,
-        work_dir,
-    ));
-
-    let out = run_llman(
-        &[
-            "sdd",
-            "spec",
-            "add-scenario",
-            "sample",
-            "r1",
-            "happy",
-            "--when",
-            "x",
-            "--then",
-            "y",
-            "--pretty-ison",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert!(
-        !out.status.success(),
-        "expected --pretty-ison to fail in a toon project"
-    );
-    let combined = format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert!(
-        combined.contains("--pretty-ison is only supported"),
-        "expected pretty-ison gating error; got: {combined}"
+        !config.contains("spec_style:"),
+        "config must not contain spec_style field; got:\n{config}"
     );
 }
 
@@ -375,18 +215,14 @@ llman_spec_evidence:
   - tests/sdd_integration_tests.rs
 ---
 
-```ison
-object.spec
-kind name purpose
-"llman.sdd.spec" sample "Describe sample behavior."
-
-table.requirements
-req_id title statement
-existing "Existing behavior" "System MUST preserve existing behavior."
-
-table.scenarios
-req_id id given when then
-existing baseline "" "running the sample" "behavior is preserved"
+```toon
+kind: llman.sdd.spec
+name: sample
+purpose: "Describe sample behavior."
+requirements[1]{req_id,title,statement}:
+  existing,Existing behavior,System MUST preserve existing behavior.
+scenarios[1]{req_id,id,given,when,then}:
+  existing,baseline,,running the sample,behavior is preserved
 ```
 "#;
     fs::write(spec_dir.join("spec.md"), spec_content).expect("write spec");
@@ -406,18 +242,12 @@ Need a sample change.
         "## 1. Done\n- [x] 1.1 Completed\n",
     )
     .expect("write tasks");
-    let delta_spec = r#"```ison
-object.delta
-kind
-"llman.sdd.delta"
-
-table.ops
-op req_id title statement from to name
-add_requirement added "Added behavior" "System MUST support the added behavior." ~ ~ ~
-
-table.op_scenarios
-req_id id given when then
-added added "" "a new action is taken" "the new behavior happens"
+    let delta_spec = r#"```toon
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  added,added,,a new action is taken,the new behavior happens
 ```
 "#;
     fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
@@ -466,63 +296,11 @@ added added "" "a new action is taken" "the new behavior happens"
     assert!(archive_name.ends_with("-add-sample"));
 
     let updated_spec = fs::read_to_string(spec_dir.join("spec.md")).expect("read updated spec");
-    assert!(updated_spec.contains("table.requirements"));
+    assert!(updated_spec.contains("requirements["));
     assert!(updated_spec.contains("existing"));
     assert!(updated_spec.contains("added"));
-    assert!(updated_spec.contains("\"Existing behavior\""));
-    assert!(updated_spec.contains("\"Added behavior\""));
-}
-
-#[test]
-fn test_sdd_show_json_semantics_match_across_styles() {
-    fn setup(style: &str) -> (TestEnvironment, Value, Value) {
-        let env = TestEnvironment::new();
-        let work_dir = env.path();
-
-        assert_success(&run_llman(
-            &["sdd", "init", work_dir.to_str().unwrap()],
-            work_dir,
-            work_dir,
-        ));
-        set_spec_style(work_dir, style);
-
-        author_sample_spec(work_dir);
-        author_sample_change(work_dir, "add-sample");
-        git_commit_all(work_dir, "seed spec and change");
-
-        let show_spec = run_llman(
-            &["sdd", "show", "sample", "--type", "spec", "--json"],
-            work_dir,
-            work_dir,
-        );
-        assert_success(&show_spec);
-        let spec_json: Value = serde_json::from_slice(&show_spec.stdout).expect("spec json");
-
-        let show_change = run_llman(
-            &["sdd", "show", "add-sample", "--type", "change", "--json"],
-            work_dir,
-            work_dir,
-        );
-        assert_success(&show_change);
-        let change_json: Value = serde_json::from_slice(&show_change.stdout).expect("change json");
-
-        (env, spec_json, change_json)
-    }
-
-    let (_env_ison, mut ison_spec, ison_change) = setup("ison");
-    let (_env_toon, mut toon_spec, toon_change) = setup("toon");
-    let (_env_yaml, mut yaml_spec, yaml_change) = setup("yaml");
-
-    // Metadata format is style-specific; strip it before comparing semantic output.
-    ison_spec["metadata"] = Value::Null;
-    toon_spec["metadata"] = Value::Null;
-    yaml_spec["metadata"] = Value::Null;
-
-    assert_eq!(toon_spec, ison_spec);
-    assert_eq!(yaml_spec, ison_spec);
-
-    assert_eq!(toon_change, ison_change);
-    assert_eq!(yaml_change, ison_change);
+    assert!(updated_spec.contains("Existing behavior"));
+    assert!(updated_spec.contains("Added behavior"));
 }
 
 #[test]
@@ -535,7 +313,6 @@ fn test_sdd_archive_flow_works_in_toon_project() {
         work_dir,
         work_dir,
     ));
-    set_spec_style(work_dir, "toon");
 
     // Seed existing main spec.
     author_sample_spec(work_dir);
@@ -570,217 +347,7 @@ fn test_sdd_archive_flow_works_in_toon_project() {
 }
 
 #[test]
-fn test_sdd_archive_flow_works_in_yaml_project() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    assert_success(&run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    ));
-    set_spec_style(work_dir, "yaml");
-
-    // Seed existing main spec.
-    author_sample_spec(work_dir);
-
-    // Seed change deltas.
-    author_sample_change(work_dir, "add-sample");
-    git_commit_all(work_dir, "seed yaml spec and change");
-
-    let validate_spec = run_llman(
-        &[
-            "sdd",
-            "validate",
-            "sample",
-            "--type",
-            "spec",
-            "--strict",
-            "--no-interactive",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&validate_spec);
-
-    let archive_output = run_llman(&["sdd", "archive", "add-sample"], work_dir, work_dir);
-    assert_success(&archive_output);
-
-    let updated = fs::read_to_string(work_dir.join("llmanspec/specs/sample/spec.md"))
-        .expect("read updated spec");
-    assert!(updated.contains("```yaml"));
-    assert!(updated.contains("req_id: r2"));
-    assert!(updated.contains("System MUST support R2."));
-}
-
-#[test]
-fn test_sdd_convert_file_outputs_to_stdout_and_does_not_modify_project() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    assert_success(&run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    ));
-    author_sample_spec(work_dir);
-
-    let spec_path = work_dir.join("llmanspec/specs/sample/spec.md");
-    let before = fs::read_to_string(&spec_path).expect("read before");
-    assert!(before.contains("```ison"));
-
-    let out = run_llman(
-        &[
-            "sdd",
-            "convert",
-            "--to",
-            "toon",
-            "--file",
-            "llmanspec/specs/sample/spec.md",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&out);
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("```toon"));
-
-    let after = fs::read_to_string(&spec_path).expect("read after");
-    assert_eq!(after, before, "stdout mode must not modify the project");
-}
-
-#[test]
-fn test_sdd_convert_file_writes_output_file() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    assert_success(&run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    ));
-    author_sample_spec(work_dir);
-
-    let out = run_llman(
-        &[
-            "sdd",
-            "convert",
-            "--to",
-            "toon",
-            "--file",
-            "llmanspec/specs/sample/spec.md",
-            "--output",
-            "converted.md",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&out);
-
-    let converted = fs::read_to_string(work_dir.join("converted.md")).expect("read converted");
-    assert!(converted.contains("```toon"));
-}
-
-#[test]
-fn test_sdd_convert_project_updates_config_and_rewrites_files() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    assert_success(&run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    ));
-    author_sample_spec(work_dir);
-    author_sample_change(work_dir, "add-sample");
-    git_commit_all(work_dir, "seed ison project");
-
-    let dry = run_llman(
-        &["sdd", "convert", "--to", "yaml", "--project", "--dry-run"],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&dry);
-    let config_path = work_dir.join("llmanspec/config.yaml");
-    let config_before = fs::read_to_string(&config_path).expect("read config");
-    assert!(config_before.contains("spec_style: ison"));
-
-    let live = run_llman(
-        &["sdd", "convert", "--to", "yaml", "--project"],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&live);
-
-    let config_after = fs::read_to_string(&config_path).expect("read config");
-    assert!(
-        config_after.contains("spec_style: yaml"),
-        "expected config spec_style switched to yaml; got:\n{config_after}"
-    );
-
-    let main_spec =
-        fs::read_to_string(work_dir.join("llmanspec/specs/sample/spec.md")).expect("read spec");
-    assert!(main_spec.contains("```yaml"));
-
-    let delta_spec =
-        fs::read_to_string(work_dir.join("llmanspec/changes/add-sample/specs/sample/spec.md"))
-            .expect("read delta spec");
-    assert!(delta_spec.contains("```yaml"));
-}
-
-#[test]
-fn test_sdd_convert_project_failure_does_not_update_config() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    assert_success(&run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    ));
-
-    // Create an invalid spec for the configured source style (ison).
-    let llmanspec_dir = work_dir.join("llmanspec");
-    let spec_dir = llmanspec_dir.join("specs").join("sample");
-    fs::create_dir_all(&spec_dir).expect("create spec dir");
-    let bad_spec = r#"---
-llman_spec_valid_scope:
-  - src
-llman_spec_valid_commands:
-  - cargo test
-llman_spec_evidence:
-  - tests/sdd_integration_tests.rs
----
-
-```yaml
-kind: llman.sdd.spec
-name: sample
-purpose: bad
-requirements: []
-scenarios: []
-```
-"#;
-    fs::write(spec_dir.join("spec.md"), bad_spec).expect("write bad spec");
-
-    let out = run_llman(
-        &["sdd", "convert", "--to", "yaml", "--project"],
-        work_dir,
-        work_dir,
-    );
-    assert!(
-        !out.status.success(),
-        "expected convert to fail when a source file does not match the configured style"
-    );
-
-    let config = fs::read_to_string(work_dir.join("llmanspec/config.yaml")).expect("read config");
-    assert!(
-        config.contains("spec_style: ison"),
-        "config must not be updated on failure; got:\n{config}"
-    );
-}
-
-#[test]
-fn test_sdd_multi_block_ison_merge_show_and_validate_spec() {
+fn test_sdd_single_toon_block_show_and_validate_spec() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
 
@@ -803,30 +370,19 @@ llman_spec_evidence:
   - tests/sdd_integration_tests.rs
 ---
 
-## Meta
-```ison
-object.spec
-kind name purpose
-"llman.sdd.spec" sample "Describe sample behavior."
-```
-
-## Requirements
-```ison
-table.requirements
-req_id title statement
-r1 "First requirement" "System MUST do the first thing."
-```
-
-## Scenarios
-```ison
-table.scenarios
-req_id id given when then
-r1 s1 "" "doing the first thing" "it works"
+```toon
+kind: llman.sdd.spec
+name: sample
+purpose: "Describe sample behavior."
+requirements[1]{req_id,title,statement}:
+  r1,First requirement,System MUST do the first thing.
+scenarios[1]{req_id,id,given,when,then}:
+  r1,s1,,doing the first thing,it works
 ```
 "#;
     fs::write(spec_dir.join("spec.md"), spec_content).expect("write spec");
 
-    git_commit_all(work_dir, "add multi-block spec");
+    git_commit_all(work_dir, "add toon spec");
 
     let show_output = run_llman(
         &["sdd", "show", "sample", "--type", "spec", "--json"],
@@ -859,156 +415,6 @@ r1 s1 "" "doing the first thing" "it works"
 }
 
 #[test]
-fn test_sdd_rejects_legacy_json_payloads_with_canonical_rewrite_guidance() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    let init_output = run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&init_output);
-
-    let llmanspec_dir = work_dir.join("llmanspec");
-    let spec_dir = llmanspec_dir.join("specs").join("sample");
-    fs::create_dir_all(&spec_dir).expect("create spec dir");
-    let legacy_spec = r#"---
-llman_spec_valid_scope:
-  - src
-llman_spec_valid_commands:
-  - cargo test
-llman_spec_evidence:
-  - tests/sdd_integration_tests.rs
----
-
-```ison
-{
-  "version": "1.0.0",
-  "kind": "llman.sdd.spec",
-  "name": "sample",
-  "purpose": "Legacy JSON payload.",
-  "requirements": []
-}
-```
-"#;
-    fs::write(spec_dir.join("spec.md"), legacy_spec).expect("write legacy spec");
-
-    let change_dir = llmanspec_dir.join("changes").join("legacy-change");
-    let change_specs_dir = change_dir.join("specs").join("sample");
-    fs::create_dir_all(&change_specs_dir).expect("create change spec dir");
-    fs::write(
-        change_dir.join("proposal.md"),
-        "## Why\nLegacy change.\n\n## What Changes\n- Add legacy delta.\n",
-    )
-    .expect("write proposal");
-    let legacy_delta = r#"```ison
-{
-  "version": "1.0.0",
-  "kind": "llman.sdd.delta",
-  "ops": [
-    {
-      "op": "add_requirement",
-      "req_id": "r1",
-      "title": "R1",
-      "statement": "System MUST support R1.",
-      "scenarios": [
-        {
-          "id": "r1",
-          "text": "- **WHEN** r1 is used\n- **THEN** it works"
-        }
-      ]
-    }
-  ]
-}
-```
-"#;
-    fs::write(change_specs_dir.join("spec.md"), legacy_delta).expect("write legacy delta spec");
-
-    git_commit_all(work_dir, "add legacy payloads");
-
-    let new_validate_spec = run_llman(
-        &[
-            "sdd",
-            "validate",
-            "sample",
-            "--type",
-            "spec",
-            "--strict",
-            "--no-interactive",
-            "--json",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert!(
-        !new_validate_spec.status.success(),
-        "new validate should fail on legacy JSON payload"
-    );
-    let new_spec_json: Value =
-        serde_json::from_slice(&new_validate_spec.stdout).expect("new validate spec json");
-    let message = new_spec_json["items"][0]["issues"][0]["message"]
-        .as_str()
-        .unwrap_or_default();
-    assert!(
-        !message.contains("sdd-legacy"),
-        "error message must not reference legacy commands: {message}"
-    );
-    assert!(
-        message.contains("object.spec"),
-        "expected canonical guidance: {message}"
-    );
-    assert!(
-        message.contains("table.requirements"),
-        "expected canonical guidance: {message}"
-    );
-    assert!(
-        message.contains("table.scenarios"),
-        "expected canonical guidance: {message}"
-    );
-
-    let new_validate_change = run_llman(
-        &[
-            "sdd",
-            "validate",
-            "legacy-change",
-            "--type",
-            "change",
-            "--strict",
-            "--no-interactive",
-            "--json",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert!(
-        !new_validate_change.status.success(),
-        "new validate should fail on legacy JSON delta payload"
-    );
-    let new_change_json: Value =
-        serde_json::from_slice(&new_validate_change.stdout).expect("new validate change json");
-    let message = new_change_json["items"][0]["issues"][0]["message"]
-        .as_str()
-        .unwrap_or_default();
-    assert!(
-        !message.contains("sdd-legacy"),
-        "error message must not reference legacy commands: {message}"
-    );
-    assert!(
-        message.contains("object.delta"),
-        "expected canonical guidance: {message}"
-    );
-    assert!(
-        message.contains("table.ops"),
-        "expected canonical guidance: {message}"
-    );
-    assert!(
-        message.contains("table.op_scenarios"),
-        "expected canonical guidance: {message}"
-    );
-}
-
-#[test]
 fn test_sdd_given_mapping_to_raw_text_is_deterministic() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
@@ -1032,19 +438,15 @@ llman_spec_evidence:
   - tests/sdd_integration_tests.rs
 ---
 
-```ison
-object.spec
-kind name purpose
-"llman.sdd.spec" sample "Describe sample behavior."
-
-table.requirements
-req_id title statement
-r1 "First requirement" "System MUST do the first thing."
-
-table.scenarios
-req_id id given when then
-r1 s1 "" "run the flow" "it works"
-r1 s2 "user exists" "run the flow" "it works"
+```toon
+kind: llman.sdd.spec
+name: sample
+purpose: "Describe sample behavior."
+requirements[1]{req_id,title,statement}:
+  r1,First requirement,System MUST do the first thing.
+scenarios[2]{req_id,id,given,when,then}:
+  r1,s1,,run the flow,it works
+  r1,s2,user exists,run the flow,it works
 ```
 "#;
     fs::write(spec_dir.join("spec.md"), spec_content).expect("write spec");
@@ -1066,153 +468,6 @@ r1 s2 "user exists" "run the flow" "it works"
     assert_eq!(
         raw_2,
         "GIVEN: user exists\nWHEN: run the flow\nTHEN: it works"
-    );
-}
-
-#[test]
-fn test_sdd_pretty_ison_is_whitespace_only_and_deterministic() {
-    // Deterministic dumps: same command twice yields identical output.
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-    let init_output = run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&init_output);
-    git_commit_all(work_dir, "init");
-
-    let skeleton_output = run_llman(&["sdd", "spec", "skeleton", "sample"], work_dir, work_dir);
-    assert_success(&skeleton_output);
-    let spec_path = work_dir.join("llmanspec/specs/sample/spec.md");
-    let content_a = fs::read_to_string(&spec_path).expect("read skeleton");
-
-    let skeleton_output_2 = run_llman(
-        &["sdd", "spec", "skeleton", "sample", "--force"],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&skeleton_output_2);
-    let content_a2 = fs::read_to_string(&spec_path).expect("read skeleton 2");
-    assert_eq!(content_a2, content_a);
-
-    // Pretty alignment affects whitespace only (semantics stay the same).
-    let env_plain = TestEnvironment::new();
-    let plain_dir = env_plain.path();
-    assert_success(&run_llman(
-        &["sdd", "init", plain_dir.to_str().unwrap()],
-        plain_dir,
-        plain_dir,
-    ));
-    git_commit_all(plain_dir, "init");
-    assert_success(&run_llman(
-        &["sdd", "spec", "skeleton", "sample"],
-        plain_dir,
-        plain_dir,
-    ));
-    assert_success(&run_llman(
-        &[
-            "sdd",
-            "spec",
-            "add-requirement",
-            "sample",
-            "r1",
-            "--title",
-            "R1",
-            "--statement",
-            "System MUST support R1.",
-        ],
-        plain_dir,
-        plain_dir,
-    ));
-    assert_success(&run_llman(
-        &[
-            "sdd",
-            "spec",
-            "add-scenario",
-            "sample",
-            "r1",
-            "scenario_long",
-            "--when",
-            "x",
-            "--then",
-            "y",
-        ],
-        plain_dir,
-        plain_dir,
-    ));
-    let plain_content =
-        fs::read_to_string(plain_dir.join("llmanspec/specs/sample/spec.md")).expect("plain spec");
-
-    let env_pretty = TestEnvironment::new();
-    let pretty_dir = env_pretty.path();
-    assert_success(&run_llman(
-        &["sdd", "init", pretty_dir.to_str().unwrap()],
-        pretty_dir,
-        pretty_dir,
-    ));
-    git_commit_all(pretty_dir, "init");
-    assert_success(&run_llman(
-        &["sdd", "spec", "skeleton", "sample"],
-        pretty_dir,
-        pretty_dir,
-    ));
-    assert_success(&run_llman(
-        &[
-            "sdd",
-            "spec",
-            "add-requirement",
-            "sample",
-            "r1",
-            "--title",
-            "R1",
-            "--statement",
-            "System MUST support R1.",
-        ],
-        pretty_dir,
-        pretty_dir,
-    ));
-    assert_success(&run_llman(
-        &[
-            "sdd",
-            "spec",
-            "add-scenario",
-            "sample",
-            "r1",
-            "scenario_long",
-            "--when",
-            "x",
-            "--then",
-            "y",
-            "--pretty-ison",
-        ],
-        pretty_dir,
-        pretty_dir,
-    ));
-    let pretty_content =
-        fs::read_to_string(pretty_dir.join("llmanspec/specs/sample/spec.md")).expect("pretty spec");
-
-    let show_plain = run_llman(
-        &["sdd", "show", "sample", "--type", "spec", "--json"],
-        plain_dir,
-        plain_dir,
-    );
-    assert_success(&show_plain);
-    let show_pretty = run_llman(
-        &["sdd", "show", "sample", "--type", "spec", "--json"],
-        pretty_dir,
-        pretty_dir,
-    );
-    assert_success(&show_pretty);
-
-    let json_plain: Value = serde_json::from_slice(&show_plain.stdout).expect("show plain json");
-    let json_pretty: Value = serde_json::from_slice(&show_pretty.stdout).expect("show pretty json");
-    assert_eq!(json_pretty, json_plain);
-
-    assert_ne!(pretty_content, plain_content);
-    assert_eq!(
-        normalize_whitespace_preserving_lines(&pretty_content),
-        normalize_whitespace_preserving_lines(&plain_content)
     );
 }
 
@@ -1439,18 +694,12 @@ fn test_sdd_show_change_json_uses_delta_specs() {
         "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n",
     )
     .expect("write proposal");
-    let delta_spec = r#"```ison
-object.delta
-kind
-"llman.sdd.delta"
-
-table.ops
-op req_id title statement from to name
-add_requirement added "Added behavior" "System MUST support the added behavior." ~ ~ ~
-
-table.op_scenarios
-req_id id given when then
-added added "" "a new action is taken" "the new behavior happens"
+    let delta_spec = r#"```toon
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  added,added,,a new action is taken,the new behavior happens
 ```
 "#;
     fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
@@ -1490,18 +739,12 @@ fn test_sdd_validate_change_json_succeeds() {
         "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n",
     )
     .expect("write proposal");
-    let delta_spec = r#"```ison
-object.delta
-kind
-"llman.sdd.delta"
-
-table.ops
-op req_id title statement from to name
-add_requirement added "Added behavior" "System MUST support the added behavior." ~ ~ ~
-
-table.op_scenarios
-req_id id given when then
-added added "" "a new action is taken" "the new behavior happens"
+    let delta_spec = r#"```toon
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  added,added,,a new action is taken,the new behavior happens
 ```
 "#;
     fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
@@ -1529,7 +772,7 @@ added added "" "a new action is taken" "the new behavior happens"
 }
 
 #[test]
-fn test_sdd_update_recreates_llmanspec_agents_md() {
+fn test_sdd_update_recreates_root_agents_md() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
 
@@ -1540,17 +783,17 @@ fn test_sdd_update_recreates_llmanspec_agents_md() {
     );
     assert_success(&init_output);
 
-    let agents_path = work_dir.join("llmanspec").join("AGENTS.md");
-    fs::remove_file(&agents_path).expect("remove llmanspec/AGENTS.md");
+    let agents_path = work_dir.join("AGENTS.md");
+    fs::remove_file(&agents_path).expect("remove root AGENTS.md");
     assert!(!agents_path.exists());
 
     let update_output = run_llman(&["sdd", "update"], work_dir, work_dir);
     assert_success(&update_output);
 
     assert!(agents_path.exists());
-    let content = fs::read_to_string(&agents_path).expect("read llmanspec/AGENTS.md");
+    let content = fs::read_to_string(&agents_path).expect("read root AGENTS.md");
     assert!(content.contains("<!-- LLMANSPEC:START -->"));
-    assert!(content.contains("LLMAN Spec-Driven Development (SDD)"));
+    assert!(content.contains("LLMAN Spec-Driven Development"));
     assert!(content.contains("llman sdd update-skills"));
 }
 
@@ -1961,18 +1204,12 @@ fn test_sdd_validate_change_without_future_md_still_succeeds() {
     )
     .expect("write proposal");
     fs::write(change_dir.join("tasks.md"), "## 1. Tasks\n- [ ] 1.1 Do\n").expect("write tasks");
-    let delta_spec = r#"```ison
-object.delta
-kind
-"llman.sdd.delta"
-
-table.ops
-op req_id title statement from to name
-add_requirement added "Added behavior" "System MUST support the added behavior." ~ ~ ~
-
-table.op_scenarios
-req_id id given when then
-added added "" "a new action is taken" "the new behavior happens"
+    let delta_spec = r#"```toon
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  added,added,,a new action is taken,the new behavior happens
 ```
 "#;
     fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
@@ -2054,6 +1291,6 @@ fn test_sdd_help_shows_import_export_and_hides_migrate() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("import"));
     assert!(stdout.contains("export"));
-    assert!(stdout.contains("convert"));
+    assert!(!stdout.contains("convert"));
     assert!(!stdout.contains("migrate"));
 }

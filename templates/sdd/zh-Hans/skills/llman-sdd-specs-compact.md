@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-specs-compact"
 description: "压缩并重构 llman SDD specs，同时保持规范行为不变。"
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD Specs Compact
@@ -45,6 +43,6 @@ metadata:
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}

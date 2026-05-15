@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-show"
 description: "Inspect llmanspec changes and specs quickly."
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD Show
@@ -18,6 +16,6 @@ Use this skill to inspect changes, specs, and JSON output.
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}

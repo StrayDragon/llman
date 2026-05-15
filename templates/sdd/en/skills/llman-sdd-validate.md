@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-validate"
 description: "Validate llmanspec changes and specs with actionable fixes."
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD Validate
@@ -17,6 +15,6 @@ Use this skill to validate change/spec format and staleness.
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}

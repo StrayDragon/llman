@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-propose"
 description: "Propose a new change and generate planning artifacts in one pass."
-metadata:
-  llman-template-version: 1
 ---
 
 # LLMAN SDD Propose
@@ -21,7 +19,7 @@ Create a new change and generate all planning artifacts in one pass (proposal + 
    - If the change already exists, STOP and suggest `llman-sdd-continue`.
 4. Create artifacts under `llmanspec/changes/<change-id>/`:
    - `proposal.md` (Why / What Changes / Capabilities / Impact)
-   - `specs/<capability>/spec.md` for each capability, using the project’s configured `spec_style` (`{{ spec_style }}`):
+   - `specs/<capability>/spec.md` for each capability, using the project’s configured `spec_style` (`toon`):
      - Prefer generating via authoring helpers so the fenced payload matches `spec_style`:
        - `llman sdd delta skeleton <change-id> <capability>`
        - `llman sdd delta add-op ...`
@@ -36,7 +34,7 @@ Create a new change and generate all planning artifacts in one pass (proposal + 
 6. Summarize what was created and suggest `llman-sdd-apply` for implementation.
 
 {{ unit("skills/sdd-commands") }}
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

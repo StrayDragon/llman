@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-verify"
 description: "Verify implementation matches llman SDD specs/design and propose fixes."
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD Verify

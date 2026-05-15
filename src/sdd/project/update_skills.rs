@@ -1,5 +1,5 @@
-use super::config::{SddConfig, load_or_create_config, resolve_skill_path};
-use super::templates::{TemplateStyle, skill_templates, workflow_command_templates};
+use super::config::load_or_create_config;
+use super::templates::{skill_templates, workflow_command_templates};
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::interactive::is_interactive;
@@ -18,7 +18,6 @@ pub struct UpdateSkillsArgs {
     pub no_interactive: bool,
     pub commands_only: bool,
     pub skills_only: bool,
-    pub style: TemplateStyle,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -188,8 +187,8 @@ fn run_with_root(root: &Path, args: UpdateSkillsArgs) -> Result<()> {
 
     let config = load_or_create_config(&llmanspec_path)?;
     if generate_skills {
-        let outputs = resolve_outputs(root, &config, &tools, args.path.as_deref(), interactive)?;
-        let templates = skill_templates(&config, root, args.style)?;
+        let outputs = resolve_outputs(root, &tools, args.path.as_deref(), interactive)?;
+        let templates = skill_templates(&config, root)?;
         enforce_ethics_governance(&templates)?;
         for path in outputs {
             write_tool_skills(&path, &templates)?;
@@ -197,7 +196,7 @@ fn run_with_root(root: &Path, args: UpdateSkillsArgs) -> Result<()> {
     }
 
     if generate_commands {
-        let commands = workflow_command_templates(&config, root, args.style)?;
+        let commands = workflow_command_templates(&config, root)?;
         write_llman_sdd_commands(root, &tools, &commands)?;
     }
 
@@ -254,7 +253,6 @@ fn parse_tool_args(values: &[String]) -> Result<Vec<SkillTool>> {
 
 fn resolve_outputs(
     root: &Path,
-    config: &SddConfig,
     tools: &[SkillTool],
     override_path: Option<&Path>,
     interactive: bool,
@@ -262,17 +260,17 @@ fn resolve_outputs(
     let mut outputs = Vec::new();
     for tool in tools {
         let default_path = match tool {
-            SkillTool::Claude => &config.skills.claude_path,
-            SkillTool::Codex => &config.skills.codex_path,
+            SkillTool::Claude => ".claude/skills",
+            SkillTool::Codex => ".codex/skills",
         };
         let resolved = if let Some(path) = override_path {
             resolve_override_path(root, path)
         } else if interactive {
             let prompt = t!("sdd.update_skills.prompt_path", tool = tool.label());
             let input = Text::new(&prompt).with_default(default_path).prompt()?;
-            resolve_skill_path(root, &input)
+            resolve_override_path(root, Path::new(&input))
         } else {
-            resolve_skill_path(root, default_path)
+            resolve_override_path(root, Path::new(default_path))
         };
 
         outputs.push(resolved);
@@ -500,7 +498,6 @@ mod tests {
             no_interactive: true,
             commands_only: false,
             skills_only: false,
-            style: TemplateStyle::New,
         };
 
         let result = super::run_with_root(root, args);
@@ -522,7 +519,6 @@ mod tests {
             no_interactive: true,
             commands_only: false,
             skills_only: false,
-            style: TemplateStyle::New,
         };
 
         super::run_with_root(root, args).expect("update-skills");
@@ -576,7 +572,6 @@ mod tests {
             no_interactive: true,
             commands_only: false,
             skills_only: false,
-            style: TemplateStyle::New,
         };
 
         super::run_with_root(root, args).expect("update-skills");
@@ -612,8 +607,6 @@ mod tests {
             r#"---
 name: "llman-sdd-onboard"
 description: "override for test"
-metadata:
-  llman-template-version: 1
 ---
 
 ## Context
@@ -644,7 +637,6 @@ metadata:
             no_interactive: true,
             commands_only: false,
             skills_only: false,
-            style: TemplateStyle::New,
         };
 
         let result = super::run_with_root(root, args);
@@ -669,7 +661,6 @@ metadata:
             no_interactive: true,
             commands_only: true,
             skills_only: false,
-            style: TemplateStyle::New,
         };
 
         let result = super::run_with_root(root, args);
@@ -702,7 +693,6 @@ metadata:
             no_interactive: true,
             commands_only: false,
             skills_only: false,
-            style: TemplateStyle::New,
         };
 
         let result = super::run_with_root(root, args);
@@ -731,7 +721,6 @@ metadata:
             no_interactive: true,
             commands_only: true,
             skills_only: false,
-            style: TemplateStyle::New,
         };
 
         super::run_with_root(root, args).expect("update-skills");
@@ -753,7 +742,6 @@ metadata:
             no_interactive: true,
             commands_only: false,
             skills_only: true,
-            style: TemplateStyle::New,
         };
 
         super::run_with_root(root, args).expect("update-skills");

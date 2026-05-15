@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-show"
 description: "快速查看 llmanspec 变更与 specs。"
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD 查看
@@ -18,6 +16,6 @@ metadata:
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}

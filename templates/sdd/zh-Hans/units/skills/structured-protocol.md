@@ -1,4 +1,3 @@
-<!-- llman-template-version: 1 -->
 ## Context
 - 执行前先确认当前 change/spec 状态。
 

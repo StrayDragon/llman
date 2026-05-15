@@ -1,4 +1,3 @@
-<!-- llman-template-version: 1 -->
 常见校验修复（TOON 风格）：
 
 1) Main spec 缺少 YAML frontmatter（仅 main spec 需要）：

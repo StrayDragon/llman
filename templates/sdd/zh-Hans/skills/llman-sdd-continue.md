@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-continue"
 description: "继续一个 llman SDD change：创建下一个缺失的 artifact。"
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD Continue
@@ -28,7 +26,7 @@ metadata:
    - 归档（准备好后）：`llman sdd archive <id>`
 
 {{ unit("skills/sdd-commands") }}
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

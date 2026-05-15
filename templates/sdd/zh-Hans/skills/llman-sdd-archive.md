@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-archive"
 description: "归档单个或多个变更，并将增量合并到 specs。"
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD 归档
@@ -27,6 +25,6 @@ metadata:
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}

@@ -1,4 +1,3 @@
-<!-- llman-template-version: 1 -->
 ## Canonical TOON Spec Contract（experimental）
 
 当项目配置 `spec_style: toon` 时，SDD 主 spec 与 delta spec 都必须以 **单个** fenced ` ```toon ` code block 承载一份 canonical TOON 文档。

@@ -1,13 +1,10 @@
 use crate::fs_utils::atomic_write_with_mode;
-use crate::sdd::project::config::{SpecStyle, load_required_config};
+use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
-use crate::sdd::spec::backend::yaml_overlay::{
-    YamlWriteBackMode, update_main_spec_markdown_with_overlay_or_fallback,
-};
-use crate::sdd::spec::backend::{DumpOptions, backend_for_style};
+use crate::sdd::spec::backend::{BACKEND, SpecBackend};
 use crate::sdd::spec::fence::render_code_fence;
-use crate::sdd::spec::ison::{compose_with_frontmatter, split_frontmatter};
+use crate::sdd::spec::frontmatter::{compose_with_frontmatter, split_frontmatter};
 use crate::sdd::spec::staleness::evaluate_staleness_with_override;
 use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, validate_spec_content_with_frontmatter,
@@ -23,7 +20,6 @@ pub struct ArchiveArgs {
     pub change: Option<String>,
     pub skip_specs: bool,
     pub dry_run: bool,
-    pub pretty_ison: bool,
     pub force: bool,
 }
 
@@ -48,14 +44,7 @@ pub fn run(args: ArchiveArgs) -> Result<()> {
 
 fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    let config = load_required_config(&llmanspec_dir)?;
-    let style = config.spec_style;
-    if args.pretty_ison && config.spec_style != SpecStyle::Ison {
-        return Err(anyhow!(t!(
-            "sdd.style.pretty_ison_requires_ison",
-            style = config.spec_style.as_str()
-        )));
-    }
+    let _config = load_required_config(&llmanspec_dir)?;
 
     let change_name = args
         .change
@@ -76,14 +65,7 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
         let validate_specs = !args.force;
         let updates = find_spec_updates(&change_dir, root)?;
         if !updates.is_empty() {
-            let prepared = prepare_updates(
-                &updates,
-                change_name,
-                root,
-                style,
-                validate_specs,
-                args.pretty_ison,
-            )?;
+            let prepared = prepare_updates(&updates, change_name, root, validate_specs)?;
             if args.dry_run {
                 print_dry_run_specs(&prepared);
             } else {
@@ -160,28 +142,21 @@ fn prepare_updates(
     updates: &[SpecUpdate],
     change_name: &str,
     root: &Path,
-    style: SpecStyle,
     validate_specs: bool,
-    pretty_ison: bool,
 ) -> Result<Vec<(SpecUpdate, String, ApplyCounts)>> {
     let mut prepared = Vec::new();
     for update in updates {
-        let built = build_updated_spec(update, change_name, style, pretty_ison)?;
+        let built = build_updated_spec(update, change_name)?;
         if validate_specs {
-            validate_rebuilt_spec(update, &built.0, root, style)?;
+            validate_rebuilt_spec(update, &built.0, root)?;
         }
         prepared.push((clone_update(update), built.0, built.1));
     }
     Ok(prepared)
 }
 
-fn validate_rebuilt_spec(
-    update: &SpecUpdate,
-    content: &str,
-    root: &Path,
-    style: SpecStyle,
-) -> Result<()> {
-    let validation = validate_spec_content_with_frontmatter(&update.target, content, style, true);
+fn validate_rebuilt_spec(update: &SpecUpdate, content: &str, root: &Path) -> Result<()> {
+    let validation = validate_spec_content_with_frontmatter(&update.target, content, true);
     let mut issues = validation.report.issues;
 
     if let Some(frontmatter) = validation.frontmatter.as_ref() {
@@ -227,13 +202,8 @@ fn format_issues(issues: &[ValidationIssue]) -> String {
         .join("; ")
 }
 
-fn build_updated_spec(
-    update: &SpecUpdate,
-    change_name: &str,
-    style: SpecStyle,
-    pretty_ison: bool,
-) -> Result<(String, ApplyCounts)> {
-    let backend = backend_for_style(style);
+fn build_updated_spec(update: &SpecUpdate, change_name: &str) -> Result<(String, ApplyCounts)> {
+    let backend = &BACKEND;
     let delta_content = fs::read_to_string(&update.source)?;
     let delta = backend.parse_delta_spec(
         &delta_content,
@@ -261,38 +231,27 @@ fn build_updated_spec(
         }
     }
 
-    let (frontmatter_yaml, mut spec_doc, original_target_content, old_spec_doc) =
-        if update.target_exists {
-            let target_content = fs::read_to_string(&update.target)?;
-            let (frontmatter_yaml, body) = split_frontmatter(&target_content);
-            let spec = backend.parse_main_spec(
-                &body,
-                &format!("spec `{}` during archive merge", update.capability),
-            )?;
-            (
-                frontmatter_yaml,
-                spec.clone(),
-                Some(target_content),
-                Some(spec),
-            )
-        } else {
-            let spec = crate::sdd::spec::ir::MainSpecDoc {
-                kind: "llman.sdd.spec".to_string(),
-                name: update.capability.clone(),
-                purpose: format!(
-                    "TBD - created by archiving change {change}. Update purpose after archive.",
-                    change = change_name
-                ),
-                requirements: Vec::new(),
-                scenarios: Vec::new(),
-            };
-            (
-                Some(default_frontmatter_yaml(change_name)),
-                spec,
-                None,
-                None,
-            )
+    let (frontmatter_yaml, mut spec_doc) = if update.target_exists {
+        let target_content = fs::read_to_string(&update.target)?;
+        let (frontmatter_yaml, body) = split_frontmatter(&target_content);
+        let spec = backend.parse_main_spec(
+            &body,
+            &format!("spec `{}` during archive merge", update.capability),
+        )?;
+        (frontmatter_yaml, spec.clone())
+    } else {
+        let spec = crate::sdd::spec::ir::MainSpecDoc {
+            kind: "llman.sdd.spec".to_string(),
+            name: update.capability.clone(),
+            purpose: format!(
+                "TBD - created by archiving change {change}. Update purpose after archive.",
+                change = change_name
+            ),
+            requirements: Vec::new(),
+            scenarios: Vec::new(),
         };
+        (Some(default_frontmatter_yaml(change_name)), spec)
+    };
 
     // Ensure canonical metadata.
     spec_doc.kind = "llman.sdd.spec".to_string();
@@ -531,35 +490,9 @@ fn build_updated_spec(
         ));
     }
 
-    let payload = backend.dump_main_spec(&spec_doc, DumpOptions { pretty_ison })?;
-    let rebuilt = if style == SpecStyle::Yaml && update.target_exists {
-        let original_target_content = original_target_content
-            .as_ref()
-            .expect("target exists implies original_target_content");
-        let old_spec_doc = old_spec_doc
-            .as_ref()
-            .expect("target exists implies old_spec_doc");
-
-        let writeback = update_main_spec_markdown_with_overlay_or_fallback(
-            original_target_content,
-            old_spec_doc,
-            &spec_doc,
-            &payload,
-        )?;
-        if writeback.mode == YamlWriteBackMode::FencedRewrite {
-            eprintln!(
-                "{}",
-                t!(
-                    "sdd.yaml.lossless_fallback",
-                    path = display_llmanspec_path(&update.target)
-                )
-            );
-        }
-        writeback.content
-    } else {
-        let body = render_code_fence(style.as_str(), &payload);
-        compose_with_frontmatter(frontmatter_yaml.as_deref(), &body)
-    };
+    let payload = backend.dump_main_spec(&spec_doc)?;
+    let body = render_code_fence("toon", &payload);
+    let rebuilt = compose_with_frontmatter(frontmatter_yaml.as_deref(), &body);
 
     Ok((rebuilt, counts))
 }
@@ -689,18 +622,12 @@ mod tests {
     fn builds_new_spec_with_added_requirement() {
         let dir = tempdir().expect("tempdir");
         let change_spec = dir.path().join("changes/add-thing/specs/foo/spec.md");
-        let delta = r#"```ison
-object.delta
-kind
-llman.sdd.delta
-
-table.ops
-op req_id title statement from to name
-add_requirement new-capability "New capability" "System MUST support the new capability." ~ ~ ~
-
-table.op_scenarios
-req_id id given when then
-new-capability new-capability "" "a request arrives" "it succeeds"
+        let delta = r#"```toon
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,new-capability,"New capability","System MUST support the new capability.",null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  new-capability,new-capability,"",a request arrives,it succeeds
 ```
 "#;
         write_file(&change_spec, delta);
@@ -712,11 +639,9 @@ new-capability new-capability "" "a request arrives" "it succeeds"
             target_exists: false,
         };
 
-        let result =
-            build_updated_spec(&update, "add-thing", SpecStyle::Ison, false).expect("build spec");
-        assert!(result.0.contains("object.spec"));
+        let result = build_updated_spec(&update, "add-thing").expect("build spec");
         assert!(result.0.contains("llman.sdd.spec"));
-        assert!(result.0.contains("\"New capability\""));
+        assert!(result.0.contains("New capability"));
         assert!(result.0.contains("System MUST support the new capability."));
         assert!(result.0.contains("llman_spec_valid_scope"));
         assert!(result.0.contains("llman_spec_valid_commands"));
@@ -727,17 +652,11 @@ new-capability new-capability "" "a request arrives" "it succeeds"
     fn errors_on_removed_requirement_for_new_spec() {
         let dir = tempdir().expect("tempdir");
         let change_spec = dir.path().join("changes/remove-thing/specs/foo/spec.md");
-        let delta = r#"```ison
-object.delta
-kind
-llman.sdd.delta
-
-table.ops
-op req_id title statement from to name
-remove_requirement old-capability ~ ~ ~ ~ "Old capability"
-
-table.op_scenarios
-req_id id given when then
+        let delta = r#"```toon
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  remove_requirement,old-capability,null,null,null,null,"Old capability"
+op_scenarios[0]{req_id,id,given,when,then}:
 ```
 "#;
         write_file(&change_spec, delta);
@@ -749,7 +668,7 @@ req_id id given when then
             target_exists: false,
         };
 
-        let result = build_updated_spec(&update, "remove-thing", SpecStyle::Ison, false);
+        let result = build_updated_spec(&update, "remove-thing");
         assert!(result.is_err());
     }
 
@@ -757,18 +676,12 @@ req_id id given when then
     fn errors_on_missing_modified_requirement() {
         let dir = tempdir().expect("tempdir");
         let change_spec = dir.path().join("changes/update-thing/specs/foo/spec.md");
-        let delta = r#"```ison
-object.delta
-kind
-llman.sdd.delta
-
-table.ops
-op req_id title statement from to name
-modify_requirement beta "Beta" "System MUST update beta." ~ ~ ~
-
-table.op_scenarios
-req_id id given when then
-beta beta "" "beta changes" "it is updated"
+        let delta = r#"```toon
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  modify_requirement,beta,"Beta","System MUST update beta.",null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  beta,beta,"",beta changes,it is updated
 ```
 "#;
         write_file(&change_spec, delta);
@@ -782,17 +695,14 @@ llman_spec_evidence:
   - tests
 ---
 
-```ison
-object.spec
-kind name purpose
-llman.sdd.spec foo "Test spec."
-
-table.requirements
-req_id title statement
-alpha Alpha "System MUST support alpha."
-
-table.scenarios
-req_id id given when then
+```toon
+kind: llman.sdd.spec
+name: foo
+purpose: "Test spec."
+requirements[1]{req_id,title,statement}:
+  alpha,"Alpha","System MUST support alpha."
+scenarios[1]{req_id,id,given,when,then}:
+  alpha,alpha,"",alpha is used,it works
 alpha alpha "" "alpha is used" "it works"
 ```
 "#;
@@ -806,7 +716,7 @@ alpha alpha "" "alpha is used" "it works"
             target_exists: true,
         };
 
-        let result = build_updated_spec(&update, "update-thing", SpecStyle::Ison, false);
+        let result = build_updated_spec(&update, "update-thing");
         assert!(result.is_err());
     }
 
@@ -817,7 +727,6 @@ alpha alpha "" "alpha is used" "it works"
             change: Some("../oops".to_string()),
             skip_specs: true,
             dry_run: true,
-            pretty_ison: false,
             force: false,
         };
         let result = run_with_root(dir.path(), args);

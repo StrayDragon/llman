@@ -1,7 +1,6 @@
-use crate::sdd::project::config::SpecStyle;
-use crate::sdd::spec::backend::backend_for_style;
+use crate::sdd::spec::backend::{BACKEND, SpecBackend};
+use crate::sdd::spec::frontmatter::split_frontmatter;
 use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
-use crate::sdd::spec::ison::split_frontmatter;
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use serde::Serialize;
@@ -75,26 +74,20 @@ pub struct Delta {
     pub rename: Option<RenamePair>,
 }
 
-pub fn parse_spec(content: &str, name: &str, style: SpecStyle) -> Result<Spec> {
+pub fn parse_spec(content: &str, name: &str) -> Result<Spec> {
     let context = format!("spec `{}`", name);
     let (_, body) = split_frontmatter(content);
-    let backend = backend_for_style(style);
-    let doc = backend.parse_main_spec(&body, &context)?;
-    Ok(convert_main_doc_to_spec(&doc, name, style))
+    let doc = BACKEND.parse_main_spec(&body, &context)?;
+    Ok(convert_main_doc_to_spec(&doc, name))
 }
 
-pub fn parse_change(
-    content: &str,
-    name: &str,
-    change_dir: &Path,
-    style: SpecStyle,
-) -> Result<Change> {
+pub fn parse_change(content: &str, name: &str, change_dir: &Path) -> Result<Change> {
     let why =
         extract_section(content, "Why").ok_or_else(|| anyhow!("Change must have a Why section"))?;
     let what_changes = extract_section(content, "What Changes")
         .ok_or_else(|| anyhow!("Change must have a What Changes section"))?;
 
-    let deltas = parse_change_deltas(&what_changes, change_dir, style)?;
+    let deltas = parse_change_deltas(&what_changes, change_dir)?;
 
     Ok(Change {
         name: name.to_string(),
@@ -107,19 +100,15 @@ pub fn parse_change(
     })
 }
 
-fn parse_change_deltas(
-    what_changes: &str,
-    change_dir: &Path,
-    style: SpecStyle,
-) -> Result<Vec<Delta>> {
-    let spec_deltas = parse_delta_specs(change_dir, style)?;
+fn parse_change_deltas(what_changes: &str, change_dir: &Path) -> Result<Vec<Delta>> {
+    let spec_deltas = parse_delta_specs(change_dir)?;
     if !spec_deltas.is_empty() {
         return Ok(spec_deltas);
     }
     Ok(parse_simple_deltas(what_changes))
 }
 
-pub fn parse_delta_specs(change_dir: &Path, style: SpecStyle) -> Result<Vec<Delta>> {
+pub fn parse_delta_specs(change_dir: &Path) -> Result<Vec<Delta>> {
     let mut deltas = Vec::new();
     let specs_dir = change_dir.join("specs");
     if !specs_dir.exists() {
@@ -138,15 +127,14 @@ pub fn parse_delta_specs(change_dir: &Path, style: SpecStyle) -> Result<Vec<Delt
         }
         let content = std::fs::read_to_string(&spec_file)?;
         let context = format!("delta spec `{}`", spec_name);
-        let backend = backend_for_style(style);
-        let doc = backend.parse_delta_spec(&content, &context)?;
+        let doc = BACKEND.parse_delta_spec(&content, &context)?;
         deltas.extend(convert_delta_doc_to_deltas(&spec_name, &doc)?);
     }
 
     Ok(deltas)
 }
 
-fn convert_main_doc_to_spec(doc: &MainSpecDoc, fallback_name: &str, style: SpecStyle) -> Spec {
+fn convert_main_doc_to_spec(doc: &MainSpecDoc, fallback_name: &str) -> Spec {
     let mut scenarios_by_req: std::collections::HashMap<&str, Vec<Scenario>> =
         std::collections::HashMap::new();
     for scenario in &doc.scenarios {
@@ -182,7 +170,7 @@ fn convert_main_doc_to_spec(doc: &MainSpecDoc, fallback_name: &str, style: SpecS
         overview: doc.purpose.trim().to_string(),
         requirements,
         metadata: SpecMetadata {
-            format: format!("llman-sdd-{}", style.as_str()),
+            format: "llman-sdd-toon".to_string(),
         },
     }
 }

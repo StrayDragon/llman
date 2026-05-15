@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-explore"
 description: "Enter explore mode for llman SDD (thinking only; no implementation)."
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD Explore
