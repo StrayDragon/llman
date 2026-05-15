@@ -1,4 +1,3 @@
-<!-- llman-template-version: 1 -->
 ## Canonical TOON Spec Contract (experimental)
 
 In a `spec_style: toon` project, SDD main specs and delta specs are authored as **one** fenced ` ```toon ` code block containing one canonical TOON document.

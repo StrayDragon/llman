@@ -1,5 +1,4 @@
-use crate::sdd::project::config::SpecStyle;
-use crate::sdd::spec::backend::backend_for_style;
+use crate::sdd::spec::backend::{BACKEND, SpecBackend};
 use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
 use serde::Serialize;
 use std::fs;
@@ -51,7 +50,6 @@ pub struct SpecValidation {
 pub fn validate_spec_content_with_frontmatter(
     path: &Path,
     content: &str,
-    style: SpecStyle,
     strict: bool,
 ) -> SpecValidation {
     let spec_name = path
@@ -66,8 +64,7 @@ pub fn validate_spec_content_with_frontmatter(
     let body = parsed_frontmatter.body.clone();
 
     let context = format!("spec `{}`", spec_name);
-    let backend = backend_for_style(style);
-    match backend.parse_main_spec(&body, &context) {
+    match BACKEND.parse_main_spec(&body, &context) {
         Ok(doc) => {
             if doc.name.trim() != spec_name {
                 issues.push(ValidationIssue {
@@ -309,11 +306,7 @@ Test
     }
 }
 
-pub fn validate_change_delta_specs(
-    change_dir: &Path,
-    style: SpecStyle,
-    strict: bool,
-) -> ValidationReport {
+pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> ValidationReport {
     let mut issues = Vec::new();
     let specs_dir = change_dir.join("specs");
     let mut total_deltas = 0usize;
@@ -360,8 +353,7 @@ pub fn validate_change_delta_specs(
                 continue;
             }
         };
-        let backend = backend_for_style(style);
-        let doc = match backend.parse_delta_spec(&content, &format!("delta spec `{}`", spec_name)) {
+        let doc = match BACKEND.parse_delta_spec(&content, &format!("delta spec `{}`", spec_name)) {
             Ok(doc) => doc,
             Err(err) => {
                 issues.push(ValidationIssue {

@@ -1,4 +1,3 @@
-<!-- llman-template-version: 1 -->
 ## Future-to-Execution Planning
 - Treat `llmanspec/changes/<id>/future.md` as a candidate backlog, not passive notes.
 - Review `Deferred Items`, `Branch Options`, and `Triggers to Reopen`; classify each item as:

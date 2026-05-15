@@ -137,7 +137,7 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
 
 fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    let config = load_required_config(&llmanspec_dir)?;
+    let _config = load_required_config(&llmanspec_dir)?;
 
     let specs_dir = root.join(LLMANSPEC_DIR_NAME).join("specs");
     if !specs_dir.exists() {
@@ -164,8 +164,8 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
         let spec_path = specs_dir.join(&id).join("spec.md");
         let content = fs::read_to_string(&spec_path)
             .map_err(|err| anyhow!("failed to read spec {}: {}", spec_path.display(), err))?;
-        let spec = parse_spec(&content, &id, config.spec_style)
-            .map_err(|err| anyhow!("{}: {}", spec_path.display(), err))?;
+        let spec =
+            parse_spec(&content, &id).map_err(|err| anyhow!("{}: {}", spec_path.display(), err))?;
         specs.push((id, spec.requirements.len()));
     }
 

@@ -574,18 +574,13 @@ fn execute_run_step(
 }
 
 fn init_workspace_sdd(workspace_root: &Path) -> Result<()> {
-    use crate::sdd::project::templates::TemplateStyle;
-
-    let template_style = TemplateStyle::New;
-
     let llmanspec = workspace_root.join(crate::sdd::shared::constants::LLMANSPEC_DIR_NAME);
     if !llmanspec.exists() {
-        crate::sdd::project::init::run(workspace_root, None, template_style)
+        crate::sdd::project::init::run(workspace_root, None)
             .context("llman sdd init (workspace)")?;
     }
 
-    crate::sdd::project::update::run(workspace_root, template_style)
-        .context("llman sdd update (workspace)")?;
+    crate::sdd::project::update::run(workspace_root).context("llman sdd update (workspace)")?;
 
     Ok(())
 }

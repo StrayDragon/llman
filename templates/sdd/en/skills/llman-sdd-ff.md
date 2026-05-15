@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-ff"
 description: "Fast-forward: create proposal/specs/design/tasks for a change in one pass."
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD Fast-Forward (FF)
@@ -33,7 +31,7 @@ Use this skill to create **all** artifacts for a new change quickly (proposal â†
 6. Show a short status summary and suggest next actions (`llman-sdd-apply`).
 
 {{ unit("skills/sdd-commands") }}
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

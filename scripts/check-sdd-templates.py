@@ -4,73 +4,10 @@ import re
 import sys
 from typing import Dict, List, Optional
 
-HTML_VERSION_RE = re.compile(
-    r"^<!--\s*llman-template-version:\s*([0-9]+)\s*-->\s*$"
-)
-FRONTMATTER_VERSION_RE = re.compile(
-    r"^\s*llman-template-version:\s*([0-9]+)\s*$"
-)
 SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FORBIDDEN_PROMPT_TOOLING_RE = re.compile(
     r"(?i)/llman-sdd:|\bclaude\b|\bcodex\b|slash commands?"
 )
-
-
-def extract_frontmatter_version(
-    path: Path, lines: List[str], errors: List[str]
-) -> Optional[str]:
-    end_idx = None
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            end_idx = i
-            break
-    if end_idx is None:
-        errors.append(f"{path}: unterminated frontmatter")
-        return None
-
-    metadata_indent = None
-    in_metadata = False
-    for line in lines[1:end_idx]:
-        if not line.strip():
-            continue
-        leading = len(line) - len(line.lstrip(" "))
-        stripped = line.strip()
-        if not line.startswith(" "):
-            # top-level key
-            if stripped == "metadata:":
-                metadata_indent = leading
-                in_metadata = True
-            else:
-                in_metadata = False
-            continue
-        if not in_metadata or metadata_indent is None:
-            continue
-        if leading <= metadata_indent:
-            in_metadata = False
-            continue
-        match = FRONTMATTER_VERSION_RE.match(stripped)
-        if match:
-            return match.group(1)
-
-    errors.append(f"{path}: missing llman-template-version in metadata")
-    return None
-
-
-def extract_version(path: Path, lines: List[str], errors: List[str]) -> Optional[str]:
-    if not lines:
-        errors.append(f"{path}: empty file (missing version header)")
-        return None
-
-    if lines[0].strip() == "---":
-        return extract_frontmatter_version(path, lines, errors)
-
-    match = HTML_VERSION_RE.match(lines[0])
-    if not match:
-        errors.append(
-            f"{path}: missing or invalid llman-template-version header on first line"
-        )
-        return None
-    return match.group(1)
 
 
 def is_skill_template(path: Path) -> bool:
@@ -132,8 +69,8 @@ def validate_skill_frontmatter(path: Path, lines: List[str], errors: List[str]) 
         errors.append(f"{path}: description exceeds 1024 characters")
 
 
-def collect_versions(locale_dir: Path, errors: List[str]) -> Dict[str, str]:
-    versions: Dict[str, str] = {}
+def collect_template_files(locale_dir: Path, errors: List[str]) -> List[str]:
+    files: List[str] = []
     for path in sorted(locale_dir.rglob("*.md")):
         rel = path.relative_to(locale_dir).as_posix()
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -144,13 +81,10 @@ def collect_versions(locale_dir: Path, errors: List[str]) -> Dict[str, str]:
                 f"{path}: forbidden tool-specific prompt content detected: '{forbidden_match.group(0)}'"
             )
         validate_skill_frontmatter(path, lines, errors)
-        version = extract_version(path, lines, errors)
-        if version is None:
-            continue
-        versions[rel] = version
-    if not versions:
+        files.append(rel)
+    if not files:
         errors.append(f"{locale_dir}: no markdown templates found")
-    return versions
+    return files
 
 
 def validate_markdown_root(templates_root: Path, errors: List[str]) -> List[str]:
@@ -166,26 +100,20 @@ def validate_markdown_root(templates_root: Path, errors: List[str]) -> List[str]
     locales = [p.name for p in locale_dirs]
     base_locale = "en" if (templates_root / "en").is_dir() else locales[0]
     base_dir = templates_root / base_locale
-    base_versions = collect_versions(base_dir, errors)
+    base_files = collect_template_files(base_dir, errors)
 
     for locale_dir in locale_dirs:
         if locale_dir == base_dir:
             continue
-        versions = collect_versions(locale_dir, errors)
+        files = collect_template_files(locale_dir, errors)
 
-        base_set = set(base_versions)
-        other_set = set(versions)
+        base_set = set(base_files)
+        other_set = set(files)
 
         for rel in sorted(base_set - other_set):
             errors.append(f"{locale_dir / rel}: missing template (expected {rel})")
         for rel in sorted(other_set - base_set):
             errors.append(f"{locale_dir / rel}: extra template (not in {base_locale})")
-        for rel in sorted(base_set & other_set):
-            if base_versions[rel] != versions[rel]:
-                errors.append(
-                    f"{locale_dir / rel}: version {versions[rel]} does not match "
-                    f"{base_locale} version {base_versions[rel]}"
-                )
 
     return locales
 

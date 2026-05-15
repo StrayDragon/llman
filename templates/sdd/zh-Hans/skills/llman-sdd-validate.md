@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-validate"
 description: "校验 llmanspec 变更与 specs 并提供修复提示。"
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD 校验
@@ -17,6 +15,6 @@ metadata:
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}

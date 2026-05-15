@@ -1,4 +1,3 @@
-<!-- llman-template-version: 1 -->
 常用命令：
 - `llman sdd list`（列出变更）
 - `llman sdd list --specs`（列出 specs）

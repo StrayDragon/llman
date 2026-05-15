@@ -1,4 +1,3 @@
-<!-- llman-template-version: 1 -->
 Common commands:
 - `llman sdd list` (list changes)
 - `llman sdd list --specs` (list specs)

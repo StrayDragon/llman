@@ -1,99 +1,53 @@
-use crate::config_schema::{
-    ConfigSchemaKind, LLMANSPEC_SCHEMA_URL, prepend_schema_header, validate_yaml_value,
-};
+use crate::config_schema::ConfigSchemaKind;
+use crate::config_schema::{LLMANSPEC_SCHEMA_URL, prepend_schema_header, validate_yaml_value};
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::shared::constants::LLMANSPEC_CONFIG_FILE;
 use anyhow::{Result, anyhow};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const CONFIG_VERSION: u32 = 1;
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-#[schemars(description = "Primary on-disk style for SDD spec/delta payloads.")]
-pub enum SpecStyle {
-    Ison,
-    Toon,
-    Yaml,
-}
-
-impl SpecStyle {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            SpecStyle::Ison => "ison",
-            SpecStyle::Toon => "toon",
-            SpecStyle::Yaml => "yaml",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[schemars(description = "Skills output paths used by llman SDD.")]
-pub struct SkillsConfig {
-    #[serde(default = "default_claude_path")]
-    #[schemars(
-        description = "Path for generated Claude Code skills (relative to llmanspec root)."
-    )]
-    pub claude_path: String,
-    #[serde(default = "default_codex_path")]
-    #[schemars(description = "Path for generated Codex skills (relative to llmanspec root).")]
-    pub codex_path: String,
-}
-
-impl Default for SkillsConfig {
-    fn default() -> Self {
-        Self {
-            claude_path: default_claude_path(),
-            codex_path: default_codex_path(),
-        }
-    }
-}
+const EXPECTED_SCHEMA: &str = "spec-driven";
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[schemars(description = "SDD project configuration for llmanspec.")]
 pub struct SddConfig {
-    #[serde(default = "default_version")]
-    #[schemars(description = "Configuration schema version.")]
-    pub version: u32,
+    #[schemars(description = "Schema identifier. Must be \"spec-driven\".")]
+    pub schema: String,
+
     #[serde(default = "default_locale")]
     #[schemars(description = "Locale used for SDD templates and skills.")]
     pub locale: String,
-    #[schemars(description = "Primary on-disk style for SDD spec/delta payloads.")]
-    pub spec_style: SpecStyle,
+
     #[serde(default)]
-    #[schemars(description = "SDD skills output configuration.")]
-    pub skills: SkillsConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Project context (tech stack, conventions, constraints). Replaces project.md."
+    )]
+    pub context: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(description = "Per-artifact rules. Map of artifact_id -> string[].")]
+    pub rules: Option<BTreeMap<String, Vec<String>>>,
 }
 
 impl Default for SddConfig {
     fn default() -> Self {
         Self {
-            version: default_version(),
+            schema: EXPECTED_SCHEMA.to_string(),
             locale: default_locale(),
-            spec_style: SpecStyle::Ison,
-            skills: SkillsConfig::default(),
+            context: None,
+            rules: None,
         }
     }
 }
 
-fn default_version() -> u32 {
-    CONFIG_VERSION
-}
-
 fn default_locale() -> String {
     "en".to_string()
-}
-
-fn default_claude_path() -> String {
-    ".claude/skills".to_string()
-}
-
-fn default_codex_path() -> String {
-    ".codex/skills".to_string()
 }
 
 pub fn config_path(llmanspec_dir: &Path) -> PathBuf {
@@ -117,7 +71,10 @@ pub fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
         .map_err(|err| anyhow!(t!("sdd.config.read_failed", error = err)))?;
     let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
         .map_err(|err| anyhow!(t!("sdd.config.parse_failed", error = err)))?;
-    validate_spec_style_field(&yaml_value, &path)?;
+
+    // Reject old-format configs
+    reject_old_format(&yaml_value, &path)?;
+
     if let Err(error) = validate_yaml_value(ConfigSchemaKind::Llmanspec, &yaml_value) {
         return Err(anyhow!(t!(
             "sdd.config.schema_invalid",
@@ -127,18 +84,37 @@ pub fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
     }
     let config: SddConfig = serde_yaml::from_value(yaml_value)
         .map_err(|err| anyhow!(t!("sdd.config.parse_failed", error = err)))?;
-    if config.version != CONFIG_VERSION {
-        return Err(anyhow!(t!(
-            "sdd.config.unsupported_version",
-            version = config.version
-        )));
+
+    if config.schema.trim() != EXPECTED_SCHEMA {
+        return Err(anyhow!(
+            "Unsupported schema '{}'. Expected '{}'.",
+            config.schema.trim(),
+            EXPECTED_SCHEMA
+        ));
     }
+
     Ok(Some(SddConfig {
-        version: CONFIG_VERSION,
+        schema: EXPECTED_SCHEMA.to_string(),
         locale: normalize_locale(&config.locale),
-        spec_style: config.spec_style,
-        skills: config.skills,
+        context: config.context,
+        rules: config.rules,
     }))
+}
+
+fn reject_old_format(value: &serde_yaml::Value, path: &Path) -> Result<()> {
+    let Some(mapping) = value.as_mapping() else {
+        return Ok(());
+    };
+    let has_old_keys = mapping
+        .keys()
+        .any(|k| k.as_str() == Some("spec_style") || k.as_str() == Some("version"));
+    if has_old_keys {
+        return Err(anyhow!(
+            "Old config format detected in {}. Please run `llman sdd init` to reinitialize.",
+            path.display()
+        ));
+    }
+    Ok(())
 }
 
 pub fn load_required_config(llmanspec_dir: &Path) -> Result<SddConfig> {
@@ -146,44 +122,6 @@ pub fn load_required_config(llmanspec_dir: &Path) -> Result<SddConfig> {
         let path = config_path(llmanspec_dir);
         anyhow!(t!("sdd.config.missing", path = path.display()))
     })
-}
-
-fn validate_spec_style_field(value: &serde_yaml::Value, path: &Path) -> Result<()> {
-    let Some(mapping) = value.as_mapping() else {
-        return Err(anyhow!(t!(
-            "sdd.config.spec_style_missing",
-            path = path.display()
-        )));
-    };
-    let key = serde_yaml::Value::String("spec_style".to_string());
-    let Some(spec_style) = mapping.get(&key) else {
-        return Err(anyhow!(t!(
-            "sdd.config.spec_style_missing",
-            path = path.display()
-        )));
-    };
-    let Some(spec_style) = spec_style.as_str() else {
-        return Err(anyhow!(t!(
-            "sdd.config.spec_style_invalid",
-            path = path.display(),
-            value = format!("{spec_style:?}")
-        )));
-    };
-    let trimmed = spec_style.trim();
-    if trimmed.is_empty() {
-        return Err(anyhow!(t!(
-            "sdd.config.spec_style_missing",
-            path = path.display()
-        )));
-    }
-    match trimmed {
-        "ison" | "toon" | "yaml" => Ok(()),
-        other => Err(anyhow!(t!(
-            "sdd.config.spec_style_invalid",
-            path = path.display(),
-            value = other
-        ))),
-    }
 }
 
 pub fn load_or_create_config(llmanspec_dir: &Path) -> Result<SddConfig> {
@@ -245,15 +183,6 @@ fn push_unique(locales: &mut Vec<String>, seen: &mut HashSet<String>, value: Str
     }
 }
 
-pub fn resolve_skill_path(root: &Path, path: &str) -> PathBuf {
-    let candidate = Path::new(path);
-    if candidate.is_absolute() {
-        candidate.to_path_buf()
-    } else {
-        root.join(candidate)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -277,21 +206,46 @@ mod tests {
     }
 
     #[test]
-    fn resolve_skill_path_handles_relative() {
-        let dir = tempdir().expect("tempdir");
-        let root = dir.path();
-        let resolved = resolve_skill_path(root, ".claude/skills");
-        assert_eq!(resolved, root.join(".claude/skills"));
-    }
-
-    #[test]
     fn load_config_normalizes_locale() {
         let dir = tempdir().expect("tempdir");
         let llmanspec_dir = dir.path();
         let path = config_path(llmanspec_dir);
-        let content = "version: 1\nlocale: zh-cn\nspec_style: ison\nskills:\n  claude_path: .claude/skills\n  codex_path: .codex/skills\n";
+        let content = "schema: spec-driven\nlocale: zh-cn\n";
         fs::write(&path, content).expect("write config");
         let config = load_config(llmanspec_dir).expect("load").expect("config");
         assert_eq!(config.locale, "zh-Hans");
+    }
+
+    #[test]
+    fn load_config_rejects_old_format() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        let path = config_path(llmanspec_dir);
+        let content = "version: 1\nspec_style: ison\nlocale: en\n";
+        fs::write(&path, content).expect("write config");
+        let result = load_config(llmanspec_dir);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Old config format detected"), "got: {err}");
+    }
+
+    #[test]
+    fn load_config_rejects_wrong_schema() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        let path = config_path(llmanspec_dir);
+        let content = "schema: other\nlocale: en\n";
+        fs::write(&path, content).expect("write config");
+        let result = load_config(llmanspec_dir);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn default_config_has_spec_driven() {
+        let config = SddConfig::default();
+        assert_eq!(config.schema, "spec-driven");
+        assert_eq!(config.locale, "en");
+        assert!(config.context.is_none());
+        assert!(config.rules.is_none());
     }
 }

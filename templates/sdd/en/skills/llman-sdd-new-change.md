@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-new-change"
 description: "Create a new change proposal and delta specs."
-metadata:
-  llman-template-version: 3
 ---
 
 # LLMAN SDD New Change
@@ -18,7 +16,7 @@ Create a new change with planning artifacts (proposal + delta specs + tasks; des
    - If the change already exists, STOP and suggest `llman-sdd-continue`.
 4. Create artifacts under `llmanspec/changes/<change-id>/`:
    - `proposal.md` (Why / What Changes / Capabilities / Impact)
-   - `specs/<capability>/spec.md` for each capability, using the project’s configured `spec_style` (`{{ spec_style }}`):
+   - `specs/<capability>/spec.md` for each capability, using the project’s configured `spec_style` (`toon`):
      - Prefer generating via authoring helpers so the fenced payload matches `spec_style`:
        - `llman sdd delta skeleton <change-id> <capability>`
        - `llman sdd delta add-op ...`
@@ -31,7 +29,7 @@ Create a new change with planning artifacts (proposal + delta specs + tasks; des
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

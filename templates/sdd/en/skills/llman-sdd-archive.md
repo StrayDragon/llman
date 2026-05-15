@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-archive"
 description: "Archive one or multiple changes and merge deltas into specs."
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD Archive
@@ -27,6 +25,6 @@ Use this skill to archive completed changes.
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}

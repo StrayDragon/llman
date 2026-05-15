@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-continue"
 description: "Continue an existing llman SDD change by creating the next artifact."
-metadata:
-  llman-template-version: 2
 ---
 
 # LLMAN SDD Continue
@@ -28,7 +26,7 @@ Use this skill to continue an existing change and create the next missing artifa
    - Archive (when ready): `llman sdd archive <id>`
 
 {{ unit("skills/sdd-commands") }}
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
 {{ unit("skills/future-planning") }}

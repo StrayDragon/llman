@@ -1,8 +1,6 @@
 ---
 name: "llman-sdd-onboard"
 description: "了解 llman SDD 工作流并完成项目入门。"
-metadata:
-  llman-template-version: 1
 ---
 
 # LLMAN SDD 入门
@@ -21,6 +19,6 @@ metadata:
 - locale 仅影响模板与 skills，CLI 仍为英文。
 - 使用 `llman sdd update-skills` 刷新技能。
 
-{{ unit_style("skills/validation-hints") }}
+{{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
