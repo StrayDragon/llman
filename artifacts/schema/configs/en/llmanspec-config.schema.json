@@ -32,6 +32,16 @@
           "type": "string"
         }
       }
+    },
+    "extra_skills": {
+      "description": "Optional SDD skills to enable beyond the default set. Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, llman-sdd-show, llman-sdd-sync, llman-sdd-validate, llman-sdd-verify.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [
