@@ -1,3 +1,5 @@
+Before acting, read `llmanspec/config.yaml` and follow its `context` and `rules` if present.
+
 Common commands:
 - `llman sdd list` (list changes)
 - `llman sdd list --specs` (list specs)

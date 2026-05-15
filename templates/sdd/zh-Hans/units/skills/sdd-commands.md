@@ -1,3 +1,5 @@
+在执行之前，请先阅读 `llmanspec/config.yaml`，若其中包含 `context` 与 `rules` 请遵循。
+
 常用命令：
 - `llman sdd list`（列出变更）
 - `llman sdd list --specs`（列出 specs）

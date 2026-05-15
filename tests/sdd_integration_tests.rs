@@ -794,11 +794,11 @@ fn test_sdd_update_recreates_root_agents_md() {
     let content = fs::read_to_string(&agents_path).expect("read root AGENTS.md");
     assert!(content.contains("<!-- LLMANSPEC:START -->"));
     assert!(content.contains("LLMAN Spec-Driven Development"));
-    assert!(content.contains("llman sdd update-skills"));
+    assert!(content.contains("/llman-sdd-onboard"));
 }
 
 #[test]
-fn test_sdd_update_skills_writes_codex_skills_without_workflow_prompts() {
+fn test_sdd_update_skills_writes_agents_skills() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
 
@@ -809,17 +809,9 @@ fn test_sdd_update_skills_writes_codex_skills_without_workflow_prompts() {
     );
     assert_success(&init_output);
 
-    let output_dir = work_dir.join(".codex/skills");
+    let output_dir = work_dir.join(".agents/skills");
     let update_output = run_llman(
-        &[
-            "sdd",
-            "update-skills",
-            "--tool",
-            "codex",
-            "--no-interactive",
-            "--path",
-            ".codex/skills",
-        ],
+        &["sdd", "update-skills", "--no-interactive"],
         work_dir,
         work_dir,
     );
@@ -861,9 +853,6 @@ fn test_sdd_update_skills_writes_codex_skills_without_workflow_prompts() {
         let content = fs::read_to_string(&skill_md).expect("read generated SKILL.md");
         assert_no_disallowed_prompt_markers(&skill_md, &content);
     }
-
-    let codex_prompts = work_dir.join(".codex/prompts");
-    assert!(!codex_prompts.exists());
 }
 
 #[test]
@@ -914,17 +903,9 @@ MARKDOWN SOURCE MARKER
     )
     .expect("write markdown override");
 
-    let output_dir = work_dir.join(".codex/skills");
+    let output_dir = work_dir.join(".agents/skills");
     let update_output = run_llman(
-        &[
-            "sdd",
-            "update-skills",
-            "--tool",
-            "codex",
-            "--no-interactive",
-            "--path",
-            ".codex/skills",
-        ],
+        &["sdd", "update-skills", "--no-interactive"],
         work_dir,
         work_dir,
     );
@@ -980,15 +961,7 @@ metadata:
     .expect("write invalid override");
 
     let output = run_llman(
-        &[
-            "sdd",
-            "update-skills",
-            "--tool",
-            "codex",
-            "--no-interactive",
-            "--path",
-            ".codex/skills",
-        ],
+        &["sdd", "update-skills", "--no-interactive"],
         work_dir,
         work_dir,
     );
