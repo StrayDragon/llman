@@ -4,49 +4,37 @@
   "description": "SDD project configuration for llmanspec.",
   "type": "object",
   "properties": {
+    "schema": {
+      "description": "Schema identifier. Must be \"spec-driven\".",
+      "type": "string"
+    },
     "locale": {
       "description": "Locale used for SDD templates and skills.",
       "type": "string",
       "default": "en"
     },
-    "skills": {
-      "description": "SDD skills output configuration.",
-      "type": "object",
-      "properties": {
-        "claude_path": {
-          "description": "Path for generated Claude Code skills (relative to llmanspec root).",
-          "type": "string",
-          "default": ".claude/skills"
-        },
-        "codex_path": {
-          "description": "Path for generated Codex skills (relative to llmanspec root).",
-          "type": "string",
-          "default": ".codex/skills"
-        }
-      },
-      "default": {
-        "claude_path": ".claude/skills",
-        "codex_path": ".codex/skills"
-      }
-    },
-    "spec_style": {
-      "description": "Primary on-disk style for SDD spec/delta payloads.",
-      "type": "string",
-      "enum": [
-        "ison",
-        "toon",
-        "yaml"
+    "context": {
+      "description": "Project context (tech stack, conventions, constraints). Replaces project.md.",
+      "type": [
+        "string",
+        "null"
       ]
     },
-    "version": {
-      "description": "Configuration schema version.",
-      "type": "integer",
-      "format": "uint32",
-      "default": 1,
-      "minimum": 0
+    "rules": {
+      "description": "Per-artifact rules. Map of artifact_id -> string[].",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
     }
   },
   "required": [
-    "spec_style"
+    "schema"
   ]
 }
