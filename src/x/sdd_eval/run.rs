@@ -575,12 +575,13 @@ fn execute_run_step(
 
 fn init_workspace_sdd(workspace_root: &Path) -> Result<()> {
     let llmanspec = workspace_root.join(crate::sdd::shared::constants::LLMANSPEC_DIR_NAME);
-    if !llmanspec.exists() {
-        crate::sdd::project::init::run(workspace_root, None)
+    if llmanspec.exists() {
+        crate::sdd::project::init::run(workspace_root, None, true)
+            .context("llman sdd init --update (workspace)")?;
+    } else {
+        crate::sdd::project::init::run(workspace_root, None, false)
             .context("llman sdd init (workspace)")?;
     }
-
-    crate::sdd::project::update::run(workspace_root).context("llman sdd update (workspace)")?;
 
     Ok(())
 }

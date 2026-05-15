@@ -1,32 +1,33 @@
-use super::config::{SddConfig, config_with_locale, write_default_config};
+use super::config::{SddConfig, load_or_create_config, write_default_config};
 use super::fs_utils::update_file_with_markers;
 use super::templates::root_stub_content;
-use super::update_skills::{self, UpdateSkillsArgs};
+use super::update_skills;
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, LLMANSPEC_MARKERS};
 use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::Path;
 
-pub fn run(target: &Path, locale: Option<&str>) -> Result<()> {
+pub fn run(target: &Path, locale: Option<&str>, update: bool) -> Result<()> {
     ensure_directory(target)?;
-
     let llmanspec_path = target.join(LLMANSPEC_DIR_NAME);
-    if llmanspec_path.exists() {
-        return Err(anyhow!("llmanspec directory already exists"));
+
+    if update {
+        if !llmanspec_path.exists() {
+            return Err(anyhow!(
+                "No llmanspec directory found. Run 'llman sdd init' first."
+            ));
+        }
+    } else {
+        if llmanspec_path.exists() {
+            return Err(anyhow!("llmanspec directory already exists"));
+        }
+        create_structure(&llmanspec_path)?;
+        write_default_config(&llmanspec_path, locale.unwrap_or("en"))?;
     }
 
-    create_structure(&llmanspec_path)?;
-    let config = config_with_locale(locale);
-    write_default_config(&llmanspec_path, &config.locale)?;
+    let config = load_or_create_config(&llmanspec_path)?;
     write_root_agents_file(target, &config)?;
-    update_skills::run_with_root(
-        target,
-        UpdateSkillsArgs {
-            no_interactive: true,
-            commands_only: false,
-            skills_only: false,
-        },
-    )?;
+    update_skills::run_with_root(target)?;
 
     Ok(())
 }
@@ -43,8 +44,14 @@ fn ensure_directory(target: &Path) -> Result<()> {
 }
 
 fn create_structure(llmanspec_path: &Path) -> Result<()> {
-    fs::create_dir_all(llmanspec_path.join("specs"))?;
-    fs::create_dir_all(llmanspec_path.join("changes").join("archive"))?;
+    let specs = llmanspec_path.join("specs");
+    fs::create_dir_all(&specs)?;
+    fs::write(specs.join(".gitkeep"), "")?;
+
+    let archive = llmanspec_path.join("changes").join("archive");
+    fs::create_dir_all(&archive)?;
+    fs::write(archive.join(".gitkeep"), "")?;
+
     Ok(())
 }
 

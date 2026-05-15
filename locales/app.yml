@@ -1644,8 +1644,6 @@ sdd:
   update_skills:
     no_llmanspec:
       en: "No llmanspec directory found. Run '%{cmd}' first."
-    missing_workflow_command_template:
-      en: "Missing llman sdd workflow command template for %{id}."
 
   import:
     style_only:

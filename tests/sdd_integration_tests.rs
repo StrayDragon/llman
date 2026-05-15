@@ -290,6 +290,7 @@ op_scenarios[1]{req_id,id,given,when,then}:
     let entries: Vec<_> = fs::read_dir(&archive_root)
         .expect("read archive dir")
         .filter_map(|entry| entry.ok())
+        .filter(|e| e.file_name() != ".gitkeep")
         .collect();
     assert_eq!(entries.len(), 1);
     let archive_name = entries[0].file_name().to_string_lossy().to_string();
@@ -787,7 +788,7 @@ fn test_sdd_update_recreates_root_agents_md() {
     fs::remove_file(&agents_path).expect("remove root AGENTS.md");
     assert!(!agents_path.exists());
 
-    let update_output = run_llman(&["sdd", "update"], work_dir, work_dir);
+    let update_output = run_llman(&["sdd", "init", "--update"], work_dir, work_dir);
     assert_success(&update_output);
 
     assert!(agents_path.exists());
@@ -810,11 +811,7 @@ fn test_sdd_update_skills_writes_agents_skills() {
     assert_success(&init_output);
 
     let output_dir = work_dir.join(".agents/skills");
-    let update_output = run_llman(
-        &["sdd", "update-skills", "--no-interactive"],
-        work_dir,
-        work_dir,
-    );
+    let update_output = run_llman(&["sdd", "init", "--update"], work_dir, work_dir);
     assert_success(&update_output);
 
     let skill_path = output_dir.join("llman-sdd-onboard").join("SKILL.md");
@@ -904,11 +901,7 @@ MARKDOWN SOURCE MARKER
     .expect("write markdown override");
 
     let output_dir = work_dir.join(".agents/skills");
-    let update_output = run_llman(
-        &["sdd", "update-skills", "--no-interactive"],
-        work_dir,
-        work_dir,
-    );
+    let update_output = run_llman(&["sdd", "init", "--update"], work_dir, work_dir);
     assert_success(&update_output);
 
     let skill = fs::read_to_string(output_dir.join("llman-sdd-onboard").join("SKILL.md"))
@@ -960,11 +953,7 @@ metadata:
     )
     .expect("write invalid override");
 
-    let output = run_llman(
-        &["sdd", "update-skills", "--no-interactive"],
-        work_dir,
-        work_dir,
-    );
+    let output = run_llman(&["sdd", "init", "--update"], work_dir, work_dir);
     assert!(
         !output.status.success(),
         "missing ethics key in override should fail"
