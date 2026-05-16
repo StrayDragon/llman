@@ -121,26 +121,28 @@ fn render_mermaid(root: &Path) -> Result<()> {
     let (nodes, edges) = collect_edges(root)?;
 
     if nodes.is_empty() {
-        println!("graph LR");
+        println!("flowchart TD");
         println!("    empty[\"No active changes\"]");
         return Ok(());
     }
 
-    println!("graph LR");
+    println!("flowchart TD");
     for node in &nodes {
         println!("    {}[\"{}\"]", sanitize_id(node), node);
     }
     for edge in &edges {
-        let label = match edge.kind {
-            EdgeKind::DependsOn => "depends on",
-            EdgeKind::Blocks => "blocks",
-        };
-        println!(
-            "    {} -->|{}| {}",
-            sanitize_id(&edge.from),
-            label,
-            sanitize_id(&edge.to),
-        );
+        match edge.kind {
+            EdgeKind::DependsOn => println!(
+                "    {} -->|depends on| {}",
+                sanitize_id(&edge.from),
+                sanitize_id(&edge.to),
+            ),
+            EdgeKind::Blocks => println!(
+                "    {} -.->|blocks| {}",
+                sanitize_id(&edge.from),
+                sanitize_id(&edge.to),
+            ),
+        }
     }
 
     Ok(())

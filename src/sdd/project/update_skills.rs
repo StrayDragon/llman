@@ -75,6 +75,7 @@ mod tests {
         "llman-sdd-apply",
         "llman-sdd-specs-compact",
         "llman-sdd-archive",
+        "llman-sdd-graph",
     ];
 
     #[test]

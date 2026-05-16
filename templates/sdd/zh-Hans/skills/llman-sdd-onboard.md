@@ -11,6 +11,7 @@ description: "了解 llman SDD 工作流并完成项目入门。"
 1. 阅读 `llmanspec/config.yaml` 了解项目上下文、约定与规则。
 2. 查看当前的变更与 specs。
 3. 按照 提案 -> 实施 -> 归档 的流程推进。
+4. 使用 `llman sdd graph` 可视化变更依赖关系（depends_on/blocks）。
 
 {{ unit("skills/sdd-commands") }}
 
