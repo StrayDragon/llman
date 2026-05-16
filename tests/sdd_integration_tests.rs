@@ -549,6 +549,7 @@ fn test_sdd_authoring_helpers_produce_strict_valid_spec_and_change() {
     fs::create_dir_all(&change_dir).expect("create change dir");
     let proposal = "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n";
     fs::write(change_dir.join("proposal.md"), proposal).expect("write proposal");
+    fs::write(change_dir.join("tasks.md"), "- [ ] Implement the change\n").expect("write tasks");
 
     let delta_skel = run_llman(
         &["sdd", "delta", "skeleton", "add-sample", "sample"],
@@ -740,6 +741,7 @@ fn test_sdd_validate_change_json_succeeds() {
         "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n",
     )
     .expect("write proposal");
+    fs::write(change_dir.join("tasks.md"), "- [ ] Implement the change\n").expect("write tasks");
     let delta_spec = r#"```toon
 kind: llman.sdd.delta
 ops[1]{op,req_id,title,statement,from,to,name}:

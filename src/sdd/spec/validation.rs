@@ -1,6 +1,8 @@
-use crate::sdd::spec::backend::{BACKEND, SpecBackend};
+use crate::sdd::spec::backend::{SpecBackend, BACKEND};
+use crate::sdd::spec::frontmatter::split_frontmatter;
 use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
@@ -45,6 +47,12 @@ pub struct SpecFrontmatter {
 pub struct SpecValidation {
     pub report: ValidationReport,
     pub frontmatter: Option<SpecFrontmatter>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ProposalFrontmatter {
+    pub depends_on: Vec<String>,
+    pub blocks: Vec<String>,
 }
 
 pub fn validate_spec_content_with_frontmatter(
@@ -304,6 +312,200 @@ Test
         assert_eq!(frontmatter.valid_commands, vec!["cargo test".to_string()]);
         assert_eq!(frontmatter.evidence, vec!["CI #123".to_string()]);
     }
+
+    // --- Change-level validation tests ---
+
+    fn setup_change_dir(tmp: &tempfile::TempDir, files: &[(&str, &str)]) -> std::path::PathBuf {
+        let change_dir = tmp.path().join("test-change");
+        fs::create_dir_all(&change_dir).unwrap();
+        for (name, content) in files {
+            let path = change_dir.join(name);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(&path, content).unwrap();
+        }
+        change_dir
+    }
+
+    #[test]
+    fn proposal_missing_is_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(&tmp, &[]);
+        let issues = check_proposal_exists(&change_dir);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Error);
+        assert!(issues[0].message.contains("proposal.md"));
+    }
+
+    #[test]
+    fn proposal_present_no_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(&tmp, &[("proposal.md", "## Why\nTest")]);
+        let issues = check_proposal_exists(&change_dir);
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn proposal_frontmatter_valid_depends_on() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[(
+                "proposal.md",
+                "---\ndepends_on:\n  - other-change\n---\n## Why\nTest",
+            )],
+        );
+        let all_ids = vec!["other-change".to_string(), "test-change".to_string()];
+        let (issues, fm) = check_proposal_frontmatter(&change_dir, &all_ids);
+        assert!(issues.is_empty());
+        assert_eq!(fm.depends_on, vec!["other-change"]);
+    }
+
+    #[test]
+    fn proposal_frontmatter_unknown_depends_on() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[(
+                "proposal.md",
+                "---\ndepends_on:\n  - nonexistent\n---\n## Why\nTest",
+            )],
+        );
+        let all_ids = vec!["test-change".to_string()];
+        let (issues, _) = check_proposal_frontmatter(&change_dir, &all_ids);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Error);
+        assert!(issues[0].message.contains("nonexistent"));
+    }
+
+    #[test]
+    fn proposal_frontmatter_no_frontmatter() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(&tmp, &[("proposal.md", "## Why\nTest")]);
+        let all_ids = vec!["test-change".to_string()];
+        let (issues, fm) = check_proposal_frontmatter(&change_dir, &all_ids);
+        assert!(issues.is_empty());
+        assert!(fm.depends_on.is_empty());
+    }
+
+    #[test]
+    fn proposal_frontmatter_invalid_yaml() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[(
+                "proposal.md",
+                "---\ndepends_on: [not closed\n---\n## Why\nTest",
+            )],
+        );
+        let all_ids = vec!["test-change".to_string()];
+        let (issues, _) = check_proposal_frontmatter(&change_dir, &all_ids);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Error);
+    }
+
+    #[test]
+    fn tasks_missing_is_warning() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(&tmp, &[("proposal.md", "## Why\nTest")]);
+        let issues = check_tasks_exists(&change_dir);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Warning);
+    }
+
+    #[test]
+    fn tasks_present_no_warning() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[
+                ("proposal.md", "## Why\nTest"),
+                ("tasks.md", "- [ ] Do thing"),
+            ],
+        );
+        let issues = check_tasks_exists(&change_dir);
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn design_present_is_info() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[
+                ("proposal.md", "## Why\nTest"),
+                ("design.md", "# Design\nTradeoffs here"),
+            ],
+        );
+        let issues = check_design_md(&change_dir);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Info);
+    }
+
+    #[test]
+    fn design_absent_no_issue() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(&tmp, &[("proposal.md", "## Why\nTest")]);
+        let issues = check_design_md(&change_dir);
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn specs_missing_no_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(&tmp, &[("proposal.md", "## Why\nTest")]);
+        let report = validate_change_delta_specs(&change_dir, false);
+        assert!(report.valid);
+        assert!(report.issues.is_empty());
+    }
+
+    #[test]
+    fn dag_cycle_detected() {
+        let frontmatters = vec![
+            (
+                "a".to_string(),
+                ProposalFrontmatter {
+                    depends_on: vec!["b".to_string()],
+                    blocks: vec![],
+                },
+            ),
+            (
+                "b".to_string(),
+                ProposalFrontmatter {
+                    depends_on: vec!["a".to_string()],
+                    blocks: vec![],
+                },
+            ),
+        ];
+        let issues_map = check_dag_cycles(&frontmatters);
+        assert!(!issues_map.is_empty());
+        assert!(issues_map.contains_key("a"));
+        assert!(issues_map.contains_key("b"));
+        assert_eq!(issues_map["a"][0].level, ValidationLevel::Error);
+    }
+
+    #[test]
+    fn dag_no_cycle_ok() {
+        let frontmatters = vec![
+            (
+                "a".to_string(),
+                ProposalFrontmatter {
+                    depends_on: vec![],
+                    blocks: vec![],
+                },
+            ),
+            (
+                "b".to_string(),
+                ProposalFrontmatter {
+                    depends_on: vec!["a".to_string()],
+                    blocks: vec![],
+                },
+            ),
+        ];
+        let issues_map = check_dag_cycles(&frontmatters);
+        assert!(issues_map.is_empty());
+    }
 }
 
 pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> ValidationReport {
@@ -311,11 +513,6 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
     let specs_dir = change_dir.join("specs");
     let mut total_deltas = 0usize;
     if !specs_dir.exists() {
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Error,
-            path: "specs".to_string(),
-            message: delta_missing_message(),
-        });
         return build_report(issues, strict);
     }
 
@@ -369,14 +566,7 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
         issues.extend(validate_delta_doc(&spec_name, &doc));
     }
 
-    if total_deltas == 0 {
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Error,
-            path: "specs".to_string(),
-            message: delta_missing_message(),
-        });
-    }
-
+    let _ = total_deltas;
     build_report(issues, strict)
 }
 
@@ -479,14 +669,6 @@ fn scenario_missing_message() -> String {
         "{}\n{}",
         t!("sdd.validate.scenario_missing"),
         t!("sdd.validate.scenario_example")
-    )
-}
-
-fn delta_missing_message() -> String {
-    format!(
-        "{}\n{}",
-        t!("sdd.validate.delta_missing"),
-        t!("sdd.validate.delta_example")
     )
 }
 
@@ -713,7 +895,232 @@ fn validate_delta_doc(spec_name: &str, doc: &DeltaSpecDoc) -> Vec<ValidationIssu
     issues
 }
 
-fn build_report(issues: Vec<ValidationIssue>, strict: bool) -> ValidationReport {
+// --- Change-level validation check functions ---
+
+pub fn check_proposal_exists(change_dir: &Path) -> Vec<ValidationIssue> {
+    if change_dir.join("proposal.md").exists() {
+        return Vec::new();
+    }
+    vec![ValidationIssue {
+        level: ValidationLevel::Error,
+        path: "proposal.md".to_string(),
+        message: t!("sdd.validate.proposal_missing").to_string(),
+    }]
+}
+
+pub fn check_proposal_frontmatter(
+    change_dir: &Path,
+    all_change_ids: &[String],
+) -> (Vec<ValidationIssue>, ProposalFrontmatter) {
+    let content = match fs::read_to_string(change_dir.join("proposal.md")) {
+        Ok(content) => content,
+        Err(_) => return (Vec::new(), ProposalFrontmatter::default()),
+    };
+
+    let (yaml_str, _body) = split_frontmatter(&content);
+    let Some(yaml_str) = yaml_str else {
+        return (Vec::new(), ProposalFrontmatter::default());
+    };
+
+    let parsed: serde_yaml::Value = match serde_yaml::from_str(&yaml_str) {
+        Ok(value) => value,
+        Err(err) => {
+            return (
+                vec![ValidationIssue {
+                    level: ValidationLevel::Error,
+                    path: "proposal.md/frontmatter".to_string(),
+                    message: t!(
+                        "sdd.validate.proposal_frontmatter_invalid_yaml",
+                        error = err
+                    )
+                    .to_string(),
+                }],
+                ProposalFrontmatter::default(),
+            );
+        }
+    };
+
+    let mut issues = Vec::new();
+    let known_ids: std::collections::HashSet<&str> =
+        all_change_ids.iter().map(|s| s.as_str()).collect();
+
+    let depends_on = parse_yaml_string_list(&parsed, "depends_on", &mut issues);
+    let blocks = parse_yaml_string_list(&parsed, "blocks", &mut issues);
+
+    for id in &depends_on {
+        if !known_ids.contains(id.as_str()) {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: "proposal.md/frontmatter.depends_on".to_string(),
+                message: t!("sdd.validate.proposal_depends_on_unknown", id = id).to_string(),
+            });
+        }
+    }
+
+    for id in &blocks {
+        if !known_ids.contains(id.as_str()) {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: "proposal.md/frontmatter.blocks".to_string(),
+                message: t!("sdd.validate.proposal_blocks_unknown", id = id).to_string(),
+            });
+        }
+    }
+
+    (issues, ProposalFrontmatter { depends_on, blocks })
+}
+
+fn parse_yaml_string_list(
+    doc: &serde_yaml::Value,
+    key: &str,
+    issues: &mut Vec<ValidationIssue>,
+) -> Vec<String> {
+    let Some(value) = doc.get(key) else {
+        return Vec::new();
+    };
+    match value {
+        serde_yaml::Value::Sequence(values) => {
+            let mut result = Vec::new();
+            for item in values {
+                match item {
+                    serde_yaml::Value::String(s) => {
+                        let trimmed = s.trim();
+                        if !trimmed.is_empty() {
+                            result.push(trimmed.to_string());
+                        }
+                    }
+                    _ => {
+                        issues.push(ValidationIssue {
+                            level: ValidationLevel::Error,
+                            path: format!("proposal.md/frontmatter.{}", key),
+                            message: t!("sdd.validate.proposal_depends_on_format").to_string(),
+                        });
+                        return Vec::new();
+                    }
+                }
+            }
+            result
+        }
+        _ => {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: format!("proposal.md/frontmatter.{}", key),
+                message: if key == "depends_on" {
+                    t!("sdd.validate.proposal_depends_on_format").to_string()
+                } else {
+                    t!("sdd.validate.proposal_blocks_format").to_string()
+                },
+            });
+            Vec::new()
+        }
+    }
+}
+
+pub fn check_dag_cycles(
+    change_frontmatters: &[(String, ProposalFrontmatter)],
+) -> HashMap<String, Vec<ValidationIssue>> {
+    let mut result: HashMap<String, Vec<ValidationIssue>> = HashMap::new();
+
+    // Build owned adjacency list: change_id -> Vec<String> of dependencies
+    let graph: HashMap<String, Vec<String>> = change_frontmatters
+        .iter()
+        .map(|(id, fm)| (id.clone(), fm.depends_on.clone()))
+        .collect();
+    let all_ids: std::collections::HashSet<String> = change_frontmatters
+        .iter()
+        .map(|(id, _)| id.clone())
+        .collect();
+
+    // Three-color DFS: WHITE=unvisited, GRAY=on stack, BLACK=done
+    #[derive(Clone, Copy, PartialEq)]
+    enum Color {
+        White,
+        Gray,
+        Black,
+    }
+    let mut colors: HashMap<String, Color> = all_ids
+        .iter()
+        .map(|id| (id.clone(), Color::White))
+        .collect();
+
+    fn dfs(
+        node: &str,
+        graph: &HashMap<String, Vec<String>>,
+        colors: &mut HashMap<String, Color>,
+        result: &mut HashMap<String, Vec<ValidationIssue>>,
+        path: &mut Vec<String>,
+    ) {
+        colors.insert(node.to_string(), Color::Gray);
+        path.push(node.to_string());
+
+        if let Some(deps) = graph.get(node) {
+            for dep in deps {
+                if !colors.contains_key(dep.as_str()) {
+                    continue;
+                }
+                match colors.get(dep) {
+                    Some(Color::Gray) => {
+                        let cycle_start = path.iter().position(|p| p == dep).unwrap_or(0);
+                        let cycle: Vec<&str> =
+                            path[cycle_start..].iter().map(|s| s.as_str()).collect();
+                        let cycle_str = cycle.join(" -> ");
+                        let issue = ValidationIssue {
+                            level: ValidationLevel::Error,
+                            path: "proposal.md/frontmatter.depends_on".to_string(),
+                            message: t!("sdd.validate.dag_cycle_detected", cycle = cycle_str)
+                                .to_string(),
+                        };
+                        for node_id in &cycle {
+                            result
+                                .entry(node_id.to_string())
+                                .or_default()
+                                .push(issue.clone());
+                        }
+                    }
+                    Some(Color::White) => {
+                        dfs(dep, graph, colors, result, path);
+                    }
+                    Some(Color::Black) | None => {}
+                }
+            }
+        }
+
+        path.pop();
+        colors.insert(node.to_string(), Color::Black);
+    }
+
+    for id in &all_ids {
+        if colors.get(id) == Some(&Color::White) {
+            dfs(id, &graph, &mut colors, &mut result, &mut Vec::new());
+        }
+    }
+
+    result
+}
+
+pub fn check_tasks_exists(change_dir: &Path) -> Vec<ValidationIssue> {
+    if change_dir.join("tasks.md").exists() {
+        return Vec::new();
+    }
+    vec![ValidationIssue {
+        level: ValidationLevel::Warning,
+        path: "tasks.md".to_string(),
+        message: t!("sdd.validate.tasks_missing").to_string(),
+    }]
+}
+
+pub fn check_design_md(change_dir: &Path) -> Vec<ValidationIssue> {
+    if !change_dir.join("design.md").exists() {
+        return Vec::new();
+    }
+    vec![ValidationIssue {
+        level: ValidationLevel::Info,
+        path: "design.md".to_string(),
+        message: t!("sdd.validate.design_present").to_string(),
+    }]
+}
+
+pub fn build_report(issues: Vec<ValidationIssue>, strict: bool) -> ValidationReport {
     let mut errors = 0;
     let mut warnings = 0;
     let mut info = 0;

@@ -7,11 +7,13 @@ use crate::sdd::shared::match_utils::nearest_matches;
 use crate::sdd::spec::staleness::{StalenessEvaluator, StalenessInfo, evaluate_staleness};
 use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
-    validate_change_delta_specs, validate_spec_content_with_frontmatter,
+    check_dag_cycles, check_design_md, check_proposal_exists, check_proposal_frontmatter,
+    check_tasks_exists, validate_change_delta_specs, validate_spec_content_with_frontmatter,
 };
 use anyhow::{Result, anyhow};
 use inquire::Select;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::path::Path;
@@ -187,8 +189,16 @@ fn validate_direct(
     let is_change = changes.contains(&item.to_string());
     let is_spec = specs.contains(&item.to_string());
 
+    // When --type change is specified, also accept directories that physically exist
+    // even if not discovered (e.g., missing proposal.md — validation will report that).
+    let change_dir_physical = root
+        .join(LLMANSPEC_DIR_NAME)
+        .join("changes")
+        .join(item);
+    let is_change_or_dir = is_change || change_dir_physical.is_dir();
+
     if let Some(ItemType::Change) = type_override
-        && !is_change
+        && !is_change_or_dir
     {
         let suggestions = nearest_matches(item, &changes, 5);
         return Err(anyhow!(unknown_item_message(item, &suggestions)));
@@ -200,7 +210,7 @@ fn validate_direct(
         return Err(anyhow!(unknown_item_message(item, &suggestions)));
     }
 
-    let resolved_type = type_override.or(if is_change {
+    let resolved_type = type_override.or(if is_change_or_dir {
         Some(ItemType::Change)
     } else if is_spec {
         Some(ItemType::Spec)
@@ -213,7 +223,7 @@ fn validate_direct(
         return Err(anyhow!(unknown_item_message(item, &suggestions)));
     };
 
-    if type_override.is_none() && is_change && is_spec {
+    if type_override.is_none() && is_change_or_dir && is_spec {
         return Err(anyhow!(
             "{}\n{}",
             t!("sdd.validate.ambiguous_item", item = item),
@@ -222,6 +232,49 @@ fn validate_direct(
     }
 
     validate_by_type(root, resolved_type, item, strict, json, compact_json)
+}
+
+fn compute_dag_issues_for_bulk(
+    root: &Path,
+    change_ids: &[String],
+) -> HashMap<String, Vec<ValidationIssue>> {
+    let mut frontmatters = Vec::new();
+    for id in change_ids {
+        let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(id);
+        let (_, fm) = check_proposal_frontmatter(&change_dir, change_ids);
+        frontmatters.push((id.clone(), fm));
+    }
+    check_dag_cycles(&frontmatters)
+}
+
+fn compute_dag_issues_for_single(
+    root: &Path,
+    change_id: &str,
+    all_change_ids: &[String],
+) -> Vec<ValidationIssue> {
+    let all_dag_issues = compute_dag_issues_for_bulk(root, all_change_ids);
+    all_dag_issues.get(change_id).cloned().unwrap_or_default()
+}
+
+fn validate_change_full(
+    change_dir: &Path,
+    all_change_ids: &[String],
+    strict: bool,
+    dag_issues: &[ValidationIssue],
+) -> ValidationReport {
+    let mut issues = Vec::new();
+
+    issues.extend(check_proposal_exists(change_dir));
+    issues.extend(check_proposal_frontmatter(change_dir, all_change_ids).0);
+    issues.extend(check_tasks_exists(change_dir));
+    issues.extend(check_design_md(change_dir));
+
+    let delta_report = validate_change_delta_specs(change_dir, strict);
+    issues.extend(delta_report.issues);
+
+    issues.extend(dag_issues.to_vec());
+
+    crate::sdd::spec::validation::build_report(issues, strict)
 }
 
 fn validate_by_type(
@@ -237,7 +290,9 @@ fn validate_by_type(
         ItemType::Change => {
             validate_sdd_id(id, "change")?;
             let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(id);
-            let report = validate_change_delta_specs(&change_dir, strict);
+            let change_ids = list_changes(root).unwrap_or_default();
+            let dag_issues = compute_dag_issues_for_single(root, id, &change_ids);
+            let report = validate_change_full(&change_dir, &change_ids, strict, &dag_issues);
             (report, StalenessInfo::not_applicable())
         }
         ItemType::Spec => {
@@ -424,13 +479,22 @@ fn run_bulk_validation(
     };
 
     let mut items: Vec<ValidationItem> = Vec::new();
+
+    // Pre-pass: compute DAG cycle issues for all changes
+    let dag_issues_map = if validate_changes {
+        compute_dag_issues_for_bulk(root, &changes)
+    } else {
+        HashMap::new()
+    };
+
+    let all_change_ids: Vec<String> = changes.clone();
+
     for id in changes {
         let start = Instant::now();
         validate_sdd_id(&id, "change")?;
-        let report = validate_change_delta_specs(
-            &root.join(LLMANSPEC_DIR_NAME).join("changes").join(&id),
-            strict,
-        );
+        let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(&id);
+        let dag_issues = dag_issues_map.get(&id).cloned().unwrap_or_default();
+        let report = validate_change_full(&change_dir, &all_change_ids, strict, &dag_issues);
         items.push(ValidationItem {
             id,
             item_type: "change".to_string(),
@@ -547,6 +611,22 @@ fn run_bulk_validation(
                         item = format!("{}/{}", item.item_type, item.id)
                     )
                 );
+                for issue in &item.issues {
+                    let label = match issue.level {
+                        ValidationLevel::Error => "ERROR",
+                        ValidationLevel::Warning => "WARNING",
+                        ValidationLevel::Info => "INFO",
+                    };
+                    eprintln!(
+                        "  {}",
+                        t!(
+                            "sdd.validate.issue_line",
+                            label = label,
+                            path = issue.path,
+                            message = issue.message
+                        )
+                    );
+                }
             }
             if item.item_type == "spec" {
                 print_staleness(ItemType::Spec, &item.staleness);
