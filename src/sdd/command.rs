@@ -2,7 +2,7 @@ use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
 use crate::sdd::project::init;
-use crate::sdd::shared::{list, show, validate};
+use crate::sdd::shared::{graph, list, show, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use std::path::PathBuf;
@@ -243,6 +243,12 @@ pub enum SddCommands {
     Spec(SddSpecArgs),
     /// Delta authoring helpers
     Delta(SddDeltaArgs),
+    /// Generate a change dependency graph
+    Graph {
+        /// Output format (default: mermaid)
+        #[arg(long, default_value = "mermaid")]
+        format: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -487,5 +493,8 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 },
             ),
         },
+        SddCommands::Graph { format } => graph::run(graph::GraphArgs {
+            format: format.clone(),
+        }),
     }
 }
