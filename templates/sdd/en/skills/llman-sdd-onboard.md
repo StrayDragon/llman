@@ -11,6 +11,7 @@ Use this skill to onboard to llman SDD in a repository.
 1. Read `llmanspec/config.yaml` for project context, conventions, and rules.
 2. Check current changes and specs.
 3. Follow the proposal -> implement -> archive workflow.
+4. Use `llman sdd graph` to visualize change dependencies (depends_on/blocks).
 
 {{ unit("skills/sdd-commands") }}
 
