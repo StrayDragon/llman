@@ -1816,6 +1816,24 @@ sdd:
           ]
         }
         ```
+    proposal_missing:
+      en: "Change is missing proposal.md."
+    proposal_frontmatter_invalid_yaml:
+      en: "proposal.md frontmatter YAML parse error: %{error}"
+    proposal_depends_on_unknown:
+      en: "proposal.md depends_on references unknown change: %{id}"
+    proposal_depends_on_format:
+      en: "proposal.md depends_on must be a list of change ID strings"
+    proposal_blocks_format:
+      en: "proposal.md blocks must be a list of change ID strings"
+    proposal_blocks_unknown:
+      en: "proposal.md blocks references unknown change: %{id}"
+    dag_cycle_detected:
+      en: "Dependency cycle detected: %{cycle}"
+    tasks_missing:
+      en: "Change is missing tasks.md."
+    design_present:
+      en: "design.md is present."
     next_steps:
       en: "Next steps:"
     change_step_1:
