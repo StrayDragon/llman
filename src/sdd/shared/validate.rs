@@ -6,9 +6,9 @@ use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
 use crate::sdd::spec::staleness::{StalenessEvaluator, StalenessInfo, evaluate_staleness};
 use crate::sdd::spec::validation::{
-    ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
-    check_dag_cycles, check_design_md, check_proposal_exists, check_proposal_frontmatter,
-    check_tasks_exists, validate_change_delta_specs, validate_spec_content_with_frontmatter,
+    ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary, check_dag_cycles,
+    check_design_md, check_proposal_exists, check_proposal_frontmatter, check_tasks_exists,
+    validate_change_delta_specs, validate_spec_content_with_frontmatter,
 };
 use anyhow::{Result, anyhow};
 use inquire::Select;
@@ -191,10 +191,7 @@ fn validate_direct(
 
     // When --type change is specified, also accept directories that physically exist
     // even if not discovered (e.g., missing proposal.md — validation will report that).
-    let change_dir_physical = root
-        .join(LLMANSPEC_DIR_NAME)
-        .join("changes")
-        .join(item);
+    let change_dir_physical = root.join(LLMANSPEC_DIR_NAME).join("changes").join(item);
     let is_change_or_dir = is_change || change_dir_physical.is_dir();
 
     if let Some(ItemType::Change) = type_override

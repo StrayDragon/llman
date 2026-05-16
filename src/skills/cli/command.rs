@@ -104,12 +104,8 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
     }
 
     if interactive {
-        let Some(interactive_selection) = run_interactive_selection(
-            &skills,
-            &config,
-            &runtime_presets,
-            &skill_dir_catalog,
-        )?
+        let Some(interactive_selection) =
+            run_interactive_selection(&skills, &config, &runtime_presets, &skill_dir_catalog)?
         else {
             return Ok(());
         };
@@ -157,13 +153,8 @@ fn run_interactive_selection(
     let Some(target) = select_target(config)? else {
         return Ok(None);
     };
-    let Some(selected) = select_skills_for_target(
-        skills,
-        &target,
-        config,
-        skill_dir_catalog,
-        runtime_presets,
-    )?
+    let Some(selected) =
+        select_skills_for_target(skills, &target, config, skill_dir_catalog, runtime_presets)?
     else {
         return Ok(None);
     };
@@ -193,8 +184,6 @@ fn infer_runtime_presets_from_catalog(
     }
     out
 }
-
-
 
 fn resolve_preset_skill_ids(
     presets: &HashMap<String, RuntimePreset>,
@@ -532,11 +521,7 @@ fn select_skills_for_target(
             )
         );
     }
-    let options = grouped_skill_options(
-        &visible_skills,
-        skill_dir_catalog,
-        runtime_presets,
-    )?;
+    let options = grouped_skill_options(&visible_skills, skill_dir_catalog, runtime_presets)?;
     let default_skill_indexes = default_skill_indexes(&visible_skills, &options, target, config);
     let defaults = default_indexes_with_preset_state(&options, &default_skill_indexes);
     let default_selected_skills = selected_skill_ids_from_indexes(&options, &defaults);
@@ -576,11 +561,7 @@ fn grouped_skill_options(
     skill_dir_catalog: &SkillDirCatalog,
     runtime_presets: &HashMap<String, RuntimePreset>,
 ) -> Result<Vec<SkillOption>> {
-    let mut out = preset_options_from_skills(
-        skills,
-        skill_dir_catalog,
-        runtime_presets,
-    )?;
+    let mut out = preset_options_from_skills(skills, skill_dir_catalog, runtime_presets)?;
 
     let mut entries: Vec<(String, String)> = skills
         .iter()
@@ -917,12 +898,7 @@ mod tests {
         catalog: &SkillDirCatalog,
         runtime_presets: &HashMap<String, RuntimePreset>,
     ) -> Vec<SkillOption> {
-        grouped_skill_options(
-            skills,
-            catalog,
-            runtime_presets,
-        )
-        .expect("options")
+        grouped_skill_options(skills, catalog, runtime_presets).expect("options")
     }
 
     #[test]
@@ -1516,8 +1492,7 @@ mod tests {
             },
         )]);
 
-        let options =
-            grouped_options_for(&skills, &catalog, &runtime_presets);
+        let options = grouped_options_for(&skills, &catalog, &runtime_presets);
         let preset_labels: Vec<String> = options
             .iter()
             .filter_map(|option| match option {
@@ -1581,8 +1556,7 @@ mod tests {
             ),
         ]);
 
-        let options =
-            grouped_options_for(&skills, &catalog, &runtime_presets);
+        let options = grouped_options_for(&skills, &catalog, &runtime_presets);
         let daily_label = options
             .iter()
             .find_map(|option| match option {
