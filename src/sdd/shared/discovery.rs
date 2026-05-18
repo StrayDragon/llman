@@ -33,6 +33,51 @@ pub fn list_changes(root: &Path) -> Result<Vec<String>> {
     Ok(result)
 }
 
+pub fn extract_archived_change_id(dir_name: &str) -> Option<String> {
+    if dir_name.len() <= 11 {
+        return None;
+    }
+    let prefix = &dir_name[..10];
+    let valid_date = prefix.chars().enumerate().all(|(i, c)| {
+        (matches!(i, 0..=3 | 5..=6 | 8..=9) && c.is_ascii_digit())
+            || (matches!(i, 4 | 7) && c == '-')
+    });
+    if !valid_date || dir_name.as_bytes().get(10) != Some(&b'-') {
+        return None;
+    }
+    let change_id = &dir_name[11..];
+    if change_id.is_empty() || change_id.starts_with('.') {
+        return None;
+    }
+    Some(change_id.to_string())
+}
+
+pub fn list_archived_changes(root: &Path) -> Result<Vec<String>> {
+    let archive_dir = root
+        .join(LLMANSPEC_DIR_NAME)
+        .join("changes")
+        .join("archive");
+    let mut result = Vec::new();
+    let entries = match fs::read_dir(archive_dir) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(result),
+    };
+
+    for entry in entries.flatten() {
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if let Some(change_id) = extract_archived_change_id(&name) {
+            result.push(change_id);
+        }
+    }
+
+    result.sort();
+    result.dedup();
+    Ok(result)
+}
+
 pub fn list_specs(root: &Path) -> Result<Vec<String>> {
     let specs_dir = root.join(LLMANSPEC_DIR_NAME).join("specs");
     let mut result = Vec::new();

@@ -1,6 +1,7 @@
+use crate::sdd::change::freeze::FREEZE_ARCHIVE_NAME;
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
-use crate::sdd::shared::discovery::{list_changes, list_specs};
+use crate::sdd::shared::discovery::{list_archived_changes, list_changes, list_specs};
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
@@ -18,6 +19,14 @@ use std::fmt;
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
+
+fn has_frozen_archive(root: &Path) -> bool {
+    root.join(LLMANSPEC_DIR_NAME)
+        .join("changes")
+        .join("archive")
+        .join(FREEZE_ARCHIVE_NAME)
+        .exists()
+}
 
 #[derive(Debug, Clone)]
 pub struct ValidateArgs {
@@ -153,6 +162,7 @@ fn run_interactive_selector(
 
     let changes = list_changes(root)?;
     let specs = list_specs(root)?;
+    let archived_changes = list_archived_changes(root).unwrap_or_default();
     let mut items = Vec::new();
     items.extend(changes.iter().map(|id| format!("change/{id}")));
     items.extend(specs.iter().map(|id| format!("spec/{id}")));
@@ -161,7 +171,16 @@ fn run_interactive_selector(
     }
     let picked = Select::new(&t!("sdd.validate.pick_item"), items).prompt()?;
     let (item_type, id) = parse_prefixed_item(&picked)?;
-    validate_by_type(root, item_type, &id, strict, json, compact_json)
+    validate_by_type(
+        root,
+        item_type,
+        &id,
+        strict,
+        json,
+        compact_json,
+        &archived_changes,
+        has_frozen_archive(root),
+    )
 }
 
 fn parse_prefixed_item(value: &str) -> Result<(ItemType, String)> {
@@ -186,6 +205,7 @@ fn validate_direct(
 ) -> Result<()> {
     let changes = list_changes(root)?;
     let specs = list_specs(root)?;
+    let archived_changes = list_archived_changes(root).unwrap_or_default();
     let is_change = changes.contains(&item.to_string());
     let is_spec = specs.contains(&item.to_string());
 
@@ -228,17 +248,29 @@ fn validate_direct(
         ));
     }
 
-    validate_by_type(root, resolved_type, item, strict, json, compact_json)
+    validate_by_type(
+        root,
+        resolved_type,
+        item,
+        strict,
+        json,
+        compact_json,
+        &archived_changes,
+        has_frozen_archive(root),
+    )
 }
 
 fn compute_dag_issues_for_bulk(
     root: &Path,
     change_ids: &[String],
+    archived_change_ids: &[String],
+    has_frozen: bool,
 ) -> HashMap<String, Vec<ValidationIssue>> {
     let mut frontmatters = Vec::new();
     for id in change_ids {
         let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(id);
-        let (_, fm) = check_proposal_frontmatter(&change_dir, change_ids);
+        let (_, fm) =
+            check_proposal_frontmatter(&change_dir, change_ids, archived_change_ids, has_frozen);
         frontmatters.push((id.clone(), fm));
     }
     check_dag_cycles(&frontmatters)
@@ -248,21 +280,28 @@ fn compute_dag_issues_for_single(
     root: &Path,
     change_id: &str,
     all_change_ids: &[String],
+    archived_change_ids: &[String],
+    has_frozen: bool,
 ) -> Vec<ValidationIssue> {
-    let all_dag_issues = compute_dag_issues_for_bulk(root, all_change_ids);
+    let all_dag_issues =
+        compute_dag_issues_for_bulk(root, all_change_ids, archived_change_ids, has_frozen);
     all_dag_issues.get(change_id).cloned().unwrap_or_default()
 }
 
 fn validate_change_full(
     change_dir: &Path,
     all_change_ids: &[String],
+    archived_change_ids: &[String],
+    has_frozen: bool,
     strict: bool,
     dag_issues: &[ValidationIssue],
 ) -> ValidationReport {
     let mut issues = Vec::new();
 
     issues.extend(check_proposal_exists(change_dir));
-    issues.extend(check_proposal_frontmatter(change_dir, all_change_ids).0);
+    issues.extend(
+        check_proposal_frontmatter(change_dir, all_change_ids, archived_change_ids, has_frozen).0,
+    );
     issues.extend(check_tasks_exists(change_dir));
     issues.extend(check_design_md(change_dir));
 
@@ -274,6 +313,7 @@ fn validate_change_full(
     crate::sdd::spec::validation::build_report(issues, strict)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_by_type(
     root: &Path,
     item_type: ItemType,
@@ -281,6 +321,8 @@ fn validate_by_type(
     strict: bool,
     json: bool,
     compact_json: bool,
+    archived_change_ids: &[String],
+    has_frozen: bool,
 ) -> Result<()> {
     let start = Instant::now();
     let (report, staleness) = match item_type {
@@ -288,8 +330,21 @@ fn validate_by_type(
             validate_sdd_id(id, "change")?;
             let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(id);
             let change_ids = list_changes(root).unwrap_or_default();
-            let dag_issues = compute_dag_issues_for_single(root, id, &change_ids);
-            let report = validate_change_full(&change_dir, &change_ids, strict, &dag_issues);
+            let dag_issues = compute_dag_issues_for_single(
+                root,
+                id,
+                &change_ids,
+                archived_change_ids,
+                has_frozen,
+            );
+            let report = validate_change_full(
+                &change_dir,
+                &change_ids,
+                archived_change_ids,
+                has_frozen,
+                strict,
+                &dag_issues,
+            );
             (report, StalenessInfo::not_applicable())
         }
         ItemType::Spec => {
@@ -477,9 +532,12 @@ fn run_bulk_validation(
 
     let mut items: Vec<ValidationItem> = Vec::new();
 
+    let archived_changes = list_archived_changes(root).unwrap_or_default();
+    let frozen = has_frozen_archive(root);
+
     // Pre-pass: compute DAG cycle issues for all changes
     let dag_issues_map = if validate_changes {
-        compute_dag_issues_for_bulk(root, &changes)
+        compute_dag_issues_for_bulk(root, &changes, &archived_changes, frozen)
     } else {
         HashMap::new()
     };
@@ -491,7 +549,14 @@ fn run_bulk_validation(
         validate_sdd_id(&id, "change")?;
         let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(&id);
         let dag_issues = dag_issues_map.get(&id).cloned().unwrap_or_default();
-        let report = validate_change_full(&change_dir, &all_change_ids, strict, &dag_issues);
+        let report = validate_change_full(
+            &change_dir,
+            &all_change_ids,
+            &archived_changes,
+            frozen,
+            strict,
+            &dag_issues,
+        );
         items.push(ValidationItem {
             id,
             item_type: "change".to_string(),
