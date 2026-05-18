@@ -11,4 +11,4 @@ Common commands:
 - `llman sdd archive <id>` (legacy alias of `archive run`)
 - `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]` (freeze archived dirs into one cold-backup file)
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]` (restore from cold-backup file)
-- `llman sdd graph [--format mermaid]` (generate change dependency graph to stdout)
+- `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]` (generate change dependency graph to stdout)
