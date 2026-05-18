@@ -251,7 +251,7 @@ pub enum SddCommands {
         /// Output format (default: mermaid)
         #[arg(long, default_value = "mermaid")]
         format: String,
-        /// Scope of changes to include: active, archived, or all (when no change specified)
+        /// Scope: active, archived, all, or comma-separated (e.g. active,archived). Default expands level-1 depends_on targets.
         #[arg(long, default_value = "active")]
         scope: String,
         /// Recursion depth when a seed change is specified (default: 1)
