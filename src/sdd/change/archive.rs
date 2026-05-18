@@ -21,6 +21,7 @@ pub struct ArchiveArgs {
     pub skip_specs: bool,
     pub dry_run: bool,
     pub force: bool,
+    pub no_interactive: bool,
 }
 
 #[derive(Default)]
@@ -728,6 +729,7 @@ alpha alpha "" "alpha is used" "it works"
             skip_specs: true,
             dry_run: true,
             force: false,
+            no_interactive: false,
         };
         let result = run_with_root(dir.path(), args);
         assert!(result.is_err());
