@@ -362,7 +362,7 @@ Test
             )],
         );
         let all_ids = vec!["other-change".to_string(), "test-change".to_string()];
-        let (issues, fm) = check_proposal_frontmatter(&change_dir, &all_ids);
+        let (issues, fm) = check_proposal_frontmatter(&change_dir, &all_ids, &[], false);
         assert!(issues.is_empty());
         assert_eq!(fm.depends_on, vec!["other-change"]);
     }
@@ -378,7 +378,7 @@ Test
             )],
         );
         let all_ids = vec!["test-change".to_string()];
-        let (issues, _) = check_proposal_frontmatter(&change_dir, &all_ids);
+        let (issues, _) = check_proposal_frontmatter(&change_dir, &all_ids, &[], false);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].level, ValidationLevel::Error);
         assert!(issues[0].message.contains("nonexistent"));
@@ -389,7 +389,7 @@ Test
         let tmp = tempfile::tempdir().unwrap();
         let change_dir = setup_change_dir(&tmp, &[("proposal.md", "## Why\nTest")]);
         let all_ids = vec!["test-change".to_string()];
-        let (issues, fm) = check_proposal_frontmatter(&change_dir, &all_ids);
+        let (issues, fm) = check_proposal_frontmatter(&change_dir, &all_ids, &[], false);
         assert!(issues.is_empty());
         assert!(fm.depends_on.is_empty());
     }
@@ -405,9 +405,49 @@ Test
             )],
         );
         let all_ids = vec!["test-change".to_string()];
-        let (issues, _) = check_proposal_frontmatter(&change_dir, &all_ids);
+        let (issues, _) = check_proposal_frontmatter(&change_dir, &all_ids, &[], false);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].level, ValidationLevel::Error);
+    }
+
+    #[test]
+    fn proposal_frontmatter_archived_depends_on_is_info() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[(
+                "proposal.md",
+                "---\ndepends_on:\n  - archived-change\n---\n## Why\nTest",
+            )],
+        );
+        let active_ids = vec!["test-change".to_string()];
+        let archived_ids = vec!["archived-change".to_string()];
+        let (issues, fm) =
+            check_proposal_frontmatter(&change_dir, &active_ids, &archived_ids, false);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Info);
+        assert!(issues[0].message.contains("archived-change"));
+        assert_eq!(fm.depends_on, vec!["archived-change"]);
+    }
+
+    #[test]
+    fn proposal_frontmatter_archived_blocks_is_info() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[(
+                "proposal.md",
+                "---\nblocks:\n  - archived-change\n---\n## Why\nTest",
+            )],
+        );
+        let active_ids = vec!["test-change".to_string()];
+        let archived_ids = vec!["archived-change".to_string()];
+        let (issues, fm) =
+            check_proposal_frontmatter(&change_dir, &active_ids, &archived_ids, false);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Info);
+        assert!(issues[0].message.contains("archived-change"));
+        assert_eq!(fm.blocks, vec!["archived-change"]);
     }
 
     #[test]
@@ -922,6 +962,8 @@ pub fn check_proposal_exists(change_dir: &Path) -> Vec<ValidationIssue> {
 pub fn check_proposal_frontmatter(
     change_dir: &Path,
     all_change_ids: &[String],
+    archived_change_ids: &[String],
+    has_frozen: bool,
 ) -> (Vec<ValidationIssue>, ProposalFrontmatter) {
     let content = match fs::read_to_string(change_dir.join("proposal.md")) {
         Ok(content) => content,
@@ -952,14 +994,30 @@ pub fn check_proposal_frontmatter(
     };
 
     let mut issues = Vec::new();
-    let known_ids: std::collections::HashSet<&str> =
+    let active_ids: std::collections::HashSet<&str> =
         all_change_ids.iter().map(|s| s.as_str()).collect();
+    let archived_ids: std::collections::HashSet<&str> =
+        archived_change_ids.iter().map(|s| s.as_str()).collect();
 
     let depends_on = parse_yaml_string_list(&parsed, "depends_on", &mut issues);
     let blocks = parse_yaml_string_list(&parsed, "blocks", &mut issues);
 
     for id in &depends_on {
-        if !known_ids.contains(id.as_str()) {
+        if active_ids.contains(id.as_str()) {
+            // valid active dependency
+        } else if archived_ids.contains(id.as_str()) {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Info,
+                path: "proposal.md/frontmatter.depends_on".to_string(),
+                message: t!("sdd.validate.proposal_depends_on_archived", id = id).to_string(),
+            });
+        } else if has_frozen {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Info,
+                path: "proposal.md/frontmatter.depends_on".to_string(),
+                message: t!("sdd.validate.proposal_depends_on_may_be_frozen", id = id).to_string(),
+            });
+        } else {
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
                 path: "proposal.md/frontmatter.depends_on".to_string(),
@@ -969,7 +1027,21 @@ pub fn check_proposal_frontmatter(
     }
 
     for id in &blocks {
-        if !known_ids.contains(id.as_str()) {
+        if active_ids.contains(id.as_str()) {
+            // valid active reference
+        } else if archived_ids.contains(id.as_str()) {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Info,
+                path: "proposal.md/frontmatter.blocks".to_string(),
+                message: t!("sdd.validate.proposal_blocks_archived", id = id).to_string(),
+            });
+        } else if has_frozen {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Info,
+                path: "proposal.md/frontmatter.blocks".to_string(),
+                message: t!("sdd.validate.proposal_blocks_may_be_frozen", id = id).to_string(),
+            });
+        } else {
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
                 path: "proposal.md/frontmatter.blocks".to_string(),

@@ -1828,6 +1828,14 @@ sdd:
       en: "proposal.md blocks must be a list of change ID strings"
     proposal_blocks_unknown:
       en: "proposal.md blocks references unknown change: %{id}"
+    proposal_depends_on_archived:
+      en: "proposal.md depends_on references archived change: %{id}"
+    proposal_blocks_archived:
+      en: "proposal.md blocks references archived change: %{id}"
+    proposal_depends_on_may_be_frozen:
+      en: "proposal.md depends_on references change '%{id}' (frozen or does not exist — use 'llman sdd archive freeze --list' to check)"
+    proposal_blocks_may_be_frozen:
+      en: "proposal.md blocks references change '%{id}' (frozen or does not exist — use 'llman sdd archive freeze --list' to check)"
     dag_cycle_detected:
       en: "Dependency cycle detected: %{cycle}"
     tasks_missing:
