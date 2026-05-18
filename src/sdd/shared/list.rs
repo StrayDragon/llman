@@ -100,7 +100,7 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
 
     let sort_by_name = args.sort == "name";
     if sort_by_name {
-        changes.sort_by(|a, b| a.name.cmp(&b.name));
+        changes.sort_by(|a, b| natural_cmp(&a.name, &b.name));
     } else {
         changes.sort_by_key(|change| Reverse(change.last_modified));
     }
@@ -169,7 +169,7 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
         specs.push((id, spec.requirements.len()));
     }
 
-    specs.sort_by(|a, b| a.0.cmp(&b.0));
+    specs.sort_by(|a, b| natural_cmp(&a.0, &b.0));
 
     if args.json {
         let json_output: Vec<_> = specs
@@ -283,4 +283,89 @@ fn format_relative_time(time: DateTime<Utc>) -> String {
         return format!("{}m ago", diff.num_minutes());
     }
     t!("sdd.list.just_now").to_string()
+}
+
+fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
+    let mut ai = a.chars().peekable();
+    let mut bi = b.chars().peekable();
+
+    loop {
+        let ac = ai.next();
+        let bc = bi.next();
+
+        match (ac, bc) {
+            (None, None) => return std::cmp::Ordering::Equal,
+            (None, _) => return std::cmp::Ordering::Less,
+            (_, None) => return std::cmp::Ordering::Greater,
+            (Some(x), Some(y)) if x.is_ascii_digit() && y.is_ascii_digit() => {
+                let num_ord = compare_number_runs(&mut ai, &mut bi, x, y);
+                if num_ord != std::cmp::Ordering::Equal {
+                    return num_ord;
+                }
+            }
+            (Some(x), Some(y)) if x != y => return x.cmp(&y),
+            _ => continue,
+        }
+    }
+}
+
+fn compare_number_runs<I: Iterator<Item = char>>(
+    ai: &mut std::iter::Peekable<I>,
+    bi: &mut std::iter::Peekable<I>,
+    x: char,
+    y: char,
+) -> std::cmp::Ordering {
+    // Collect digit runs, starting with the already-consumed char
+    let mut an = (x as u32).wrapping_sub(b'0' as u32);
+    let mut bn = (y as u32).wrapping_sub(b'0' as u32);
+
+    while let Some(&c) = ai.peek() {
+        if c.is_ascii_digit() {
+            an = an * 10 + (c as u32).wrapping_sub(b'0' as u32);
+            ai.next();
+        } else {
+            break;
+        }
+    }
+    while let Some(&c) = bi.peek() {
+        if c.is_ascii_digit() {
+            bn = bn * 10 + (c as u32).wrapping_sub(b'0' as u32);
+            bi.next();
+        } else {
+            break;
+        }
+    }
+
+    an.cmp(&bn)
+}
+
+#[cfg(test)]
+mod sort_tests {
+    use super::*;
+
+    #[test]
+    fn natural_sort_digits() {
+        let mut items = vec![
+            "c100-xxx".to_string(),
+            "c10-xxx".to_string(),
+            "c3-xxx".to_string(),
+            "c20-xxx".to_string(),
+        ];
+        items.sort_by(|a, b| natural_cmp(a, b));
+        assert_eq!(items, vec!["c3-xxx", "c10-xxx", "c20-xxx", "c100-xxx"]);
+    }
+
+    #[test]
+    fn natural_sort_mixed() {
+        let mut items = vec!["c05-init".to_string(), "c5-short".to_string()];
+        items.sort_by(|a, b| natural_cmp(a, b));
+        assert_eq!(items, vec!["c05-init", "c5-short"]);
+    }
+
+    #[test]
+    fn natural_sort_pure_alpha() {
+        let mut items = vec!["beta".to_string(), "alpha".to_string(), "gamma".to_string()];
+        items.sort_by(|a, b| natural_cmp(a, b));
+        assert_eq!(items, vec!["alpha", "beta", "gamma"]);
+    }
 }
