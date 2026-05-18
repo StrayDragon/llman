@@ -248,6 +248,14 @@ pub enum SddCommands {
         /// Output format (default: mermaid)
         #[arg(long, default_value = "mermaid")]
         format: String,
+        /// Scope of changes to include: active, archived, or all (when no change specified)
+        #[arg(long, default_value = "active")]
+        scope: String,
+        /// Recursion depth when a seed change is specified (default: 1)
+        #[arg(long, default_value_t = 1)]
+        depth: usize,
+        /// Seed change ID to center the graph on
+        change: Option<String>,
     },
 }
 
@@ -493,8 +501,16 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 },
             ),
         },
-        SddCommands::Graph { format } => graph::run(graph::GraphArgs {
+        SddCommands::Graph {
+            format,
+            scope,
+            depth,
+            change,
+        } => graph::run(graph::GraphArgs {
             format: format.clone(),
+            scope: scope.clone(),
+            depth: *depth,
+            change: change.clone(),
         }),
     }
 }
