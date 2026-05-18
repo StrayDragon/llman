@@ -2,6 +2,7 @@ use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
+use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
 use crate::sdd::spec::fence::render_code_fence;
 use crate::sdd::spec::frontmatter::{compose_with_frontmatter, split_frontmatter};
@@ -11,6 +12,7 @@ use crate::sdd::spec::validation::{
 };
 use anyhow::{Result, anyhow};
 use chrono::Utc;
+use inquire::Text;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -64,9 +66,11 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
 
     if !args.skip_specs {
         let validate_specs = !args.force;
+        let interactive = is_interactive(args.no_interactive);
         let updates = find_spec_updates(&change_dir, root)?;
         if !updates.is_empty() {
-            let prepared = prepare_updates(&updates, change_name, root, validate_specs)?;
+            let prepared =
+                prepare_updates(&updates, change_name, root, validate_specs, interactive)?;
             if args.dry_run {
                 print_dry_run_specs(&prepared);
             } else {
@@ -144,10 +148,11 @@ fn prepare_updates(
     change_name: &str,
     root: &Path,
     validate_specs: bool,
+    interactive: bool,
 ) -> Result<Vec<(SpecUpdate, String, ApplyCounts)>> {
     let mut prepared = Vec::new();
     for update in updates {
-        let built = build_updated_spec(update, change_name)?;
+        let built = build_updated_spec(update, change_name, interactive)?;
         if validate_specs {
             validate_rebuilt_spec(update, &built.0, root)?;
         }
@@ -203,7 +208,11 @@ fn format_issues(issues: &[ValidationIssue]) -> String {
         .join("; ")
 }
 
-fn build_updated_spec(update: &SpecUpdate, change_name: &str) -> Result<(String, ApplyCounts)> {
+fn build_updated_spec(
+    update: &SpecUpdate,
+    change_name: &str,
+    interactive: bool,
+) -> Result<(String, ApplyCounts)> {
     let backend = &BACKEND;
     let delta_content = fs::read_to_string(&update.source)?;
     let delta = backend.parse_delta_spec(
@@ -241,13 +250,25 @@ fn build_updated_spec(update: &SpecUpdate, change_name: &str) -> Result<(String,
         )?;
         (frontmatter_yaml, spec.clone())
     } else {
+        let purpose = if interactive {
+            let prompt = format!("Purpose for new spec '{}':", update.capability);
+            match Text::new(&prompt).prompt() {
+                Ok(input) if !input.trim().is_empty() => input.trim().to_string(),
+                _ => format!(
+                    "TBD - created by archiving change {change}. Update purpose after archive.",
+                    change = change_name
+                ),
+            }
+        } else {
+            format!(
+                "TBD - created by archiving change {change}. Update purpose after archive.",
+                change = change_name
+            )
+        };
         let spec = crate::sdd::spec::ir::MainSpecDoc {
             kind: "llman.sdd.spec".to_string(),
             name: update.capability.clone(),
-            purpose: format!(
-                "TBD - created by archiving change {change}. Update purpose after archive.",
-                change = change_name
-            ),
+            purpose,
             requirements: Vec::new(),
             scenarios: Vec::new(),
         };
@@ -640,7 +661,7 @@ op_scenarios[1]{req_id,id,given,when,then}:
             target_exists: false,
         };
 
-        let result = build_updated_spec(&update, "add-thing").expect("build spec");
+        let result = build_updated_spec(&update, "add-thing", false).expect("build spec");
         assert!(result.0.contains("llman.sdd.spec"));
         assert!(result.0.contains("New capability"));
         assert!(result.0.contains("System MUST support the new capability."));
@@ -669,7 +690,7 @@ op_scenarios[0]{req_id,id,given,when,then}:
             target_exists: false,
         };
 
-        let result = build_updated_spec(&update, "remove-thing");
+        let result = build_updated_spec(&update, "remove-thing", false);
         assert!(result.is_err());
     }
 
@@ -717,7 +738,7 @@ alpha alpha "" "alpha is used" "it works"
             target_exists: true,
         };
 
-        let result = build_updated_spec(&update, "update-thing");
+        let result = build_updated_spec(&update, "update-thing", false);
         assert!(result.is_err());
     }
 
