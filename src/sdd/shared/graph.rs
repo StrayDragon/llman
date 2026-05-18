@@ -85,15 +85,28 @@ struct ProposalDeps {
 fn parse_proposal_frontmatter(change_dir: &Path) -> ProposalDeps {
     let content = match fs::read_to_string(change_dir.join("proposal.md")) {
         Ok(c) => c,
-        Err(_) => return ProposalDeps { depends_on: Vec::new(), blocks: Vec::new() },
+        Err(_) => {
+            return ProposalDeps {
+                depends_on: Vec::new(),
+                blocks: Vec::new(),
+            };
+        }
     };
     let (yaml_str, _) = split_frontmatter(&content);
     let Some(yaml_str) = yaml_str else {
-        return ProposalDeps { depends_on: Vec::new(), blocks: Vec::new() };
+        return ProposalDeps {
+            depends_on: Vec::new(),
+            blocks: Vec::new(),
+        };
     };
     let parsed: serde_yaml::Value = match serde_yaml::from_str(&yaml_str) {
         Ok(v) => v,
-        Err(_) => return ProposalDeps { depends_on: Vec::new(), blocks: Vec::new() },
+        Err(_) => {
+            return ProposalDeps {
+                depends_on: Vec::new(),
+                blocks: Vec::new(),
+            };
+        }
     };
     ProposalDeps {
         depends_on: extract_string_list(&parsed, "depends_on"),
@@ -150,6 +163,12 @@ fn render_mermaid(root: &Path) -> Result<()> {
 
 fn sanitize_id(id: &str) -> String {
     id.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }

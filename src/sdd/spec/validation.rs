@@ -1,4 +1,4 @@
-use crate::sdd::spec::backend::{SpecBackend, BACKEND};
+use crate::sdd::spec::backend::{BACKEND, SpecBackend};
 use crate::sdd::spec::frontmatter::split_frontmatter;
 use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
 use serde::Serialize;
