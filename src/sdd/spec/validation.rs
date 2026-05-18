@@ -72,7 +72,12 @@ pub fn validate_spec_content_with_frontmatter(
     let body = parsed_frontmatter.body.clone();
 
     let context = format!("spec `{}`", spec_name);
-    match BACKEND.parse_main_spec(&body, &context) {
+    let parse_result = if strict {
+        BACKEND.parse_main_spec_strict(&body, &context)
+    } else {
+        BACKEND.parse_main_spec(&body, &context)
+    };
+    match parse_result {
         Ok(doc) => {
             if doc.name.trim() != spec_name {
                 issues.push(ValidationIssue {
@@ -550,7 +555,13 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
                 continue;
             }
         };
-        let doc = match BACKEND.parse_delta_spec(&content, &format!("delta spec `{}`", spec_name)) {
+        let context = format!("delta spec `{}`", spec_name);
+        let parse_result = if strict {
+            BACKEND.parse_delta_spec_strict(&content, &context)
+        } else {
+            BACKEND.parse_delta_spec(&content, &context)
+        };
+        let doc = match parse_result {
             Ok(doc) => doc,
             Err(err) => {
                 issues.push(ValidationIssue {

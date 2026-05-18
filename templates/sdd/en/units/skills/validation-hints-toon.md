@@ -33,6 +33,16 @@ op_scenarios[1]{req_id,id,given,when,then}:
   r1,happy,"",a trigger happens,the outcome is observed
 ```
 
+4) Tabular value quoting error ("Expected N tabular row values, but got M"):
+Values containing commas, colons, or brackets MUST be double-quoted in tabular rows.
+```toon
+# BAD: commas in statement parsed as delimiters
+r1,title,System MUST do X, Y, and Z.
+
+# GOOD: quote the value containing commas
+r1,title,"System MUST do X, Y, and Z."
+```
+
 Notes:
 - `toon` specs/deltas MUST be a single ` ```toon ` fence per file.
 - `null` represents missing optional fields.

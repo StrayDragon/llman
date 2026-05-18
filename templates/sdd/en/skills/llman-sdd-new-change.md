@@ -25,6 +25,8 @@ Create a new change with planning artifacts (proposal + delta specs + tasks; des
    - `design.md` only when tradeoffs/migrations matter
    - `tasks.md` as an ordered checklist (include validation commands)
 5. Validate: `llman sdd validate <change-id> --strict --no-interactive`.
+   This MUST pass before proceeding. If TOON parse errors appear, fix quoting:
+   values containing commas/colons/brackets must be double-quoted in tabular rows.
 6. Hand off to implementation: suggest `llman-sdd-apply`.
 
 {{ unit("skills/sdd-commands") }}

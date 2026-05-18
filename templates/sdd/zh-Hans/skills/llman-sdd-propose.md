@@ -31,6 +31,7 @@ description: "提出一个新变更并一次性生成规划工件。"
    ```bash
    llman sdd validate <change-id> --strict --no-interactive
    ```
+   此步骤必须通过后才能继续。若出现 TOON 解析错误，需修复引号：表格化行中包含逗号/冒号/方括号的值必须用双引号包裹。
 6. 总结已创建内容，并建议使用 `llman-sdd-apply` 进入实现阶段。
 
 {{ unit("skills/sdd-commands") }}

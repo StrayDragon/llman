@@ -1,6 +1,6 @@
 [package]
 name = "llman"
-version = "0.0.33"
+version = "0.0.34"
 # Project is pinned to a nightly toolchain in rust-toolchain.toml
 # CI must use the same pinned nightly baseline
 edition = "2024"
@@ -72,7 +72,7 @@ llm_json = "1.0.2"
 # Additional utilities
 regex = "1.12.3"
 serde_yaml = "0.9.34"
-serde_toon_format = "0.1.2"
+toon-format = { version = "0.4.5", default-features = false }
 sevenz-rust2 = "0.20.2"
 agent-client-protocol = "0.9.4"
 async-trait = "0.1.89"
