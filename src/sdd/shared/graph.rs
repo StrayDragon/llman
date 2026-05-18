@@ -14,22 +14,17 @@ pub struct GraphArgs {
     pub change: Option<String>,
 }
 
-#[derive(Clone, Copy)]
-enum EdgeKind {
-    DependsOn,
-    Blocks,
-}
-
 struct DependencyEdge {
     from: String,
     to: String,
-    kind: EdgeKind,
 }
 
 #[derive(Clone)]
 struct GraphNode {
     id: String,
     archived: bool,
+    /// Node exists in the filesystem (has a directory). false = missing/frozen/removed.
+    present: bool,
 }
 
 pub fn run(args: GraphArgs) -> Result<()> {
@@ -38,6 +33,40 @@ pub fn run(args: GraphArgs) -> Result<()> {
         "mermaid" => render_mermaid(root, &args),
         other => Err(anyhow!("Unsupported format: {}. Supported: mermaid", other)),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Scope parsing (comma-separated)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScopeKind {
+    Active,
+    Archived,
+}
+
+fn parse_scope(scope: &str) -> Result<Vec<ScopeKind>> {
+    if scope == "all" {
+        return Ok(vec![ScopeKind::Active, ScopeKind::Archived]);
+    }
+    let mut kinds = Vec::new();
+    for part in scope.split(',') {
+        let trimmed = part.trim();
+        match trimmed {
+            "active" => kinds.push(ScopeKind::Active),
+            "archived" => kinds.push(ScopeKind::Archived),
+            other => {
+                return Err(anyhow!(
+                    "Unknown scope: '{}'. Supported: active, archived, all (or comma-separated like active,archived)",
+                    other
+                ));
+            }
+        }
+    }
+    if kinds.is_empty() {
+        return Err(anyhow!("Scope cannot be empty"));
+    }
+    Ok(kinds)
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +81,7 @@ fn collect_active_nodes(root: &Path) -> Vec<GraphNode> {
         .map(|id| GraphNode {
             id: id.clone(),
             archived: false,
+            present: true,
         })
         .collect();
     // Also scan for directories without proposal.md (partial changes)
@@ -68,6 +98,7 @@ fn collect_active_nodes(root: &Path) -> Vec<GraphNode> {
                 nodes.push(GraphNode {
                     id: name,
                     archived: false,
+                    present: true,
                 });
             }
         }
@@ -97,18 +128,26 @@ fn collect_archived_nodes(root: &Path) -> Vec<GraphNode> {
             nodes.push(GraphNode {
                 id: change_id,
                 archived: true,
+                present: true,
             });
         }
     }
     nodes
 }
 
-fn collect_all_nodes(root: &Path) -> Vec<GraphNode> {
-    let mut combined = collect_active_nodes(root);
-    let active_ids: HashSet<String> = combined.iter().map(|n| n.id.clone()).collect();
-    for n in collect_archived_nodes(root) {
-        if !active_ids.contains(&n.id) {
-            combined.push(n);
+fn collect_nodes_for_scope(root: &Path, scope_kinds: &[ScopeKind]) -> Vec<GraphNode> {
+    let mut combined = Vec::new();
+    let mut seen = HashSet::new();
+
+    for kind in scope_kinds {
+        let nodes = match kind {
+            ScopeKind::Active => collect_active_nodes(root),
+            ScopeKind::Archived => collect_archived_nodes(root),
+        };
+        for node in nodes {
+            if seen.insert(node.id.clone()) {
+                combined.push(node);
+            }
         }
     }
     combined
@@ -152,24 +191,22 @@ fn find_latest_archived_dir(archive_dir: &Path, change_id: &str) -> Option<std::
 // Seed-based neighborhood BFS
 // ---------------------------------------------------------------------------
 
-/// Build global relationship maps from all known changes (active + archived).
 struct RelationMaps {
     depends_on: HashMap<String, Vec<String>>,
     reverse_depends: HashMap<String, Vec<String>>,
-    blocks: HashMap<String, Vec<String>>,
-    reverse_blocks: HashMap<String, Vec<String>>,
     node_set: HashSet<String>,
 }
 
 fn build_relation_maps(root: &Path, all_nodes: &[GraphNode]) -> RelationMaps {
     let mut depends_on: HashMap<String, Vec<String>> = HashMap::new();
     let mut reverse_depends: HashMap<String, Vec<String>> = HashMap::new();
-    let mut blocks: HashMap<String, Vec<String>> = HashMap::new();
-    let mut reverse_blocks: HashMap<String, Vec<String>> = HashMap::new();
     let mut node_set: HashSet<String> = HashSet::new();
 
     for node in all_nodes {
         node_set.insert(node.id.clone());
+        if !node.present {
+            continue;
+        }
         let dir = find_node_dir(root, node);
         let deps = parse_proposal_frontmatter(&dir);
 
@@ -183,29 +220,17 @@ fn build_relation_maps(root: &Path, all_nodes: &[GraphNode]) -> RelationMaps {
                 .or_default()
                 .push(node.id.clone());
         }
-        for blocked in &deps.blocks {
-            blocks
-                .entry(node.id.clone())
-                .or_default()
-                .push(blocked.clone());
-            reverse_blocks
-                .entry(blocked.clone())
-                .or_default()
-                .push(node.id.clone());
-        }
     }
 
     RelationMaps {
         depends_on,
         reverse_depends,
-        blocks,
-        reverse_blocks,
         node_set,
     }
 }
 
 fn build_seed_neighborhood(root: &Path, seed_id: &str, max_depth: usize) -> Result<Vec<GraphNode>> {
-    let all_nodes = collect_all_nodes(root);
+    let all_nodes = collect_nodes_for_scope(root, &[ScopeKind::Active, ScopeKind::Archived]);
     let node_map: HashMap<&str, &GraphNode> =
         all_nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
@@ -238,17 +263,11 @@ fn build_seed_neighborhood(root: &Path, seed_id: &str, max_depth: usize) -> Resu
         if depth >= max_depth {
             continue;
         }
-        // Collect neighbors from all 4 directions
-        let neighbors: Vec<&String> = [
-            &maps.depends_on,
-            &maps.reverse_depends,
-            &maps.blocks,
-            &maps.reverse_blocks,
-        ]
-        .iter()
-        .flat_map(|map| map.get(&node_id).map(|v| v.iter()).into_iter().flatten())
-        .filter(|n| maps.node_set.contains(n.as_str()) && !visited.contains(n.as_str()))
-        .collect();
+        let neighbors: Vec<&String> = [&maps.depends_on, &maps.reverse_depends]
+            .iter()
+            .flat_map(|map| map.get(&node_id).map(|v| v.iter()).into_iter().flatten())
+            .filter(|n| maps.node_set.contains(n.as_str()) && !visited.contains(n.as_str()))
+            .collect();
 
         for neighbor in neighbors {
             visited.insert(neighbor.clone());
@@ -256,13 +275,56 @@ fn build_seed_neighborhood(root: &Path, seed_id: &str, max_depth: usize) -> Resu
         }
     }
 
-    // Return nodes in visited set, preserving type info
     let mut result: Vec<GraphNode> = visited
         .iter()
         .filter_map(|id| node_map.get(id.as_str()).map(|n| (*n).clone()))
         .collect();
     result.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(result)
+}
+
+// ---------------------------------------------------------------------------
+// Default graph: active + level-1 depends_on expansion
+// ---------------------------------------------------------------------------
+
+fn build_default_nodes(root: &Path, scope_kinds: &[ScopeKind]) -> Vec<GraphNode> {
+    let mut nodes = collect_nodes_for_scope(root, scope_kinds);
+    let node_ids: HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+
+    // Build a lookup for all known nodes (active + archived) to resolve deps
+    let all_nodes = collect_nodes_for_scope(root, &[ScopeKind::Active, ScopeKind::Archived]);
+    let all_node_map: HashMap<&str, &GraphNode> =
+        all_nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+
+    // Collect level-1 depends_on targets not already in scope
+    let mut missing_ids: HashSet<String> = HashSet::new();
+    for node in &all_nodes {
+        if !node_ids.contains(node.id.as_str()) {
+            continue;
+        }
+        let dir = find_node_dir(root, node);
+        let deps = parse_proposal_frontmatter(&dir);
+        for dep in &deps.depends_on {
+            if !node_ids.contains(dep.as_str()) {
+                missing_ids.insert(dep.clone());
+            }
+        }
+    }
+
+    for missing_id in &missing_ids {
+        if let Some(existing) = all_node_map.get(missing_id.as_str()) {
+            nodes.push((*existing).clone());
+        } else {
+            // Phantom node: not found on disk (frozen/removed)
+            nodes.push(GraphNode {
+                id: missing_id.clone(),
+                archived: false,
+                present: false,
+            });
+        }
+    }
+
+    nodes
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +336,9 @@ fn collect_edges_for_nodes(root: &Path, nodes: &[GraphNode]) -> Vec<DependencyEd
     let node_ids: HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
 
     for node in nodes {
+        if !node.present {
+            continue;
+        }
         let dir = find_node_dir(root, node);
         let deps = parse_proposal_frontmatter(&dir);
         for dep in &deps.depends_on {
@@ -281,16 +346,6 @@ fn collect_edges_for_nodes(root: &Path, nodes: &[GraphNode]) -> Vec<DependencyEd
                 edges.push(DependencyEdge {
                     from: node.id.clone(),
                     to: dep.clone(),
-                    kind: EdgeKind::DependsOn,
-                });
-            }
-        }
-        for blocked in &deps.blocks {
-            if node_ids.contains(blocked.as_str()) {
-                edges.push(DependencyEdge {
-                    from: node.id.clone(),
-                    to: blocked.clone(),
-                    kind: EdgeKind::Blocks,
                 });
             }
         }
@@ -350,7 +405,7 @@ fn compute_subgraph_label(nodes: &[GraphNode], component_ids: &HashSet<&str>) ->
         .iter()
         .filter(|n| component_ids.contains(n.id.as_str()))
         .collect();
-    let all_active = comp_nodes.iter().all(|n| !n.archived);
+    let all_active = comp_nodes.iter().all(|n| !n.archived && n.present);
     let all_archived = comp_nodes.iter().all(|n| n.archived);
     match (all_active, all_archived) {
         (true, _) => "Active",
@@ -365,7 +420,6 @@ fn compute_subgraph_label(nodes: &[GraphNode], component_ids: &HashSet<&str>) ->
 
 struct ProposalDeps {
     depends_on: Vec<String>,
-    blocks: Vec<String>,
 }
 
 fn parse_proposal_frontmatter(change_dir: &Path) -> ProposalDeps {
@@ -374,7 +428,6 @@ fn parse_proposal_frontmatter(change_dir: &Path) -> ProposalDeps {
         Err(_) => {
             return ProposalDeps {
                 depends_on: Vec::new(),
-                blocks: Vec::new(),
             };
         }
     };
@@ -382,7 +435,6 @@ fn parse_proposal_frontmatter(change_dir: &Path) -> ProposalDeps {
     let Some(yaml_str) = yaml_str else {
         return ProposalDeps {
             depends_on: Vec::new(),
-            blocks: Vec::new(),
         };
     };
     let parsed: serde_yaml::Value = match serde_yaml::from_str(&yaml_str) {
@@ -390,13 +442,11 @@ fn parse_proposal_frontmatter(change_dir: &Path) -> ProposalDeps {
         Err(_) => {
             return ProposalDeps {
                 depends_on: Vec::new(),
-                blocks: Vec::new(),
             };
         }
     };
     ProposalDeps {
         depends_on: extract_string_list(&parsed, "depends_on"),
-        blocks: extract_string_list(&parsed, "blocks"),
     }
 }
 
@@ -424,17 +474,8 @@ fn render_mermaid(root: &Path, args: &GraphArgs) -> Result<()> {
     let nodes = if let Some(ref seed) = args.change {
         build_seed_neighborhood(root, seed, args.depth)?
     } else {
-        match args.scope.as_str() {
-            "active" => collect_active_nodes(root),
-            "archived" => collect_archived_nodes(root),
-            "all" => collect_all_nodes(root),
-            other => {
-                return Err(anyhow!(
-                    "Unknown scope: {}. Supported: active, archived, all",
-                    other
-                ));
-            }
-        }
+        let scope_kinds = parse_scope(&args.scope)?;
+        build_default_nodes(root, &scope_kinds)
     };
 
     if nodes.is_empty() {
@@ -455,11 +496,11 @@ fn render_mermaid(root: &Path, args: &GraphArgs) -> Result<()> {
     let node_id_list: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
     let components = find_connected_components(&node_id_list, &edges);
     let has_archived = nodes.iter().any(|n| n.archived);
+    let has_missing = nodes.iter().any(|n| !n.present);
 
     println!("flowchart TD");
 
     if components.len() > 1 {
-        // Subgraph rendering for disconnected components
         for (idx, component) in components.iter().enumerate() {
             let comp_ids: HashSet<&str> = component.iter().map(|s| s.as_str()).collect();
             let label = compute_subgraph_label(&nodes, &comp_ids);
@@ -474,6 +515,9 @@ fn render_mermaid(root: &Path, args: &GraphArgs) -> Result<()> {
 
     if has_archived {
         println!("    classDef archived fill:#d4edda,stroke:#28a745,color:#333");
+    }
+    if has_missing {
+        println!("    classDef missing fill:#f8d7da,stroke:#dc3545,color:#333");
     }
 
     Ok(())
@@ -492,7 +536,9 @@ fn render_nodes_and_edges(
             continue;
         }
         let sid = sanitize_id(&node.id);
-        if node.archived {
+        if !node.present {
+            println!("{}{}[\"{} ⚠ missing\"]:::missing", pad, sid, node.id);
+        } else if node.archived {
             println!("{}{}[\"{} ✓ done\"]:::archived", pad, sid, node.id);
         } else {
             println!("{}{}[\"{}\"]", pad, sid, node.id);
@@ -503,20 +549,12 @@ fn render_nodes_and_edges(
         if !component_ids.contains(edge.from.as_str()) {
             continue;
         }
-        match edge.kind {
-            EdgeKind::DependsOn => println!(
-                "{}{} -->|depends on| {}",
-                pad,
-                sanitize_id(&edge.from),
-                sanitize_id(&edge.to),
-            ),
-            EdgeKind::Blocks => println!(
-                "{}{} -.->|blocks| {}",
-                pad,
-                sanitize_id(&edge.from),
-                sanitize_id(&edge.to),
-            ),
-        }
+        println!(
+            "{}{} -->|depends on| {}",
+            pad,
+            sanitize_id(&edge.from),
+            sanitize_id(&edge.to),
+        );
     }
 }
 
@@ -543,12 +581,10 @@ mod tests {
             DependencyEdge {
                 from: "a".into(),
                 to: "b".into(),
-                kind: EdgeKind::DependsOn,
             },
             DependencyEdge {
                 from: "b".into(),
                 to: "c".into(),
-                kind: EdgeKind::DependsOn,
             },
         ];
         let components = find_connected_components(&nodes, &edges);
@@ -567,7 +603,6 @@ mod tests {
         let edges = vec![DependencyEdge {
             from: "a".into(),
             to: "b".into(),
-            kind: EdgeKind::DependsOn,
         }];
         let components = find_connected_components(&nodes, &edges);
         assert_eq!(components.len(), 3); // {a,b}, {c}, {d}
@@ -578,10 +613,12 @@ mod tests {
         let active = GraphNode {
             id: "a".into(),
             archived: false,
+            present: true,
         };
         let done = GraphNode {
             id: "b".into(),
             archived: true,
+            present: true,
         };
         let mixed_nodes = vec![active.clone(), done.clone()];
 
@@ -593,5 +630,30 @@ mod tests {
 
         let mixed_ids: HashSet<&str> = ["a", "b"].into_iter().collect();
         assert_eq!(compute_subgraph_label(&mixed_nodes, &mixed_ids), "Mixed");
+    }
+
+    #[test]
+    fn test_parse_scope() {
+        let kinds = parse_scope("active").unwrap();
+        assert_eq!(kinds, vec![ScopeKind::Active]);
+
+        let kinds = parse_scope("active,archived").unwrap();
+        assert_eq!(kinds, vec![ScopeKind::Active, ScopeKind::Archived]);
+
+        let kinds = parse_scope("all").unwrap();
+        assert_eq!(kinds, vec![ScopeKind::Active, ScopeKind::Archived]);
+
+        assert!(parse_scope("unknown").is_err());
+    }
+
+    #[test]
+    fn test_missing_node_not_archived() {
+        let missing = GraphNode {
+            id: "x".into(),
+            archived: false,
+            present: false,
+        };
+        assert!(!missing.archived);
+        assert!(!missing.present);
     }
 }
