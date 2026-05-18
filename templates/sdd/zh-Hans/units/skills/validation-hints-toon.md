@@ -32,6 +32,16 @@ op_scenarios[1]{req_id,id,given,when,then}:
   r1,happy,"",a trigger happens,the outcome is observed
 ```
 
+4) 表格化行引号错误（"Expected N tabular row values, but got M"）：
+值包含逗号、冒号或方括号时，必须用双引号包裹。
+```toon
+# 错误：statement 中的逗号被解析为分隔符
+r1,title,System MUST do X, Y, and Z.
+
+# 正确：用引号包裹包含逗号的值
+r1,title,"System MUST do X, Y, and Z."
+```
+
 备注：
 - `toon` 文件必须只有一个 ` ```toon ` fence。
 - `null` 表示可选字段缺失。

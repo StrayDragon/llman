@@ -9,8 +9,14 @@ pub trait SpecBackend: Sync + Send {
     /// Parse a main spec payload from the Markdown body (frontmatter already removed).
     fn parse_main_spec(&self, content: &str, context: &str) -> Result<MainSpecDoc>;
 
+    /// Parse a main spec with strict TOON validation (catches quoting/syntax errors).
+    fn parse_main_spec_strict(&self, content: &str, context: &str) -> Result<MainSpecDoc>;
+
     /// Parse a delta spec payload from the full Markdown file content.
     fn parse_delta_spec(&self, content: &str, context: &str) -> Result<DeltaSpecDoc>;
+
+    /// Parse a delta spec with strict TOON validation.
+    fn parse_delta_spec_strict(&self, content: &str, context: &str) -> Result<DeltaSpecDoc>;
 
     /// Deterministically dump a main spec payload (no surrounding Markdown fence).
     fn dump_main_spec(&self, doc: &MainSpecDoc) -> Result<String>;

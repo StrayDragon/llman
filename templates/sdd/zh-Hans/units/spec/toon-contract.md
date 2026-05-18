@@ -24,6 +24,22 @@ op_scenarios[1]{req_id,id,given,when,then}:
   r1,happy,"",the new trigger happens,the new outcome is observed
 ```
 
+### 表格化行的引号规则
+
+在表格化数组行中（值以逗号分隔），如果值包含**逗号**、**冒号**、**方括号**（`[`, `]`, `{`, `}`）或首尾有空白字符，**必须使用双引号包裹**：
+
+```
+# 错误：statement 中的逗号被解析为分隔符 → 字段数量不匹配
+r1,title,System MUST do X, Y, and Z.
+
+# 正确：用引号包裹包含逗号的值
+r1,title,"System MUST do X, Y, and Z."
+```
+
+- 空字符串：`""`
+- 未设置的可选字段：`null`
+- 不确定时，优先使用引号。
+
 ### 备注
 - `toon` 使用显式数组头（例如 `requirements[<n>]{...}:`）和表格化行表达数组内容。
 - `null` 表示该字段缺失（可选字段未设置）。

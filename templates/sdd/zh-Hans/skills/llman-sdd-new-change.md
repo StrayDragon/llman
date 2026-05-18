@@ -25,6 +25,7 @@ description: "创建新的 SDD 变更提案与增量 specs。"
    - 仅在涉及权衡/迁移时创建 `design.md`
    - `tasks.md`：按顺序拆分为可勾选清单（包含校验命令）
 5. 校验：`llman sdd validate <change-id> --strict --no-interactive`。
+   此步骤必须通过后才能继续。若出现 TOON 解析错误，需修复引号：表格化行中包含逗号/冒号/方括号的值必须用双引号包裹。
 6. 进入实现阶段：建议使用 `llman-sdd-apply`。
 
 {{ unit("skills/sdd-commands") }}

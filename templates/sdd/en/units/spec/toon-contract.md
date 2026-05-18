@@ -24,6 +24,22 @@ op_scenarios[1]{req_id,id,given,when,then}:
   r1,happy,"",the new trigger happens,the new outcome is observed
 ```
 
+### Quoting Rules for Tabular Rows
+
+In tabular array rows (values separated by commas), any value that contains a **comma**, **colon**, **bracket** (`[`, `]`, `{`, `}`), or starts/ends with whitespace **must be double-quoted**:
+
+```
+# BAD: commas in statement parsed as delimiters → field count mismatch
+r1,title,System MUST do X, Y, and Z.
+
+# GOOD: quote the value containing commas
+r1,title,"System MUST do X, Y, and Z."
+```
+
+- Empty strings: `""`
+- Optional fields not set: `null`
+- When in doubt, quote the value.
+
 ### Notes
 - `toon` uses explicit array headers like `requirements[<n>]{...}:` and tabular rows.
 - `null` represents missing optional fields.

@@ -31,6 +31,8 @@ Create a new change and generate all planning artifacts in one pass (proposal + 
    ```bash
    llman sdd validate <change-id> --strict --no-interactive
    ```
+   This MUST pass before proceeding. If TOON parse errors appear, fix quoting:
+   values containing commas/colons/brackets must be double-quoted in tabular rows.
 6. Summarize what was created and suggest `llman-sdd-apply` for implementation.
 
 {{ unit("skills/sdd-commands") }}
