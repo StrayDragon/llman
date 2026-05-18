@@ -236,6 +236,9 @@ pub enum SddCommands {
         /// Legacy: force archive even if validation fails
         #[arg(long, hide = true)]
         force: bool,
+        /// Disable interactive prompts (no-op for archive, kept for CLI consistency)
+        #[arg(long)]
+        no_interactive: bool,
         #[command(subcommand)]
         command: Option<ArchiveSubcommand>,
     },
@@ -274,6 +277,9 @@ pub enum ArchiveSubcommand {
         /// Force archive even if validation fails
         #[arg(long, hide = true)]
         force: bool,
+        /// Disable interactive prompts (no-op for archive, kept for CLI consistency)
+        #[arg(long)]
+        no_interactive: bool,
     },
     /// Freeze archived change directories into a single cold-backup archive
     Freeze {
@@ -369,6 +375,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             skip_specs,
             dry_run,
             force,
+            no_interactive,
             command,
         } => match command {
             Some(ArchiveSubcommand::Run {
@@ -376,11 +383,13 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 skip_specs,
                 dry_run,
                 force,
+                no_interactive,
             }) => archive::run(archive::ArchiveArgs {
                 change: change.clone(),
                 skip_specs: *skip_specs,
                 dry_run: *dry_run,
                 force: *force,
+                no_interactive: *no_interactive,
             }),
             Some(ArchiveSubcommand::Freeze {
                 before,
@@ -400,6 +409,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 skip_specs: *skip_specs,
                 dry_run: *dry_run,
                 force: *force,
+                no_interactive: *no_interactive,
             }),
         },
         SddCommands::Spec(args) => match &args.command {

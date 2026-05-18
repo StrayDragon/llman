@@ -218,11 +218,11 @@ impl StalenessEvaluator {
 
         if dirty {
             if status == StalenessStatus::Ok {
-                status = StalenessStatus::Warn;
+                status = StalenessStatus::Info;
             }
             notes.push(t!("sdd.validate.staleness_dirty").to_string());
             issues.push(ValidationIssue {
-                level: ValidationLevel::Warning,
+                level: ValidationLevel::Info,
                 path: format!("{spec_id}/staleness"),
                 message: t!("sdd.validate.staleness_dirty").to_string(),
             });
