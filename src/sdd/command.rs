@@ -236,7 +236,7 @@ pub enum SddCommands {
         /// Legacy: force archive even if validation fails
         #[arg(long, hide = true)]
         force: bool,
-        /// Disable interactive prompts (no-op for archive, kept for CLI consistency)
+        /// Disable interactive prompts (e.g. purpose input for new specs)
         #[arg(long)]
         no_interactive: bool,
         #[command(subcommand)]
@@ -277,7 +277,7 @@ pub enum ArchiveSubcommand {
         /// Force archive even if validation fails
         #[arg(long, hide = true)]
         force: bool,
-        /// Disable interactive prompts (no-op for archive, kept for CLI consistency)
+        /// Disable interactive prompts (e.g. purpose input for new specs)
         #[arg(long)]
         no_interactive: bool,
     },
