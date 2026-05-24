@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llmanspec-config.schema.json
+schema: spec-driven
+locale: zh-Hans
+
+# 项目上下文（可选）
+# 技术栈、约定、约束等。在 AI 创建 artifact 时会展示。
+# context: |
+#   Tech stack: TypeScript, React, Node.js
+#   We use conventional commits
+#   Domain: e-commerce platform
+
+# 按 artifact 的规则（可选）
+# artifact_id -> string[] 的映射。
+# rules:
+#   proposal:
+#     - 提案保持在 500 字以内
+#     - 必须包含"非目标"章节
+#   tasks:
+#     - 每个任务不超过 2 小时
+
+# 可选额外技能（默认禁用，取消注释以启用）
+# extra_skills:
+#   - llman-sdd-new-change
+#   - llman-sdd-continue
+#   - llman-sdd-ff
+#   - llman-sdd-show
+#   - llman-sdd-sync
+#   - llman-sdd-validate
+#   - llman-sdd-verify
