@@ -1,0 +1,23 @@
+---
+llman_spec_valid_scope:
+  - src/
+  - tests/
+llman_spec_valid_commands:
+  - llman sdd validate dependency-upgrade-workflow --type spec --strict --no-interactive
+llman_spec_evidence:
+  - migrated from openspec
+---
+
+```toon
+kind: llman.sdd.spec
+name: "dependency-upgrade-workflow"
+purpose: "TBD - created by archiving change deps-and-toolchain-upgrade. Update Purpose after archive."
+requirements[3]{req_id,title,statement}:
+  r1,"Dependency upgrades use a lockfile-first sequence","Maintainers MUST perform dependency upgrades in a lockfile-first sequence under the pinned nightly baseline, updating `Cargo.toml` constraints only when lockfile-only updates are insufficient."
+  r2,Constraint changes are minimal and justified,"Any dependency version-constraint changes in `Cargo.toml` MUST be minimal, scoped to compatibility needs, and validated with project quality gates."
+  r3,Upgrade outcomes are verifiable and auditable,"Dependency upgrade work MUST produce verifiable outcomes, including the final validation result and a fallback path to the previous known-good lock state."
+scenarios[3]{req_id,id,given,when,then}:
+  r1,"upgrade-run-starts","",maintainers start a dependency upgrade for this repository,they first update `Cargo.lock` and run validation before changing dependency version constraints in `Cargo.toml`
+  r2,"lockfile-only-update-fails-due-to-version-bounds","",an upgrade requires manifest constraint changes to compile or pass checks,"maintainers apply only the required bound updates and verify the result with nightly-based checks"
+  r3,"upgrade-is-prepared-for-merge","",maintainers complete a dependency upgrade batch,"they can show that nightly-based checks passed and that reverting to the previous lock state remains possible"
+```

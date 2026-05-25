@@ -1,0 +1,22 @@
+---
+llman_spec_valid_scope:
+  - src/
+  - tests/
+llman_spec_valid_commands:
+  - llman sdd validate sdd-future-changes --type spec --strict --no-interactive
+llman_spec_evidence:
+  - migrated from openspec
+---
+
+```toon
+kind: llman.sdd.spec
+name: "sdd-future-changes"
+purpose: "TBD - created by archiving change upgrade-sdd-archive-freeze-and-structured-prompts. Update Purpose after archive."
+requirements[2]{req_id,title,statement}:
+  r1,Change 级 future 记录文件,"llman SDD MUST 支持每个 change 的未来路线记录文件：`llmanspec/changes/<change-id>/future.md`。 该文件 SHOULD 采用统一章节结构： - `## Deferred Items` - `## Branch Options` - `## Triggers to Reopen` - `## Out of Scope for This Change`"
+  r2,future 文件为可选且不阻塞归档,`future.md` MUST 是可选工件，不得阻塞 `llman sdd validate` 与 `llman sdd archive` 主流程。
+scenarios[3]{req_id,id,given,when,then}:
+  r1,"新建-change-时可引导-future-文件","","用户通过 `llman-sdd-new-change` 或 `llman-sdd-ff` 创建新变更",技能说明中包含 future.md 的填写引导
+  r1,"持续推进时可补录-future","","用户通过 `llman-sdd-continue` 推进变更",技能允许并引导在 change 下补充 `future.md`
+  r2,"无-future-文件仍可验证与归档","",change 目录中不存在 `future.md`,"`llman sdd validate <change-id> --type change` 与 `llman sdd archive <change-id>` 不因缺失文件失败"
+```

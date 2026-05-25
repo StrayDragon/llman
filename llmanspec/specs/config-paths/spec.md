@@ -1,0 +1,31 @@
+---
+llman_spec_valid_scope:
+  - src/
+  - tests/
+llman_spec_valid_commands:
+  - llman sdd validate config-paths --type spec --strict --no-interactive
+llman_spec_evidence:
+  - migrated from openspec
+---
+
+```toon
+kind: llman.sdd.spec
+name: "config-paths"
+purpose: Define how llman resolves the configuration directory and enforces safe defaults.
+requirements[4]{req_id,title,statement}:
+  r1,Config directory resolution precedence,"The CLI MUST resolve the configuration directory with the following precedence: CLI `--config-dir` override, `LLMAN_CONFIG_DIR` environment variable, then the default path `~/.config/llman`. The resolved value MUST be assigned to `LLMAN_CONFIG_DIR` for all subcommands, and resolution MUST NOT create directories."
+  r2,"Tilde expansion for config-dir overrides","If the CLI `--config-dir` override or `LLMAN_CONFIG_DIR` environment variable begins with `~`, the resolver MUST expand `~` to the current user's home directory before use, and MUST set `LLMAN_CONFIG_DIR` to the expanded path."
+  r3,Dev project guard requires explicit config dir,"When running inside the llman development repository and neither CLI nor env override is provided, the CLI MUST return an error instructing the user to set `--config-dir` or `LLMAN_CONFIG_DIR`."
+  r4,Invalid config directory errors,The resolver MUST return an error for empty or whitespace CLI/env config paths and MUST NOT create directories as part of resolution. Directory creation happens only when constructing a `Config` instance for prompt storage.
+scenarios[10]{req_id,id,given,when,then}:
+  r1,"cli-override-provided","","the user runs a command with `--config-dir`",the resolved config directory is the CLI value and `LLMAN_CONFIG_DIR` is set for subcommands
+  r1,"env-override-provided","",`LLMAN_CONFIG_DIR` is set and no CLI override is provided,the resolved config directory is the env value
+  r1,"default-fallback","",no CLI or env override is provided,the resolved config directory is `<home>/.config/llman` and resolution does not create directories
+  r1,"legacy-macos-directories-are-ignored-by-default-resolution","","the user runs a command without CLI/env overrides on macOS, and `<home>/Library/Application Support/llman` or `<home>/Library/Application Support/com.StrayDragon.llman` contains a recognizable config root",the resolved config directory is `<home>/.config/llman`
+  r1,"env-propagation","",the CLI resolves a config directory,`LLMAN_CONFIG_DIR` is set to the resolved value for the process
+  r2,"cli-override-uses-quoted-tilde-path","","the user runs `llman --config-dir \"~/.config/llman\" <subcommand>`",the resolved config directory is `<home>/.config/llman` (not `./~/.config/llman`)
+  r2,"env-override-uses-tilde-path","","`LLMAN_CONFIG_DIR` is set to `\"~/.config/llman\"` and no CLI override is provided",the resolved config directory is `<home>/.config/llman`
+  r3,"dev-project-without-overrides","",the current directory contains a `Cargo.toml` with package name `llman` and no overrides are provided,"the command fails with a config-dir-required error message"
+  r4,"invalid-cli-path","","`--config-dir` cannot be parsed as a valid path",the command returns an error that is surfaced by the CLI entrypoint
+  r4,"invalid-env-path","",`LLMAN_CONFIG_DIR` is set to an empty or whitespace value,the command returns an error that is surfaced by the CLI entrypoint
+```

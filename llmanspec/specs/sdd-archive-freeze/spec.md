@@ -1,0 +1,28 @@
+---
+llman_spec_valid_scope:
+  - src/
+  - tests/
+llman_spec_valid_commands:
+  - llman sdd validate sdd-archive-freeze --type spec --strict --no-interactive
+llman_spec_evidence:
+  - migrated from openspec
+---
+
+```toon
+kind: llman.sdd.spec
+name: "sdd-archive-freeze"
+purpose: "TBD - created by archiving change upgrade-sdd-archive-freeze-and-structured-prompts. Update Purpose after archive."
+requirements[3]{req_id,title,statement}:
+  r1,SDD 单文件归档冻结,"`llman sdd archive freeze` MUST 将 `llmanspec/changes/archive/` 下符合规则的日期归档目录（`YYYY-MM-DD-*`）写入同一个冷备归档文件。 - 冷备文件路径 MUST 为 `llmanspec/changes/archive/freezed_changes.7z.archived` - 命令每次执行 MUST 复用同一路径，不得为每次冻结创建独立归档文件 - 冻结完成后，被纳入本次冻结的源目录 MUST 从 `archive/` 下移除"
+  r2,SDD 从单文件归档解冻,"`llman sdd archive thaw` MUST 从 `freezed_changes.7z.archived` 恢复归档目录，支持全量恢复和按 change 选择恢复。 - 默认恢复目录 MUST 为 `llmanspec/changes/archive/.thawed/` - 支持 `--change <id>` 选择性恢复 - 支持 `--dest <path>` 覆盖默认恢复目录"
+  r3,单文件冻结流程安全性,冻结实现 MUST 使用安全写入策略，避免写入失败导致源目录丢失。
+scenarios[8]{req_id,id,given,when,then}:
+  r1,首次冻结创建单文件归档,"",用户首次执行 `llman sdd archive freeze`,创建 `freezed_changes.7z.archived`
+  r1,再次冻结写入同一归档文件,"",用户在后续执行 `llman sdd archive freeze`,命令继续写入同一个 `freezed_changes.7z.archived`
+  r1,逻辑追加不丢历史内容,"",冷备归档文件已存在且用户再次执行 `llman sdd archive freeze`,新冻结内容与历史内容都能在后续 `llman sdd archive thaw` 中被恢复
+  r1,"冻结-dry-run","","用户执行 `llman sdd archive freeze --dry-run`",仅输出候选与目标归档文件路径
+  r1,冻结过滤,"","用户执行 `llman sdd archive freeze --before 2026-02-01 --keep-recent 2`",仅冻结截止日期前且排除最近 N 条的候选目录
+  r2,默认解冻到隔离目录,"",用户执行 `llman sdd archive thaw`,解冻结果位于 `.thawed/`
+  r2,选择性解冻,"","用户执行 `llman sdd archive thaw --change 2026-01-22-update-cli-quality-specs`",仅恢复指定 change 目录
+  r3,写入失败不删除源目录,"",冻结写入冷备归档文件失败,命令返回非零
+```
