@@ -1854,6 +1854,14 @@ sdd:
       en: "Task completion: %{completed}/%{total} (%{ratio}%%)"
     design_present:
       en: "design.md is present."
+    tasks_without_design:
+      en: "Change has tasks.md but missing design.md. Tasks MUST be generated after design decisions are documented. Create design.md first, then regenerate tasks.md."
+    stage_draft_hint:
+      en: "Change is in 'draft' stage (next: add specs/)"
+    stage_specified_hint:
+      en: "Change is in 'specified' stage (next: add design.md)"
+    stage_designed_hint:
+      en: "Change is in 'designed' stage (next: add tasks.md)"
     next_steps:
       en: "Next steps:"
     change_step_1:

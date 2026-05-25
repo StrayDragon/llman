@@ -549,7 +549,12 @@ fn test_sdd_authoring_helpers_produce_strict_valid_spec_and_change() {
     fs::create_dir_all(&change_dir).expect("create change dir");
     let proposal = "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n";
     fs::write(change_dir.join("proposal.md"), proposal).expect("write proposal");
-    fs::write(change_dir.join("tasks.md"), "- [ ] Implement the change\n").expect("write tasks");
+    fs::write(
+        change_dir.join("design.md"),
+        "# Design\n\nSimple change, no trade-offs.\n",
+    )
+    .expect("write design");
+    fs::write(change_dir.join("tasks.md"), "- [x] Implement the change\n").expect("write tasks");
 
     let delta_skel = run_llman(
         &["sdd", "delta", "skeleton", "add-sample", "sample"],
@@ -741,7 +746,12 @@ fn test_sdd_validate_change_json_succeeds() {
         "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n",
     )
     .expect("write proposal");
-    fs::write(change_dir.join("tasks.md"), "- [ ] Implement the change\n").expect("write tasks");
+    fs::write(
+        change_dir.join("design.md"),
+        "# Design\n\nSimple change, no trade-offs.\n",
+    )
+    .expect("write design");
+    fs::write(change_dir.join("tasks.md"), "- [x] Implement the change\n").expect("write tasks");
     let delta_spec = r#"```toon
 kind: llman.sdd.delta
 ops[1]{op,req_id,title,statement,from,to,name}:
@@ -1167,7 +1177,12 @@ fn test_sdd_validate_change_without_future_md_still_succeeds() {
         "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n",
     )
     .expect("write proposal");
-    fs::write(change_dir.join("tasks.md"), "## 1. Tasks\n- [ ] 1.1 Do\n").expect("write tasks");
+    fs::write(
+        change_dir.join("design.md"),
+        "# Design\n\nSimple change, no trade-offs.\n",
+    )
+    .expect("write design");
+    fs::write(change_dir.join("tasks.md"), "## 1. Tasks\n- [x] 1.1 Done\n").expect("write tasks");
     let delta_spec = r#"```toon
 kind: llman.sdd.delta
 ops[1]{op,req_id,title,statement,from,to,name}:
@@ -1192,4 +1207,136 @@ op_scenarios[1]{req_id,id,given,when,then}:
         work_dir,
     );
     assert_success(&validate_output);
+}
+
+#[test]
+fn test_sdd_validate_tasks_without_design_is_error() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let llmanspec_dir = work_dir.join("llmanspec");
+    let change_dir = llmanspec_dir.join("changes").join("tasks-no-design");
+    let change_specs_dir = change_dir.join("specs").join("sample");
+    fs::create_dir_all(&change_specs_dir).expect("create change spec dir");
+    fs::write(
+        change_dir.join("proposal.md"),
+        "## Why\nTest constraint.\n\n## What Changes\n- Test.\n",
+    )
+    .expect("write proposal");
+    fs::write(change_dir.join("tasks.md"), "## Tasks\n- [x] Done\n").expect("write tasks");
+    let delta_spec = r#"```toon
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r1,Test,System MUST test.,null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  r1,happy,"",trigger,outcome
+```
+"#;
+    fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
+
+    let validate_output = run_llman(
+        &[
+            "sdd",
+            "validate",
+            "tasks-no-design",
+            "--type",
+            "change",
+            "--no-interactive",
+        ],
+        work_dir,
+        work_dir,
+    );
+    let stderr = String::from_utf8_lossy(&validate_output.stderr);
+    assert!(
+        !validate_output.status.success(),
+        "Should fail when tasks.md exists without design.md"
+    );
+    assert!(
+        stderr.contains("tasks.md") && stderr.contains("design.md"),
+        "Error should mention both tasks.md and design.md, got: {stderr}"
+    );
+}
+
+#[test]
+fn test_sdd_validate_completeness_stage_in_output() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let llmanspec_dir = work_dir.join("llmanspec");
+    let change_dir = llmanspec_dir.join("changes").join("draft-only");
+    fs::create_dir_all(&change_dir).expect("create change dir");
+    fs::write(
+        change_dir.join("proposal.md"),
+        "## Why\nJust a draft.\n\n## What Changes\n- Nothing yet.\n",
+    )
+    .expect("write proposal");
+
+    let validate_output = run_llman(
+        &[
+            "sdd",
+            "validate",
+            "draft-only",
+            "--type",
+            "change",
+            "--no-interactive",
+        ],
+        work_dir,
+        work_dir,
+    );
+    let stdout = String::from_utf8_lossy(&validate_output.stdout);
+    assert_success(&validate_output);
+    assert!(
+        stdout.contains("draft"),
+        "Output should contain stage 'draft', got: {stdout}"
+    );
+}
+
+#[test]
+fn test_sdd_list_shows_stage_column() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let llmanspec_dir = work_dir.join("llmanspec");
+    let change_dir = llmanspec_dir.join("changes").join("stage-test");
+    fs::create_dir_all(&change_dir).expect("create change dir");
+    fs::write(
+        change_dir.join("proposal.md"),
+        "## Why\nTest stage display.\n",
+    )
+    .expect("write proposal");
+
+    let list_output = run_llman(&["sdd", "list"], work_dir, work_dir);
+    assert_success(&list_output);
+    let stdout = String::from_utf8_lossy(&list_output.stdout);
+    assert!(
+        stdout.contains("draft"),
+        "List output should show stage 'draft', got: {stdout}"
+    );
+
+    let json_output = run_llman(&["sdd", "list", "--json"], work_dir, work_dir);
+    assert_success(&json_output);
+    let json: Value = serde_json::from_slice(&json_output.stdout).expect("parse json");
+    let stage = json["changes"][0]["stage"].as_str().unwrap_or("");
+    assert_eq!(stage, "draft", "JSON output should contain stage field");
 }
