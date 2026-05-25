@@ -82,6 +82,34 @@ locale: zh-Hans
 #   - llman-sdd-verify
 "#;
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
+#[schemars(description = "Archive behaviour configuration.")]
+pub struct ArchiveConfig {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "When true, unchecked tasks without a defer link are errors (not just warnings). Default: false (transition period)."
+    )]
+    pub strict_defer: Option<bool>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Minimum task completion ratio (0.0–1.0) required for archiving. Default: none (disabled)."
+    )]
+    pub min_completion_ratio: Option<f64>,
+}
+
+impl ArchiveConfig {
+    pub fn strict_defer(&self) -> bool {
+        self.strict_defer.unwrap_or(false)
+    }
+
+    pub fn min_completion_ratio(&self) -> Option<f64> {
+        self.min_completion_ratio
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[schemars(description = "SDD project configuration for llmanspec.")]
 pub struct SddConfig {
@@ -110,6 +138,11 @@ pub struct SddConfig {
         Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, \
         llman-sdd-show, llman-sdd-sync, llman-sdd-validate, llman-sdd-verify.")]
     pub extra_skills: Option<Vec<String>>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(description = "Archive behaviour settings (defer tracking, completion gates).")]
+    pub archive: Option<ArchiveConfig>,
 }
 
 impl Default for SddConfig {
@@ -120,7 +153,14 @@ impl Default for SddConfig {
             context: None,
             rules: None,
             extra_skills: None,
+            archive: None,
         }
+    }
+}
+
+impl SddConfig {
+    pub fn archive_config(&self) -> ArchiveConfig {
+        self.archive.clone().unwrap_or_default()
     }
 }
 
@@ -190,6 +230,7 @@ pub fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
         context: config.context,
         rules: config.rules,
         extra_skills: config.extra_skills,
+        archive: config.archive,
     }))
 }
 

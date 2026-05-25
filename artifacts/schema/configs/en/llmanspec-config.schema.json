@@ -42,6 +42,30 @@
       "items": {
         "type": "string"
       }
+    },
+    "archive": {
+      "description": "Archive behaviour settings (defer tracking, completion gates).",
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "strict_defer": {
+          "description": "When true, unchecked tasks without a defer link are errors (not just warnings). Default: false (transition period).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "min_completion_ratio": {
+          "description": "Minimum task completion ratio (0.0–1.0) required for archiving. Default: none (disabled).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      }
     }
   },
   "required": [
