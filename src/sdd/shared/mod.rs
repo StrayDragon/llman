@@ -5,5 +5,7 @@ pub mod ids;
 pub mod interactive;
 pub mod list;
 pub mod match_utils;
+pub mod orphans;
 pub mod show;
+pub mod tasks;
 pub mod validate;

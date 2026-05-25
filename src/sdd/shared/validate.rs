@@ -1,5 +1,5 @@
 use crate::sdd::change::freeze::FREEZE_ARCHIVE_NAME;
-use crate::sdd::project::config::load_required_config;
+use crate::sdd::project::config::{ArchiveConfig, load_required_config};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_archived_changes, list_changes, list_specs};
 use crate::sdd::shared::ids::validate_sdd_id;
@@ -8,8 +8,8 @@ use crate::sdd::shared::match_utils::nearest_matches;
 use crate::sdd::spec::staleness::{StalenessEvaluator, StalenessInfo, evaluate_staleness};
 use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary, check_dag_cycles,
-    check_design_md, check_proposal_exists, check_proposal_frontmatter, check_tasks_exists,
-    validate_change_delta_specs, validate_spec_content_with_frontmatter,
+    check_design_md, check_proposal_exists, check_proposal_frontmatter, check_tasks_completion,
+    check_tasks_exists, validate_change_delta_specs, validate_spec_content_with_frontmatter,
 };
 use anyhow::{Result, anyhow};
 use inquire::Select;
@@ -81,7 +81,8 @@ struct ValidationItem {
 pub fn run(args: ValidateArgs) -> Result<()> {
     let root = Path::new(".");
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    let _config = load_required_config(&llmanspec_dir)?;
+    let config = load_required_config(&llmanspec_dir)?;
+    let archive_config = config.archive_config();
 
     let interactive = is_interactive(args.no_interactive);
     let type_override = normalize_type(args.item_type.as_deref());
@@ -96,13 +97,20 @@ pub fn run(args: ValidateArgs) -> Result<()> {
             args.strict,
             args.json,
             args.compact_json,
+            &archive_config,
         )?;
         return Ok(());
     }
 
     if args.item.is_none() {
         if interactive {
-            run_interactive_selector(root, args.strict, args.json, args.compact_json)?;
+            run_interactive_selector(
+                root,
+                args.strict,
+                args.json,
+                args.compact_json,
+                &archive_config,
+            )?;
             return Ok(());
         }
         return Err(anyhow!(non_interactive_hint_message()));
@@ -118,6 +126,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
         args.strict,
         args.json,
         args.compact_json,
+        &archive_config,
     )
 }
 
@@ -135,6 +144,7 @@ fn run_interactive_selector(
     strict: bool,
     json: bool,
     compact_json: bool,
+    archive_config: &ArchiveConfig,
 ) -> Result<()> {
     let choice = Select::new(
         &t!("sdd.validate.select_scope"),
@@ -148,15 +158,31 @@ fn run_interactive_selector(
     .prompt()?;
 
     if choice == t!("sdd.validate.option_all") {
-        run_bulk_validation(root, true, true, strict, json, compact_json)?;
+        run_bulk_validation(root, true, true, strict, json, compact_json, archive_config)?;
         return Ok(());
     }
     if choice == t!("sdd.validate.option_changes") {
-        run_bulk_validation(root, true, false, strict, json, compact_json)?;
+        run_bulk_validation(
+            root,
+            true,
+            false,
+            strict,
+            json,
+            compact_json,
+            archive_config,
+        )?;
         return Ok(());
     }
     if choice == t!("sdd.validate.option_specs") {
-        run_bulk_validation(root, false, true, strict, json, compact_json)?;
+        run_bulk_validation(
+            root,
+            false,
+            true,
+            strict,
+            json,
+            compact_json,
+            archive_config,
+        )?;
         return Ok(());
     }
 
@@ -180,6 +206,7 @@ fn run_interactive_selector(
         compact_json,
         &archived_changes,
         has_frozen_archive(root),
+        archive_config,
     )
 }
 
@@ -202,6 +229,7 @@ fn validate_direct(
     strict: bool,
     json: bool,
     compact_json: bool,
+    archive_config: &ArchiveConfig,
 ) -> Result<()> {
     let changes = list_changes(root)?;
     let specs = list_specs(root)?;
@@ -257,6 +285,7 @@ fn validate_direct(
         compact_json,
         &archived_changes,
         has_frozen_archive(root),
+        archive_config,
     )
 }
 
@@ -295,6 +324,7 @@ fn validate_change_full(
     has_frozen: bool,
     strict: bool,
     dag_issues: &[ValidationIssue],
+    archive_config: &ArchiveConfig,
 ) -> ValidationReport {
     let mut issues = Vec::new();
 
@@ -303,6 +333,13 @@ fn validate_change_full(
         check_proposal_frontmatter(change_dir, all_change_ids, archived_change_ids, has_frozen).0,
     );
     issues.extend(check_tasks_exists(change_dir));
+    issues.extend(check_tasks_completion(
+        change_dir,
+        all_change_ids,
+        archived_change_ids,
+        has_frozen,
+        archive_config,
+    ));
     issues.extend(check_design_md(change_dir));
 
     let delta_report = validate_change_delta_specs(change_dir, strict);
@@ -323,6 +360,7 @@ fn validate_by_type(
     compact_json: bool,
     archived_change_ids: &[String],
     has_frozen: bool,
+    archive_config: &ArchiveConfig,
 ) -> Result<()> {
     let start = Instant::now();
     let (report, staleness) = match item_type {
@@ -344,6 +382,7 @@ fn validate_by_type(
                 has_frozen,
                 strict,
                 &dag_issues,
+                archive_config,
             );
             (report, StalenessInfo::not_applicable())
         }
@@ -511,6 +550,7 @@ fn print_staleness(item_type: ItemType, staleness: &StalenessInfo) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_bulk_validation(
     root: &Path,
     validate_changes: bool,
@@ -518,6 +558,7 @@ fn run_bulk_validation(
     strict: bool,
     json: bool,
     compact_json: bool,
+    archive_config: &ArchiveConfig,
 ) -> Result<()> {
     let changes = if validate_changes {
         list_changes(root)?
@@ -556,6 +597,7 @@ fn run_bulk_validation(
             frozen,
             strict,
             &dag_issues,
+            archive_config,
         );
         items.push(ValidationItem {
             id,

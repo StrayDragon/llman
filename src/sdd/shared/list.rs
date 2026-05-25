@@ -1,6 +1,7 @@
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
+use crate::sdd::shared::tasks;
 use crate::sdd::spec::parser::parse_spec;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
@@ -217,24 +218,10 @@ fn status_key(completed: usize, total: usize) -> &'static str {
 
 fn task_progress(changes_dir: &Path, change_name: &str) -> Result<(usize, usize)> {
     let tasks_path = changes_dir.join(change_name).join("tasks.md");
-    let content = match fs::read_to_string(tasks_path) {
-        Ok(content) => content,
-        Err(_) => return Ok((0, 0)),
-    };
-    let mut total = 0;
-    let mut completed = 0;
-    for line in content.lines() {
-        let trimmed = line.trim_start();
-        if trimmed.starts_with("- [") || trimmed.starts_with("* [") {
-            total += 1;
-            if trimmed.to_lowercase().starts_with("- [x]")
-                || trimmed.to_lowercase().starts_with("* [x]")
-            {
-                completed += 1;
-            }
-        }
+    match tasks::parse_tasks_file(&tasks_path)? {
+        Some(report) => Ok((report.completed, report.total())),
+        None => Ok((0, 0)),
     }
-    Ok((completed, total))
 }
 
 fn format_task_status(completed: usize, total: usize) -> String {

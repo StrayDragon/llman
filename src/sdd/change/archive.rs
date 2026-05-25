@@ -3,6 +3,7 @@ use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
+use crate::sdd::shared::tasks;
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
 use crate::sdd::spec::fence::render_code_fence;
 use crate::sdd::spec::frontmatter::{compose_with_frontmatter, split_frontmatter};
@@ -47,7 +48,8 @@ pub fn run(args: ArchiveArgs) -> Result<()> {
 
 fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    let _config = load_required_config(&llmanspec_dir)?;
+    let config = load_required_config(&llmanspec_dir)?;
+    let archive_config = config.archive_config();
 
     let change_name = args
         .change
@@ -62,6 +64,44 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
             "sdd.archive.change_not_found",
             id = change_name
         )));
+    }
+
+    if !args.force {
+        let tasks_path = change_dir.join("tasks.md");
+        if let Some(report) = tasks::parse_tasks_file(&tasks_path)? {
+            if report.pending > 0 {
+                eprintln!(
+                    "{}",
+                    t!("sdd.archive.task_gate_blocked", pending = report.pending)
+                );
+                for item in &report.items {
+                    if matches!(
+                        item.status,
+                        tasks::TaskStatus::Pending | tasks::TaskStatus::LegacyDefer { .. }
+                    ) {
+                        eprintln!("{}", t!("sdd.archive.task_gate_item", task = item.text));
+                    }
+                }
+                eprintln!("{}", t!("sdd.archive.task_gate_options"));
+                return Err(anyhow!("archive blocked by unchecked tasks"));
+            }
+
+            if let Some(min_ratio) = archive_config.min_completion_ratio() {
+                let actual = report.completion_ratio();
+                if actual < min_ratio {
+                    let ratio_pct = (actual * 100.0) as u32;
+                    let min_pct = (min_ratio * 100.0) as u32;
+                    return Err(anyhow!(
+                        "{}",
+                        t!(
+                            "sdd.archive.task_completion_low",
+                            ratio = ratio_pct,
+                            min = min_pct
+                        )
+                    ));
+                }
+            }
+        }
     }
 
     if !args.skip_specs {
@@ -754,5 +794,126 @@ alpha alpha "" "alpha is used" "it works"
         };
         let result = run_with_root(dir.path(), args);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn archive_blocked_by_pending_tasks() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let config_path = root.join("llmanspec/config.yaml");
+        write_file(&config_path, "schema: spec-driven\nlocale: en\n");
+        let change_dir = root.join("llmanspec/changes/test-change");
+        write_file(
+            &change_dir.join("proposal.md"),
+            "## Why\nTest change for archive gate",
+        );
+        write_file(
+            &change_dir.join("tasks.md"),
+            "- [x] Done task\n- [ ] Pending task\n",
+        );
+        let args = ArchiveArgs {
+            change: Some("test-change".to_string()),
+            skip_specs: true,
+            dry_run: false,
+            force: false,
+            no_interactive: true,
+        };
+        let result = run_with_root(root, args);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("unchecked tasks"));
+    }
+
+    #[test]
+    fn archive_allowed_when_force_with_pending() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let config_path = root.join("llmanspec/config.yaml");
+        write_file(&config_path, "schema: spec-driven\nlocale: en\n");
+        let change_dir = root.join("llmanspec/changes/test-change");
+        write_file(
+            &change_dir.join("proposal.md"),
+            "## Why\nTest change for archive gate",
+        );
+        write_file(&change_dir.join("tasks.md"), "- [x] Done\n- [ ] Pending\n");
+        let args = ArchiveArgs {
+            change: Some("test-change".to_string()),
+            skip_specs: true,
+            dry_run: false,
+            force: true,
+            no_interactive: true,
+        };
+        let result = run_with_root(root, args);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn archive_passes_with_all_completed() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let config_path = root.join("llmanspec/config.yaml");
+        write_file(&config_path, "schema: spec-driven\nlocale: en\n");
+        let change_dir = root.join("llmanspec/changes/test-change");
+        write_file(&change_dir.join("proposal.md"), "## Why\nAll done");
+        write_file(&change_dir.join("tasks.md"), "- [x] Done1\n- [x] Done2\n");
+        let args = ArchiveArgs {
+            change: Some("test-change".to_string()),
+            skip_specs: true,
+            dry_run: false,
+            force: false,
+            no_interactive: true,
+        };
+        let result = run_with_root(root, args);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn archive_passes_with_cancelled_tasks() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let config_path = root.join("llmanspec/config.yaml");
+        write_file(&config_path, "schema: spec-driven\nlocale: en\n");
+        let change_dir = root.join("llmanspec/changes/test-change");
+        write_file(&change_dir.join("proposal.md"), "## Why\nTest");
+        write_file(
+            &change_dir.join("tasks.md"),
+            "- [x] Done\n- [ ] Not needed (cancelled — done)\n",
+        );
+        let args = ArchiveArgs {
+            change: Some("test-change".to_string()),
+            skip_specs: true,
+            dry_run: false,
+            force: false,
+            no_interactive: true,
+        };
+        let result = run_with_root(root, args);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn archive_blocked_by_completion_ratio() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let config_path = root.join("llmanspec/config.yaml");
+        write_file(
+            &config_path,
+            "schema: spec-driven\nlocale: en\narchive:\n  min_completion_ratio: 0.8\n",
+        );
+        let change_dir = root.join("llmanspec/changes/test-change");
+        write_file(&change_dir.join("proposal.md"), "## Why\nTest");
+        write_file(
+            &change_dir.join("tasks.md"),
+            "- [x] Done\n- [ ] Not needed (cancelled — x)\n- [ ] Also cancelled (cancelled — y)\n",
+        );
+        let args = ArchiveArgs {
+            change: Some("test-change".to_string()),
+            skip_specs: true,
+            dry_run: false,
+            force: false,
+            no_interactive: true,
+        };
+        let result = run_with_root(root, args);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("completion ratio") || msg.contains("below minimum"));
     }
 }

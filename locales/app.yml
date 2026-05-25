@@ -1840,6 +1840,18 @@ sdd:
       en: "Dependency cycle detected: %{cycle}"
     tasks_missing:
       en: "Change is missing tasks.md."
+    task_pending:
+      en: "Unchecked task without defer link (line %{line}): %{task}"
+    task_defer_target_missing:
+      en: "Deferred task references non-existent change '%{target}' (line %{line}): %{task}"
+    task_defer_target_archived:
+      en: "Deferred task references archived change '%{target}' (line %{line})"
+    task_defer_target_may_be_frozen:
+      en: "Deferred task references change '%{target}' which may be frozen (line %{line})"
+    task_defer_legacy:
+      en: "Legacy defer syntax (line %{line}): migrate to (defer → <change-id>)"
+    task_completion_summary:
+      en: "Task completion: %{completed}/%{total} (%{ratio}%%)"
     design_present:
       en: "design.md is present."
     next_steps:
@@ -1941,6 +1953,28 @@ sdd:
       en: "  -> %{count} renamed"
     dry_run_move:
       en: "Would move %{from} -> %{to}"
+    task_gate_blocked:
+      en: "Archive blocked: %{pending} unchecked task(s) without defer links."
+    task_gate_options:
+      en: "Options:\n  1. Add defer links: (defer → <change-id>)\n  2. Cancel tasks: (cancelled — <reason>)\n  3. Use --force to archive anyway (not recommended)\n  4. Complete the remaining tasks"
+    task_gate_item:
+      en: "  - [ ] %{task}"
+    task_completion_low:
+      en: "Task completion ratio %{ratio}%% is below minimum %{min}%%."
+
+  orphans:
+    header:
+      en: "Found %{count} orphaned defer item(s) across %{changes} change(s):"
+    no_orphans:
+      en: "No orphaned defer items found."
+    change_header:
+      en: "  %{change}:"
+    item:
+      en: "    - [ ] %{task}"
+    legacy_item:
+      en: "    - [ ] %{task} (legacy defer — no link)"
+    suggestion:
+      en: "Suggestion: Create follow-up changes or cancel these items."
 
 skills:
   not_implemented:
