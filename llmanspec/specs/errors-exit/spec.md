@@ -1,0 +1,22 @@
+---
+llman_spec_valid_scope:
+  - src/
+  - tests/
+llman_spec_valid_commands:
+  - llman sdd validate errors-exit --type spec --strict --no-interactive
+llman_spec_evidence:
+  - migrated from openspec
+---
+
+```toon
+kind: llman.sdd.spec
+name: "errors-exit"
+purpose: Define llman CLI error rendering and exit behavior.
+requirements[2]{req_id,title,statement}:
+  r1,Entrypoint error rendering,"The CLI entrypoint MUST render a single user-facing error message to stderr and exit with code 1 when a command returns an error. `LlmanError` values MUST be localized before being wrapped by `messages.error`; other errors use `to_string()`."
+  r2,Subcommand error handling,"Command handlers MUST return `Err` on fatal failures. Interactive flows MAY print their own error messages and exit directly, and recoverable issues MAY be logged to stderr without failing the command."
+scenarios[3]{req_id,id,given,when,then}:
+  r1,"command-failure","",a subcommand returns an error,the CLI prints one localized error line to stderr and exits with code 1
+  r2,"non-interactive-show-without-item","","`llman sdd show` runs without an item in a non-interactive terminal","it prints the non-interactive hint to stderr and exits with code 1"
+  r2,"recoverable-warning","",a configured skills source path does not exist,a warning is printed to stderr and the sync continues
+```

@@ -1,0 +1,32 @@
+---
+llman_spec_valid_scope:
+  - src/
+  - tests/
+llman_spec_valid_commands:
+  - llman sdd validate sdd-structured-skill-prompts --type spec --strict --no-interactive
+llman_spec_evidence:
+  - migrated from openspec
+---
+
+```toon
+kind: llman.sdd.spec
+name: "sdd-structured-skill-prompts"
+purpose: "TBD - created by archiving change upgrade-sdd-archive-freeze-and-structured-prompts. Update Purpose after archive."
+requirements[6]{req_id,title,statement}:
+  r1,SDD 技能结构化提示协议,"llman SDD 的技能模板 MUST 采用统一结构化提示协议，并通过模板单元注入方式组装协议块，以降低重复维护成本并保持内容一致性。 协议至少包含以下逻辑层： - `Context` - `Goal` - `Constraints` - `Workflow` - `Decision Policy` - `Output Contract`"
+  r2,协议自包含且无外部技能硬依赖,结构化提示协议 MUST 以内置规则表述，不得要求调用外部技能作为前置依赖。
+  r3,Structured Protocol Includes Ethics Governance Fields,The structured skill prompt protocol for new style MUST include enforceable ethics governance fields.
+  r4,"Missing Governance Fields Fail New-Style Validation","New-style validation MUST fail when required ethics governance fields are missing."
+  r5,生成提示不得包含占位块或无效引导,SDD 的技能渲染结果 MUST 不包含会诱导不稳定行为的占位块或无效引导（例如 “Options / <option …> / What would you like to do?”）。
+  r6,Spec Authoring Prompts Include Canonical Table ISON Guidance,"New-style SDD skills MUST include canonical table/object ISON guidance when they instruct users/agents to create or edit: - `llmanspec/specs/<capability>/spec.md`, or - `llmanspec/changes/<change-id>/specs/<capability>/spec.md` MUST include explicit guidance for the canonical table/object ISON schema: - the strictly fixed canonical block names - the required columns for each table - minimal valid examples - common validation failures and how to fix them - the token-friendly scenario encoding rul"
+scenarios[9]{req_id,id,given,when,then}:
+  r1,结构化协议由共享单元注入,"","维护者检查 `templates/sdd/{locale}/skills/*.md`",协议章节通过共享模板单元注入而不是手工重复拷贝
+  r1,注入后结构化章节仍完整可见,"","用户执行 `llman sdd update-skills --no-interactive --all`",生成产物中可见完整结构化章节且顺序一致
+  r2,生成内容不引用外部技能作为必需步骤,"","用户执行 `llman sdd update-skills --all`",生成的 `SKILL.md` 不包含“先调用外部技能再执行”的硬依赖指令
+  r3,"new-style-structured-protocol-includes-governance-block","",new style SDD skills are generated,"generated content includes governance fields for risk level, prohibited actions, required evidence, refusal contract, and escalation policy"
+  r4,"validation-fails-on-missing-governance-key","",a new style skill/protocol artifact omits a required ethics governance field,"validation returns non-zero with explicit missing-field diagnostics"
+  r5,"update-skills-产物无占位块","","维护者在同一代码版本下运行 `llman sdd update-skills --no-interactive --tool codex`","生成的任意 `SKILL.md` 不包含子串 `Options:` 或 `<option`"
+  r6,"template-guidance-matches-the-canonical-schema","","a maintainer reviews `templates/sdd/{locale}/skills/*.md`",any guidance that references writing `spec.md` files uses canonical table/object ISON examples
+  r6,"generated-skills-include-the-ison-authoring-guidance","","a user runs `llman sdd update-skills --no-interactive --all`",the generated `SKILL.md` content includes the canonical ISON authoring guidance for spec/delta creation where applicable
+  r6,"validation-errors-include-canonical-rewrite-guidance","","a user follows the templates and encounters an error because legacy JSON-in-` ```ison ` payloads are present","the guidance and/or error output includes a concrete hint to rewrite the payload into canonical table/object ISON (no legacy-command hint)"
+```
