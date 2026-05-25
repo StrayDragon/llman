@@ -1,7 +1,7 @@
 use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
-use crate::sdd::project::init;
+use crate::sdd::project::{init, interop};
 use crate::sdd::shared::{graph, list, show, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -259,6 +259,21 @@ pub enum SddCommands {
         depth: usize,
         /// Seed change ID to center the graph on
         change: Option<String>,
+    },
+    /// Import specs from OpenSpec markdown format into llmanspec
+    Import {
+        /// Source OpenSpec specs directory (default: openspec/specs)
+        #[arg(long)]
+        source: Option<PathBuf>,
+        /// Glob pattern to filter spec names (e.g. 'config-*')
+        #[arg(long)]
+        scope: Option<String>,
+        /// Parse and report without writing files
+        #[arg(long)]
+        dry_run: bool,
+        /// Overwrite existing specs in target
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -522,5 +537,19 @@ pub fn run(args: &SddArgs) -> Result<()> {
             depth: *depth,
             change: change.clone(),
         }),
+        SddCommands::Import {
+            source,
+            scope,
+            dry_run,
+            force,
+        } => interop::run(
+            std::path::Path::new("."),
+            interop::ImportArgs {
+                source: source.clone(),
+                scope: scope.clone(),
+                dry_run: *dry_run,
+                force: *force,
+            },
+        ),
     }
 }
