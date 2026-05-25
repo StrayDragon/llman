@@ -3,6 +3,7 @@ use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_changes, list_specs};
 use crate::sdd::shared::tasks;
 use crate::sdd::spec::parser::parse_spec;
+use crate::sdd::spec::validation::{ChangeStage, determine_stage};
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -22,6 +23,7 @@ pub struct ListArgs {
 #[derive(Debug, Serialize)]
 struct ChangeJson {
     name: String,
+    stage: String,
     #[serde(rename = "completedTasks")]
     completed_tasks: usize,
     #[serde(rename = "totalTasks")]
@@ -34,6 +36,7 @@ struct ChangeJson {
 #[derive(Debug)]
 struct ChangeInfo {
     name: String,
+    stage: ChangeStage,
     completed_tasks: usize,
     total_tasks: usize,
     last_modified: DateTime<Utc>,
@@ -91,8 +94,10 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
     for change in change_ids {
         let (completed, total) = task_progress(&changes_dir, &change)?;
         let last_modified = last_modified(&changes_dir.join(&change))?;
+        let stage = determine_stage(&changes_dir.join(&change));
         changes.push(ChangeInfo {
             name: change,
+            stage,
             completed_tasks: completed,
             total_tasks: total,
             last_modified,
@@ -111,6 +116,7 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
             .iter()
             .map(|c| ChangeJson {
                 name: c.name.clone(),
+                stage: c.stage.as_str().to_string(),
                 completed_tasks: c.completed_tasks,
                 total_tasks: c.total_tasks,
                 last_modified: c.last_modified.to_rfc3339(),
@@ -128,9 +134,10 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
     let name_width = changes.iter().map(|c| c.name.len()).fold(0, max);
     for change in changes {
         let padded = format!("{:<width$}", change.name, width = name_width);
+        let stage = format!("{:<10}", change.stage.as_str());
         let status = format_task_status(change.completed_tasks, change.total_tasks);
         let time_ago = format_relative_time(change.last_modified);
-        println!("  {}     {:<12}  {}", padded, status, time_ago);
+        println!("  {}  {}  {:<12}  {}", padded, stage, status, time_ago);
     }
 
     Ok(())

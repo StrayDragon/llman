@@ -12,7 +12,7 @@ llman_spec_evidence:
 kind: llman.sdd.spec
 name: "sdd-workflow"
 purpose: "Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmanspec/`."
-requirements[42]{req_id,title,statement}:
+requirements[46]{req_id,title,statement}:
   r1,SDD 初始化脚手架,"`llman sdd init [path]` 命令 MUST 在目标路径创建 `llmanspec/` 目录结构，包括 `llmanspec/AGENTS.md`、`llmanspec/project.md`、`llmanspec/config.yaml`、`llmanspec/specs/`、`llmanspec/changes/` 与 `llmanspec/changes/archive/`。命令 MUST 在 `llmanspec/config.yaml` 顶部写入 `yaml-language-server` schema 头注释，指向 `llmanspec-config` schema URL。命令 MUST 创建或刷新 repo 根目录下的 `AGENTS.md` 受管块以指向 `llmanspec/AGENTS.md`。当 `llmanspec/` 已存在时，命令 MUST 报错并且不修改任何文件。生成的 `llmanspec/AGENTS.md` MUST 包含 LLMANSPEC 受管提示块且包含完整 llman sdd 方法论说明。 初始化生成的 `llmansp"
   r2,SDD 指令与提示词刷新,"`llman sdd update [path]` MUST 刷新 `llmanspec/AGENTS.md` 的 LLMANSPEC 受管提示块，同时 MUST 保持 `llmanspec/specs/**` 与 `llmanspec/changes/**` 不被修改。命令 MUST 刷新 repo 根目录 `AGENTS.md` 的 LLMANSPEC 受管块并保留非受管内容。更新 `llmanspec/AGENTS.md` 时 MUST 仅替换 LLMANSPEC 受管提示块，并保留受管块以外的用户内容。更新时必须使用 `llmanspec/config.yaml` 的 locale 选择模板。"
   r3,SDD 本地化配置与模板加载,`llman sdd` MUST 使用项目级配置 `llmanspec/config.yaml` 解析 locale，并基于 `templates/sdd/<locale>/` 加载 `llmanspec/AGENTS.md`、`llmanspec/project.md` 与 sdd skills 内容。locale 仅影响模板与 skills 输出，不影响 CLI 文本。
@@ -55,7 +55,11 @@ requirements[42]{req_id,title,statement}:
   r40,"Validation Fails on JSON-in-ISON Payloads","`llman sdd validate` MUST fail when any `llmanspec` main spec or delta spec contains a fenced ` ```ison ` payload that is JSON. The error MUST be actionable and MUST include: - a concrete hint to rewrite the payload into canonical table/object ISON (for example: main spec uses `object.spec` + `table.requirements` + `table.scenarios`; delta spec uses `object.delta` + `table.ops` + `table.op_scenarios`)."
   r41,No Automatic Migration Is Required for Legacy Repos,"The system MUST enforce canonical table/object ISON for `llmanspec` specs and deltas. The system MUST NOT require (or depend on) an automatic migration command as part of the workflow. Users MUST manually rewrite legacy JSON-in-` ```ison ` payloads into the canonical table/object ISON schema before using `llman sdd` successfully."
   r42,SDD Propose Skill,"`llman-sdd-propose` skill MUST guide an AI assistant to create a new change and generate all planning artifacts in one pass (proposal + delta specs + tasks; design optional), then run validation and suggest next actions."
-scenarios[115]{req_id,id,given,when,then}:
+  r43,变更完整度阶段检测,`llman sdd validate` MUST 在校验变更时检测并报告变更的完整度阶段。阶段定义为：`draft`（仅 proposal.md）、`specified`（proposal.md + specs/*/spec.md）、`designed`（proposal.md + specs/ + design.md）、`full`（proposal.md + specs/ + design.md + tasks.md）。校验输出 MUST 包含当前阶段标识。
+  r44,Design 前置约束,"`llman sdd validate` MUST 在变更包含 `tasks.md` 但缺少 `design.md` 时报 ERROR。该约束在 strict 与 non-strict 模式下均 MUST 生效。错误消息 MUST 包含具体的修复指引。"
+  r45,分级校验消息,"`llman sdd validate` MUST 根据 strict/non-strict 模式输出不同级别的完整度消息：non-strict 模式下缺少可选 artifact 输出 INFO；strict 模式下未达到 designed 阶段 MUST 输出 WARN（由 INFO 升级）。"
+  r46,List 阶段列,`llman sdd list` MUST 在变更列表输出中包含 stage 列，显示每个变更的完整度阶段（draft/specified/designed/full）。JSON 输出 MUST 包含 `stage` 字段。
+scenarios[122]{req_id,id,given,when,then}:
   r1,初始化新项目,"",用户在不存在 `llmanspec/` 的目录执行 `llman sdd init`,必要的目录结构与模板文件被创建
   r1,初始化指定路径,"",用户执行 `llman sdd init <path>`,在 `<path>` 下创建 `llmanspec/` 结构与模板文件
   r1,初始化时生成提示块,"",`llman sdd init` 生成 `llmanspec/AGENTS.md`,"文件中包含 `<!-- LLMANSPEC:START -->` 与 `<!-- LLMANSPEC:END -->` 包裹的提示块"
@@ -171,4 +175,11 @@ scenarios[115]{req_id,id,given,when,then}:
   r40,"validate-blocks-legacy-payloads","","a user runs `llman sdd validate` (with or without `--strict`) on a project containing JSON-in-` ```ison ` payloads","validation fails with non-zero exit"
   r41,"user-chooses-when-to-switch-formats","","a repository remains on legacy JSON-in-` ```ison ` payloads",`llman sdd validate` fails with a clear canonical rewrite hint
   r42,"propose-creates-a-change-and-artifacts","","a user invokes `llman-sdd-propose` with a change description (and/or a change id)","the assistant creates `llmanspec/changes/<change-id>/` with `proposal.md`, `specs/**`, and `tasks.md` (and `design.md` when needed)"
+  r43,"仅有-proposal",变更目录仅包含 proposal.md,"用户执行 `llman sdd validate <change-id>`",输出包含阶段标识 `draft`
+  r43,完整变更,变更目录包含 proposal.md + specs/ + design.md + tasks.md,"用户执行 `llman sdd validate <change-id>`",输出包含阶段标识 `full`
+  r44,"tasks-无-design",变更目录包含 proposal.md、specs/、tasks.md 但缺少 design.md,"用户执行 `llman sdd validate <change-id>`",校验失败并输出 ERROR 级别消息
+  r44,"tasks-有-design",变更目录包含 proposal.md、specs/、design.md、tasks.md,"用户执行 `llman sdd validate <change-id>`",不产生 design 前置约束相关的错误
+  r45,"non-strict-draft",变更处于 draft 阶段,"用户执行 `llman sdd validate <change-id>`（非 strict）",输出 INFO 级别的阶段提示
+  r45,"strict-draft",变更处于 draft 阶段,"用户执行 `llman sdd validate <change-id> --strict`",输出 WARN 级别的阶段提示
+  r46,"list-显示-stage",存在多个不同阶段的变更,用户执行 `llman sdd list`,输出中每行包含 stage 列
 ```

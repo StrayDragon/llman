@@ -1400,6 +1400,104 @@ pub fn check_design_md(change_dir: &Path) -> Vec<ValidationIssue> {
     }]
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ChangeStage {
+    Draft,
+    Specified,
+    Designed,
+    Full,
+}
+
+impl ChangeStage {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ChangeStage::Draft => "draft",
+            ChangeStage::Specified => "specified",
+            ChangeStage::Designed => "designed",
+            ChangeStage::Full => "full",
+        }
+    }
+}
+
+pub fn determine_stage(change_dir: &Path) -> ChangeStage {
+    let has_proposal = change_dir.join("proposal.md").exists();
+    let has_specs = has_spec_files(&change_dir.join("specs"));
+    let has_design = change_dir.join("design.md").exists();
+    let has_tasks = change_dir.join("tasks.md").exists();
+
+    match (has_proposal, has_specs, has_design, has_tasks) {
+        (true, true, true, true) => ChangeStage::Full,
+        (true, true, true, false) => ChangeStage::Designed,
+        (true, true, _, _) => ChangeStage::Specified,
+        _ => ChangeStage::Draft,
+    }
+}
+
+fn has_spec_files(specs_dir: &Path) -> bool {
+    if !specs_dir.is_dir() {
+        return false;
+    }
+    match fs::read_dir(specs_dir) {
+        Ok(entries) => entries.flatten().any(|e| {
+            e.file_type().map(|t| t.is_dir()).unwrap_or(false) && e.path().join("spec.md").exists()
+        }),
+        Err(_) => false,
+    }
+}
+
+pub fn check_design_tasks_constraint(change_dir: &Path) -> Vec<ValidationIssue> {
+    let has_tasks = change_dir.join("tasks.md").exists();
+    let has_design = change_dir.join("design.md").exists();
+
+    if has_tasks && !has_design {
+        return vec![ValidationIssue {
+            level: ValidationLevel::Error,
+            path: "tasks.md".to_string(),
+            message: t!("sdd.validate.tasks_without_design").to_string(),
+        }];
+    }
+    Vec::new()
+}
+
+pub fn check_completeness_stage(change_dir: &Path, strict: bool) -> Vec<ValidationIssue> {
+    let stage = determine_stage(change_dir);
+    let mut issues = Vec::new();
+
+    let level = if strict {
+        ValidationLevel::Warning
+    } else {
+        ValidationLevel::Info
+    };
+
+    match stage {
+        ChangeStage::Full => {}
+        ChangeStage::Designed => {
+            issues.push(ValidationIssue {
+                level: level.clone(),
+                path: "completeness".to_string(),
+                message: t!("sdd.validate.stage_designed_hint").to_string(),
+            });
+        }
+        ChangeStage::Specified => {
+            issues.push(ValidationIssue {
+                level: level.clone(),
+                path: "completeness".to_string(),
+                message: t!("sdd.validate.stage_specified_hint").to_string(),
+            });
+        }
+        ChangeStage::Draft => {
+            issues.push(ValidationIssue {
+                level,
+                path: "completeness".to_string(),
+                message: t!("sdd.validate.stage_draft_hint").to_string(),
+            });
+        }
+    }
+
+    issues
+}
+
 pub fn build_report(issues: Vec<ValidationIssue>, strict: bool) -> ValidationReport {
     let mut errors = 0;
     let mut warnings = 0;

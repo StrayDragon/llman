@@ -7,9 +7,10 @@ use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
 use crate::sdd::spec::staleness::{StalenessEvaluator, StalenessInfo, evaluate_staleness};
 use crate::sdd::spec::validation::{
-    ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary, check_dag_cycles,
-    check_design_md, check_proposal_exists, check_proposal_frontmatter, check_tasks_completion,
-    check_tasks_exists, validate_change_delta_specs, validate_spec_content_with_frontmatter,
+    ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
+    check_completeness_stage, check_dag_cycles, check_design_md, check_design_tasks_constraint,
+    check_proposal_exists, check_proposal_frontmatter, check_tasks_completion, check_tasks_exists,
+    validate_change_delta_specs, validate_spec_content_with_frontmatter,
 };
 use anyhow::{Result, anyhow};
 use inquire::Select;
@@ -332,6 +333,7 @@ fn validate_change_full(
     issues.extend(
         check_proposal_frontmatter(change_dir, all_change_ids, archived_change_ids, has_frozen).0,
     );
+    issues.extend(check_design_tasks_constraint(change_dir));
     issues.extend(check_tasks_exists(change_dir));
     issues.extend(check_tasks_completion(
         change_dir,
@@ -341,6 +343,7 @@ fn validate_change_full(
         archive_config,
     ));
     issues.extend(check_design_md(change_dir));
+    issues.extend(check_completeness_stage(change_dir, strict));
 
     let delta_report = validate_change_delta_specs(change_dir, strict);
     issues.extend(delta_report.issues);
