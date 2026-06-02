@@ -236,6 +236,11 @@ fn handle_main_command(args: &[String]) -> Result<()> {
         if !status.success() {
             bail!(t!("claude_code.error.failed_claude_command"));
         }
+
+        println!(
+            "\n{}",
+            t!("claude_code.run.session_ended", name = selected_group)
+        );
     }
 
     Ok(())
@@ -389,6 +394,8 @@ fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()
         if !status.success() {
             bail!(t!("claude_code.error.failed_claude_command"));
         }
+
+        println!("\n{}", t!("claude_code.run.session_ended", name = name));
     } else {
         bail!(
             "{}\n{}",
@@ -488,6 +495,11 @@ fn handle_run_command(
         if !status.success() {
             bail!(t!("claude_code.error.failed_claude_command"));
         }
+
+        println!(
+            "\n{}",
+            t!("claude_code.run.session_ended", name = selected_group)
+        );
     } else {
         bail!(
             "{}\n{}",
