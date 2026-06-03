@@ -247,6 +247,8 @@ fn activate_and_exec(config: &Config, provider_key: &str, args: &[String]) -> Re
         bail!(t!("codex.error.failed_codex_command"));
     }
 
+    println!("\n{}", t!("codex.run.session_ended", name = provider_key));
+
     Ok(())
 }
 

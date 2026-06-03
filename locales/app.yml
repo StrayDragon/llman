@@ -1264,6 +1264,8 @@ claude_code:
         en: "Invalid argument string: %{error}. Please try again."
     using_config:
       en: "Using configuration: %{name}"
+    session_ended:
+      en: "👋 Session ended. You were using: %{name}"
     error:
       group_required_non_interactive:
         en: "Error: In non-interactive mode, --group is required"
@@ -1529,6 +1531,8 @@ codex:
         en: "Invalid argument string: %{error}. Please try again."
     using_config:
       en: "Using configuration: %{name}"
+    session_ended:
+      en: "👋 Session ended. You were using: %{name}"
     provider_synced:
       en: "✓ Provider '%{name}' synced to ~/.codex/config.toml"
     error:
