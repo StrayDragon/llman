@@ -14,6 +14,26 @@ scenarios[1]{req_id,id,given,when,then}:
   r1,happy,"",a trigger happens,the outcome is observed
 ```
 
+### Main spec with BDD feature_refs（可选）
+
+当 `config.yaml` 定义了 `bdd` 块时，spec 可以引用 `.feature` 文件用于可执行 BDD 验证：
+
+```toon
+kind: llman.sdd.spec
+name: sample
+purpose: "One-line overview."
+requirements[1]{req_id,title,statement}:
+  r1,Requirement title,System MUST do something.
+scenarios[1]{req_id,id,given,when,then}:
+  r1,happy,"",a trigger happens,the outcome is observed
+feature_refs[1]{path,scope,required}:
+  tests/features/sample.feature,acceptance,true
+```
+
+- `path`: 相对于项目根的 `.feature` 文件路径
+- `scope`: `acceptance` | `unit` | `reference`
+- `required`: `true` → 缺失时报 ERROR；`false` → 缺失时报 WARNING
+
 ### Delta spec（`llmanspec/changes/<change-id>/specs/<feature-id>/spec.md`）
 
 ```toon

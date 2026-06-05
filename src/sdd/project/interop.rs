@@ -329,6 +329,7 @@ fn migrate_spec(
         },
         requirements,
         scenarios,
+        feature_refs: None,
     };
 
     let payload = match BACKEND.dump_main_spec(&doc) {

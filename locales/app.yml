@@ -1904,6 +1904,28 @@ sdd:
       en: "Spec may be stale; scope changed without spec update."
     staleness_git_failed:
       en: "Git command failed during staleness evaluation."
+    feature_refs_no_bdd_config:
+      en: "feature_refs defined but no bdd config in config.yaml. Fix: add `bdd:` block to llmanspec/config.yaml (see `bdd.framework` and `bdd.feature_dir`)."
+    feature_ref_not_found:
+      en: "Required .feature file not found: %{path}. Fix: create the .feature file — it is the executable implementation of this spec's scenarios."
+    feature_ref_not_found_optional:
+      en: "Optional .feature file not found: %{path}."
+    feature_ref_bad_extension:
+      en: "feature_refs path must end with .feature: %{path}"
+    feature_ref_parse_error:
+      en: "Gherkin parse error in %{path}: %{error}. Fix: check .feature syntax and language directive."
+    feature_ref_read_error:
+      en: "Cannot read .feature file %{path}: %{error}"
+    feature_ref_coverage_gap:
+      en: "Feature %{path} has %{feature} scenarios but spec has %{spec} scenarios. The .feature file is the executable form of this spec — add missing scenarios to either the spec or the .feature file."
+    feature_ref_unsupported_language:
+      en: "Unsupported gherkin language '%{lang}' in %{path}. Fix: use a valid language code (e.g. 'en', 'zh-CN')."
+    bdd_next_step_verify:
+      en: "- Run BDD tests: %{command}"
+    bdd_next_step_feature:
+      en: "- Create .feature file at the path shown in the ERROR above — it is the executable implementation of the spec's scenarios"
+    staleness_feature_ref_stale:
+      en: "Spec may be stale: .feature file (%{path}) changed without spec update. The .feature file is the executable implementation of this spec."
     non_interactive:
       line1:
         en: "Nothing to validate. Try one of:"

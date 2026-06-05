@@ -14,6 +14,26 @@ scenarios[1]{req_id,id,given,when,then}:
   r1,happy,"",a trigger happens,the outcome is observed
 ```
 
+### Main spec with BDD feature_refs (optional)
+
+When `config.yaml` defines a `bdd` block, specs can reference `.feature` files for executable BDD validation:
+
+```toon
+kind: llman.sdd.spec
+name: sample
+purpose: "One-line overview."
+requirements[1]{req_id,title,statement}:
+  r1,Requirement title,System MUST do something.
+scenarios[1]{req_id,id,given,when,then}:
+  r1,happy,"",a trigger happens,the outcome is observed
+feature_refs[1]{path,scope,required}:
+  tests/features/sample.feature,acceptance,true
+```
+
+- `path`: relative path to `.feature` file from project root
+- `scope`: `acceptance` | `unit` | `reference`
+- `required`: `true` → ERROR if missing; `false` → WARNING if missing
+
 ### Delta spec (`llmanspec/changes/<change-id>/specs/<feature-id>/spec.md`)
 
 ```toon

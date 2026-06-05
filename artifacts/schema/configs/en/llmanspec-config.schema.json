@@ -66,6 +66,50 @@
           "format": "double"
         }
       }
+    },
+    "bdd": {
+      "description": "BDD integration settings. When defined, enables feature_refs validation and BDD-aware verify prompts.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "framework": {
+          "description": "BDD framework identifier.",
+          "type": "string"
+        },
+        "feature_dir": {
+          "description": "Root directory for .feature files, relative to project root.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "default_language": {
+          "description": "Gherkin parsing language code (e.g. 'en', 'zh-CN'). Default: 'en'.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "run_command": {
+          "description": "Custom test run command. Placeholders: {feature_dir}, {feature_name}, {feature_path}.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verify_prompt": {
+          "description": "Extra prompt text injected during verify phase.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "framework"
+      ]
     }
   },
   "required": [

@@ -26,8 +26,14 @@ Implement a change by completing `llmanspec/changes/<id>/tasks.md` from top to b
 5. Implement tasks in order:
    - Keep changes minimal and scoped to the current task
    - After completing a task, immediately update its checkbox (`- [ ]` → `- [x]`)
-   - If a task is unclear, you hit a blocker, or specs/design don’t match reality, STOP and ask what to do next.
-6. When tasks are complete (or when pausing), run validation:
+   - If a task is unclear, you hit a blocker, or specs/design don't match reality, STOP and ask what to do next.
+{% if bdd_enabled %}
+6. **BDD 回归**:
+   - 每完成一个 task，运行关联的 BDD 测试确保不回退:
+     `{{ bdd_run_command }}`
+   - 如有 scenario 由 PASS 变 FAIL，立即停止并报告
+{% endif %}
+7. When tasks are complete (or when pausing), run validation:
    ```bash
    llman sdd validate <id> --strict --no-interactive
    ```
