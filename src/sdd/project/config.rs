@@ -50,6 +50,15 @@ locale: en
 #   - llman-sdd-sync
 #   - llman-sdd-validate
 #   - llman-sdd-verify
+
+# BDD integration (optional, uncomment to enable)
+# bdd:
+#   framework: pytest-bdd
+#   feature_dir: tests/features/
+#   # default_language: en
+#   # run_command: "pytest {feature_dir} -k {feature_name} -v"
+#   # verify_prompt: |
+#   #   Map test failures to requirement IDs.
 "#;
 
 const DEFAULT_CONFIG_ZH_HANS: &str = r#"schema: spec-driven
@@ -80,6 +89,15 @@ locale: zh-Hans
 #   - llman-sdd-sync
 #   - llman-sdd-validate
 #   - llman-sdd-verify
+
+# BDD 集成（可选，取消注释以启用）
+# bdd:
+#   framework: pytest-bdd
+#   feature_dir: tests/features/
+#   # default_language: zh-CN
+#   # run_command: "pytest {feature_dir} -k {feature_name} -v"
+#   # verify_prompt: |
+#   #   将测试失败映射到对应的 requirement ID。
 "#;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
@@ -107,6 +125,56 @@ impl ArchiveConfig {
 
     pub fn min_completion_ratio(&self) -> Option<f64> {
         self.min_completion_ratio
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
+#[schemars(
+    description = "BDD integration settings. When defined, enables feature_refs validation and BDD-aware verify prompts."
+)]
+pub struct BddConfig {
+    /// BDD framework identifier (pytest-bdd, rstest-bdd, cucumber-js, behave, custom)
+    #[schemars(description = "BDD framework identifier.")]
+    pub framework: String,
+
+    /// Root directory for .feature files, relative to project root
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(description = "Root directory for .feature files, relative to project root.")]
+    pub feature_dir: Option<String>,
+
+    /// Gherkin parsing language (default: "en")
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(description = "Gherkin parsing language code (e.g. 'en', 'zh-CN'). Default: 'en'.")]
+    pub default_language: Option<String>,
+
+    /// Custom test run command with placeholders: {feature_dir}, {feature_name}, {feature_path}
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Custom test run command. Placeholders: {feature_dir}, {feature_name}, {feature_path}."
+    )]
+    pub run_command: Option<String>,
+
+    /// Extra prompt injected during verify phase
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(description = "Extra prompt text injected during verify phase.")]
+    pub verify_prompt: Option<String>,
+}
+
+impl BddConfig {
+    pub fn effective_run_command(&self) -> String {
+        self.run_command
+            .clone()
+            .unwrap_or_else(|| match self.framework.as_str() {
+                "pytest-bdd" => "pytest {feature_dir} -k {feature_name} -v".into(),
+                "rstest-bdd" => "cargo test --features bdd".into(),
+                "cucumber-js" => "npx cucumber-js {feature_path}".into(),
+                "behave" => "behave {feature_path}".into(),
+                _ => "echo 'No run_command configured. Set bdd.run_command in config.yaml'".into(),
+            })
     }
 }
 
@@ -143,6 +211,13 @@ pub struct SddConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(description = "Archive behaviour settings (defer tracking, completion gates).")]
     pub archive: Option<ArchiveConfig>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "BDD integration settings. When defined, enables feature_refs validation and BDD-aware verify prompts."
+    )]
+    pub bdd: Option<BddConfig>,
 }
 
 impl Default for SddConfig {
@@ -154,6 +229,7 @@ impl Default for SddConfig {
             rules: None,
             extra_skills: None,
             archive: None,
+            bdd: None,
         }
     }
 }
@@ -231,6 +307,7 @@ pub fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
         rules: config.rules,
         extra_skills: config.extra_skills,
         archive: config.archive,
+        bdd: config.bdd,
     }))
 }
 

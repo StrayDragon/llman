@@ -57,6 +57,7 @@ pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
         purpose: "TODO: Describe this capability and its purpose.".to_string(),
         requirements: Vec::new(),
         scenarios: Vec::new(),
+        feature_refs: None,
     };
     let payload = BACKEND.dump_main_spec(&spec)?;
     let body = render_code_fence("toon", &payload);

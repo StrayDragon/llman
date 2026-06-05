@@ -1,5 +1,5 @@
 use crate::sdd::change::freeze::FREEZE_ARCHIVE_NAME;
-use crate::sdd::project::config::{ArchiveConfig, load_required_config};
+use crate::sdd::project::config::{ArchiveConfig, BddConfig, load_required_config};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{list_archived_changes, list_changes, list_specs};
 use crate::sdd::shared::ids::validate_sdd_id;
@@ -10,7 +10,7 @@ use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
     check_completeness_stage, check_dag_cycles, check_design_md, check_design_tasks_constraint,
     check_proposal_exists, check_proposal_frontmatter, check_tasks_completion, check_tasks_exists,
-    validate_change_delta_specs, validate_spec_content_with_frontmatter,
+    validate_change_delta_specs, validate_spec_content_with_frontmatter_and_bdd,
 };
 use anyhow::{Result, anyhow};
 use inquire::Select;
@@ -84,6 +84,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let config = load_required_config(&llmanspec_dir)?;
     let archive_config = config.archive_config();
+    let bdd_config = config.bdd.as_ref();
 
     let interactive = is_interactive(args.no_interactive);
     let type_override = normalize_type(args.item_type.as_deref());
@@ -99,6 +100,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
             args.json,
             args.compact_json,
             &archive_config,
+            bdd_config,
         )?;
         return Ok(());
     }
@@ -111,6 +113,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                 args.json,
                 args.compact_json,
                 &archive_config,
+                bdd_config,
             )?;
             return Ok(());
         }
@@ -128,6 +131,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
         args.json,
         args.compact_json,
         &archive_config,
+        bdd_config,
     )
 }
 
@@ -146,6 +150,7 @@ fn run_interactive_selector(
     json: bool,
     compact_json: bool,
     archive_config: &ArchiveConfig,
+    bdd_config: Option<&BddConfig>,
 ) -> Result<()> {
     let choice = Select::new(
         &t!("sdd.validate.select_scope"),
@@ -159,7 +164,16 @@ fn run_interactive_selector(
     .prompt()?;
 
     if choice == t!("sdd.validate.option_all") {
-        run_bulk_validation(root, true, true, strict, json, compact_json, archive_config)?;
+        run_bulk_validation(
+            root,
+            true,
+            true,
+            strict,
+            json,
+            compact_json,
+            archive_config,
+            bdd_config,
+        )?;
         return Ok(());
     }
     if choice == t!("sdd.validate.option_changes") {
@@ -171,6 +185,7 @@ fn run_interactive_selector(
             json,
             compact_json,
             archive_config,
+            bdd_config,
         )?;
         return Ok(());
     }
@@ -183,6 +198,7 @@ fn run_interactive_selector(
             json,
             compact_json,
             archive_config,
+            bdd_config,
         )?;
         return Ok(());
     }
@@ -208,6 +224,7 @@ fn run_interactive_selector(
         &archived_changes,
         has_frozen_archive(root),
         archive_config,
+        bdd_config,
     )
 }
 
@@ -223,6 +240,7 @@ fn parse_prefixed_item(value: &str) -> Result<(ItemType, String)> {
     Err(anyhow!(t!("sdd.validate.invalid_pick")))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_direct(
     root: &Path,
     item: &str,
@@ -231,6 +249,7 @@ fn validate_direct(
     json: bool,
     compact_json: bool,
     archive_config: &ArchiveConfig,
+    bdd_config: Option<&BddConfig>,
 ) -> Result<()> {
     let changes = list_changes(root)?;
     let specs = list_specs(root)?;
@@ -287,6 +306,7 @@ fn validate_direct(
         &archived_changes,
         has_frozen_archive(root),
         archive_config,
+        bdd_config,
     )
 }
 
@@ -353,6 +373,35 @@ fn validate_change_full(
     crate::sdd::spec::validation::build_report(issues, strict)
 }
 
+/// Merge feature_refs paths into the frontmatter's valid_scope for staleness checks.
+/// This ensures that changes to .feature files are treated as spec-adjacent changes.
+fn merge_feature_refs_into_scope(
+    validation: &crate::sdd::spec::validation::SpecValidation,
+    bdd_config: Option<&BddConfig>,
+    _root: &Path,
+) -> Option<crate::sdd::spec::validation::SpecFrontmatter> {
+    let _ = bdd_config?;
+    let frontmatter = validation.frontmatter.as_ref()?;
+    let feature_refs = validation.feature_refs.as_ref()?;
+
+    if feature_refs.is_empty() {
+        return None;
+    }
+
+    let mut merged_scope = frontmatter.valid_scope.clone();
+    for path in feature_refs {
+        if !merged_scope.contains(path) {
+            merged_scope.push(path.clone());
+        }
+    }
+
+    Some(crate::sdd::spec::validation::SpecFrontmatter {
+        valid_scope: merged_scope,
+        valid_commands: frontmatter.valid_commands.clone(),
+        evidence: frontmatter.evidence.clone(),
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn validate_by_type(
     root: &Path,
@@ -364,6 +413,7 @@ fn validate_by_type(
     archived_change_ids: &[String],
     has_frozen: bool,
     archive_config: &ArchiveConfig,
+    bdd_config: Option<&BddConfig>,
 ) -> Result<()> {
     let start = Instant::now();
     let (report, staleness) = match item_type {
@@ -398,10 +448,25 @@ fn validate_by_type(
                 .join("spec.md");
             match fs::read_to_string(&spec_path) {
                 Ok(content) => {
-                    let validation =
-                        validate_spec_content_with_frontmatter(&spec_path, &content, strict);
-                    let staleness =
-                        evaluate_staleness(root, id, &spec_path, validation.frontmatter.as_ref());
+                    let validation = validate_spec_content_with_frontmatter_and_bdd(
+                        &spec_path,
+                        &content,
+                        strict,
+                        Some(root),
+                        bdd_config,
+                    );
+                    // Merge feature_refs paths into staleness scope so that
+                    // changes to .feature files are treated as spec-adjacent changes.
+                    let merged_frontmatter =
+                        merge_feature_refs_into_scope(&validation, bdd_config, root);
+                    let staleness = evaluate_staleness(
+                        root,
+                        id,
+                        &spec_path,
+                        merged_frontmatter
+                            .as_ref()
+                            .or(validation.frontmatter.as_ref()),
+                    );
                     let mut issues = validation.report.issues.clone();
                     issues.extend(apply_strict(staleness.issues, strict));
                     let valid = validation.report.valid
@@ -496,10 +561,10 @@ fn print_single_report(
         );
     }
     print_staleness(item_type, staleness);
-    print_next_steps(item_type);
+    print_next_steps(item_type, &report.issues);
 }
 
-fn print_next_steps(item_type: ItemType) {
+fn print_next_steps(item_type: ItemType, issues: &[ValidationIssue]) {
     eprintln!("{}", t!("sdd.validate.next_steps"));
     match item_type {
         ItemType::Change => {
@@ -512,6 +577,17 @@ fn print_next_steps(item_type: ItemType) {
             eprintln!("{}", t!("sdd.validate.spec_step_2"));
             eprintln!("{}", t!("sdd.validate.spec_step_3"));
         }
+    }
+
+    // BDD-specific hints when feature_refs issues are detected
+    let has_bdd_issues = issues.iter().any(|i| {
+        i.message.contains(".feature")
+            || i.message.contains("gherkin")
+            || i.message.contains("bdd")
+            || i.message.contains("feature_refs")
+    });
+    if has_bdd_issues {
+        eprintln!("{}", t!("sdd.validate.bdd_next_step_feature"));
     }
 }
 
@@ -562,6 +638,7 @@ fn run_bulk_validation(
     json: bool,
     compact_json: bool,
     archive_config: &ArchiveConfig,
+    bdd_config: Option<&BddConfig>,
 ) -> Result<()> {
     let changes = if validate_changes {
         list_changes(root)?
@@ -622,12 +699,21 @@ fn run_bulk_validation(
             .join("spec.md");
         match fs::read_to_string(&spec_path) {
             Ok(content) => {
-                let validation =
-                    validate_spec_content_with_frontmatter(&spec_path, &content, strict);
+                let validation = validate_spec_content_with_frontmatter_and_bdd(
+                    &spec_path,
+                    &content,
+                    strict,
+                    Some(root),
+                    bdd_config,
+                );
+                let merged_frontmatter =
+                    merge_feature_refs_into_scope(&validation, bdd_config, root);
                 let staleness = staleness_evaluator.evaluate(
                     &id,
                     &spec_path,
-                    validation.frontmatter.as_ref(),
+                    merged_frontmatter
+                        .as_ref()
+                        .or(validation.frontmatter.as_ref()),
                     None,
                 );
                 let mut issues = validation.report.issues;

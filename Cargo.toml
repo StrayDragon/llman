@@ -73,6 +73,7 @@ llm_json = "1.0.2"
 regex = "1.12.3"
 serde_yaml = "0.9.34"
 toon-format = { version = "0.4.5", default-features = false }
+gherkin = "0.16"
 sevenz-rust2 = "0.20.2"
 agent-client-protocol = "0.9.4"
 async-trait = "0.1.89"

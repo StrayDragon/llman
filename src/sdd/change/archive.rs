@@ -311,6 +311,7 @@ fn build_updated_spec(
             purpose,
             requirements: Vec::new(),
             scenarios: Vec::new(),
+            feature_refs: None,
         };
         (Some(default_frontmatter_yaml(change_name)), spec)
     };

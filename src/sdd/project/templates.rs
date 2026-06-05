@@ -91,7 +91,27 @@ pub fn root_stub_content(config: &SddConfig, root: &Path) -> Result<String> {
 
 fn load_template(config: &SddConfig, root: &Path, relative_path: &str) -> Result<String> {
     let units = load_template_units(config, root)?;
-    load_template_with_context(config, root, relative_path, &units, &BTreeMap::new())
+    let vars = build_template_vars(config);
+    load_template_with_context(config, root, relative_path, &units, &vars)
+}
+
+fn build_template_vars(config: &SddConfig) -> BTreeMap<String, String> {
+    let mut vars = BTreeMap::new();
+    if let Some(ref bdd) = config.bdd {
+        vars.insert("bdd_enabled".to_string(), "true".to_string());
+        vars.insert("bdd_framework".to_string(), bdd.framework.clone());
+        if let Some(ref dir) = bdd.feature_dir {
+            vars.insert("bdd_feature_dir".to_string(), dir.clone());
+        }
+        vars.insert("bdd_run_command".to_string(), bdd.effective_run_command());
+        if let Some(ref lang) = bdd.default_language {
+            vars.insert("bdd_default_language".to_string(), lang.clone());
+        }
+        if let Some(ref prompt) = bdd.verify_prompt {
+            vars.insert("bdd_verify_prompt".to_string(), prompt.clone());
+        }
+    }
+    vars
 }
 
 fn load_template_with_context(
@@ -162,7 +182,7 @@ fn render_template(
     vars: &BTreeMap<String, String>,
 ) -> Result<String> {
     let mut env = Environment::new();
-    env.set_undefined_behavior(UndefinedBehavior::Strict);
+    env.set_undefined_behavior(UndefinedBehavior::Lenient);
 
     let unit_map = units.units.clone();
     env.add_function(
@@ -400,11 +420,11 @@ mod tests {
     }
 
     #[test]
-    fn render_fails_on_missing_variable() {
+    fn render_undefined_variable_is_empty() {
         let registry = TemplateUnitRegistry::default();
-        let err =
-            render_template("{{ projectName }}", &registry, &BTreeMap::new()).expect_err("fail");
-        assert!(err.to_string().contains("render minijinja template"));
+        let result = render_template("{{ projectName }}", &registry, &BTreeMap::new()).unwrap();
+        // Lenient mode: undefined variables render as empty string
+        assert_eq!(result, "");
     }
 
     #[test]

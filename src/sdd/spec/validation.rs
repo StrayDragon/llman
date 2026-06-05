@@ -1,4 +1,4 @@
-use crate::sdd::project::config::ArchiveConfig;
+use crate::sdd::project::config::{ArchiveConfig, BddConfig};
 use crate::sdd::shared::tasks::{self, TaskStatus};
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
 use crate::sdd::spec::frontmatter::split_frontmatter;
@@ -49,6 +49,7 @@ pub struct SpecFrontmatter {
 pub struct SpecValidation {
     pub report: ValidationReport,
     pub frontmatter: Option<SpecFrontmatter>,
+    pub feature_refs: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -61,6 +62,16 @@ pub fn validate_spec_content_with_frontmatter(
     path: &Path,
     content: &str,
     strict: bool,
+) -> SpecValidation {
+    validate_spec_content_with_frontmatter_and_bdd(path, content, strict, None, None)
+}
+
+pub fn validate_spec_content_with_frontmatter_and_bdd(
+    path: &Path,
+    content: &str,
+    strict: bool,
+    project_root: Option<&Path>,
+    bdd_config: Option<&BddConfig>,
 ) -> SpecValidation {
     let spec_name = path
         .parent()
@@ -94,9 +105,26 @@ pub fn validate_spec_content_with_frontmatter(
             }
 
             issues.extend(validate_main_spec_doc(&doc, &spec_name));
+
+            // BDD feature_refs validation
+            let feature_ref_paths: Option<Vec<String>> = doc
+                .feature_refs
+                .as_ref()
+                .map(|refs| refs.iter().map(|r| r.path.clone()).collect());
+            if let (Some(root), Some(bdd)) = (project_root, bdd_config) {
+                issues.extend(validate_feature_refs(&doc, root, bdd));
+            } else if doc.feature_refs.is_some() && bdd_config.is_none() {
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Warning,
+                    path: format!("specs/{}/spec.md", spec_name),
+                    message: t!("sdd.validate.feature_refs_no_bdd_config").to_string(),
+                });
+            }
+
             SpecValidation {
                 report: build_report(issues, strict),
                 frontmatter: parsed_frontmatter.frontmatter,
+                feature_refs: feature_ref_paths,
             }
         }
         Err(err) => {
@@ -108,6 +136,7 @@ pub fn validate_spec_content_with_frontmatter(
             SpecValidation {
                 report: build_report(issues, strict),
                 frontmatter: parsed_frontmatter.frontmatter,
+                feature_refs: None,
             }
         }
     }
@@ -735,6 +764,137 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
 
     let _ = total_deltas;
     build_report(issues, strict)
+}
+
+fn validate_feature_refs(
+    doc: &MainSpecDoc,
+    project_root: &Path,
+    bdd_config: &BddConfig,
+) -> Vec<ValidationIssue> {
+    let mut issues = Vec::new();
+    let Some(ref refs) = doc.feature_refs else {
+        return issues;
+    };
+
+    let spec_scenario_count = doc.scenarios.len();
+
+    for fr in refs {
+        // Path format check
+        if !fr.path.ends_with(".feature") {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: fr.path.clone(),
+                message: t!("sdd.validate.feature_ref_bad_extension", path = fr.path).to_string(),
+            });
+            continue;
+        }
+
+        let feature_path = project_root.join(&fr.path);
+
+        // File existence check
+        if !feature_path.exists() {
+            if fr.required {
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Error,
+                    path: fr.path.clone(),
+                    message: t!("sdd.validate.feature_ref_not_found", path = fr.path).to_string(),
+                });
+            } else {
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Warning,
+                    path: fr.path.clone(),
+                    message: t!(
+                        "sdd.validate.feature_ref_not_found_optional",
+                        path = fr.path
+                    )
+                    .to_string(),
+                });
+            }
+            continue;
+        }
+
+        // Gherkin syntax validation
+        let lang = bdd_config.default_language.as_deref().unwrap_or("en");
+        match fs::read_to_string(&feature_path) {
+            Ok(content) => {
+                let env = gherkin::GherkinEnv::new(lang);
+                match env {
+                    Ok(env) => match gherkin::Feature::parse(&content, env) {
+                        Ok(feature_doc) => {
+                            // Scenario coverage check
+                            let feature_scenarios = count_feature_scenarios(&feature_doc);
+                            if feature_scenarios < spec_scenario_count {
+                                issues.push(ValidationIssue {
+                                    level: ValidationLevel::Warning,
+                                    path: fr.path.clone(),
+                                    message: t!(
+                                        "sdd.validate.feature_ref_coverage_gap",
+                                        path = fr.path,
+                                        feature = feature_scenarios,
+                                        spec = spec_scenario_count
+                                    )
+                                    .to_string(),
+                                });
+                            }
+                        }
+                        Err(e) => {
+                            issues.push(ValidationIssue {
+                                level: ValidationLevel::Error,
+                                path: fr.path.clone(),
+                                message: t!(
+                                    "sdd.validate.feature_ref_parse_error",
+                                    path = fr.path,
+                                    error = e
+                                )
+                                .to_string(),
+                            });
+                        }
+                    },
+                    Err(_e) => {
+                        issues.push(ValidationIssue {
+                            level: ValidationLevel::Error,
+                            path: fr.path.clone(),
+                            message: t!(
+                                "sdd.validate.feature_ref_unsupported_language",
+                                lang = lang,
+                                path = fr.path
+                            )
+                            .to_string(),
+                        });
+                    }
+                }
+            }
+            Err(e) => {
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Error,
+                    path: fr.path.clone(),
+                    message: t!(
+                        "sdd.validate.feature_ref_read_error",
+                        path = fr.path,
+                        error = e
+                    )
+                    .to_string(),
+                });
+            }
+        }
+    }
+
+    issues
+}
+
+fn count_feature_scenarios(doc: &gherkin::Feature) -> usize {
+    let mut count = 0;
+    for scenario in &doc.scenarios {
+        count += 1;
+        let _ = scenario;
+    }
+    for rule in &doc.rules {
+        for scenario in &rule.scenarios {
+            count += 1;
+            let _ = scenario;
+        }
+    }
+    count
 }
 
 fn validate_main_spec_doc(doc: &MainSpecDoc, spec_name: &str) -> Vec<ValidationIssue> {
