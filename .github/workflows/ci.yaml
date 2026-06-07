@@ -7,7 +7,7 @@ on:
 env:
   # Bump when cache strategy changes to force refresh
   CACHE_VERSION: v4
-  RUST_TOOLCHAIN: nightly-2026-02-08
+  RUST_TOOLCHAIN: nightly-2026-02-26
 
 jobs:
   test:
