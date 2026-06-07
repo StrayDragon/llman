@@ -1,44 +1,11 @@
 use crate::error::Result;
 use crate::x::cursor::models::*;
-use diesel::prelude::*;
-use diesel::sql_query;
-use diesel::sqlite::SqliteConnection;
 use glob::glob;
+use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-// 定义数据库表结构
-diesel::table! {
-    #[sql_name = "ItemTable"]
-    item_table (key) {
-        key -> Text,
-        value -> Binary,
-    }
-}
-
-// 定义全局数据库的cursorDiskKV表结构
-diesel::table! {
-    #[sql_name = "cursorDiskKV"]
-    cursor_disk_kv (key) {
-        key -> Text,
-        value -> Binary,
-    }
-}
-
-// 用于接收sql_query结果的结构体
-#[derive(QueryableByName, Debug)]
-pub struct BubbleRowData {
-    #[allow(dead_code)]
-    #[diesel(sql_type = diesel::sql_types::Integer)]
-    pub rowid: i32,
-    #[allow(dead_code)]
-    #[diesel(sql_type = diesel::sql_types::Text)]
-    pub key: String,
-    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Binary>)]
-    pub value: Option<Vec<u8>>,
-}
 
 /// Cursor数据库操作类
 pub struct CursorDatabase {
@@ -93,16 +60,16 @@ impl CursorDatabase {
     }
 
     /// 连接到数据库
-    pub fn connect(&self) -> Result<SqliteConnection> {
-        let database_url = format!("file:{}?mode=ro", self.db_path.display());
-        Ok(SqliteConnection::establish(&database_url)?)
+    pub fn connect(&self) -> Result<Connection> {
+        let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+        Ok(Connection::open_with_flags(&self.db_path, flags)?)
     }
 
     /// 连接到全局数据库
-    pub fn connect_global(&self) -> Result<Option<SqliteConnection>> {
+    pub fn connect_global(&self) -> Result<Option<Connection>> {
         if let Some(ref global_path) = self.global_db_path {
-            let database_url = format!("file:{}?mode=ro", global_path.display());
-            Ok(Some(SqliteConnection::establish(&database_url)?))
+            let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+            Ok(Some(Connection::open_with_flags(global_path, flags)?))
         } else {
             Ok(None)
         }
@@ -426,35 +393,37 @@ impl CursorDatabase {
 
     /// 检查数据库是否包含聊天数据
     fn has_chat_data(db_path: &Path) -> Result<bool> {
-        let database_url = format!("file:{}?mode=ro", db_path.display());
-        let mut connection = match SqliteConnection::establish(&database_url) {
+        let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+        let connection = match Connection::open_with_flags(db_path, flags) {
             Ok(conn) => conn,
             Err(_) => return Ok(false),
         };
 
-        use crate::x::cursor::database::item_table::dsl::*;
-
-        let traditional_chat = item_table
-            .select(value)
-            .filter(key.eq("workbench.panel.aichat.view.aichat.chatdata"))
-            .first::<Vec<u8>>(&mut connection)
+        let traditional_chat: Option<Vec<u8>> = connection
+            .query_row(
+                "SELECT value FROM ItemTable WHERE key = ?1",
+                ["workbench.panel.aichat.view.aichat.chatdata"],
+                |row| row.get(0),
+            )
             .optional()
-            .unwrap_or(None)
-            .and_then(|bytes| String::from_utf8(bytes).ok());
+            .unwrap_or(None);
 
-        let composer_chat = item_table
-            .select(value)
-            .filter(key.eq("composer.composerData"))
-            .first::<Vec<u8>>(&mut connection)
+        let composer_chat: Option<Vec<u8>> = connection
+            .query_row(
+                "SELECT value FROM ItemTable WHERE key = ?1",
+                ["composer.composerData"],
+                |row| row.get(0),
+            )
             .optional()
-            .unwrap_or(None)
-            .and_then(|bytes| String::from_utf8(bytes).ok());
+            .unwrap_or(None);
 
         let has_traditional = traditional_chat
+            .and_then(|bytes| String::from_utf8(bytes).ok())
             .and_then(|json_str| serde_json::from_str::<ChatData>(&json_str).ok())
             .is_some_and(|data| !data.tabs.is_empty());
 
         let has_composer = composer_chat
+            .and_then(|bytes| String::from_utf8(bytes).ok())
             .and_then(|json_str| serde_json::from_str::<ComposerData>(&json_str).ok())
             .is_some_and(|data| !data.all_composers.is_empty());
 
@@ -505,18 +474,19 @@ impl CursorDatabase {
 
     /// 获取传统聊天数据
     fn get_chat_data(&self) -> Result<Option<ChatData>> {
-        let mut connection = self.connect()?;
+        let connection = self.connect()?;
 
-        use crate::x::cursor::database::item_table::dsl::*;
+        let chat_json: Option<Vec<u8>> = connection
+            .query_row(
+                "SELECT value FROM ItemTable WHERE key = ?1",
+                ["workbench.panel.aichat.view.aichat.chatdata"],
+                |row| row.get(0),
+            )
+            .optional()?;
 
-        let chat_json = item_table
-            .select(value)
-            .filter(key.eq("workbench.panel.aichat.view.aichat.chatdata"))
-            .first::<Vec<u8>>(&mut connection)
-            .optional()?
-            .and_then(|bytes| String::from_utf8(bytes).ok());
-
-        if let Some(json_str) = chat_json {
+        if let Some(bytes) = chat_json {
+            let json_str = String::from_utf8(bytes)
+                .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
             let data: ChatData = serde_json::from_str(&json_str)?;
             Ok(Some(data))
         } else {
@@ -526,18 +496,19 @@ impl CursorDatabase {
 
     /// 获取Composer数据
     fn get_composer_data(&self) -> Result<Option<ComposerData>> {
-        let mut connection = self.connect()?;
+        let connection = self.connect()?;
 
-        use crate::x::cursor::database::item_table::dsl::*;
+        let composer_json: Option<Vec<u8>> = connection
+            .query_row(
+                "SELECT value FROM ItemTable WHERE key = ?1",
+                ["composer.composerData"],
+                |row| row.get(0),
+            )
+            .optional()?;
 
-        let composer_json = item_table
-            .select(value)
-            .filter(key.eq("composer.composerData"))
-            .first::<Vec<u8>>(&mut connection)
-            .optional()?
-            .and_then(|bytes| String::from_utf8(bytes).ok());
-
-        if let Some(json_str) = composer_json {
+        if let Some(bytes) = composer_json {
+            let json_str = String::from_utf8(bytes)
+                .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
             let data: ComposerData = serde_json::from_str(&json_str)?;
             Ok(Some(data))
         } else {
@@ -637,15 +608,13 @@ impl CursorDatabase {
 
     /// 获取composer对话的bubble数量
     fn get_composer_bubble_count(&self, composer_id: &str) -> Result<usize> {
-        if let Some(mut connection) = self.connect_global()? {
-            use crate::x::cursor::database::cursor_disk_kv::dsl::*;
-
+        if let Some(connection) = self.connect_global()? {
             let pattern = format!("bubbleId:{composer_id}:%");
-            match cursor_disk_kv
-                .filter(key.like(pattern))
-                .count()
-                .get_result::<i64>(&mut connection)
-            {
+            match connection.query_row(
+                "SELECT COUNT(*) FROM cursorDiskKV WHERE key LIKE ?1",
+                [&pattern],
+                |row| row.get::<_, i64>(0),
+            ) {
                 Ok(count) => Ok(count as usize),
                 Err(_e) => {
                     // 如果查询失败，返回0而不是抛出错误
@@ -659,20 +628,27 @@ impl CursorDatabase {
 
     /// 获取composer对话的所有bubble数据
     fn get_composer_bubbles(&self, composer_id: &str) -> Result<Vec<ComposerBubble>> {
-        if let Some(mut connection) = self.connect_global()? {
+        if let Some(connection) = self.connect_global()? {
             let pattern = format!("bubbleId:{composer_id}:%");
 
-            // 使用diesel的sql_query功能来查询rowid
-            let query =
-                "SELECT rowid, key, value FROM cursorDiskKV WHERE key LIKE ?1 ORDER BY rowid";
-            let bubble_rows: Vec<BubbleRowData> = sql_query(query)
-                .bind::<diesel::sql_types::Text, _>(&pattern)
-                .load(&mut connection)?;
+            let mut stmt = connection
+                .prepare("SELECT rowid, key, value FROM cursorDiskKV WHERE key LIKE ?1 ORDER BY rowid")?;
+
+            let bubble_rows: Vec<(i32, String, Option<Vec<u8>>)> = stmt
+                .query_map([&pattern], |row| {
+                    Ok((
+                        row.get::<_, i32>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<Vec<u8>>>(2)?,
+                    ))
+                })?
+                .filter_map(|r| r.ok())
+                .collect();
 
             let mut bubbles = Vec::new();
 
-            for row in bubble_rows {
-                if let Ok(json_str) = String::from_utf8(row.value.unwrap_or_default())
+            for (_rowid, _key, value) in bubble_rows {
+                if let Ok(json_str) = String::from_utf8(value.unwrap_or_default())
                     && let Ok(bubble) = serde_json::from_str::<ComposerBubble>(&json_str)
                 {
                     bubbles.push(bubble);
@@ -689,23 +665,25 @@ impl CursorDatabase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use diesel::Connection;
-    use diesel::RunQueryDsl;
-    use diesel::sqlite::SqliteConnection;
+    use rusqlite::Connection;
     use tempfile::tempdir;
 
     fn write_item_table(db_path: &Path, chat_json: &str) {
-        let mut conn =
-            SqliteConnection::establish(&db_path.to_string_lossy()).expect("establish sqlite");
-        diesel::sql_query("CREATE TABLE ItemTable (key TEXT PRIMARY KEY NOT NULL, value BLOB);")
-            .execute(&mut conn)
-            .expect("create ItemTable");
+        let conn = Connection::open(db_path).expect("open sqlite");
+        conn.execute(
+            "CREATE TABLE ItemTable (key TEXT PRIMARY KEY NOT NULL, value BLOB);",
+            (),
+        )
+        .expect("create ItemTable");
 
-        diesel::sql_query("INSERT INTO ItemTable (key, value) VALUES (?1, ?2);")
-            .bind::<diesel::sql_types::Text, _>("workbench.panel.aichat.view.aichat.chatdata")
-            .bind::<diesel::sql_types::Binary, _>(chat_json.as_bytes().to_vec())
-            .execute(&mut conn)
-            .expect("insert chatdata");
+        conn.execute(
+            "INSERT INTO ItemTable (key, value) VALUES (?1, ?2);",
+            (
+                "workbench.panel.aichat.view.aichat.chatdata",
+                chat_json.as_bytes().to_vec(),
+            ),
+        )
+        .expect("insert chatdata");
     }
 
     #[test]

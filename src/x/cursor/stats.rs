@@ -12,9 +12,7 @@ use crate::x::cursor::models::ComposerData;
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, TimeZone, Utc};
 use clap::Args;
-use diesel::prelude::*;
-use diesel::sql_query;
-use diesel::sqlite::SqliteConnection;
+use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -232,28 +230,26 @@ fn load_cursor_sessions(
     Ok(sessions)
 }
 
-fn connect_sqlite_ro(path: &std::path::Path) -> Result<SqliteConnection> {
-    let database_url = format!("file:{}?mode=ro", path.display());
-    SqliteConnection::establish(&database_url)
+fn connect_sqlite_ro(path: &std::path::Path) -> Result<Connection> {
+    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    Connection::open_with_flags(path, flags)
         .with_context(|| format!("open sqlite read-only: {}", path.display()))
 }
 
-#[derive(QueryableByName, Debug)]
-struct ItemRow {
-    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Binary>)]
-    value: Option<Vec<u8>>,
-}
-
 fn read_composer_data(workspace_db: &std::path::Path) -> Result<ComposerData> {
-    let mut conn = connect_sqlite_ro(workspace_db)
+    let conn = connect_sqlite_ro(workspace_db)
         .with_context(|| format!("open Cursor workspace db: {}", workspace_db.display()))?;
 
-    let rows: Vec<ItemRow> =
-        sql_query("SELECT value FROM ItemTable WHERE key = 'composer.composerData' LIMIT 1")
-            .load(&mut conn)
-            .context("query composer.composerData")?;
+    let raw: Option<Vec<u8>> = conn
+        .query_row(
+            "SELECT value FROM ItemTable WHERE key = 'composer.composerData' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .context("query composer.composerData")?;
 
-    let Some(raw) = rows.into_iter().next().and_then(|row| row.value) else {
+    let Some(raw) = raw else {
         return Ok(ComposerData {
             all_composers: vec![],
             selected_composer_ids: None,
@@ -263,17 +259,6 @@ fn read_composer_data(workspace_db: &std::path::Path) -> Result<ComposerData> {
     serde_json::from_slice(&raw).context("parse composer.composerData json")
 }
 
-#[derive(QueryableByName, Debug)]
-struct BubbleRow {
-    #[allow(dead_code)]
-    #[diesel(sql_type = diesel::sql_types::Integer)]
-    rowid: i32,
-    #[allow(dead_code)]
-    #[diesel(sql_type = diesel::sql_types::Text)]
-    key: String,
-    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Binary>)]
-    value: Option<Vec<u8>>,
-}
 
 #[derive(Debug, Clone, Deserialize)]
 struct CursorBubbleValue {
@@ -346,24 +331,35 @@ type CursorComposerUsage = (
 );
 
 fn read_composer_usage(
-    conn: &mut SqliteConnection,
+    conn: &mut Connection,
     composer_id: &str,
     composer_created_at_ms: i64,
     composer_last_updated_at_ms: Option<i64>,
 ) -> Result<CursorComposerUsage> {
     let pattern = format!("bubbleId:{composer_id}:%");
-    let rows: Vec<BubbleRow> =
-        sql_query("SELECT rowid, key, value FROM cursorDiskKV WHERE key LIKE ?1 ORDER BY rowid")
-            .bind::<diesel::sql_types::Text, _>(&pattern)
-            .load(conn)
-            .with_context(|| format!("query cursorDiskKV bubbles for composer: {composer_id}"))?;
+    let mut stmt = conn
+        .prepare("SELECT rowid, key, value FROM cursorDiskKV WHERE key LIKE ?1 ORDER BY rowid")
+        .with_context(|| {
+            format!("prepare cursorDiskKV query for composer: {composer_id}")
+        })?;
+
+    let rows: Vec<(i32, String, Option<Vec<u8>>)> = stmt
+        .query_map([&pattern], |row| {
+            Ok((
+                row.get::<_, i32>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<Vec<u8>>>(2)?,
+            ))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
 
     let mut tokens = TokenAccum::default();
     let mut min_ts: Option<DateTime<Utc>> = None;
     let mut max_ts: Option<DateTime<Utc>> = None;
 
-    for row in rows {
-        let Some(raw) = row.value else {
+    for (_rowid, _key, value) in rows {
+        let Some(raw) = value else {
             continue;
         };
         let Ok(bubble) = serde_json::from_slice::<CursorBubbleValue>(&raw) else {
@@ -409,37 +405,36 @@ fn parse_epoch_ms_utc(ms: i64) -> Option<DateTime<Utc>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use diesel::Connection;
-    use diesel::RunQueryDsl;
+    use rusqlite::Connection;
     use tempfile::TempDir;
 
     fn create_workspace_db(path: &std::path::Path, composer_data_json: &str) {
-        let mut conn =
-            SqliteConnection::establish(&path.to_string_lossy()).expect("establish sqlite");
-        diesel::sql_query("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value BLOB);")
-            .execute(&mut conn)
-            .expect("create ItemTable");
-        diesel::sql_query("INSERT INTO ItemTable (key, value) VALUES (?1, ?2);")
-            .bind::<diesel::sql_types::Text, _>("composer.composerData")
-            .bind::<diesel::sql_types::Binary, _>(composer_data_json.as_bytes().to_vec())
-            .execute(&mut conn)
-            .expect("insert composerData");
+        let conn = Connection::open(path).expect("open sqlite");
+        conn.execute(
+            "CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value BLOB);",
+            (),
+        )
+        .expect("create ItemTable");
+        conn.execute(
+            "INSERT INTO ItemTable (key, value) VALUES (?1, ?2);",
+            ("composer.composerData", composer_data_json.as_bytes().to_vec()),
+        )
+        .expect("insert composerData");
     }
 
     fn create_global_db(path: &std::path::Path, rows: Vec<(&str, &str)>) {
-        let mut conn =
-            SqliteConnection::establish(&path.to_string_lossy()).expect("establish sqlite");
-        diesel::sql_query(
+        let conn = Connection::open(path).expect("open sqlite");
+        conn.execute(
             "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);",
+            (),
         )
-        .execute(&mut conn)
         .expect("create cursorDiskKV");
         for (key, json) in rows {
-            diesel::sql_query("INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2);")
-                .bind::<diesel::sql_types::Text, _>(key)
-                .bind::<diesel::sql_types::Binary, _>(json.as_bytes().to_vec())
-                .execute(&mut conn)
-                .expect("insert bubble");
+            conn.execute(
+                "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2);",
+                (key, json.as_bytes().to_vec()),
+            )
+            .expect("insert bubble");
         }
     }
 

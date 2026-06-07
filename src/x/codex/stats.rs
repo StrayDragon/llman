@@ -10,10 +10,8 @@ use crate::usage_stats::{
 use anyhow::{Context, Result, bail};
 use chrono::{TimeZone, Utc};
 use clap::Args;
-use diesel::prelude::*;
-use diesel::sql_query;
-use diesel::sqlite::SqliteConnection;
 use glob::glob;
+use rusqlite::{Connection, OpenFlags};
 use serde::Deserialize;
 use std::cmp::Reverse;
 use std::fs::File;
@@ -210,33 +208,39 @@ fn load_codex_sessions(
     mut progress: Option<&mut dyn FnMut(CodexScanProgress)>,
     cancel: Option<&AtomicBool>,
 ) -> Result<Vec<SessionRecord>> {
-    let database_url = format!("file:{}?mode=ro", state_db.display());
-    let mut connection = SqliteConnection::establish(&database_url)
+    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    let connection = Connection::open_with_flags(state_db, flags)
         .with_context(|| format!("open Codex state db: {}", state_db.display()))?;
 
-    #[derive(QueryableByName, Debug)]
+    let mut stmt = connection
+        .prepare("SELECT id, cwd, created_at, updated_at, tokens_used, rollout_path, title FROM threads")
+        .context("prepare Codex threads query")?;
+
+    #[derive(Debug)]
     struct ThreadRow {
-        #[diesel(sql_type = diesel::sql_types::Text)]
         id: String,
-        #[diesel(sql_type = diesel::sql_types::Text)]
         cwd: String,
-        #[diesel(sql_type = diesel::sql_types::BigInt)]
         created_at: i64,
-        #[diesel(sql_type = diesel::sql_types::BigInt)]
         updated_at: i64,
-        #[diesel(sql_type = diesel::sql_types::BigInt)]
         tokens_used: i64,
-        #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
         rollout_path: Option<String>,
-        #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
         title: Option<String>,
     }
 
-    let rows: Vec<ThreadRow> = sql_query(
-        "SELECT id, cwd, created_at, updated_at, tokens_used, rollout_path, title FROM threads",
-    )
-    .load(&mut connection)
-    .context("query Codex threads table")?;
+    let rows: Vec<ThreadRow> = stmt
+        .query_map([], |row| {
+            Ok(ThreadRow {
+                id: row.get(0)?,
+                cwd: row.get(1)?,
+                created_at: row.get(2)?,
+                updated_at: row.get(3)?,
+                tokens_used: row.get(4)?,
+                rollout_path: row.get(5)?,
+                title: row.get(6)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
 
     let breakdown_total = if with_breakdown {
         rows.iter()
@@ -377,8 +381,7 @@ fn parse_rollout_breakdown(path: &Path) -> Result<TokenUsageTotals> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use diesel::Connection;
-    use diesel::RunQueryDsl;
+    use rusqlite::Connection;
     use tempfile::TempDir;
 
     #[test]
@@ -415,10 +418,9 @@ malformed
     fn load_codex_sessions_supports_optional_breakdown() {
         let temp = TempDir::new().expect("temp dir");
         let db_path = temp.path().join("state_1.sqlite");
-        let database_url = db_path.to_string_lossy().to_string();
-        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
+        let conn = Connection::open(&db_path).expect("open sqlite");
 
-        sql_query(
+        conn.execute(
             r#"
 CREATE TABLE threads (
     id TEXT PRIMARY KEY,
@@ -430,8 +432,8 @@ CREATE TABLE threads (
     tokens_used INTEGER NOT NULL DEFAULT 0
 );
 "#,
+            (),
         )
-        .execute(&mut conn)
         .expect("create table");
 
         let rollout = temp.path().join("rollout.jsonl");
@@ -441,14 +443,15 @@ CREATE TABLE threads (
         )
         .expect("write jsonl");
 
-        sql_query(
+        conn.execute(
             "INSERT INTO threads (id, rollout_path, created_at, updated_at, cwd, title, tokens_used) VALUES (?1, ?2, 1, 2, ?3, ?4, 9);",
+            (
+                "t1",
+                rollout.to_string_lossy().to_string(),
+                "/p",
+                "hello",
+            ),
         )
-        .bind::<diesel::sql_types::Text, _>("t1")
-        .bind::<diesel::sql_types::Text, _>(rollout.to_string_lossy().to_string())
-        .bind::<diesel::sql_types::Text, _>("/p")
-        .bind::<diesel::sql_types::Text, _>("hello")
-        .execute(&mut conn)
         .expect("insert");
 
         // Without breakdown.
@@ -470,10 +473,9 @@ CREATE TABLE threads (
     fn load_codex_sessions_with_breakdown_ignores_missing_rollout_path() {
         let temp = TempDir::new().expect("temp dir");
         let db_path = temp.path().join("state_1.sqlite");
-        let database_url = db_path.to_string_lossy().to_string();
-        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
+        let conn = Connection::open(&db_path).expect("open sqlite");
 
-        sql_query(
+        conn.execute(
             r#"
 CREATE TABLE threads (
     id TEXT PRIMARY KEY,
@@ -485,13 +487,15 @@ CREATE TABLE threads (
     tokens_used INTEGER NOT NULL DEFAULT 0
 );
 "#,
+            (),
         )
-        .execute(&mut conn)
         .expect("create table");
 
-        sql_query("INSERT INTO threads (id, created_at, updated_at, cwd, tokens_used) VALUES ('t1', 1, 2, '/p', 9);")
-            .execute(&mut conn)
-            .expect("insert");
+        conn.execute(
+            "INSERT INTO threads (id, created_at, updated_at, cwd, tokens_used) VALUES ('t1', 1, 2, '/p', 9);",
+            (),
+        )
+        .expect("insert");
 
         let sessions = load_codex_sessions(&db_path, true, None, None).unwrap();
         assert_eq!(sessions.len(), 1);
@@ -503,10 +507,9 @@ CREATE TABLE threads (
     fn load_codex_sessions_with_breakdown_supports_partial_fields() {
         let temp = TempDir::new().expect("temp dir");
         let db_path = temp.path().join("state_1.sqlite");
-        let database_url = db_path.to_string_lossy().to_string();
-        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
+        let conn = Connection::open(&db_path).expect("open sqlite");
 
-        sql_query(
+        conn.execute(
             r#"
 CREATE TABLE threads (
     id TEXT PRIMARY KEY,
@@ -518,8 +521,8 @@ CREATE TABLE threads (
     tokens_used INTEGER NOT NULL DEFAULT 0
 );
 "#,
+            (),
         )
-        .execute(&mut conn)
         .expect("create table");
 
         let rollout = temp.path().join("rollout.jsonl");
@@ -529,13 +532,10 @@ CREATE TABLE threads (
         )
         .expect("write jsonl");
 
-        sql_query(
+        conn.execute(
             "INSERT INTO threads (id, rollout_path, created_at, updated_at, cwd, tokens_used) VALUES (?1, ?2, 1, 2, ?3, 9);",
+            ("t1", rollout.to_string_lossy().to_string(), "/p"),
         )
-        .bind::<diesel::sql_types::Text, _>("t1")
-        .bind::<diesel::sql_types::Text, _>(rollout.to_string_lossy().to_string())
-        .bind::<diesel::sql_types::Text, _>("/p")
-        .execute(&mut conn)
         .expect("insert");
 
         let sessions = load_codex_sessions(&db_path, true, None, None).unwrap();

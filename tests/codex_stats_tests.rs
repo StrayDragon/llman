@@ -1,18 +1,15 @@
 mod common;
 
 use common::{llman_command, prepare_work_and_config_dirs, run_llman};
-use diesel::prelude::*;
-use diesel::sql_query;
-use diesel::sqlite::SqliteConnection;
+use rusqlite::Connection;
 use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
 
 fn create_state_db(path: &std::path::Path) {
-    let database_url = path.to_string_lossy().to_string();
-    let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
+    let conn = Connection::open(path).expect("open sqlite");
 
-    sql_query(
+    conn.execute(
         r#"
 CREATE TABLE threads (
     id TEXT PRIMARY KEY,
@@ -24,27 +21,22 @@ CREATE TABLE threads (
     tokens_used INTEGER NOT NULL DEFAULT 0
 );
 "#,
+        (),
     )
-    .execute(&mut conn)
     .expect("create threads table");
 }
 
 fn insert_thread(
-    conn: &mut SqliteConnection,
+    conn: &Connection,
     id: &str,
     cwd: &str,
     tokens_used: i64,
     rollout_path: Option<&str>,
 ) {
-    let rollout_path = rollout_path.map(|s| s.to_string());
-    sql_query(
+    conn.execute(
         "INSERT INTO threads (id, rollout_path, created_at, updated_at, cwd, title, tokens_used) VALUES (?1, ?2, 1, 2, ?3, 't', ?4);",
+        (id, rollout_path, cwd, tokens_used),
     )
-    .bind::<diesel::sql_types::Text, _>(id)
-    .bind::<diesel::sql_types::Nullable<diesel::sql_types::Text>, _>(rollout_path)
-    .bind::<diesel::sql_types::Text, _>(cwd)
-    .bind::<diesel::sql_types::BigInt, _>(tokens_used)
-    .execute(conn)
     .expect("insert thread");
 }
 
@@ -57,10 +49,9 @@ fn codex_stats_summary_json_filters_by_cwd() {
     create_state_db(&db_path);
 
     {
-        let database_url = db_path.to_string_lossy().to_string();
-        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
-        insert_thread(&mut conn, "t1", &work_dir.to_string_lossy(), 9, None);
-        insert_thread(&mut conn, "t2", "/other", 100, None);
+        let conn = Connection::open(&db_path).expect("open sqlite");
+        insert_thread(&conn, "t1", &work_dir.to_string_lossy(), 9, None);
+        insert_thread(&conn, "t2", "/other", 100, None);
     }
 
     let output = run_llman(
@@ -105,10 +96,9 @@ fn codex_stats_session_json_with_breakdown() {
     create_state_db(&db_path);
 
     {
-        let database_url = db_path.to_string_lossy().to_string();
-        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
+        let conn = Connection::open(&db_path).expect("open sqlite");
         insert_thread(
-            &mut conn,
+            &conn,
             "t1",
             &work_dir.to_string_lossy(),
             9,
@@ -159,9 +149,8 @@ fn codex_stats_table_color_auto_has_no_ansi_when_captured() {
     create_state_db(&db_path);
 
     {
-        let database_url = db_path.to_string_lossy().to_string();
-        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
-        insert_thread(&mut conn, "t1", &work_dir.to_string_lossy(), 9, None);
+        let conn = Connection::open(&db_path).expect("open sqlite");
+        insert_thread(&conn, "t1", &work_dir.to_string_lossy(), 9, None);
     }
 
     let output = run_llman(
@@ -201,9 +190,8 @@ fn codex_stats_table_color_always_includes_ansi_when_captured() {
     create_state_db(&db_path);
 
     {
-        let database_url = db_path.to_string_lossy().to_string();
-        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
-        insert_thread(&mut conn, "t1", &work_dir.to_string_lossy(), 9, None);
+        let conn = Connection::open(&db_path).expect("open sqlite");
+        insert_thread(&conn, "t1", &work_dir.to_string_lossy(), 9, None);
     }
 
     let output = run_llman(
@@ -243,9 +231,8 @@ fn codex_stats_json_is_never_colored() {
     create_state_db(&db_path);
 
     {
-        let database_url = db_path.to_string_lossy().to_string();
-        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
-        insert_thread(&mut conn, "t1", &work_dir.to_string_lossy(), 9, None);
+        let conn = Connection::open(&db_path).expect("open sqlite");
+        insert_thread(&conn, "t1", &work_dir.to_string_lossy(), 9, None);
     }
 
     let output = run_llman(
@@ -292,9 +279,8 @@ fn codex_stats_table_no_color_env_disables_ansi_in_tty_auto_mode() {
     create_state_db(&db_path);
 
     {
-        let database_url = db_path.to_string_lossy().to_string();
-        let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
-        insert_thread(&mut conn, "t1", &work_dir.to_string_lossy(), 9, None);
+        let conn = Connection::open(&db_path).expect("open sqlite");
+        insert_thread(&conn, "t1", &work_dir.to_string_lossy(), 9, None);
     }
 
     let mut cmd = llman_command(&config_dir);
