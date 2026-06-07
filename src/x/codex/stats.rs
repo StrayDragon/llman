@@ -213,7 +213,9 @@ fn load_codex_sessions(
         .with_context(|| format!("open Codex state db: {}", state_db.display()))?;
 
     let mut stmt = connection
-        .prepare("SELECT id, cwd, created_at, updated_at, tokens_used, rollout_path, title FROM threads")
+        .prepare(
+            "SELECT id, cwd, created_at, updated_at, tokens_used, rollout_path, title FROM threads",
+        )
         .context("prepare Codex threads query")?;
 
     #[derive(Debug)]

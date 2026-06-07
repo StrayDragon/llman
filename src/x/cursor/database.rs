@@ -631,8 +631,9 @@ impl CursorDatabase {
         if let Some(connection) = self.connect_global()? {
             let pattern = format!("bubbleId:{composer_id}:%");
 
-            let mut stmt = connection
-                .prepare("SELECT rowid, key, value FROM cursorDiskKV WHERE key LIKE ?1 ORDER BY rowid")?;
+            let mut stmt = connection.prepare(
+                "SELECT rowid, key, value FROM cursorDiskKV WHERE key LIKE ?1 ORDER BY rowid",
+            )?;
 
             let bubble_rows: Vec<(i32, String, Option<Vec<u8>>)> = stmt
                 .query_map([&pattern], |row| {

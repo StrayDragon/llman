@@ -26,13 +26,13 @@ repos:
         stages: [pre-push]
       - id: cargo-fmt
         name: cargo fmt
-        entry: cargo +nightly fmt
+        entry: cargo fmt
         language: system
         pass_filenames: false
         stages: [pre-commit]
       - id: cargo-clippy
         name: cargo clippy
-        entry: cargo +nightly clippy -- -D warnings
+        entry: cargo clippy -- -D warnings
         language: system
         pass_filenames: false
         stages: [pre-commit]
