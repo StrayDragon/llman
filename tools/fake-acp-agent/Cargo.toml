@@ -1,0 +1,15 @@
+[package]
+name = "llman-fake-acp-agent"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "llman-fake-acp-agent"
+path = "src/main.rs"
+
+[dependencies]
+agent-client-protocol = "0.9.4"
+anyhow = "1.0.102"
+async-trait = "0.1.89"
+tokio = { version = "1.49.0", features = ["rt", "io-std"] }
+tokio-util = { version = "0.7.18", features = ["compat"] }

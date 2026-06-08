@@ -1,9 +1,16 @@
+[workspace]
+members = [".", "tools/fake-acp-agent"]
+
+[workspace.package]
+version = "0.0.41"
+edition = "2024"
+
 [package]
 name = "llman"
-version = "0.0.41"
+version.workspace = true
 # Project is pinned to a nightly toolchain in rust-toolchain.toml
 # CI must use the same pinned nightly baseline
-edition = "2024"
+edition.workspace = true
 default-run = "llman"
 authors = ["L8ng <straydragonl@foxmail.com>"]
 description = "A tool for managing LLM application rules(prompts) ..."
@@ -43,7 +50,6 @@ chrono = { version = "0.4.45", features = ["serde"] }
 glob = "0.3.3"
 ignore = "0.4.26"
 tokio = { version = "1.49.0", features = ["rt-multi-thread", "time", "process", "io-std"] }
-tokio-util = { version = "0.7.18", features = ["compat"] }
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 tempfile = "3.26.0"
 sha2 = "0.10.9"
@@ -70,8 +76,6 @@ serde_yaml = "0.9.34"
 toon-format = { version = "0.5.0", default-features = false }
 gherkin = "0.16"
 sevenz-rust2 = "0.20.2"
-agent-client-protocol = "0.9.4"
-async-trait = "0.1.89"
 indexmap = { version = "2.14.0", features = ["serde"] }
 
 [dev-dependencies]
