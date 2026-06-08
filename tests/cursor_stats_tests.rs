@@ -1,42 +1,45 @@
 mod common;
 
 use common::{prepare_work_and_config_dirs, run_llman};
-use diesel::prelude::*;
-use diesel::sql_query;
-use diesel::sqlite::SqliteConnection;
+use rusqlite::Connection;
 use serde_json::Value;
 use std::path::Path;
 use tempfile::TempDir;
 
 fn create_workspace_db(path: &Path, composer_data_json: &str) {
-    let database_url = path.to_string_lossy().to_string();
-    let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
+    let conn = Connection::open(path).expect("open sqlite");
 
-    sql_query("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value BLOB);")
-        .execute(&mut conn)
-        .expect("create ItemTable");
+    conn.execute(
+        "CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value BLOB);",
+        (),
+    )
+    .expect("create ItemTable");
 
-    sql_query("INSERT INTO ItemTable (key, value) VALUES (?1, ?2);")
-        .bind::<diesel::sql_types::Text, _>("composer.composerData")
-        .bind::<diesel::sql_types::Binary, _>(composer_data_json.as_bytes().to_vec())
-        .execute(&mut conn)
-        .expect("insert composerData");
+    conn.execute(
+        "INSERT INTO ItemTable (key, value) VALUES (?1, ?2);",
+        (
+            "composer.composerData",
+            composer_data_json.as_bytes().to_vec(),
+        ),
+    )
+    .expect("insert composerData");
 }
 
 fn create_global_db(path: &Path, rows: Vec<(&str, &str)>) {
-    let database_url = path.to_string_lossy().to_string();
-    let mut conn = SqliteConnection::establish(&database_url).expect("establish sqlite");
+    let conn = Connection::open(path).expect("open sqlite");
 
-    sql_query("CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);")
-        .execute(&mut conn)
-        .expect("create cursorDiskKV");
+    conn.execute(
+        "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);",
+        (),
+    )
+    .expect("create cursorDiskKV");
 
     for (key, json) in rows {
-        sql_query("INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2);")
-            .bind::<diesel::sql_types::Text, _>(key)
-            .bind::<diesel::sql_types::Binary, _>(json.as_bytes().to_vec())
-            .execute(&mut conn)
-            .expect("insert bubble");
+        conn.execute(
+            "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2);",
+            (key, json.as_bytes().to_vec()),
+        )
+        .expect("insert bubble");
     }
 }
 

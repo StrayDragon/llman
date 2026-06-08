@@ -29,10 +29,7 @@ pub enum LlmanError {
     Inquire(#[from] inquire::InquireError),
 
     #[error("Database Error: {0}")]
-    Database(#[from] diesel::result::Error),
-
-    #[error("Connection Error: {0}")]
-    Connection(#[from] diesel::result::ConnectionError),
+    Database(#[from] rusqlite::Error),
 
     #[error("JSON Parse Error: {0}")]
     Json(#[from] serde_json::Error),
@@ -63,9 +60,6 @@ impl LlmanError {
             LlmanError::Io(error) => t!("errors.io_error", error = error).to_string(),
             LlmanError::Inquire(error) => t!("errors.inquire_error", error = error).to_string(),
             LlmanError::Database(error) => t!("errors.database_error", error = error).to_string(),
-            LlmanError::Connection(error) => {
-                t!("errors.connection_error", error = error).to_string()
-            }
             LlmanError::Json(error) => t!("errors.json_error", error = error).to_string(),
             LlmanError::Glob(error) => t!("errors.glob_error", error = error).to_string(),
             LlmanError::GlobPattern(error) => {

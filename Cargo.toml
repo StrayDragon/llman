@@ -42,14 +42,13 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 toml = "1.0.3"
 minijinja = "2.16.0"
-diesel = { version = "2.3.6", features = ["sqlite", "chrono"] }
 chrono = { version = "0.4.44", features = ["serde"] }
 glob = "0.3.3"
 ignore = "0.4.25"
 futures = "0.3.32"
 tokio = { version = "1.49.0", features = ["rt-multi-thread", "time", "process"] }
 tokio-util = { version = "0.7.18", features = ["compat"] }
-reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "json", "rustls"] }
+rusqlite = { version = "0.40.1", features = ["bundled"] }
 tempfile = "3.26.0"
 sha2 = "0.10.9"
 
