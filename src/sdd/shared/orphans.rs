@@ -97,16 +97,14 @@ fn scan_dir_for_orphans(
 
         for item in &report.items {
             match &item.status {
-                TaskStatus::Deferred { target } => {
-                    if !all_known.contains(target.as_str()) {
-                        orphans
-                            .entry(change_id.clone())
-                            .or_default()
-                            .push(OrphanItem {
-                                text: item.text.clone(),
-                                legacy: false,
-                            });
-                    }
+                TaskStatus::Deferred { target } if !all_known.contains(target.as_str()) => {
+                    orphans
+                        .entry(change_id.clone())
+                        .or_default()
+                        .push(OrphanItem {
+                            text: item.text.clone(),
+                            legacy: false,
+                        });
                 }
                 TaskStatus::LegacyDefer { .. } => {
                     orphans

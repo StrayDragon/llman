@@ -8,7 +8,6 @@ use crate::tool::command::{ToolArgs, ToolCommands};
 use crate::x::claude_code::command::ClaudeCodeArgs;
 use crate::x::codex::command::CodexArgs;
 use crate::x::cursor::command::CursorArgs;
-use crate::x::sdd_eval::command::SddEvalArgs;
 use anyhow::{Result, anyhow};
 use clap::{CommandFactory, Parser, Subcommand};
 use std::env;
@@ -74,9 +73,6 @@ pub enum XCommands {
     ClaudeCode(ClaudeCodeArgs),
     /// Commands for managing Codex configurations
     Codex(CodexArgs),
-    /// Experimental SDD evaluation pipeline (playbook-driven)
-    #[command(name = "sdd-eval")]
-    SddEval(SddEvalArgs),
 }
 
 pub fn run() -> Result<()> {
@@ -225,7 +221,6 @@ fn handle_x_command(args: &XArgs) -> Result<()> {
             crate::x::claude_code::command::run(claude_code_args)
         }
         XCommands::Codex(codex_args) => crate::x::codex::command::run(codex_args),
-        XCommands::SddEval(sdd_eval_args) => crate::x::sdd_eval::command::run(sdd_eval_args),
     }
 }
 

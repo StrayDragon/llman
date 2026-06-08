@@ -259,7 +259,6 @@ fn read_composer_data(workspace_db: &std::path::Path) -> Result<ComposerData> {
     serde_json::from_slice(&raw).context("parse composer.composerData json")
 }
 
-
 #[derive(Debug, Clone, Deserialize)]
 struct CursorBubbleValue {
     #[serde(rename = "createdAt", default)]
@@ -339,9 +338,7 @@ fn read_composer_usage(
     let pattern = format!("bubbleId:{composer_id}:%");
     let mut stmt = conn
         .prepare("SELECT rowid, key, value FROM cursorDiskKV WHERE key LIKE ?1 ORDER BY rowid")
-        .with_context(|| {
-            format!("prepare cursorDiskKV query for composer: {composer_id}")
-        })?;
+        .with_context(|| format!("prepare cursorDiskKV query for composer: {composer_id}"))?;
 
     let rows: Vec<(i32, String, Option<Vec<u8>>)> = stmt
         .query_map([&pattern], |row| {
@@ -417,7 +414,10 @@ mod tests {
         .expect("create ItemTable");
         conn.execute(
             "INSERT INTO ItemTable (key, value) VALUES (?1, ?2);",
-            ("composer.composerData", composer_data_json.as_bytes().to_vec()),
+            (
+                "composer.composerData",
+                composer_data_json.as_bytes().to_vec(),
+            ),
         )
         .expect("insert composerData");
     }
