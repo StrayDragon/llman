@@ -1741,9 +1741,7 @@ dependencies = [
 name = "llman"
 version = "0.0.41"
 dependencies = [
- "agent-client-protocol",
  "anyhow",
- "async-trait",
  "chrono",
  "clap",
  "clap_complete",
@@ -1771,7 +1769,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
- "tokio-util",
  "toml 1.0.3+spec-1.1.0",
  "toon-format",
  "tree-sitter",
@@ -1781,6 +1778,17 @@ dependencies = [
  "tree-sitter-python",
  "tree-sitter-rust",
  "tree-sitter-typescript",
+]
+
+[[package]]
+name = "llman-fake-acp-agent"
+version = "0.0.41"
+dependencies = [
+ "agent-client-protocol",
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
