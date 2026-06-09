@@ -5,3 +5,4 @@ pub mod interop;
 pub mod regions;
 pub mod templates;
 pub mod update_skills;
+pub mod upgrade_guide;

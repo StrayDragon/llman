@@ -1,7 +1,7 @@
 use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
-use crate::sdd::project::{init, interop};
+use crate::sdd::project::{init, interop, upgrade_guide};
 use crate::sdd::shared::{graph, list, orphans, show, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -284,6 +284,8 @@ pub enum SddCommands {
         #[arg(long)]
         force: bool,
     },
+    /// Output an upgrade guide prompt for the current SDD project
+    UpgradeGuide,
 }
 
 #[derive(Subcommand)]
@@ -564,5 +566,6 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 force: *force,
             },
         ),
+        SddCommands::UpgradeGuide => upgrade_guide::run(),
     }
 }
