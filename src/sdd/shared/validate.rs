@@ -532,6 +532,33 @@ fn print_single_report(
                 id = id
             )
         );
+        // Even when the change is valid, surface INFO/WARNING-level hints
+        // (e.g. the stage hint for a draft, or a missing optional artifact).
+        // These are guidance, not errors, and must not be swallowed by the
+        // valid short-circuit (see r45).
+        let guidance_issues: Vec<_> = report
+            .issues
+            .iter()
+            .filter(|issue| {
+                issue.level == ValidationLevel::Info || issue.level == ValidationLevel::Warning
+            })
+            .collect();
+        for issue in &guidance_issues {
+            let label = match issue.level {
+                ValidationLevel::Warning => "WARNING",
+                ValidationLevel::Info => "INFO",
+                ValidationLevel::Error => "ERROR",
+            };
+            eprintln!(
+                "{}",
+                t!(
+                    "sdd.validate.issue_line",
+                    label = label,
+                    path = issue.path,
+                    message = issue.message
+                )
+            );
+        }
         print_staleness(item_type, staleness);
         return;
     }

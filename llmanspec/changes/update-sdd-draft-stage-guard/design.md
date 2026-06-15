@@ -45,7 +45,7 @@ apply 与 verify 的守卫阈值统一为 **full**。理由：verify 要对照 s
 
 ### 决策 4：strict 力度 = WARNING（非 ERROR）
 
-draft 在 strict 下保持 WARN（现有 r45 行为，不阻断作为"未完成 change"的存在），但 **不与 tasks_missing 叠加**。非 strict 下补出 INFO 阶段提示（修 r45 偏差：当前 valid 时直接 return，INFO 被吞）。
+draft 在 strict 下 stage 提示为 WARN→ERROR（现有 r45 行为，合理：strict 下 draft 本就该报）。非 strict 下补出 INFO 阶段提示与 tasks_missing WARNING（修 r45 偏差：当前 valid 时直接 return，所有 INFO/WARNING 被吞）。
 
 ## 数据流
 
@@ -76,7 +76,7 @@ change 的 JSON 输出从 `{id, title, deltaCount, deltas}` 扩展为 `{id, titl
 
 ### B. Rust：validate 非 strict 暴露 stage INFO（validation.rs / validate.rs）
 
-当前 `print_single_report` 在 `report.valid` 时直接 return（validate.rs:526-537），导致非 strict 下 draft 的 stage INFO 被吞。修改：valid 且存在 stage 提示 INFO 时，仍打印一条精简阶段行（不打 ERROR/WARNING 块）。
+当前 `print_single_report` 在 `report.valid` 时直接 return（validate.rs:526-537），导致非 strict 下 draft 的 stage INFO（及 tasks_missing WARNING）被吞。修改：valid 分支也打印 INFO 与 WARNING 级提示——它们是引导而非错误，不应因整体校验通过而静默。`check_tasks_exists` 保持原 WARNING 语义不变。
 
 ### C. Skill：apply / verify 守卫（templates/sdd/{locale}/skills/）
 

@@ -1707,6 +1707,8 @@ sdd:
       en: "Change '%{id}' not found."
     spec_not_found:
       en: "Spec '%{id}' not found."
+    change_stage:
+      en: "Stage: %{stage}"
     requirements_only_deprecated:
       en: "Flag --requirements-only is deprecated; use --deltas-only instead."
     requirements_conflict:
