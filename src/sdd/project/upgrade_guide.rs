@@ -318,8 +318,10 @@ mod tests {
 
     #[test]
     fn scan_extra_skills_all_enabled() {
-        let mut config = SddConfig::default();
-        config.extra_skills = Some(OPTIONAL_SKILL_NAMES.iter().map(|s| s.to_string()).collect());
+        let config = SddConfig {
+            extra_skills: Some(OPTIONAL_SKILL_NAMES.iter().map(|s| s.to_string()).collect()),
+            ..Default::default()
+        };
         let result = scan_extra_skills(&config, Path::new("."));
         assert_eq!(result.status, "enabled");
         assert!(result.suggestion.is_empty());
@@ -327,8 +329,10 @@ mod tests {
 
     #[test]
     fn scan_extra_skills_partial() {
-        let mut config = SddConfig::default();
-        config.extra_skills = Some(vec!["llman-sdd-verify".to_string()]);
+        let config = SddConfig {
+            extra_skills: Some(vec!["llman-sdd-verify".to_string()]),
+            ..Default::default()
+        };
         let result = scan_extra_skills(&config, Path::new("."));
         assert_eq!(result.status, "partial");
         // Enabled skill should NOT appear in suggestions

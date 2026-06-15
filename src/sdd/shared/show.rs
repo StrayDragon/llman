@@ -5,6 +5,7 @@ use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
 use crate::sdd::spec::parser::{Requirement, parse_change, parse_spec};
+use crate::sdd::spec::validation::{ChangeStage, determine_stage};
 use anyhow::{Result, anyhow};
 use inquire::Select;
 use std::fmt;
@@ -196,9 +197,15 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
         if args.requirements_only {
             eprintln!("{}", t!("sdd.show.requirements_only_deprecated"));
         }
+        let stage = determine_stage(&change_dir);
+        let artifacts = list_change_artifacts(&change_dir);
+        let ready_to_implement = stage == ChangeStage::Full;
         let output = serde_json::json!({
             "id": change_id,
             "title": title,
+            "stage": stage.as_str(),
+            "artifacts": artifacts,
+            "readyToImplement": ready_to_implement,
             "deltaCount": deltas.len(),
             "deltas": deltas
         });
@@ -207,8 +214,38 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
     }
 
     let content = fs::read_to_string(&proposal_path)?;
+    let stage = determine_stage(&change_dir);
+    println!("{}", t!("sdd.show.change_stage", stage = stage.as_str()));
     print!("{content}");
     Ok(())
+}
+
+/// Enumerate the artifacts actually present in a change directory.
+///
+/// Mirrors the existence checks used by `determine_stage` so the reported
+/// `artifacts` list is consistent with the inferred `stage` (e.g. an empty
+/// `specs/` directory does not count as a present artifact).
+fn list_change_artifacts(change_dir: &Path) -> Vec<&'static str> {
+    let mut artifacts = Vec::new();
+    if change_dir.join("proposal.md").exists() {
+        artifacts.push("proposal.md");
+    }
+    let has_specs = match fs::read_dir(change_dir.join("specs")) {
+        Ok(entries) => entries.flatten().any(|e| {
+            e.file_type().map(|t| t.is_dir()).unwrap_or(false) && e.path().join("spec.md").exists()
+        }),
+        Err(_) => false,
+    };
+    if has_specs {
+        artifacts.push("specs");
+    }
+    if change_dir.join("design.md").exists() {
+        artifacts.push("design.md");
+    }
+    if change_dir.join("tasks.md").exists() {
+        artifacts.push("tasks.md");
+    }
+    artifacts
 }
 
 fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {

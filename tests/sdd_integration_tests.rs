@@ -723,6 +723,26 @@ op_scenarios[1]{req_id,id,given,when,then}:
     assert_eq!(show_json["deltaCount"], 1);
     assert_eq!(show_json["deltas"][0]["operation"], "ADDED");
     assert_eq!(show_json["deltas"][0]["spec"], "sample");
+
+    // stage is inferred from artifacts (proposal + specs = specified, no
+    // design/tasks yet → not ready to implement). See sdd-workflow r46.
+    assert_eq!(show_json["stage"], "specified");
+    assert_eq!(show_json["readyToImplement"], false);
+    let artifacts = show_json["artifacts"]
+        .as_array()
+        .expect("artifacts is an array");
+    assert!(
+        artifacts.iter().any(|v| v == "proposal.md"),
+        "artifacts should include proposal.md, got: {artifacts:?}"
+    );
+    assert!(
+        artifacts.iter().any(|v| v == "specs"),
+        "artifacts should include specs, got: {artifacts:?}"
+    );
+    assert!(
+        !artifacts.iter().any(|v| v == "design.md"),
+        "artifacts should not include design.md yet"
+    );
 }
 
 #[test]
@@ -1339,4 +1359,96 @@ fn test_sdd_list_shows_stage_column() {
     let json: Value = serde_json::from_slice(&json_output.stdout).expect("parse json");
     let stage = json["changes"][0]["stage"].as_str().unwrap_or("");
     assert_eq!(stage, "draft", "JSON output should contain stage field");
+}
+
+/// A full change (proposal + specs + design + tasks) MUST report
+/// `stage: full` and `readyToImplement: true` (sdd-workflow r46).
+#[test]
+fn test_sdd_show_change_full_stage_ready_to_implement() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let llmanspec_dir = work_dir.join("llmanspec");
+    let change_dir = llmanspec_dir.join("changes").join("full-change");
+    let change_specs_dir = change_dir.join("specs").join("sample");
+    fs::create_dir_all(&change_specs_dir).expect("create change spec dir");
+    fs::write(
+        change_dir.join("proposal.md"),
+        "## Why\nFull change.\n\n## What Changes\n- Add behavior.\n",
+    )
+    .expect("write proposal");
+    let delta_spec = r#"```toon
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  added,added,,a new action is taken,the new behavior happens
+```
+"#;
+    fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
+    fs::write(change_dir.join("design.md"), "# Design\nTrivial.\n").expect("write design");
+    fs::write(change_dir.join("tasks.md"), "- [ ] implement\n").expect("write tasks");
+
+    let show_output = run_llman(
+        &["sdd", "show", "full-change", "--type", "change", "--json"],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&show_output);
+    let show_json: Value = serde_json::from_slice(&show_output.stdout).expect("show change json");
+    assert_eq!(show_json["stage"], "full");
+    assert_eq!(show_json["readyToImplement"], true);
+}
+
+/// A draft change (proposal-only) under non-strict validate MUST surface the
+/// stage hint as INFO instead of swallowing it on the valid short-circuit
+/// (sdd-workflow r45 drift fix).
+#[test]
+fn test_sdd_validate_draft_non_stract_shows_stage_info() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let llmanspec_dir = work_dir.join("llmanspec");
+    let change_dir = llmanspec_dir.join("changes").join("draft-proposal");
+    fs::create_dir_all(&change_dir).expect("create change dir");
+    fs::write(
+        change_dir.join("proposal.md"),
+        "## Why\nDraft.\n\n## What Changes\n- Nothing yet.\n",
+    )
+    .expect("write proposal");
+
+    let validate_output = run_llman(
+        &[
+            "sdd",
+            "validate",
+            "draft-proposal",
+            "--type",
+            "change",
+            "--no-interactive",
+        ],
+        work_dir,
+        work_dir,
+    );
+    // draft is valid under non-strict (no errors)
+    assert_success(&validate_output);
+    // the stage INFO hint is now surfaced (was previously swallowed)
+    let stderr = String::from_utf8_lossy(&validate_output.stderr);
+    assert!(
+        stderr.contains("draft"),
+        "non-strict validate should surface the draft stage INFO, got stderr: {stderr}"
+    );
 }

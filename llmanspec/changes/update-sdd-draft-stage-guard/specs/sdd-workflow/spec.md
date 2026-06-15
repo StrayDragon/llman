@@ -9,8 +9,8 @@ ops[5]{op,req_id,title,statement,from,to,name}:
 op_scenarios[8]{req_id,id,given,when,then}:
   r46,show-json-stage,"变更目录存在且包含 proposal.md","用户执行 `llman sdd show <id> --json --type change`","JSON 输出包含 stage、artifacts 与 readyToImplement 字段，且 readyToImplement 在 stage 非 full 时为 false"
   r46,show-text-stage,"变更目录存在","用户执行 `llman sdd show <id>`（非 JSON）","输出包含当前阶段标识（draft/specified/designed/full）"
-  r45,non-strict-draft-可见,"变更处于 draft 阶段（仅 proposal.md）","用户执行 `llman sdd validate <change-id>`（非 strict）","输出包含可见的 INFO 级阶段提示，且不因整体 valid 而被吞掉"
-  r45,strict-draft-warn,"变更处于 draft 阶段","用户执行 `llman sdd validate <change-id> --strict`","输出 WARN 级阶段提示（由 INFO 升级），不额外叠加 tasks_missing 噪音提示之外的 ERROR"
+  r45,non-strict-draft-可见,"变更处于 draft 阶段（仅 proposal.md）","用户执行 `llman sdd validate <change-id>`（非 strict）","输出包含可见的 INFO 级阶段提示，且不因整体校验通过（valid）而被吞掉"
+  r45,strict-draft-warn,"变更处于 draft 阶段","用户执行 `llman sdd validate <change-id> --strict`","输出由 INFO 升级的 WARN 级阶段提示（strict 下为 ERROR）"
   r33,apply-draft-守卫,"变更处于非 full 阶段（如 draft，仅有 proposal.md）","用户调用 llman-sdd-apply","skill 通过 show 读取 stage 后拒绝实施并 STOP，引导使用 llman-sdd-continue 长大到 full"
   r33,apply-full-放行,"变更处于 full 阶段（proposal.md + specs/ + design.md + tasks.md）","用户调用 llman-sdd-apply","skill 正常实施 tasks.md 中的任务"
   r35,verify-non-full-守卫,"变更处于非 full 阶段","用户调用 llman-sdd-verify","skill 通过 show 读取 stage 后拒绝验证并 STOP，引导使用 llman-sdd-continue 长大到 full"

@@ -12,9 +12,16 @@ Implement a change by completing `llmanspec/changes/<id>/tasks.md` from top to b
    - If provided, use it.
    - Otherwise infer from context; if ambiguous, run `llman sdd list --json` and ask the user to choose.
    - Always announce: "Using change: <id>" and how to override.
-2. Check prerequisites:
-   - `llmanspec/changes/<id>/tasks.md` must exist.
-   - If missing, suggest using `llman-sdd-continue` (or `llman-sdd-ff`) to create planning artifacts, then STOP.
+2. Check prerequisites (authoritative stage gate):
+   - Read the change's stage from the authoritative source:
+     ```bash
+     stage=$(llman sdd show <id> --json --type change | jq -r .stage)
+     ```
+     (If `jq` is unavailable, parse the `stage` value from the JSON with any tool.)
+   - If `stage` is not `full`, the change is not ready to implement → STOP with a guard:
+     - `draft`: "Change <id> is a draft proposal (proposal.md only). It is not ready to implement. Grow it to full first with: llman-sdd-continue <id> (proposal → specs → design → tasks)."
+     - other non-full (`specified`/`designed`): "Change <id> is in <stage> stage, not ready to implement. Grow it to full first with: llman-sdd-continue <id>."
+   - `full` stage implies `tasks.md` exists; proceed.
 3. Read context files (as applicable):
    - `llmanspec/changes/<id>/proposal.md`
    - `llmanspec/changes/<id>/design.md` (if present)

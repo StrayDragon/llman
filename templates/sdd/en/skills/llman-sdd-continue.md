@@ -13,6 +13,12 @@ Use this skill to continue an existing change and create the next missing artifa
    - Otherwise run `llman sdd list --json` and ask which change to continue.
    - Always announce: "Using change: <id>".
 2. Read the change directory: `llmanspec/changes/<id>/`.
+   - Determine the stage authoritatively:
+     ```bash
+     stage=$(llman sdd show <id> --json --type change | jq -r .stage)
+     ```
+     (If `jq` is unavailable, parse the `stage` value from the JSON with any tool.)
+   - If `stage` is `draft` (proposal.md only), explicitly tell the user: "This is a draft proposal. Grow it to `full` (specs → design → tasks) before it can be implemented; a draft cannot be applied or verified directly."
 3. Determine the next artifact to create (in order):
    1) `proposal.md`
    2) `specs/<capability>/spec.md` (one folder per capability)
