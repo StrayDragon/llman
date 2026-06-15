@@ -126,53 +126,58 @@ fn walk_dirs(root: &Path) -> Result<Vec<PathBuf>> {
     Ok(out)
 }
 
+/// Migrate a single spec directory to the current canonical format in one shot.
+///
+/// Source preference: `spec.toon` (current) over `spec.md` (legacy). The same single
+/// pipeline runs regardless of source: extract the TOON payload (fence-aware),
+/// strip dropped keys, fold `valid_scope` from any legacy frontmatter, re-encode,
+/// write `spec.toon`, and remove a superseded `spec.md`. No phases — one run lands
+/// at the latest format; re-running is a no-op.
 fn migrate_dir(dir: &Path, dry_run: bool, force: bool) -> Result<MigrateOutcome> {
     let legacy = dir.join(LEGACY_SPEC_FILE);
     let current = dir.join(SPEC_FILE);
+    let both = legacy.exists() && current.exists();
 
-    if legacy.exists() {
-        return migrate_legacy(&legacy, &current, dry_run, force);
-    }
-    if current.exists() {
-        return normalize_toon(&current, dry_run);
-    }
-    // No spec file at all — nothing to do.
-    Ok(MigrateOutcome::AlreadyCurrent)
-}
+    let (source, is_legacy) = if current.exists() {
+        (current.clone(), false)
+    } else if legacy.exists() {
+        (legacy.clone(), true)
+    } else {
+        // No spec file at all — nothing to do.
+        return Ok(MigrateOutcome::AlreadyCurrent);
+    };
 
-/// `.md` + fence -> standalone `.toon`.
-fn migrate_legacy(
-    legacy: &Path,
-    current: &Path,
-    dry_run: bool,
-    force: bool,
-) -> Result<MigrateOutcome> {
-    if current.exists() && !force {
+    if both && !force {
         println!(
-            "  skip ({} exists, use --force): {}",
-            SPEC_FILE,
-            display_rel(current)
+            "  skip (both {SPEC_FILE} and {LEGACY_SPEC_FILE} exist, pass --force): {}",
+            display_rel(&current)
         );
         return Ok(MigrateOutcome::AlreadyCurrent);
     }
 
     let content =
-        fs::read_to_string(legacy).with_context(|| format!("read {}", legacy.display()))?;
+        fs::read_to_string(&source).with_context(|| format!("read {}", source.display()))?;
+
+    // Only act when there is something to migrate: a legacy .md, or a .toon still
+    // carrying dropped fields. A current .toon (or one we cannot diagnose) is left
+    // untouched — `validate` reports any real error.
+    if !is_legacy && !has_dropped_keys(&content) {
+        return Ok(MigrateOutcome::AlreadyCurrent);
+    }
 
     let (frontmatter_yaml, body) = split_frontmatter(&content);
-
-    let payload = extract_fenced_toon(&body)
-        .or_else(|_| {
-            // Already a raw TOON document (no fence) — allow it.
-            if body.trim_start().starts_with("kind:") {
-                Ok(body.trim().to_string())
-            } else {
-                Err(anyhow!(
-                    "no ```toon fenced block and not a raw TOON document"
-                ))
-            }
-        })
-        .with_context(|| format!("extract TOON from {}", legacy.display()))?;
+    let payload = extract_fenced_toon(&body).or_else(|_| {
+        // Already a raw TOON document (no fence) — use it as-is.
+        if body.trim_start().starts_with("kind:") {
+            Ok(body.trim().to_string())
+        } else {
+            Err(anyhow!(
+                "no ```toon fenced block and not a raw TOON document"
+            ))
+        }
+    })?;
+    // Always strip dropped keys: no-op for clean docs, fixes stale or hybrid inputs.
+    let payload = strip_dropped_keys(&payload);
 
     let serialized = if is_delta_kind(&payload) {
         let mut doc: DeltaSpecDoc = BACKEND
@@ -195,63 +200,37 @@ fn migrate_legacy(
     };
 
     if dry_run {
-        println!("  would write: {}", display_rel(current));
+        println!("  would write: {}", display_rel(&current));
         return Ok(MigrateOutcome::Migrated);
     }
 
-    atomic_write_with_mode(current, serialized.as_bytes(), None)?;
-    fs::remove_file(legacy)?;
-    println!("  {} -> {}", display_rel(legacy), display_rel(current));
+    atomic_write_with_mode(&current, serialized.as_bytes(), None)?;
+    let removed_legacy = if is_legacy || (both && force) {
+        fs::remove_file(&legacy)?;
+        true
+    } else {
+        false
+    };
+    if removed_legacy {
+        println!("  {} -> {}", display_rel(&legacy), display_rel(&current));
+    } else {
+        println!("  normalized: {}", display_rel(&current));
+    }
     Ok(MigrateOutcome::Migrated)
 }
 
-/// `.toon` already exists: skip if current, normalize if it carries dropped fields.
-fn normalize_toon(current: &Path, dry_run: bool) -> Result<MigrateOutcome> {
-    let content =
-        fs::read_to_string(current).with_context(|| format!("read {}", current.display()))?;
+/// Whether the content carries any dropped top-level keys. Checked directly (not
+/// via strip-and-compare) so trailing-newline differences don't cause false
+/// positives that would break idempotency.
+fn has_dropped_keys(content: &str) -> bool {
+    content.lines().any(is_dropped_key_line)
+}
 
-    // Already current?
-    if BACKEND.parse_main_spec_strict(&content, "migrate").is_ok()
-        || BACKEND.parse_delta_spec_strict(&content, "migrate").is_ok()
-    {
-        return Ok(MigrateOutcome::AlreadyCurrent);
-    }
-
-    // Stale: try stripping dropped top-level keys, then re-encode.
-    let stripped = strip_dropped_keys(&content);
-    if stripped == content {
-        // Not a dropped-field problem — leave it; validate will report the real error.
-        println!(
-            "  skip (not a known migration case): {}",
-            display_rel(current)
-        );
-        return Ok(MigrateOutcome::AlreadyCurrent);
-    }
-
-    let serialized = if is_delta_kind(&stripped) {
-        let mut doc: DeltaSpecDoc = BACKEND
-            .parse_delta_spec(&stripped, "migrate")
-            .context("parse delta")?;
-        doc.kind = "llman.sdd.delta".to_string();
-        BACKEND.dump_delta_spec(&doc).context("serialize delta")?
-    } else {
-        let mut doc: MainSpecDoc = BACKEND
-            .parse_main_spec(&stripped, "migrate")
-            .context("parse main spec")?;
-        doc.kind = "llman.sdd.spec".to_string();
-        BACKEND
-            .dump_main_spec(&doc)
-            .context("serialize main spec")?
-    };
-
-    if dry_run {
-        println!("  would normalize: {}", display_rel(current));
-        return Ok(MigrateOutcome::Migrated);
-    }
-
-    atomic_write_with_mode(current, serialized.as_bytes(), None)?;
-    println!("  normalized: {}", display_rel(current));
-    Ok(MigrateOutcome::Migrated)
+fn is_dropped_key_line(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    DROPPED_KEYS
+        .iter()
+        .any(|k| trimmed.starts_with(k) && trimmed[k.len()..].trim_start().starts_with('['))
 }
 
 /// Remove top-level `valid_commands[...]` / `evidence[...]` lines (standalone inline
@@ -260,12 +239,7 @@ fn normalize_toon(current: &Path, dry_run: bool) -> Result<MigrateOutcome> {
 fn strip_dropped_keys(content: &str) -> String {
     content
         .lines()
-        .filter(|line| {
-            let trimmed = line.trim_start();
-            !DROPPED_KEYS
-                .iter()
-                .any(|k| trimmed.starts_with(k) && trimmed[k.len()..].trim_start().starts_with('['))
-        })
+        .filter(|line| !is_dropped_key_line(line))
         .collect::<Vec<_>>()
         .join("\n")
 }
