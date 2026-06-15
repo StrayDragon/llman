@@ -1,0 +1,5 @@
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r1,"Config dir guard only for global-config commands","System MUST only perform dev-project config directory validation for subcommands that require global configuration",null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  r1,"sdd-list-works","","user runs llman sdd list in llman project directory without --config-dir","command executes successfully without dev-project config error"
