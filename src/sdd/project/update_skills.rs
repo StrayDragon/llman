@@ -3,6 +3,7 @@ use super::templates::skill_templates;
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use anyhow::{Result, anyhow};
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -12,6 +13,18 @@ const REQUIRED_ETHICS_KEYS: &[&str] = &[
     "ethics.required_evidence",
     "ethics.refusal_contract",
     "ethics.escalation_policy",
+];
+
+/// Optional skill files that can be enabled via `extra_skills` config.
+/// These are the only skills that will be cleaned up when removed from config.
+const OPTIONAL_SKILL_FILES: &[&str] = &[
+    "llman-sdd-new-change.md",
+    "llman-sdd-continue.md",
+    "llman-sdd-ff.md",
+    "llman-sdd-show.md",
+    "llman-sdd-sync.md",
+    "llman-sdd-validate.md",
+    "llman-sdd-verify.md",
 ];
 
 pub fn run() -> Result<()> {
@@ -30,6 +43,10 @@ pub(crate) fn run_with_root(root: &Path) -> Result<()> {
     let templates = skill_templates(&config, root)?;
     enforce_ethics_governance(&templates)?;
     let skills_base = root.join(".agents").join("skills");
+
+    // Cleanup stale skills before writing new ones
+    cleanup_stale_skills(&skills_base, &templates)?;
+
     write_tool_skills(&skills_base, &templates)?;
 
     Ok(())
@@ -47,6 +64,49 @@ fn enforce_ethics_governance(templates: &[super::templates::SkillTemplate]) -> R
             }
         }
     }
+    Ok(())
+}
+
+fn cleanup_stale_skills(base: &Path, templates: &[super::templates::SkillTemplate]) -> Result<()> {
+    // Get expected skill directory names from templates
+    let expected_skills: HashSet<String> = templates
+        .iter()
+        .map(|t| t.name.trim_end_matches(".md").to_string())
+        .collect();
+
+    // Get optional skills list (for safe filtering)
+    let optional_skills: HashSet<&str> = OPTIONAL_SKILL_FILES
+        .iter()
+        .map(|name| name.trim_end_matches(".md"))
+        .collect();
+
+    // Scan existing skill directories
+    if !base.exists() {
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(base)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+
+        let dir_name = entry.file_name().to_string_lossy().to_string();
+
+        // Only cleanup optional skills, don't touch core skills or user custom skills
+        if !optional_skills.contains(dir_name.as_str()) {
+            continue;
+        }
+
+        // If skill is not in expected list, delete it
+        if !expected_skills.contains(&dir_name) {
+            let skill_path = entry.path();
+            fs::remove_dir_all(&skill_path)?;
+            // Output log message
+            eprintln!("Cleaned up stale skill: {}", dir_name);
+        }
+    }
+
     Ok(())
 }
 
@@ -227,6 +287,182 @@ description: "override for test"
         assert!(
             !root
                 .join(".agents/skills/llman-sdd-continue/SKILL.md")
+                .exists()
+        );
+    }
+
+    #[test]
+    fn cleanup_stale_skills_removes_stale_optional_skills() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+        fs::create_dir_all(&llmanspec_dir).expect("create llmanspec");
+
+        // Create config with extra_skills
+        let config_path = llmanspec_dir.join("config.yaml");
+        fs::write(
+            &config_path,
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-verify\n  - llman-sdd-show\n",
+        )
+        .expect("write config");
+
+        // First run to create skills
+        super::run_with_root(root).expect("update-skills");
+
+        // Verify skills exist
+        assert!(
+            root.join(".agents/skills/llman-sdd-verify/SKILL.md")
+                .exists()
+        );
+        assert!(root.join(".agents/skills/llman-sdd-show/SKILL.md").exists());
+
+        // Manually create a stale skill directory
+        let stale_skill_dir = root.join(".agents/skills/llman-sdd-sync");
+        fs::create_dir_all(&stale_skill_dir).expect("create stale skill dir");
+        fs::write(stale_skill_dir.join("SKILL.md"), "stale content").expect("write stale skill");
+        assert!(stale_skill_dir.exists());
+
+        // Update config to remove llman-sdd-show
+        fs::write(
+            &config_path,
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-verify\n",
+        )
+        .expect("write config");
+
+        // Second run should cleanup stale skills
+        super::run_with_root(root).expect("update-skills");
+
+        // Verify stale skills are removed
+        assert!(
+            !stale_skill_dir.exists(),
+            "stale skill llman-sdd-sync should be removed"
+        );
+        assert!(
+            !root.join(".agents/skills/llman-sdd-show/SKILL.md").exists(),
+            "removed skill llman-sdd-show should be cleaned up"
+        );
+
+        // Verify kept skills still exist
+        assert!(
+            root.join(".agents/skills/llman-sdd-verify/SKILL.md")
+                .exists()
+        );
+        assert!(
+            root.join(".agents/skills/llman-sdd-onboard/SKILL.md")
+                .exists()
+        );
+    }
+
+    #[test]
+    fn cleanup_stale_skills_preserves_core_skills() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+        fs::create_dir_all(&llmanspec_dir).expect("create llmanspec");
+
+        // Create config with no extra_skills
+        let config_path = llmanspec_dir.join("config.yaml");
+        fs::write(&config_path, "schema: spec-driven\nlocale: en\n").expect("write config");
+
+        // First run to create core skills
+        super::run_with_root(root).expect("update-skills");
+
+        // Verify core skills exist
+        assert!(
+            root.join(".agents/skills/llman-sdd-onboard/SKILL.md")
+                .exists()
+        );
+        assert!(
+            root.join(".agents/skills/llman-sdd-apply/SKILL.md")
+                .exists()
+        );
+
+        // Second run should not remove core skills
+        super::run_with_root(root).expect("update-skills");
+
+        // Verify core skills still exist
+        assert!(
+            root.join(".agents/skills/llman-sdd-onboard/SKILL.md")
+                .exists()
+        );
+        assert!(
+            root.join(".agents/skills/llman-sdd-apply/SKILL.md")
+                .exists()
+        );
+    }
+
+    #[test]
+    fn cleanup_stale_skills_preserves_custom_skills() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+        fs::create_dir_all(&llmanspec_dir).expect("create llmanspec");
+
+        // Create config with no extra_skills
+        let config_path = llmanspec_dir.join("config.yaml");
+        fs::write(&config_path, "schema: spec-driven\nlocale: en\n").expect("write config");
+
+        // Create a custom skill directory (not in OPTIONAL_SKILL_FILES)
+        let custom_skill_dir = root.join(".agents/skills/my-custom-skill");
+        fs::create_dir_all(&custom_skill_dir).expect("create custom skill dir");
+        fs::write(custom_skill_dir.join("SKILL.md"), "custom content").expect("write custom skill");
+
+        // Run update
+        super::run_with_root(root).expect("update-skills");
+
+        // Verify custom skill is preserved
+        assert!(
+            custom_skill_dir.join("SKILL.md").exists(),
+            "custom skill should not be removed"
+        );
+    }
+
+    #[test]
+    fn cleanup_stale_skills_removes_all_optional_when_none_configured() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+        fs::create_dir_all(&llmanspec_dir).expect("create llmanspec");
+
+        // Create config with extra_skills
+        let config_path = llmanspec_dir.join("config.yaml");
+        fs::write(
+            &config_path,
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-verify\n  - llman-sdd-show\n",
+        )
+        .expect("write config");
+
+        // First run to create optional skills
+        super::run_with_root(root).expect("update-skills");
+
+        // Verify optional skills exist
+        assert!(
+            root.join(".agents/skills/llman-sdd-verify/SKILL.md")
+                .exists()
+        );
+        assert!(root.join(".agents/skills/llman-sdd-show/SKILL.md").exists());
+
+        // Update config to remove all extra_skills
+        fs::write(&config_path, "schema: spec-driven\nlocale: en\n").expect("write config");
+
+        // Second run should cleanup all optional skills
+        super::run_with_root(root).expect("update-skills");
+
+        // Verify optional skills are removed
+        assert!(
+            !root
+                .join(".agents/skills/llman-sdd-verify/SKILL.md")
+                .exists(),
+            "optional skill llman-sdd-verify should be removed"
+        );
+        assert!(
+            !root.join(".agents/skills/llman-sdd-show/SKILL.md").exists(),
+            "optional skill llman-sdd-show should be removed"
+        );
+
+        // Verify core skills still exist
+        assert!(
+            root.join(".agents/skills/llman-sdd-onboard/SKILL.md")
                 .exists()
         );
     }
