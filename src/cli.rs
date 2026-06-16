@@ -14,6 +14,18 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Trait to mark subcommands that require global configuration directory.
+/// Subcommands that only use project-level config (like `sdd`) should return `false`.
+pub trait RequiresGlobalConfig {
+    fn requires_global_config(&self) -> bool;
+}
+
+impl RequiresGlobalConfig for Commands {
+    fn requires_global_config(&self) -> bool {
+        !matches!(self, Commands::Sdd(_))
+    }
+}
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
@@ -96,11 +108,15 @@ pub fn run() -> Result<()> {
         return Ok(());
     };
 
-    // Determine and set config directory
-    let config_dir = determine_config_dir(config_dir.as_ref())?;
-
-    let _config_dir_guard = override_runtime_config_dir(config_dir.clone());
-    ensure_global_sample_config(&config_dir)?;
+    // Only perform dev-project config directory validation for subcommands that require global config
+    let _config_dir_guard = if command.requires_global_config() {
+        let config_dir = determine_config_dir(config_dir.as_ref())?;
+        let guard = override_runtime_config_dir(config_dir.clone());
+        ensure_global_sample_config(&config_dir)?;
+        Some(guard)
+    } else {
+        None
+    };
 
     match command {
         Commands::Prompts(args) => handle_prompts_command(&args),
@@ -280,5 +296,34 @@ version = "0.1.0"
         )
         .expect("write Cargo.toml");
         assert!(super::is_llman_dev_project_at(temp.path()));
+    }
+
+    #[test]
+    fn test_requires_global_config_sdd_returns_false() {
+        use super::{Commands, RequiresGlobalConfig, SddArgs};
+        use crate::sdd::command::SddCommands;
+        // Create a minimal SddArgs for testing
+        let sdd_args = SddArgs {
+            command: SddCommands::List {
+                specs: false,
+                changes: true,
+                sort: "recent".to_string(),
+                json: false,
+                compact_json: false,
+                no_interactive: true,
+            },
+        };
+        let command = Commands::Sdd(sdd_args);
+        assert!(!command.requires_global_config());
+    }
+
+    #[test]
+    fn test_requires_global_config_other_returns_true() {
+        use super::{Commands, PromptsArgs, RequiresGlobalConfig};
+        let prompts_args = PromptsArgs {
+            no_interactive: true,
+        };
+        let command = Commands::Prompts(prompts_args);
+        assert!(command.requires_global_config());
     }
 }
