@@ -31,6 +31,10 @@ const DROPPED_KEYS: &[&str] = &["valid_commands", "evidence"];
 pub struct MigrateArgs {
     pub dry_run: bool,
     pub force: bool,
+    /// Skip the confirmation prompt and apply (for agents/scripts).
+    pub yes: bool,
+    /// Treat the terminal as non-interactive even when stdin is a TTY.
+    pub no_interactive: bool,
 }
 
 pub fn run(args: MigrateArgs) -> Result<()> {
@@ -58,40 +62,153 @@ pub fn run(args: MigrateArgs) -> Result<()> {
         return Ok(());
     }
 
-    let mode = if args.dry_run { "DRY RUN" } else { "migrating" };
-    println!("{mode}: {} spec director(ies)", dirs.len());
-
-    let mut migrated = 0usize;
-    let mut already_current = 0usize;
+    // Phase 1: scan — build a plan per dir WITHOUT writing anything.
+    let mut plans: Vec<(PathBuf, Plan)> = Vec::new();
     let mut errors = Vec::new();
     for dir in &dirs {
-        match migrate_dir(dir, args.dry_run, args.force) {
-            Ok(MigrateOutcome::Migrated) => migrated += 1,
-            Ok(MigrateOutcome::AlreadyCurrent) => already_current += 1,
+        match plan_dir(dir, args.force) {
+            Ok(plan) => plans.push((dir.clone(), plan)),
             Err(e) => errors.push(format!("{}: {e}", dir.display())),
         }
     }
 
-    println!(
-        "Migrated {migrated}, already-current {already_current}, errors {}.",
-        errors.len()
-    );
+    print_scan_report(&plans, &errors, args.dry_run);
     if !errors.is_empty() {
         eprintln!("Errors ({}):", errors.len());
         for e in &errors {
             eprintln!("  - {e}");
         }
+        return Err(anyhow!("scan completed with {} error(s)", errors.len()));
+    }
+
+    let to_apply: Vec<&(PathBuf, Plan)> = plans
+        .iter()
+        .filter(|(_, p)| matches!(p, Plan::Migrate { .. }))
+        .collect();
+    if to_apply.is_empty() {
+        println!("Nothing to migrate; all specs are current.");
+        return Ok(());
+    }
+
+    // Phase 2: confirm, then apply.
+    if args.dry_run {
+        println!("\n(dry-run: no files written)");
+        return Ok(());
+    }
+    if !args.yes {
+        let interactive = crate::sdd::shared::interactive::is_interactive(args.no_interactive);
+        if !interactive {
+            return Err(anyhow!(
+                "non-interactive terminal: re-run with --yes to apply, or --dry-run to preview"
+            ));
+        }
+        let confirmed = inquire::Confirm::new(&format!(
+            "Migrate {} spec file(s) as shown above?",
+            to_apply.len()
+        ))
+        .with_default(false)
+        .prompt()
+        .map_err(|e| anyhow!("confirmation prompt failed: {e}"))?;
+        if !confirmed {
+            println!("Aborted; no files changed.");
+            return Ok(());
+        }
+    }
+
+    let mut migrated = 0usize;
+    let mut apply_errors = Vec::new();
+    for (dir, plan) in &plans {
+        if let Plan::Migrate { action, .. } = plan {
+            match apply_plan(dir, action) {
+                Ok(()) => {
+                    migrated += 1;
+                    println!("{}", action.summary_line(dir));
+                }
+                Err(e) => apply_errors.push(format!("{}: {e}", dir.display())),
+            }
+        }
+    }
+
+    println!("Migrated {migrated} file(s).");
+    if !apply_errors.is_empty() {
+        eprintln!("Errors ({}):", apply_errors.len());
+        for e in &apply_errors {
+            eprintln!("  - {e}");
+        }
         return Err(anyhow!(
             "migration completed with {} error(s)",
-            errors.len()
+            apply_errors.len()
         ));
     }
     Ok(())
 }
 
-enum MigrateOutcome {
-    Migrated,
-    AlreadyCurrent,
+/// What `migrate` plans to do with one spec directory.
+enum Plan {
+    /// Needs migration; `action` carries the computed output + side effects.
+    Migrate { action: Action },
+    /// Already current (or un-diagnosable) — left untouched.
+    Skip { reason: String },
+}
+
+/// A concrete migration to apply: the serialized target content and whether the
+/// legacy `spec.md` must be removed.
+struct Action {
+    serialized: String,
+    remove_legacy: bool,
+}
+
+impl Action {
+    fn summary_line(&self, dir: &Path) -> String {
+        let current = dir.join(SPEC_FILE);
+        if self.remove_legacy {
+            format!(
+                "  {} -> {}",
+                display_rel(&dir.join(LEGACY_SPEC_FILE)),
+                display_rel(&current)
+            )
+        } else {
+            format!("  normalized: {}", display_rel(&current))
+        }
+    }
+}
+
+/// Print a clear scan report: per-dir intentions + totals.
+fn print_scan_report(plans: &[(PathBuf, Plan)], errors: &[String], dry_run: bool) {
+    let heading = if dry_run { "DRY RUN scan" } else { "Scan" };
+    println!(
+        "{heading}: {} spec director(ies)",
+        plans.len() + errors.len()
+    );
+
+    let mut legacy = 0usize;
+    let mut normalized = 0usize;
+    let mut skipped = 0usize;
+    for (dir, plan) in plans {
+        match plan {
+            Plan::Migrate { action } => {
+                if action.remove_legacy {
+                    legacy += 1;
+                    println!(
+                        "  [migrate] {} -> {}",
+                        display_rel(&dir.join(LEGACY_SPEC_FILE)),
+                        display_rel(&dir.join(SPEC_FILE))
+                    );
+                } else {
+                    normalized += 1;
+                    println!("  [normalize] {}", display_rel(&dir.join(SPEC_FILE)));
+                }
+            }
+            Plan::Skip { reason } => {
+                skipped += 1;
+                let _ = reason; // kept quiet by default; uncomment to debug
+            }
+        }
+    }
+    println!(
+        "Summary: {legacy} legacy .md to migrate, {normalized} stale .toon to normalize, {skipped} already-current, {} error(s).",
+        errors.len()
+    );
 }
 
 /// Collect immediate child directories of `specs_root` (one per capability/change).
@@ -126,14 +243,12 @@ fn walk_dirs(root: &Path) -> Result<Vec<PathBuf>> {
     Ok(out)
 }
 
-/// Migrate a single spec directory to the current canonical format in one shot.
-///
-/// Source preference: `spec.toon` (current) over `spec.md` (legacy). The same single
-/// pipeline runs regardless of source: extract the TOON payload (fence-aware),
-/// strip dropped keys, fold `valid_scope` from any legacy frontmatter, re-encode,
-/// write `spec.toon`, and remove a superseded `spec.md`. No phases — one run lands
-/// at the latest format; re-running is a no-op.
-fn migrate_dir(dir: &Path, dry_run: bool, force: bool) -> Result<MigrateOutcome> {
+/// Scan one spec directory and decide what to do, WITHOUT writing. The same
+/// single pipeline computes the canonical output regardless of source: extract the
+/// TOON payload (fence-aware), strip dropped keys, fold `valid_scope` from any
+/// legacy frontmatter, re-encode. One run lands at the latest format; re-running
+/// is a no-op (current files plan as Skip).
+fn plan_dir(dir: &Path, force: bool) -> Result<Plan> {
     let legacy = dir.join(LEGACY_SPEC_FILE);
     let current = dir.join(SPEC_FILE);
     let both = legacy.exists() && current.exists();
@@ -144,28 +259,42 @@ fn migrate_dir(dir: &Path, dry_run: bool, force: bool) -> Result<MigrateOutcome>
         (legacy.clone(), true)
     } else {
         // No spec file at all — nothing to do.
-        return Ok(MigrateOutcome::AlreadyCurrent);
+        return Ok(Plan::Skip {
+            reason: "no spec file".into(),
+        });
     };
 
     if both && !force {
-        println!(
-            "  skip (both {SPEC_FILE} and {LEGACY_SPEC_FILE} exist, pass --force): {}",
-            display_rel(&current)
-        );
-        return Ok(MigrateOutcome::AlreadyCurrent);
+        return Ok(Plan::Skip {
+            reason: format!("both {SPEC_FILE} and {LEGACY_SPEC_FILE} exist (pass --force)"),
+        });
     }
 
     let content =
         fs::read_to_string(&source).with_context(|| format!("read {}", source.display()))?;
 
-    // Only act when there is something to migrate: a legacy .md, or a .toon still
-    // carrying dropped fields. A current .toon (or one we cannot diagnose) is left
-    // untouched — `validate` reports any real error.
+    // Only plan work when there is something to migrate: a legacy .md, or a .toon
+    // still carrying dropped fields. A current .toon (or one we cannot diagnose) is
+    // left untouched — `validate` reports any real error.
     if !is_legacy && !has_dropped_keys(&content) {
-        return Ok(MigrateOutcome::AlreadyCurrent);
+        return Ok(Plan::Skip {
+            reason: "already current".into(),
+        });
     }
 
-    let (frontmatter_yaml, body) = split_frontmatter(&content);
+    let serialized = reencode(&content, is_legacy)?;
+    Ok(Plan::Migrate {
+        action: Action {
+            serialized,
+            remove_legacy: is_legacy || (both && force),
+        },
+    })
+}
+
+/// Compute the canonical serialized output for a spec's content. Strips dropped
+/// keys, folds `valid_scope` from any legacy frontmatter, and re-encodes.
+fn reencode(content: &str, is_legacy: bool) -> Result<String> {
+    let (frontmatter_yaml, body) = split_frontmatter(content);
     let payload = extract_fenced_toon(&body).or_else(|_| {
         // Already a raw TOON document (no fence) — use it as-is.
         if body.trim_start().starts_with("kind:") {
@@ -179,44 +308,33 @@ fn migrate_dir(dir: &Path, dry_run: bool, force: bool) -> Result<MigrateOutcome>
     // Always strip dropped keys: no-op for clean docs, fixes stale or hybrid inputs.
     let payload = strip_dropped_keys(&payload);
 
-    let serialized = if is_delta_kind(&payload) {
+    if is_delta_kind(&payload) {
         let mut doc: DeltaSpecDoc = BACKEND
             .parse_delta_spec(&payload, "migrate")
             .context("parse delta")?;
         doc.kind = "llman.sdd.delta".to_string();
-        BACKEND.dump_delta_spec(&doc).context("serialize delta")?
+        BACKEND.dump_delta_spec(&doc).context("serialize delta")
     } else {
         let mut doc: MainSpecDoc = BACKEND
             .parse_main_spec(&payload, "migrate")
             .context("parse main spec")?;
         // Only valid_scope is carried over from the legacy frontmatter.
-        if let Some(yaml) = frontmatter_yaml.as_deref() {
+        if is_legacy && let Some(yaml) = frontmatter_yaml.as_deref() {
             merge_frontmatter_into_doc(&mut doc, yaml);
         }
         doc.kind = "llman.sdd.spec".to_string();
-        BACKEND
-            .dump_main_spec(&doc)
-            .context("serialize main spec")?
-    };
-
-    if dry_run {
-        println!("  would write: {}", display_rel(&current));
-        return Ok(MigrateOutcome::Migrated);
+        BACKEND.dump_main_spec(&doc).context("serialize main spec")
     }
+}
 
-    atomic_write_with_mode(&current, serialized.as_bytes(), None)?;
-    let removed_legacy = if is_legacy || (both && force) {
-        fs::remove_file(&legacy)?;
-        true
-    } else {
-        false
-    };
-    if removed_legacy {
-        println!("  {} -> {}", display_rel(&legacy), display_rel(&current));
-    } else {
-        println!("  normalized: {}", display_rel(&current));
+/// Apply a planned migration: write `spec.toon` and remove a superseded `spec.md`.
+fn apply_plan(dir: &Path, action: &Action) -> Result<()> {
+    let current = dir.join(SPEC_FILE);
+    atomic_write_with_mode(&current, action.serialized.as_bytes(), None)?;
+    if action.remove_legacy {
+        fs::remove_file(dir.join(LEGACY_SPEC_FILE))?;
     }
-    Ok(MigrateOutcome::Migrated)
+    Ok(())
 }
 
 /// Whether the content carries any dropped top-level keys. Checked directly (not
@@ -353,9 +471,11 @@ mod tests {
 
         let dirs = collect_spec_dirs(&dir.path().join("llmanspec/specs")).unwrap();
         assert_eq!(dirs.len(), 1);
-        let MigrateOutcome::Migrated = migrate_dir(&dirs[0], false, false).unwrap() else {
-            panic!("expected Migrated");
+        let Plan::Migrate { action } = plan_dir(&dirs[0], false).unwrap() else {
+            panic!("expected Plan::Migrate");
         };
+        assert!(action.remove_legacy, "legacy .md should be removed");
+        apply_plan(&dirs[0], &action).unwrap();
 
         let out = dirs[0].join(SPEC_FILE);
         assert!(out.exists(), "spec.toon should be written");
@@ -381,9 +501,10 @@ mod tests {
         let dirs =
             collect_spec_dirs(dir.path().join("llmanspec/changes/add/specs").as_path()).unwrap();
         assert_eq!(dirs.len(), 1);
-        let MigrateOutcome::Migrated = migrate_dir(&dirs[0], false, false).unwrap() else {
-            panic!("expected Migrated");
+        let Plan::Migrate { action } = plan_dir(&dirs[0], false).unwrap() else {
+            panic!("expected Plan::Migrate");
         };
+        apply_plan(&dirs[0], &action).unwrap();
 
         let out = dirs[0].join(SPEC_FILE);
         let content = fs::read_to_string(&out).unwrap();
@@ -402,9 +523,11 @@ mod tests {
         );
 
         let dirs = collect_spec_dirs(&dir.path().join("llmanspec/specs")).unwrap();
-        let MigrateOutcome::Migrated = migrate_dir(&dirs[0], false, false).unwrap() else {
-            panic!("expected Migrated (normalized)");
+        let Plan::Migrate { action } = plan_dir(&dirs[0], false).unwrap() else {
+            panic!("expected Plan::Migrate (normalize)");
         };
+        assert!(!action.remove_legacy, "no legacy .md to remove");
+        apply_plan(&dirs[0], &action).unwrap();
         let content = fs::read_to_string(dirs[0].join(SPEC_FILE)).unwrap();
         assert!(content.contains("valid_scope"));
         assert!(!content.contains("valid_commands"));
@@ -420,8 +543,8 @@ mod tests {
             "kind: llman.sdd.spec\nname: foo\npurpose: \"x\"\nvalid_scope[1]: src\nrequirements[1]{req_id,title,statement}:\n  r1,A,System MUST do a.\nscenarios[1]{req_id,id,given,when,then}:\n  r1,b,\"\",t happens,it works\n",
         );
         let dirs = collect_spec_dirs(&dir.path().join("llmanspec/specs")).unwrap();
-        let outcome = migrate_dir(&dirs[0], false, false).unwrap();
-        assert!(matches!(outcome, MigrateOutcome::AlreadyCurrent));
+        let plan = plan_dir(&dirs[0], false).unwrap();
+        assert!(matches!(plan, Plan::Skip { .. }));
     }
 
     #[test]
