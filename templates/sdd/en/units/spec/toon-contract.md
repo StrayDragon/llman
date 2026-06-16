@@ -70,4 +70,4 @@ r1,happy,"","a trigger happens","the outcome is observed"
 ### Notes
 - One `.toon` file per spec; no Markdown, no ```` ```toon ```` fence.
 - `null` represents missing optional fields.
-- Migrate legacy `.md`+fence specs with `llman sdd convert`.
+- Migrate legacy `.md`+fence specs with `llman sdd migrate`.
