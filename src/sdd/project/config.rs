@@ -42,6 +42,8 @@ locale: en
 #     - Break tasks into chunks of max 2 hours
 
 # Optional extra skills (disabled by default, uncomment to enable)
+# When you run `llman sdd init --update`, skills not in this list
+# will be automatically cleaned up from .agents/skills/ directory.
 # extra_skills:
 #   - llman-sdd-new-change
 #   - llman-sdd-continue
@@ -81,6 +83,8 @@ locale: zh-Hans
 #     - 每个任务不超过 2 小时
 
 # 可选额外技能（默认禁用，取消注释以启用）
+# 运行 `llman sdd init --update` 时，不在列表中的技能
+# 会自动从 .agents/skills/ 目录中清理。
 # extra_skills:
 #   - llman-sdd-new-change
 #   - llman-sdd-continue
