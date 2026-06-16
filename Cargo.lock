@@ -1785,7 +1785,7 @@ dependencies = [
 
 [[package]]
 name = "llman"
-version = "0.0.43"
+version = "0.0.44"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1828,7 +1828,7 @@ dependencies = [
 
 [[package]]
 name = "llman-fake-acp-agent"
-version = "0.0.43"
+version = "0.0.44"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
