@@ -6,15 +6,11 @@ pub struct MainSpecDoc {
     pub kind: String,
     pub name: String,
     pub purpose: String,
-    /// Validation proof-metadata (formerly the YAML frontmatter).
-    /// Required for main specs: each list must be non-empty. For point-only specs
-    /// (BDD enabled with `feature_refs`), `requirements`/`scenarios` may be empty.
+    /// Validation scope (formerly the YAML frontmatter `valid_scope`). Drives the
+    /// staleness check. Required and non-empty for main specs. `valid_commands` and
+    /// `evidence` were dropped — only `valid_scope` is functionally consumed.
     #[serde(default)]
     pub valid_scope: Vec<String>,
-    #[serde(default)]
-    pub valid_commands: Vec<String>,
-    #[serde(default)]
-    pub evidence: Vec<String>,
     #[serde(default)]
     pub requirements: Vec<RequirementEntry>,
     #[serde(default)]

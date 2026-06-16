@@ -1,18 +1,13 @@
 常见校验修复（TOON 独立文件 spec）：
 
-1) 缺少校验元数据（`Spec valid_scope must not be empty` 等）：
-Main spec 必须在 `.toon` 文档内携带非空的 `valid_scope` / `valid_commands` / `evidence`。
+1) 缺少校验作用域（`Spec valid_scope must not be empty`）：
+Main spec 必须在 `.toon` 文档内携带非空的 `valid_scope`。
 `llmanspec/specs/<feature-id>/spec.toon`：
 ```toon
 kind: llman.sdd.spec
 name: sample
 purpose: "One-line overview."
-valid_scope[1]:
-  src
-valid_commands[1]:
-  "llman sdd validate sample --type spec --strict --no-interactive"
-evidence[1]:
-  "<evidence>"
+valid_scope[1]: src
 requirements[1]{req_id,title,statement}:
   r1,Title,System MUST do something.
 scenarios[1]{req_id,id,given,when,then}:

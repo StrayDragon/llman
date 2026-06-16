@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "sdd-eval-workflow-dsl"
 purpose: "Define the workflow/jobs/steps DSL for `llman x sdd-eval` playbooks, including job dependencies, matrix variant expansion, built-in actions, minimal interpolation, and `run` step sandboxing."
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate sdd-eval-workflow-dsl --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[9]{req_id,title,statement}:
   r1,Playbook Uses a Workflow/Jobs/Steps Model,"The `llman x sdd-eval` playbook MUST be a YAML document that defines a workflow to execute. The playbook MUST be a YAML mapping. The playbook MUST define: - `task` (the shared evaluation task) - `variants` (the AB groups to evaluate) - `workflow.jobs` (the jobs and steps to run) `workflow` MUST be a YAML mapping and MUST define: - `jobs` (a mapping of job ids to job definitions) Each `job_id` under `workflow.jobs` MUST match `^[a-zA-Z][a-zA-Z0-9_-]*$`. Each job definition MUST be a YAML mapping "
   r2,Variants Are Addressable by Stable Id and Expandable by Matrix,"The playbook MUST define `variants` as a mapping from a stable `variant_id` to a variant configuration. Each `variant_id` MUST: - match `^[a-zA-Z][a-zA-Z0-9_-]*$` - be used as the directory name under `<run_dir>/variants/<variant_id>/` Each variant configuration MUST define: - `agent`: an ACP agent definition (kind/preset + optional command/args) The workflow style MUST be new-style SDD only; legacy styles (for example `sdd-legacy`) MUST NOT be supported, and playbooks MUST NOT include a `varian"

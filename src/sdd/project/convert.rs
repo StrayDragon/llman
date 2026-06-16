@@ -219,7 +219,8 @@ fn extract_fenced_toon(body: &str) -> Result<String> {
 }
 
 /// Translate the legacy frontmatter keys into the document's validation meta fields,
-/// preserving any values already present in the document.
+/// Only `valid_scope` is carried over — `valid_commands` and `evidence` were
+/// dropped (not functionally consumed); they are silently ignored on conversion.
 fn merge_frontmatter_into_doc(doc: &mut MainSpecDoc, yaml: &str) {
     let parsed: Value = match serde_yaml::from_str(yaml) {
         Ok(v) => v,
@@ -227,12 +228,6 @@ fn merge_frontmatter_into_doc(doc: &mut MainSpecDoc, yaml: &str) {
     };
     if doc.valid_scope.is_empty() {
         doc.valid_scope = frontmatter_list(&parsed, "llman_spec_valid_scope");
-    }
-    if doc.valid_commands.is_empty() {
-        doc.valid_commands = frontmatter_list(&parsed, "llman_spec_valid_commands");
-    }
-    if doc.evidence.is_empty() {
-        doc.evidence = frontmatter_list(&parsed, "llman_spec_evidence");
     }
 }
 
@@ -314,9 +309,10 @@ mod tests {
         assert!(out.exists(), "spec.toon should be written");
         assert!(!legacy.exists(), "spec.md should be removed");
         let content = fs::read_to_string(&out).unwrap();
+        // Only valid_scope is carried over; valid_commands/evidence are dropped.
         assert!(content.contains("valid_scope"));
-        assert!(content.contains("valid_commands"));
-        assert!(content.contains("evidence"));
+        assert!(!content.contains("valid_commands"));
+        assert!(!content.contains("evidence"));
         assert!(!content.contains("```toon"));
         assert!(content.contains("System MUST do a."));
     }

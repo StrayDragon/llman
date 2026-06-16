@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "claude-code-account-management"
 purpose: "Provide a first-class `account edit` entrypoint for Claude Code so users can quickly edit `claude-code.toml` using their configured editor, aligned with the existing Codex account edit experience."
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate claude-code-account-management --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[10]{req_id,title,statement}:
   r1,Account edit command is available for Claude Code,"The CLI MUST provide `llman x claude-code account edit` to open the Claude Code configuration file for editing."
   r2,Editor selection uses VISUAL/EDITOR with a safe fallback,"When opening the configuration file for editing, the command MUST use `$VISUAL` if set and non-empty, otherwise `$EDITOR` if set and non-empty. If neither is set, it MUST fall back to `vi`."

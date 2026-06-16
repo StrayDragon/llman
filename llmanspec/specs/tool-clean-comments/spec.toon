@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "tool-clean-comments"
 purpose: "Define clean-comments safety behavior and the tree-sitter-only removal path."
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate tool-clean-comments --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[4]{req_id,title,statement}:
   r1,"Safe failure on tree-sitter unavailability","When tree-sitter is unavailable or fails for a file, the clean-comments processor MUST skip modification for that file and record an error while continuing other files."
   r2,Regex fallback is disabled by default,"Regex-based comment removal MUST NOT run by default; it may remain available only for explicit future opt-in."

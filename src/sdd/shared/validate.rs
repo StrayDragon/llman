@@ -397,8 +397,6 @@ fn merge_feature_refs_into_scope(
 
     Some(crate::sdd::spec::validation::SpecFrontmatter {
         valid_scope: merged_scope,
-        valid_commands: frontmatter.valid_commands.clone(),
-        evidence: frontmatter.evidence.clone(),
     })
 }
 
