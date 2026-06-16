@@ -1755,18 +1755,6 @@ sdd:
       en: "[%{label}] %{path}: %{message}"
     spec_read_failed:
       en: "Failed to read spec file: %{error}"
-    frontmatter_missing:
-      en: "Spec frontmatter is required."
-    frontmatter_unterminated:
-      en: "Spec frontmatter is missing the closing '---'."
-    frontmatter_parse_error:
-      en: "Spec frontmatter YAML parse error: %{error}"
-    frontmatter_key_missing:
-      en: "Spec frontmatter is missing required key: %{key}"
-    frontmatter_value_empty:
-      en: "Spec frontmatter key %{key} must not be empty"
-    frontmatter_value_invalid:
-      en: "Spec frontmatter key %{key} must be a string or list of strings"
     sections_missing:
       en: "Spec is missing required ISON fields: %{sections}."
     sections_example:
@@ -1922,6 +1910,12 @@ sdd:
       en: "Feature %{path} has %{feature} scenarios but spec has %{spec} scenarios. The .feature file is the executable form of this spec — add missing scenarios to either the spec or the .feature file."
     feature_ref_unsupported_language:
       en: "Unsupported gherkin language '%{lang}' in %{path}. Fix: use a valid language code (e.g. 'en', 'zh-CN')."
+    meta_field_empty:
+      en: "Spec %{key} must not be empty (add it inside the .toon document)."
+    bdd_empty_spec_guardrail:
+      en: "BDD is enabled but this spec declares no requirements and no feature_refs. Either add requirements/scenarios, or point to a .feature via feature_refs."
+    bdd_point_only:
+      en: "Point-only spec: behavior lives in the referenced .feature file(s)."
     bdd_next_step_verify:
       en: "- Run BDD tests: %{command}"
     bdd_next_step_feature:

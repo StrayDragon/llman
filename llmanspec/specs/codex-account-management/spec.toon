@@ -1,0 +1,27 @@
+kind: llman.sdd.spec
+name: "codex-account-management"
+purpose: "TBD - created by archiving change fix-codex-command-editor-handling. Update Purpose after archive."
+valid_scope[2]: src/,tests/
+valid_commands[1]: "llman sdd validate codex-account-management --type spec --strict --no-interactive"
+evidence[1]: migrated from openspec
+requirements[7]{req_id,title,statement}:
+  r1,编辑器命令必须支持参数,"当打开配置文件进行编辑时，Codex account manager MUST 支持 `$VISUAL` 或 `$EDITOR` 包含参数（例如 `code --wait`）。实现 MUST 执行解析后的命令，并将 `codex.toml` 配置文件路径作为最后一个参数追加。"
+  r2,Provider 配置 upsert 到 codex config,"切换组时，系统 MUST 将选中组的 provider 配置 upsert 到 `~/.codex/config.toml`，同时设置顶层 `model_provider = \"<effective_name>\"`。其中： - `<effective_name>` 默认等于组名 `<group>`。 - 当存在 `[model_providers.<group>.llman_configs]` 且其中 `override_name` 为非空字符串时，`<effective_name>` MUST 使用该 `override_name`（而不是 `<group>`）。 同步写入时，系统 MUST： - upsert 到 `[model_providers.<effective_name>]`（key 使用 `<effective_name>`） - 将写入的 provider table 内 `name` 字段覆写为 `<effective_name>` - 透传 provider table 的其它字段（例如 `request_max_retries`），但 MUST 排除 `.env"
+  r3,环境变量注入执行,"切换组时，系统 MUST 将 `[model_providers.<name>.env]` 中的所有键值对作为环境变量注入 codex 子进程。"
+  r4,Import 交互式创建 provider,`llman x codex account import` MUST 交互式询问 group_name、base_url、env_key_id（默认 CODEX_API_KEY）、api_key_value，并将结果写入 `codex.toml`。
+  r5,"主命令支持 `-- <codex-args...>` 透传","当用户运行 `llman x codex` 的主命令路径（无子命令）时，系统 MUST 支持 `-- <codex-args...>` 形式，并在用户完成交互选择 provider 后执行： - 同步 provider 到 codex config（按既有逻辑） - 注入 provider env（按既有逻辑） - 执行 `codex <codex-args...>` 系统 MUST 将 `--` 之后的每个 argv token 作为一个独立参数传给 `codex`，且 MUST 不对这些参数进行解析或重写。"
+  r6,Run 命令支持交互和非交互模式,"`llman x codex run` MUST 支持 `--group <name>` 非交互模式和 `-i` 交互模式。"
+  r7,Account 命令提供 edit 和 import,`llman x codex account` MUST 默认进入 edit。`edit` MUST 用编辑器打开 codex.toml，`import` MUST 交互式创建新 provider。
+scenarios[12]{req_id,id,given,when,then}:
+  r1,"editor-包含参数","","`$EDITOR` 设置为 `code --wait` 且用户运行 `llman x codex account edit`","命令执行 `code --wait <codex.toml-path>`；若编辑器以非零退出则返回错误"
+  r2,"首次切换写入-provider-无-override-name","",用户选择 minimax 组且 `~/.codex/config.toml` 中无 `model_providers.minimax`,"系统将 minimax 的 provider 配置写入 codex config 并设置 `model_provider = \"minimax\"`"
+  r2,"首次切换写入-provider-存在-override-name","","用户选择 b 组，且其配置包含 `[model_providers.b.llman_configs] override_name = \"a\"`，并且 `~/.codex/config.toml` 中无 `model_providers.a`","系统将 b 的 provider 配置写入到 `model_providers.a`，同时设置 `model_provider = \"a\"`，且写入项中 `name = \"a\"`"
+  r2,"透传额外字段且不写入-llman-configs","","用户选择的 provider table 中包含额外字段（例如 `request_max_retries = 9999`）且存在 `override_name = \"a\"`",`~/.codex/config.toml` 的 `model_providers.a` 中保留该额外字段，且不包含 `llman_configs` 子表
+  r2,"重复切换不重复写入-基于-effective-name-幂等","","用户再次选择 b 组（其 `override_name = \"a\"`）且 codex config 中 `model_provider = \"a\"` 且 `model_providers.a` 已存在相同配置",系统检测到配置已存在且一致，跳过写入
+  r3,"注入-api-key","","用户选择 minimax 组，其 env 中有 `MINIMAX_CODEX_API_KEY = \"sk-xxx\"`","codex 子进程的环境中包含 `MINIMAX_CODEX_API_KEY=sk-xxx`"
+  r4,交互导入,"","用户运行 `llman x codex account import` 并输入 minimax / https://api.minimax.com/v1 / MINIMAX_KEY / sk-xxx","系统在 codex.toml 中创建 `[model_providers.minimax]` 和 `[model_providers.minimax.env]`"
+  r5,"透传-codex-参数","","用户运行 `llman x codex -- --help -m o3` 并在交互中选择任意 provider","系统执行 `codex --help -m o3`"
+  r5,未提供透传参数,"",用户运行 `llman x codex` 并在交互中选择任意 provider,系统执行 `codex`
+  r6,"非交互-run","","用户运行 `llman x codex run --group openai -- --help`","系统 upsert openai provider 到 codex config，注入环境变量，执行 `codex --help`"
+  r6,"交互-run","","用户运行 `llman x codex run -i`",系统交互选组、询问参数，然后 upsert + 注入 + 执行
+  r7,"account-默认编辑","",用户运行 `llman x codex account`,系统使用编辑器打开 codex.toml

@@ -21,7 +21,7 @@ Use this skill to create **all** artifacts for a new change quickly (proposal â†
    Do NOT overwrite existing artifacts without explicit confirmation.
 4. Create artifacts under `llmanspec/changes/<id>/`:
    - `proposal.md`
-   - `specs/<capability>/spec.md` (at least one)
+   - `specs/<capability>/spec.toon` (at least one)
    - `design.md` (only if needed)
    - `tasks.md` (ordered, small, verifiable tasks including validation)
 5. Validate:

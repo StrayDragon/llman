@@ -1,9 +1,7 @@
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::config::{load_config, write_config};
-use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-use crate::sdd::spec::fence::render_code_fence;
-use crate::sdd::spec::frontmatter::compose_with_frontmatter;
 use crate::sdd::spec::ir::{MainSpecDoc, RequirementEntry, ScenarioEntry};
 use anyhow::{Result, anyhow};
 use regex::Regex;
@@ -237,7 +235,7 @@ fn migrate_spec(
     dry_run: bool,
     force: bool,
 ) -> MigrationResult {
-    let target_file = target_dir.join("spec.md");
+    let target_file = target_dir.join(SPEC_FILE);
     if target_file.exists() && !force {
         return MigrationResult {
             name: spec.name.clone(),
@@ -327,12 +325,18 @@ fn migrate_spec(
         } else {
             truncate(&spec.purpose, 200)
         },
+        valid_scope: vec!["src/".to_string(), "tests/".to_string()],
+        valid_commands: vec![format!(
+            "llman sdd validate {} --type spec --strict --no-interactive",
+            spec.name
+        )],
+        evidence: vec!["migrated from openspec".to_string()],
         requirements,
         scenarios,
         feature_refs: None,
     };
 
-    let payload = match BACKEND.dump_main_spec(&doc) {
+    let content = match BACKEND.dump_main_spec(&doc) {
         Ok(p) => p,
         Err(e) => {
             return MigrationResult {
@@ -345,10 +349,6 @@ fn migrate_spec(
             };
         }
     };
-
-    let frontmatter = build_frontmatter(&spec.name);
-    let body = render_code_fence("toon", &payload);
-    let content = compose_with_frontmatter(Some(&frontmatter), &body);
 
     if let Some(parent) = target_file.parent()
         && let Err(e) = fs::create_dir_all(parent)
@@ -640,19 +640,6 @@ fn contains_shall_or_must(text: &str) -> bool {
     text.contains("SHALL") || text.contains("MUST")
 }
 
-fn build_frontmatter(spec_name: &str) -> String {
-    [
-        "llman_spec_valid_scope:",
-        "  - src/",
-        "  - tests/",
-        "llman_spec_valid_commands:",
-        &format!("  - llman sdd validate {spec_name} --type spec --strict --no-interactive"),
-        "llman_spec_evidence:",
-        "  - migrated from openspec",
-    ]
-    .join("\n")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -724,12 +711,5 @@ The CLI MUST return an error for invalid input.
         assert!(g.is_empty());
         assert_eq!(w, "user triggers action");
         assert_eq!(t, "system responds correctly");
-    }
-
-    #[test]
-    fn build_frontmatter_contains_spec_name() {
-        let fm = build_frontmatter("config-paths");
-        assert!(fm.contains("config-paths"));
-        assert!(fm.contains("migrated from openspec"));
     }
 }

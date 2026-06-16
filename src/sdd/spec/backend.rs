@@ -6,13 +6,13 @@ use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
 use anyhow::Result;
 
 pub trait SpecBackend: Sync + Send {
-    /// Parse a main spec payload from the Markdown body (frontmatter already removed).
+    /// Parse a main spec from a standalone `.toon` file's contents.
     fn parse_main_spec(&self, content: &str, context: &str) -> Result<MainSpecDoc>;
 
     /// Parse a main spec with strict TOON validation (catches quoting/syntax errors).
     fn parse_main_spec_strict(&self, content: &str, context: &str) -> Result<MainSpecDoc>;
 
-    /// Parse a delta spec payload from the full Markdown file content.
+    /// Parse a delta spec from a standalone `.toon` file's contents.
     fn parse_delta_spec(&self, content: &str, context: &str) -> Result<DeltaSpecDoc>;
 
     /// Parse a delta spec with strict TOON validation.

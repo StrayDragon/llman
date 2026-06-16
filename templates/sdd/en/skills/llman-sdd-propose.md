@@ -19,8 +19,8 @@ Create a new change and generate all planning artifacts in one pass (proposal + 
    - If the change already exists, STOP and suggest `llman-sdd-continue`.
 4. Create artifacts under `llmanspec/changes/<change-id>/`:
    - `proposal.md` (Why / What Changes / Capabilities / Impact)
-   - `specs/<capability>/spec.md` for each capability, using the project’s configured `spec_style` (`toon`):
-     - Prefer generating via authoring helpers so the fenced payload matches `spec_style`:
+   - `specs/<capability>/spec.toon` for each capability (a standalone TOON document, one per file):
+     - Prefer generating via authoring helpers so the TOON payload is well-formed:
        - `llman sdd delta skeleton <change-id> <capability>`
        - `llman sdd delta add-op ...`
        - `llman sdd delta add-scenario ...`

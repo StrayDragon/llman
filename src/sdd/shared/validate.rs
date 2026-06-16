@@ -1,6 +1,6 @@
 use crate::sdd::change::freeze::FREEZE_ARCHIVE_NAME;
 use crate::sdd::project::config::{ArchiveConfig, BddConfig, load_required_config};
-use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
 use crate::sdd::shared::discovery::{list_archived_changes, list_changes, list_specs};
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
@@ -445,7 +445,7 @@ fn validate_by_type(
                 .join(LLMANSPEC_DIR_NAME)
                 .join("specs")
                 .join(id)
-                .join("spec.md");
+                .join(SPEC_FILE);
             match fs::read_to_string(&spec_path) {
                 Ok(content) => {
                     let validation = validate_spec_content_with_frontmatter_and_bdd(
@@ -723,7 +723,7 @@ fn run_bulk_validation(
             .join(LLMANSPEC_DIR_NAME)
             .join("specs")
             .join(&id)
-            .join("spec.md");
+            .join(SPEC_FILE);
         match fs::read_to_string(&spec_path) {
             Ok(content) => {
                 let validation = validate_spec_content_with_frontmatter_and_bdd(

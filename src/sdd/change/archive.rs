@@ -1,12 +1,10 @@
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::config::load_required_config;
-use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::tasks;
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-use crate::sdd::spec::fence::render_code_fence;
-use crate::sdd::spec::frontmatter::{compose_with_frontmatter, split_frontmatter};
 use crate::sdd::spec::staleness::evaluate_staleness_with_override;
 use crate::sdd::spec::validation::{
     ValidationIssue, ValidationLevel, validate_spec_content_with_frontmatter,
@@ -162,7 +160,7 @@ fn find_spec_updates(change_dir: &Path, root: &Path) -> Result<Vec<SpecUpdate>> 
             continue;
         }
         let capability = entry.file_name().to_string_lossy().to_string();
-        let source = entry.path().join("spec.md");
+        let source = entry.path().join(SPEC_FILE);
         if !source.exists() {
             continue;
         }
@@ -170,7 +168,7 @@ fn find_spec_updates(change_dir: &Path, root: &Path) -> Result<Vec<SpecUpdate>> 
             .join(LLMANSPEC_DIR_NAME)
             .join("specs")
             .join(&capability)
-            .join("spec.md");
+            .join(SPEC_FILE);
         let target_exists = target.exists();
         updates.push(SpecUpdate {
             capability,
@@ -281,14 +279,13 @@ fn build_updated_spec(
         }
     }
 
-    let (frontmatter_yaml, mut spec_doc) = if update.target_exists {
+    let mut spec_doc = if update.target_exists {
         let target_content = fs::read_to_string(&update.target)?;
-        let (frontmatter_yaml, body) = split_frontmatter(&target_content);
         let spec = backend.parse_main_spec(
-            &body,
+            &target_content,
             &format!("spec `{}` during archive merge", update.capability),
         )?;
-        (frontmatter_yaml, spec.clone())
+        spec.clone()
     } else {
         let purpose = if interactive {
             let prompt = format!("Purpose for new spec '{}':", update.capability);
@@ -305,15 +302,20 @@ fn build_updated_spec(
                 change = change_name
             )
         };
-        let spec = crate::sdd::spec::ir::MainSpecDoc {
+        crate::sdd::spec::ir::MainSpecDoc {
             kind: "llman.sdd.spec".to_string(),
             name: update.capability.clone(),
             purpose,
+            valid_scope: vec!["src/".to_string(), "tests/".to_string()],
+            valid_commands: vec!["cargo test".to_string()],
+            evidence: vec![format!(
+                "Archived from change {change}",
+                change = change_name
+            )],
             requirements: Vec::new(),
             scenarios: Vec::new(),
             feature_refs: None,
-        };
-        (Some(default_frontmatter_yaml(change_name)), spec)
+        }
     };
 
     // Ensure canonical metadata.
@@ -553,18 +555,9 @@ fn build_updated_spec(
         ));
     }
 
-    let payload = backend.dump_main_spec(&spec_doc)?;
-    let body = render_code_fence("toon", &payload);
-    let rebuilt = compose_with_frontmatter(frontmatter_yaml.as_deref(), &body);
+    let rebuilt = backend.dump_main_spec(&spec_doc)?;
 
     Ok((rebuilt, counts))
-}
-
-fn default_frontmatter_yaml(change_name: &str) -> String {
-    format!(
-        "llman_spec_valid_scope:\n  - src/\n  - tests/\nllman_spec_valid_commands:\n  - cargo test\nllman_spec_evidence:\n  - \"Archived from change {change}\"",
-        change = change_name
-    )
 }
 
 fn write_updates(prepared: &[(SpecUpdate, String, ApplyCounts)]) -> Result<()> {
@@ -684,21 +677,14 @@ mod tests {
     #[test]
     fn builds_new_spec_with_added_requirement() {
         let dir = tempdir().expect("tempdir");
-        let change_spec = dir.path().join("changes/add-thing/specs/foo/spec.md");
-        let delta = r#"```toon
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  add_requirement,new-capability,"New capability","System MUST support the new capability.",null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  new-capability,new-capability,"",a request arrives,it succeeds
-```
-"#;
+        let change_spec = dir.path().join("changes/add-thing/specs/foo/spec.toon");
+        let delta = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,new-capability,\"New capability\",\"System MUST support the new capability.\",null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  new-capability,new-capability,\"\",a request arrives,it succeeds\n";
         write_file(&change_spec, delta);
 
         let update = SpecUpdate {
             capability: "foo".to_string(),
             source: change_spec,
-            target: dir.path().join("llmanspec/specs/foo/spec.md"),
+            target: dir.path().join("llmanspec/specs/foo/spec.toon"),
             target_exists: false,
         };
 
@@ -706,28 +692,22 @@ op_scenarios[1]{req_id,id,given,when,then}:
         assert!(result.0.contains("llman.sdd.spec"));
         assert!(result.0.contains("New capability"));
         assert!(result.0.contains("System MUST support the new capability."));
-        assert!(result.0.contains("llman_spec_valid_scope"));
-        assert!(result.0.contains("llman_spec_valid_commands"));
-        assert!(result.0.contains("llman_spec_evidence"));
+        assert!(result.0.contains("valid_scope"));
+        assert!(result.0.contains("valid_commands"));
+        assert!(result.0.contains("evidence"));
     }
 
     #[test]
     fn errors_on_removed_requirement_for_new_spec() {
         let dir = tempdir().expect("tempdir");
-        let change_spec = dir.path().join("changes/remove-thing/specs/foo/spec.md");
-        let delta = r#"```toon
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  remove_requirement,old-capability,null,null,null,null,"Old capability"
-op_scenarios[0]{req_id,id,given,when,then}:
-```
-"#;
+        let change_spec = dir.path().join("changes/remove-thing/specs/foo/spec.toon");
+        let delta = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  remove_requirement,old-capability,null,null,null,null,\"Old capability\"\nop_scenarios[0]{req_id,id,given,when,then}:\n";
         write_file(&change_spec, delta);
 
         let update = SpecUpdate {
             capability: "foo".to_string(),
             source: change_spec,
-            target: dir.path().join("llmanspec/specs/foo/spec.md"),
+            target: dir.path().join("llmanspec/specs/foo/spec.toon"),
             target_exists: false,
         };
 
@@ -738,38 +718,12 @@ op_scenarios[0]{req_id,id,given,when,then}:
     #[test]
     fn errors_on_missing_modified_requirement() {
         let dir = tempdir().expect("tempdir");
-        let change_spec = dir.path().join("changes/update-thing/specs/foo/spec.md");
-        let delta = r#"```toon
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  modify_requirement,beta,"Beta","System MUST update beta.",null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  beta,beta,"",beta changes,it is updated
-```
-"#;
+        let change_spec = dir.path().join("changes/update-thing/specs/foo/spec.toon");
+        let delta = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  modify_requirement,beta,\"Beta\",\"System MUST update beta.\",null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  beta,beta,\"\",beta changes,it is updated\n";
         write_file(&change_spec, delta);
 
-        let existing_spec = r#"---
-llman_spec_valid_scope:
-  - src
-llman_spec_valid_commands:
-  - cargo test
-llman_spec_evidence:
-  - tests
----
-
-```toon
-kind: llman.sdd.spec
-name: foo
-purpose: "Test spec."
-requirements[1]{req_id,title,statement}:
-  alpha,"Alpha","System MUST support alpha."
-scenarios[1]{req_id,id,given,when,then}:
-  alpha,alpha,"",alpha is used,it works
-alpha alpha "" "alpha is used" "it works"
-```
-"#;
-        let target = dir.path().join("llmanspec/specs/foo/spec.md");
+        let existing_spec = "kind: llman.sdd.spec\nname: foo\npurpose: \"Test spec.\"\nvalid_scope[1]:\n  src\nvalid_commands[1]:\n  cargo test\nevidence[1]:\n  tests\nrequirements[1]{req_id,title,statement}:\n  alpha,\"Alpha\",\"System MUST support alpha.\"\nscenarios[1]{req_id,id,given,when,then}:\n  alpha,alpha,\"\",alpha is used,it works\n";
+        let target = dir.path().join("llmanspec/specs/foo/spec.toon");
         write_file(&target, existing_spec);
 
         let update = SpecUpdate {

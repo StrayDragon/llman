@@ -1,5 +1,5 @@
 use crate::sdd::project::config::load_required_config;
-use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
 use crate::sdd::shared::discovery::{list_changes, list_specs};
 use crate::sdd::shared::tasks;
 use crate::sdd::spec::parser::parse_spec;
@@ -169,7 +169,7 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
 
     let mut specs = Vec::new();
     for id in spec_ids {
-        let spec_path = specs_dir.join(&id).join("spec.md");
+        let spec_path = specs_dir.join(&id).join(SPEC_FILE);
         let content = fs::read_to_string(&spec_path)
             .map_err(|err| anyhow!("failed to read spec {}: {}", spec_path.display(), err))?;
         let spec =

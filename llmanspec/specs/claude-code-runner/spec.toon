@@ -1,0 +1,16 @@
+kind: llman.sdd.spec
+name: "claude-code-runner"
+purpose: "TBD - created by archiving change fix-claude-code-command-args-and-security. Update Purpose after archive."
+valid_scope[2]: src/,tests/
+valid_commands[1]: "llman sdd validate claude-code-runner --type spec --strict --no-interactive"
+evidence[1]: migrated from openspec
+requirements[3]{req_id,title,statement}:
+  r1,交互 args 解析必须支持引号,"当 `llman x claude-code run` 在交互模式下收集参数字符串时，它 MUST 支持引号解析，使单个逻辑参数可以包含空格。若参数字符串无法按该规则解析（例如未闭合引号），命令 MUST 报错且 MUST NOT 执行。"
+  r2,危险模式匹配必须大小写不敏感,安全警告检测 MUST 将危险 patterns 视为大小写不敏感（包括配置文件中提供的 patterns）。
+  r3,"主命令必须支持 `--` 参数透传给 claude","当用户运行 `llman x cc`（或 `llman x claude-code`）且未指定子命令时，命令 MUST 接受通过 `--` 分隔的 trailing args，并在完成配置组选择与环境变量注入后，将该参数向量按顺序原样传递给底层 `claude` 命令执行。"
+scenarios[5]{req_id,id,given,when,then}:
+  r1,引号参数被保留,"","用户在交互 args 提示中输入 `--message \"hello world\" --flag`","解析后的参数向量包含 `--message`、`hello world` 与 `--flag`"
+  r1,未闭合引号会被拒绝,"","用户在交互 args 提示中输入 `--message \"hello`",命令提示解析失败并拒绝执行
+  r2,"大写配置-pattern-也能匹配","","配置中包含危险 pattern `RM -RF`，且工具检查 `Bash(rm -rf /tmp/x)`",该 pattern 被命中并输出安全警告
+  r3,"透传单个-flag","","用户运行 `llman x cc -- --version`","llman 执行的 `claude` 命令参数包含 `--version`"
+  r3,透传多参数并保持顺序,"","用户运行 `llman x claude-code -- --message \"hello world\" --flag`","llman 执行的 `claude` 命令参数按顺序包含 `--message`、`hello world` 与 `--flag`"

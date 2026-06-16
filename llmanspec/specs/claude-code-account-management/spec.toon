@@ -1,0 +1,30 @@
+kind: llman.sdd.spec
+name: "claude-code-account-management"
+purpose: "Provide a first-class `account edit` entrypoint for Claude Code so users can quickly edit `claude-code.toml` using their configured editor, aligned with the existing Codex account edit experience."
+valid_scope[2]: src/,tests/
+valid_commands[1]: "llman sdd validate claude-code-account-management --type spec --strict --no-interactive"
+evidence[1]: migrated from openspec
+requirements[10]{req_id,title,statement}:
+  r1,Account edit command is available for Claude Code,"The CLI MUST provide `llman x claude-code account edit` to open the Claude Code configuration file for editing."
+  r2,Editor selection uses VISUAL/EDITOR with a safe fallback,"When opening the configuration file for editing, the command MUST use `$VISUAL` if set and non-empty, otherwise `$EDITOR` if set and non-empty. If neither is set, it MUST fall back to `vi`."
+  r3,Editor command MUST support arguments,"When opening the configuration file for editing, the command MUST support `$VISUAL` or `$EDITOR` containing arguments (for example `code --wait`). The implementation MUST execute the parsed command and MUST append the config file path as the last argument."
+  r4,Config path resolution follows LLMAN_CONFIG_DIR,"The command MUST open the configuration file at `<LLMAN_CONFIG_DIR>/claude-code.toml` (when `LLMAN_CONFIG_DIR` is set). Otherwise, it MUST resolve the default llman config directory (see `config-paths`) and open `<config-dir>/claude-code.toml`."
+  r5,Missing config file is created with a minimal valid template,"If the config file does not exist, the command MUST create the parent directory and MUST write a default template that is parseable by `Config::load()` (at minimum, it MUST include a `[groups]` table). The command MUST then open the created file in the editor."
+  r6,Editor exit status is enforced,"If the editor process exits with a non-zero status, the command MUST fail with a non-zero exit and MUST surface a user-facing error message."
+  r7,`x cc` alias supports account edit,"Because `claude-code` is available as `cc`, the CLI MUST support `llman x cc account edit` with the same behavior as `llman x claude-code account edit`."
+  r8,`account env` command emits env injection statements for a group,"The CLI MUST provide `llman x claude-code account env <GROUP>` to emit shell-consumable env injection statements for the named configuration group. The `<GROUP>` name MUST correspond to the same group name used by `llman x claude-code run --group <GROUP>`. The CLI MUST also accept the alias path `llman x cc account env <GROUP>` with identical behavior. The command MUST write only shell/PowerShell-consumable content to stdout: - Comment lines beginning with `#` (usage hints) - Injection statement"
+  r9,Output is deterministic and safely quoted,"The command MUST emit one injection statement per key/value pair in the selected group. The command MUST sort keys in ascending lexicographic order before emitting statements. Each value MUST be single-quoted to prevent interpolation: - For POSIX output, embedded single quotes MUST be escaped so the resulting statement evaluates to the original value. - For PowerShell output, embedded single quotes MUST be escaped using PowerShell single-quote escaping rules. Each key MUST be validated as a safe"
+  r10,Missing config or group is an error,"If the Claude Code config contains no groups, the command MUST exit non-zero and MUST instruct the user to create or import a group. If `<GROUP>` does not exist, the command MUST exit non-zero and MUST indicate the group was not found."
+scenarios[12]{req_id,id,given,when,then}:
+  r1,"edit-command-exists","","the user runs `llman x claude-code account edit`",the command attempts to open the Claude Code config file in an editor
+  r2,"visual-takes-precedence","","`$VISUAL` is set to `nvim` and `$EDITOR` is set to `code --wait`",the command uses `nvim` to open the config file
+  r3,"editor-contains-arguments","","`$EDITOR` is set to `code --wait` and the user runs `llman x claude-code account edit`","the executed command is `code --wait <claude-code.toml-path>`; if the editor exits non-zero the command returns an error"
+  r4,"llman-config-dir-override","","`LLMAN_CONFIG_DIR` is set to `/tmp/llman-test-config` and the user runs `llman x claude-code account edit`","the command opens `/tmp/llman-test-config/claude-code.toml`"
+  r5,"first-time-edit-creates-template","","`<config-dir>/claude-code.toml` does not exist and the user runs `llman x claude-code account edit`","the command creates the directory, writes a minimal template, and launches the editor with that path"
+  r6,"editor-returns-failure","",the selected editor exits with status 2,"`llman x claude-code account edit` returns an error indicating the editor exit status"
+  r7,"alias-path-works","",the user runs `llman x cc account edit`,"the command behavior is identical to `llman x claude-code account edit` ## Requirements"
+  r8,"non-windows-emits-posix-export-statements","","the user runs `llman x claude-code account env minimax` on a non-Windows platform and group `minimax` contains `FOO=bar`",stdout contains a line `export FOO='bar'`
+  r8,"windows-emits-powershell-env-statements","","the user runs `llman x claude-code account env minimax` on Windows and group `minimax` contains `FOO=bar`","stdout contains a line `$env:FOO='bar'`"
+  r9,"keys-are-sorted-for-stable-output","",group `g` contains keys `B=2` and `A=1`,stdout lines are emitted in the order `A` then `B`
+  r9,"invalid-key-fails-without-emitting-statements","","group `g` contains a key `BAD-KEY=1`","the command exits non-zero and stdout contains no injection statements"
+  r10,"group-not-found","","the user runs `llman x claude-code account env does-not-exist`","the command exits non-zero and reports that the group does not exist"

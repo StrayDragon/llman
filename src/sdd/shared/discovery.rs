@@ -1,4 +1,4 @@
-use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
 use anyhow::Result;
 use std::fs;
 use std::path::Path;
@@ -98,7 +98,7 @@ pub fn list_specs(root: &Path) -> Result<Vec<String>> {
         if name.starts_with('.') {
             continue;
         }
-        let spec_path = entry.path().join("spec.md");
+        let spec_path = entry.path().join(SPEC_FILE);
         if spec_path.exists() {
             result.push(name);
         }

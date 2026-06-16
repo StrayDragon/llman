@@ -1,5 +1,4 @@
 use crate::sdd::spec::backend::SpecBackend;
-use crate::sdd::spec::fence::extract_all_code_fences;
 use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
 use anyhow::{Result, anyhow};
 
@@ -7,40 +6,34 @@ pub struct ToonBackend;
 
 pub static BACKEND: ToonBackend = ToonBackend;
 
-const TOON_LANG: &str = "toon";
-
 const TOON_FIX_HINT: &str = "\nPlease check your TOON syntax. Common issues: \
     array length mismatch, missing colons, inconsistent delimiters, \
     or unquoted values containing commas/colons/brackets.";
 
 impl SpecBackend for ToonBackend {
     fn parse_main_spec(&self, content: &str, context: &str) -> Result<MainSpecDoc> {
-        let payload = extract_single_toon_payload(content, context)?;
-        let doc: MainSpecDoc = toon_format::decode_default(payload.trim())
+        let doc: MainSpecDoc = toon_format::decode_default(content.trim())
             .map_err(|err| toon_parse_error(context, &err))?;
         validate_spec_kind(&doc.kind, "llman.sdd.spec", context)?;
         Ok(doc)
     }
 
     fn parse_main_spec_strict(&self, content: &str, context: &str) -> Result<MainSpecDoc> {
-        let payload = extract_single_toon_payload(content, context)?;
-        let doc: MainSpecDoc = toon_format::decode_strict(payload.trim())
+        let doc: MainSpecDoc = toon_format::decode_strict(content.trim())
             .map_err(|err| toon_parse_error(context, &err))?;
         validate_spec_kind(&doc.kind, "llman.sdd.spec", context)?;
         Ok(doc)
     }
 
     fn parse_delta_spec(&self, content: &str, context: &str) -> Result<DeltaSpecDoc> {
-        let payload = extract_single_toon_payload(content, context)?;
-        let doc: DeltaSpecDoc = toon_format::decode_default(payload.trim())
+        let doc: DeltaSpecDoc = toon_format::decode_default(content.trim())
             .map_err(|err| toon_parse_error(context, &err))?;
         validate_delta_kind(&doc.kind, context)?;
         Ok(doc)
     }
 
     fn parse_delta_spec_strict(&self, content: &str, context: &str) -> Result<DeltaSpecDoc> {
-        let payload = extract_single_toon_payload(content, context)?;
-        let doc: DeltaSpecDoc = toon_format::decode_strict(payload.trim())
+        let doc: DeltaSpecDoc = toon_format::decode_strict(content.trim())
             .map_err(|err| toon_parse_error(context, &err))?;
         validate_delta_kind(&doc.kind, context)?;
         Ok(doc)
@@ -91,30 +84,6 @@ fn validate_roundtrip(payload: &str, label: &str) -> Result<()> {
     Ok(())
 }
 
-fn extract_single_toon_payload(content: &str, context: &str) -> Result<String> {
-    let fences = extract_all_code_fences(content)?;
-    let toon_fences: Vec<_> = fences.iter().filter(|f| f.lang == TOON_LANG).collect();
-
-    if toon_fences.is_empty() {
-        return Err(anyhow!("{context}: missing ```{TOON_LANG} code block"));
-    }
-    if toon_fences.len() != 1 {
-        return Err(anyhow!(
-            "{context}: expected exactly 1 ```{TOON_LANG} code block, got {}",
-            toon_fences.len()
-        ));
-    }
-
-    let payload = toon_fences[0].payload.trim();
-    if payload.is_empty() {
-        return Err(anyhow!(
-            "{context}: empty {TOON_LANG} payload in code block starting at line {}",
-            toon_fences[0].start_line
-        ));
-    }
-    Ok(payload.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,8 +109,8 @@ scenarios[4]{req_id,id,given,when,then}:
   r3,happy,config has models defined,xylitol --list-models is run,model table is printed with aliases and providers
   r4,happy,dev-fake-provider feature is enabled,xylitol --model __fake__ "test" is run,fake provider is used without API keys"#;
 
-        let fence = format!("```toon\n{bad_toon}\n```");
-        let result = BACKEND.parse_main_spec_strict(&fence, "test");
+        // Specs are standalone TOON files now — no fence wrapper.
+        let result = BACKEND.parse_main_spec_strict(bad_toon, "test");
         assert!(
             result.is_err(),
             "strict parse should reject unquoted commas in tabular values"
@@ -172,9 +141,8 @@ scenarios[6]{req_id,id,given,when,then}:
   r3,happy,config has models defined,xylitol --list-models is run,model table is printed with aliases and providers
   r4,happy,dev-fake-provider feature is enabled,"xylitol --model __fake__ \"test\" is run",fake provider is used without API keys"#;
 
-        let fence = format!("```toon\n{good_toon}\n```");
         let doc = BACKEND
-            .parse_main_spec_strict(&fence, "test")
+            .parse_main_spec_strict(good_toon, "test")
             .expect("strict parse should accept properly quoted TOON");
         assert_eq!(doc.name, "cli-entry");
         assert_eq!(doc.requirements.len(), 4);
@@ -204,15 +172,22 @@ scenarios[6]{req_id,id,given,when,then}:
   r3,happy,config has models defined,xylitol --list-models is run,model table is printed with aliases and providers
   r4,happy,dev-fake-provider feature is enabled,"xylitol --model __fake__ \"test\" is run",fake provider is used without API keys"#;
 
-        let fence = format!("```toon\n{good_toon}\n```");
-        let doc = BACKEND.parse_main_spec(&fence, "test").unwrap();
+        let doc = BACKEND.parse_main_spec(good_toon, "test").unwrap();
         let dumped = BACKEND.dump_main_spec(&doc).unwrap();
 
         // Re-parse the dumped output to verify round-trip
-        let fence2 = format!("```toon\n{dumped}\n```");
         let doc2 = BACKEND
-            .parse_main_spec_strict(&fence2, "round-trip")
+            .parse_main_spec_strict(&dumped, "round-trip")
             .expect("round-tripped TOON should parse strictly");
         assert_eq!(doc, doc2);
+    }
+
+    /// A standalone `.toon` file with no Markdown fence should parse directly.
+    #[test]
+    fn parse_standalone_toon_without_fence() {
+        let toon = "kind: llman.sdd.spec\nname: sample\npurpose: \"One-line overview.\"\nrequirements[1]{req_id,title,statement}:\n  r1,Sample,System MUST do something.\nscenarios[1]{req_id,id,given,when,then}:\n  r1,happy,\"\",a trigger happens,the outcome is observed\n";
+        let doc = BACKEND.parse_main_spec(toon, "test").unwrap();
+        assert_eq!(doc.name, "sample");
+        assert_eq!(doc.requirements.len(), 1);
     }
 }

@@ -16,8 +16,8 @@ description: "创建新的 SDD 变更提案与增量 specs。"
    - 若变更已存在，STOP 并建议使用 `llman-sdd-continue`。
 4. 在 `llmanspec/changes/<change-id>/` 下创建工件：
    - `proposal.md`（Why / What Changes / Capabilities / Impact）
-   - 为每个 capability 创建 `specs/<capability>/spec.md`，并匹配项目配置的 `spec_style`（`toon`）：
-     - 建议优先通过 authoring helpers 生成，确保 fenced payload 与 `spec_style` 一致：
+   - 为每个 capability 创建 `specs/<capability>/spec.toon`（每个文件一份独立的 TOON 文档）：
+     - 建议优先通过 authoring helpers 生成，确保 TOON payload 规范：
        - `llman sdd delta skeleton <change-id> <capability>`
        - `llman sdd delta add-op ...`
        - `llman sdd delta add-scenario ...`

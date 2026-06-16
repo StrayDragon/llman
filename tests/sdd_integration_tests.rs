@@ -206,26 +206,8 @@ fn test_sdd_show_validate_archive_flow() {
     let llmanspec_dir = work_dir.join("llmanspec");
     let spec_dir = llmanspec_dir.join("specs").join("sample");
     fs::create_dir_all(&spec_dir).expect("create spec dir");
-    let spec_content = r#"---
-llman_spec_valid_scope:
-  - src
-llman_spec_valid_commands:
-  - cargo test
-llman_spec_evidence:
-  - tests/sdd_integration_tests.rs
----
-
-```toon
-kind: llman.sdd.spec
-name: sample
-purpose: "Describe sample behavior."
-requirements[1]{req_id,title,statement}:
-  existing,Existing behavior,System MUST preserve existing behavior.
-scenarios[1]{req_id,id,given,when,then}:
-  existing,baseline,,running the sample,behavior is preserved
-```
-"#;
-    fs::write(spec_dir.join("spec.md"), spec_content).expect("write spec");
+    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nvalid_commands[1]: \"cargo test\"\nevidence[1]: tests/sdd_integration_tests.rs\nrequirements[1]{req_id,title,statement}:\n  existing,Existing behavior,System MUST preserve existing behavior.\nscenarios[1]{req_id,id,given,when,then}:\n  existing,baseline,,running the sample,behavior is preserved\n";
+    fs::write(spec_dir.join("spec.toon"), spec_content).expect("write spec");
 
     let change_dir = llmanspec_dir.join("changes").join("add-sample");
     let change_specs_dir = change_dir.join("specs").join("sample");
@@ -242,15 +224,8 @@ Need a sample change.
         "## 1. Done\n- [x] 1.1 Completed\n",
     )
     .expect("write tasks");
-    let delta_spec = r#"```toon
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  added,added,,a new action is taken,the new behavior happens
-```
-"#;
-    fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
+    let delta_spec = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  added,added,,a new action is taken,the new behavior happens\n";
+    fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
 
     git_commit_all(work_dir, "init sdd sample");
 
@@ -296,7 +271,7 @@ op_scenarios[1]{req_id,id,given,when,then}:
     let archive_name = entries[0].file_name().to_string_lossy().to_string();
     assert!(archive_name.ends_with("-add-sample"));
 
-    let updated_spec = fs::read_to_string(spec_dir.join("spec.md")).expect("read updated spec");
+    let updated_spec = fs::read_to_string(spec_dir.join("spec.toon")).expect("read updated spec");
     assert!(updated_spec.contains("requirements["));
     assert!(updated_spec.contains("existing"));
     assert!(updated_spec.contains("added"));
@@ -340,9 +315,9 @@ fn test_sdd_archive_flow_works_in_toon_project() {
     let archive_output = run_llman(&["sdd", "archive", "add-sample"], work_dir, work_dir);
     assert_success(&archive_output);
 
-    let updated = fs::read_to_string(work_dir.join("llmanspec/specs/sample/spec.md"))
+    let updated = fs::read_to_string(work_dir.join("llmanspec/specs/sample/spec.toon"))
         .expect("read updated spec");
-    assert!(updated.contains("```toon"));
+    assert!(updated.contains("valid_scope"));
     assert!(updated.contains("r2"));
     assert!(updated.contains("System MUST support R2."));
 }
@@ -362,26 +337,8 @@ fn test_sdd_single_toon_block_show_and_validate_spec() {
     let llmanspec_dir = work_dir.join("llmanspec");
     let spec_dir = llmanspec_dir.join("specs").join("sample");
     fs::create_dir_all(&spec_dir).expect("create spec dir");
-    let spec_content = r#"---
-llman_spec_valid_scope:
-  - src
-llman_spec_valid_commands:
-  - cargo test
-llman_spec_evidence:
-  - tests/sdd_integration_tests.rs
----
-
-```toon
-kind: llman.sdd.spec
-name: sample
-purpose: "Describe sample behavior."
-requirements[1]{req_id,title,statement}:
-  r1,First requirement,System MUST do the first thing.
-scenarios[1]{req_id,id,given,when,then}:
-  r1,s1,,doing the first thing,it works
-```
-"#;
-    fs::write(spec_dir.join("spec.md"), spec_content).expect("write spec");
+    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nvalid_commands[1]: \"cargo test\"\nevidence[1]: tests/sdd_integration_tests.rs\nrequirements[1]{req_id,title,statement}:\n  r1,First requirement,System MUST do the first thing.\nscenarios[1]{req_id,id,given,when,then}:\n  r1,s1,,doing the first thing,it works\n";
+    fs::write(spec_dir.join("spec.toon"), spec_content).expect("write spec");
 
     git_commit_all(work_dir, "add toon spec");
 
@@ -430,27 +387,8 @@ fn test_sdd_given_mapping_to_raw_text_is_deterministic() {
     let llmanspec_dir = work_dir.join("llmanspec");
     let spec_dir = llmanspec_dir.join("specs").join("sample");
     fs::create_dir_all(&spec_dir).expect("create spec dir");
-    let spec_content = r#"---
-llman_spec_valid_scope:
-  - src
-llman_spec_valid_commands:
-  - cargo test
-llman_spec_evidence:
-  - tests/sdd_integration_tests.rs
----
-
-```toon
-kind: llman.sdd.spec
-name: sample
-purpose: "Describe sample behavior."
-requirements[1]{req_id,title,statement}:
-  r1,First requirement,System MUST do the first thing.
-scenarios[2]{req_id,id,given,when,then}:
-  r1,s1,,run the flow,it works
-  r1,s2,user exists,run the flow,it works
-```
-"#;
-    fs::write(spec_dir.join("spec.md"), spec_content).expect("write spec");
+    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nvalid_commands[1]: \"cargo test\"\nevidence[1]: tests/sdd_integration_tests.rs\nrequirements[1]{req_id,title,statement}:\n  r1,First requirement,System MUST do the first thing.\nscenarios[2]{req_id,id,given,when,then}:\n  r1,s1,,run the flow,it works\n  r1,s2,user exists,run the flow,it works\n";
+    fs::write(spec_dir.join("spec.toon"), spec_content).expect("write spec");
 
     let show_output = run_llman(
         &["sdd", "show", "sample", "--type", "spec", "--json"],
@@ -701,15 +639,8 @@ fn test_sdd_show_change_json_uses_delta_specs() {
         "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n",
     )
     .expect("write proposal");
-    let delta_spec = r#"```toon
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  added,added,,a new action is taken,the new behavior happens
-```
-"#;
-    fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
+    let delta_spec = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  added,added,,a new action is taken,the new behavior happens\n";
+    fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
 
     let show_output = run_llman(
         &["sdd", "show", "add-sample", "--type", "change", "--json"],
@@ -772,15 +703,8 @@ fn test_sdd_validate_change_json_succeeds() {
     )
     .expect("write design");
     fs::write(change_dir.join("tasks.md"), "- [x] Implement the change\n").expect("write tasks");
-    let delta_spec = r#"```toon
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  added,added,,a new action is taken,the new behavior happens
-```
-"#;
-    fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
+    let delta_spec = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  added,added,,a new action is taken,the new behavior happens\n";
+    fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
 
     let validate_output = run_llman(
         &[
@@ -1203,15 +1127,8 @@ fn test_sdd_validate_change_without_future_md_still_succeeds() {
     )
     .expect("write design");
     fs::write(change_dir.join("tasks.md"), "## 1. Tasks\n- [x] 1.1 Done\n").expect("write tasks");
-    let delta_spec = r#"```toon
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  added,added,,a new action is taken,the new behavior happens
-```
-"#;
-    fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
+    let delta_spec = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  added,added,,a new action is taken,the new behavior happens\n";
+    fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
 
     let validate_output = run_llman(
         &[
@@ -1251,15 +1168,8 @@ fn test_sdd_validate_tasks_without_design_is_error() {
     )
     .expect("write proposal");
     fs::write(change_dir.join("tasks.md"), "## Tasks\n- [x] Done\n").expect("write tasks");
-    let delta_spec = r#"```toon
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  add_requirement,r1,Test,System MUST test.,null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  r1,happy,"",trigger,outcome
-```
-"#;
-    fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
+    let delta_spec = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,r1,Test,System MUST test.,null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  r1,happy,\"\",trigger,outcome\n";
+    fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
 
     let validate_output = run_llman(
         &[
@@ -1384,15 +1294,8 @@ fn test_sdd_show_change_full_stage_ready_to_implement() {
         "## Why\nFull change.\n\n## What Changes\n- Add behavior.\n",
     )
     .expect("write proposal");
-    let delta_spec = r#"```toon
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  added,added,,a new action is taken,the new behavior happens
-```
-"#;
-    fs::write(change_specs_dir.join("spec.md"), delta_spec).expect("write delta spec");
+    let delta_spec = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  added,added,,a new action is taken,the new behavior happens\n";
+    fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
     fs::write(change_dir.join("design.md"), "# Design\nTrivial.\n").expect("write design");
     fs::write(change_dir.join("tasks.md"), "- [ ] implement\n").expect("write tasks");
 

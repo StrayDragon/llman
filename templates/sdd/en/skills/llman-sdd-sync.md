@@ -12,10 +12,10 @@ This is a manual, reproducible protocol.
 ## Steps
 1. Select the change id (prompt the user if ambiguous).
    - Always announce: "Using change: <id>".
-2. For each delta spec at `llmanspec/changes/<id>/specs/<capability>/spec.md`:
+2. For each delta spec at `llmanspec/changes/<id>/specs/<capability>/spec.toon`:
    - Read the delta
-   - Read (or create) the main spec: `llmanspec/specs/<capability>/spec.md`
-   - Apply the delta semantics manually (add/modify/remove/rename + scenarios), matching the project’s configured `spec_style` (`toon`).
+   - Read (or create) the main spec: `llmanspec/specs/<capability>/spec.toon`
+   - Apply the delta semantics manually (add/modify/remove/rename + scenarios), keeping the main spec a standalone TOON document.
 3. Validate specs:
    ```bash
    llman sdd validate --specs --strict --no-interactive

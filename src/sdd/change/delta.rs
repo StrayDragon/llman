@@ -1,5 +1,4 @@
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-use crate::sdd::spec::fence::render_code_fence;
 use anyhow::{Result, anyhow};
 
 #[derive(Debug, Clone)]
@@ -132,8 +131,7 @@ pub fn parse_delta_spec(content: &str, context: &str) -> Result<DeltaPlan> {
     })
 }
 
-/// Re-serialize a delta spec document back to a fenced markdown block.
+/// Re-serialize a delta spec document to raw TOON (standalone `.toon` file content).
 pub fn render_delta_spec(doc: &crate::sdd::spec::ir::DeltaSpecDoc) -> Result<String> {
-    let payload = BACKEND.dump_delta_spec(doc)?;
-    Ok(render_code_fence("toon", &payload))
+    BACKEND.dump_delta_spec(doc)
 }

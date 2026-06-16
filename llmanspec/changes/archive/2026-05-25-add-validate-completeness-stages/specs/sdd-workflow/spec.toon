@@ -1,0 +1,14 @@
+kind: llman.sdd.delta
+ops[4]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r43,变更完整度阶段检测,`llman sdd validate` MUST 在校验变更时检测并报告变更的完整度阶段。阶段定义为：`draft`（仅 proposal.md）、`specified`（proposal.md + specs/*/spec.md）、`designed`（proposal.md + specs/ + design.md）、`full`（proposal.md + specs/ + design.md + tasks.md）。校验输出 MUST 包含当前阶段标识。,null,null,null
+  add_requirement,r44,Design 前置约束,"`llman sdd validate` MUST 在变更包含 `tasks.md` 但缺少 `design.md` 时报 ERROR。该约束在 strict 与 non-strict 模式下均 MUST 生效。错误消息 MUST 包含具体的修复指引。",null,null,null
+  add_requirement,r45,分级校验消息,"`llman sdd validate` MUST 根据 strict/non-strict 模式输出不同级别的完整度消息：non-strict 模式下缺少可选 artifact 输出 INFO；strict 模式下未达到 designed 阶段 MUST 输出 WARN（由 INFO 升级）。",null,null,null
+  add_requirement,r46,List 阶段列,`llman sdd list` MUST 在变更列表输出中包含 stage 列，显示每个变更的完整度阶段（draft/specified/designed/full）。JSON 输出 MUST 包含 `stage` 字段。,null,null,null
+op_scenarios[7]{req_id,id,given,when,then}:
+  r43,"仅有-proposal",变更目录仅包含 proposal.md,"用户执行 `llman sdd validate <change-id>`",输出包含阶段标识 `draft`
+  r43,完整变更,变更目录包含 proposal.md + specs/ + design.md + tasks.md,"用户执行 `llman sdd validate <change-id>`",输出包含阶段标识 `full`
+  r44,"tasks-无-design",变更目录包含 proposal.md、specs/、tasks.md 但缺少 design.md,"用户执行 `llman sdd validate <change-id>`",校验失败并输出 ERROR 级别消息
+  r44,"tasks-有-design",变更目录包含 proposal.md、specs/、design.md、tasks.md,"用户执行 `llman sdd validate <change-id>`",不产生 design 前置约束相关的错误
+  r45,"non-strict-draft",变更处于 draft 阶段,"用户执行 `llman sdd validate <change-id>`（非 strict）",输出 INFO 级别的阶段提示
+  r45,"strict-draft",变更处于 draft 阶段,"用户执行 `llman sdd validate <change-id> --strict`",输出 WARN 级别的阶段提示
+  r46,"list-显示-stage",存在多个不同阶段的变更,用户执行 `llman sdd list`,输出中每行包含 stage 列
