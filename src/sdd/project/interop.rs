@@ -326,11 +326,6 @@ fn migrate_spec(
             truncate(&spec.purpose, 200)
         },
         valid_scope: vec!["src/".to_string(), "tests/".to_string()],
-        valid_commands: vec![format!(
-            "llman sdd validate {} --type spec --strict --no-interactive",
-            spec.name
-        )],
-        evidence: vec!["migrated from openspec".to_string()],
         requirements,
         scenarios,
         feature_refs: None,

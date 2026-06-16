@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "codex-agents-management"
 purpose: "TBD - created by syncing change manage-codex-agents. Update Purpose after archive."
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate codex-agents-management --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[12]{req_id,title,statement}:
   r1,提供 `llman x codex agents` 命令组,"系统 MUST 提供 `llman x codex agents` 命令组以管理 Codex 的 custom agents 配置，并包含以下子命令： - `import`：从目标 Codex agents 目录导入到 llman 托管目录 - `sync`：从 llman 托管目录同步到目标 Codex agents 目录 - `inject`：将 llman prompts（codex 模板）注入到托管的 agent TOML 的 `developer_instructions` - `status`：展示托管目录与目标目录的差异与同步/注入可行性（只读）"
   r2,提供 `status` 只读检查,"`llman x codex agents status` MUST 以只读方式检查托管目录与目标目录的当前状态，并输出至少包含： - 托管目录路径与目标目录路径 - 托管目录内的 `*.toml` 列表 - 对每个托管文件，目标侧是否存在同名文件，以及是否为“指向托管文件”的正确 symlink（或在 copy 模式下是否一致） - 对每个托管文件，是否存在可注入的 `developer_instructions` 字段（用于提示 inject 是否会跳过） `status` MUST NOT 写入任何文件（包括备份文件）。"

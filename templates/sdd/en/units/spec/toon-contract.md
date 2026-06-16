@@ -8,13 +8,7 @@ SDD main specs and delta specs are authored as **standalone `.toon` files** — 
 kind: llman.sdd.spec
 name: sample
 purpose: "One-line overview."
-valid_scope[2]:
-  src/
-  tests/
-valid_commands[1]:
-  "llman sdd validate sample --type spec --strict --no-interactive"
-evidence[1]:
-  "TODO: add evidence (CI link, benchmark output, etc.)"
+valid_scope[2]: src/,tests/
 requirements[1]{req_id,title,statement}:
   r1,Requirement title,System MUST do something.
 scenarios[1]{req_id,id,given,when,then}:
@@ -23,7 +17,7 @@ scenarios[1]{req_id,id,given,when,then}:
 
 - `kind` MUST be `llman.sdd.spec`.
 - `name` SHOULD match the spec directory name.
-- `valid_scope` / `valid_commands` / `evidence` are the validation proof-metadata. Each MUST be present and non-empty. They are flat single-column tabular arrays (e.g. `valid_scope[2]: src/,tests/`).
+- `valid_scope` is the validation scope (drives the staleness check). It MUST be present and non-empty, as a flat single-column tabular array (e.g. `valid_scope[2]: src/,tests/`). (`valid_commands` and `evidence` were dropped — only `valid_scope` is functionally consumed.)
 
 ### Main spec with BDD feature_refs (point-only)
 
@@ -33,13 +27,7 @@ When `config.yaml` defines a `bdd` block, a spec may point to `.feature` files f
 kind: llman.sdd.spec
 name: sample
 purpose: "Behavior lives in the referenced .feature file."
-valid_scope[2]:
-  src/
-  tests/
-valid_commands[1]:
-  "pytest tests/features/sample.feature -v"
-evidence[1]:
-  "covered by .feature"
+valid_scope[2]: src/,tests/features/sample.feature
 feature_refs[1]{path,scope,required}:
   tests/features/sample.feature,acceptance,true
 ```

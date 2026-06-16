@@ -43,8 +43,6 @@ pub struct ValidationReport {
 #[derive(Debug, Clone)]
 pub struct SpecFrontmatter {
     pub valid_scope: Vec<String>,
-    pub valid_commands: Vec<String>,
-    pub evidence: Vec<String>,
 }
 
 pub struct SpecValidation {
@@ -94,16 +92,14 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
         Ok(doc) => {
             let mut issues = Vec::new();
 
-            // Validation proof-metadata now lives inside the TOON document
-            // (valid_scope / valid_commands / evidence), replacing the YAML frontmatter.
+            // Validation scope lives inside the TOON document (valid_scope),
+            // replacing the YAML frontmatter. Drives the staleness check.
             validate_spec_meta(&doc, &spec_name, &mut issues);
             let frontmatter = if has_meta_errors(&issues) {
                 None
             } else {
                 Some(SpecFrontmatter {
                     valid_scope: doc.valid_scope.clone(),
-                    valid_commands: doc.valid_commands.clone(),
-                    evidence: doc.evidence.clone(),
                 })
             };
 
@@ -157,12 +153,10 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
     }
 }
 
-/// Validate the in-document proof-metadata (valid_scope / valid_commands /
-/// evidence). Each list must be present and non-empty for a main spec.
+/// Validate the in-document scope (valid_scope). Must be present and non-empty
+/// for a main spec; drives the staleness check.
 fn validate_spec_meta(doc: &MainSpecDoc, spec_name: &str, issues: &mut Vec<ValidationIssue>) {
     validate_meta_list(&doc.valid_scope, spec_name, "valid_scope", issues);
-    validate_meta_list(&doc.valid_commands, spec_name, "valid_commands", issues);
-    validate_meta_list(&doc.evidence, spec_name, "evidence", issues);
 }
 
 fn validate_meta_list(
@@ -186,15 +180,12 @@ fn validate_meta_list(
     }
 }
 
-/// Whether any issue emitted so far is a meta-field ERROR (used to suppress
-/// populating `SpecFrontmatter` for staleness when meta is malformed).
+/// Whether any issue emitted so far is a valid_scope ERROR (used to suppress
+/// populating `SpecFrontmatter` for staleness when scope is malformed).
 fn has_meta_errors(issues: &[ValidationIssue]) -> bool {
-    issues.iter().any(|issue| {
-        issue.level == ValidationLevel::Error
-            && (issue.path.ends_with("/valid_scope")
-                || issue.path.ends_with("/valid_commands")
-                || issue.path.ends_with("/evidence"))
-    })
+    issues
+        .iter()
+        .any(|issue| issue.level == ValidationLevel::Error && issue.path.ends_with("/valid_scope"))
 }
 
 #[allow(clippy::items_after_test_module)]
@@ -204,21 +195,19 @@ mod tests {
 
     #[test]
     fn meta_missing_is_error() {
-        // A spec with no valid_scope / valid_commands / evidence is invalid.
+        // A spec with no valid_scope is invalid.
         let doc = MainSpecDoc {
             kind: "llman.sdd.spec".to_string(),
             name: "sample".to_string(),
             purpose: "x".to_string(),
             valid_scope: Vec::new(),
-            valid_commands: Vec::new(),
-            evidence: Vec::new(),
             requirements: Vec::new(),
             scenarios: Vec::new(),
             feature_refs: None,
         };
         let mut issues = Vec::new();
         validate_spec_meta(&doc, "sample", &mut issues);
-        assert_eq!(issues.len(), 3);
+        assert_eq!(issues.len(), 1);
         assert!(issues.iter().all(|i| i.level == ValidationLevel::Error));
     }
 
@@ -229,8 +218,6 @@ mod tests {
             name: "sample".to_string(),
             purpose: "x".to_string(),
             valid_scope: vec!["src/".to_string(), "tests/".to_string()],
-            valid_commands: vec!["cargo test".to_string()],
-            evidence: vec!["CI #123".to_string()],
             requirements: Vec::new(),
             scenarios: Vec::new(),
             feature_refs: None,

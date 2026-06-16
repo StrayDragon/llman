@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "sdd-structured-skill-prompts"
 purpose: "TBD - created by archiving change upgrade-sdd-archive-freeze-and-structured-prompts. Update Purpose after archive."
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate sdd-structured-skill-prompts --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[6]{req_id,title,statement}:
   r1,SDD 技能结构化提示协议,"llman SDD 的技能模板 MUST 采用统一结构化提示协议，并通过模板单元注入方式组装协议块，以降低重复维护成本并保持内容一致性。 协议至少包含以下逻辑层： - `Context` - `Goal` - `Constraints` - `Workflow` - `Decision Policy` - `Output Contract`"
   r2,协议自包含且无外部技能硬依赖,结构化提示协议 MUST 以内置规则表述，不得要求调用外部技能作为前置依赖。

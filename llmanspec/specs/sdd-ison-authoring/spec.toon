@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "sdd-ison-authoring"
 purpose: "TBD - created by archiving change migrate-llmanspec-specs-to-ison-table. Update Purpose after archive."
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate sdd-ison-authoring --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[7]{req_id,title,statement}:
   r1,Canonical Table ISON Schema for Main Specs,"当 `llmanspec/config.yaml` 声明 `spec_style: ison` 时，`llmanspec/specs/<capability>/spec.md` MUST embed canonical semantic content using table/object ISON inside one or more fenced ` ```ison ` code blocks. The ISON payload MUST provide these blocks with strictly fixed names and columns: - `object.spec` (exactly 1 row): `kind name purpose` - `table.requirements`: `req_id title statement` - `table.scenarios`: `req_id id given when then` Validation MUST enforce: - `object.spec.kind` equals `llman.sdd.s"
   r2,Canonical Table ISON Schema for Delta Specs,"当 `llmanspec/config.yaml` 声明 `spec_style: ison` 时，`llmanspec/changes/<change-id>/specs/<capability>/spec.md` MUST embed delta semantics using table/object ISON inside one or more fenced ` ```ison ` code blocks. The ISON payload MUST provide these blocks with strictly fixed names and columns: - `object.delta` (exactly 1 row): `kind` (kind = `llman.sdd.delta`) - `table.ops`: `op req_id title statement from to name` - `table.op_scenarios`: `req_id id given when then` Validation MUST enforce: - `obj"

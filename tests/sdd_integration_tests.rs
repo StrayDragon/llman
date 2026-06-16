@@ -206,7 +206,7 @@ fn test_sdd_show_validate_archive_flow() {
     let llmanspec_dir = work_dir.join("llmanspec");
     let spec_dir = llmanspec_dir.join("specs").join("sample");
     fs::create_dir_all(&spec_dir).expect("create spec dir");
-    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nvalid_commands[1]: \"cargo test\"\nevidence[1]: tests/sdd_integration_tests.rs\nrequirements[1]{req_id,title,statement}:\n  existing,Existing behavior,System MUST preserve existing behavior.\nscenarios[1]{req_id,id,given,when,then}:\n  existing,baseline,,running the sample,behavior is preserved\n";
+    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nrequirements[1]{req_id,title,statement}:\n  existing,Existing behavior,System MUST preserve existing behavior.\nscenarios[1]{req_id,id,given,when,then}:\n  existing,baseline,,running the sample,behavior is preserved\n";
     fs::write(spec_dir.join("spec.toon"), spec_content).expect("write spec");
 
     let change_dir = llmanspec_dir.join("changes").join("add-sample");
@@ -337,7 +337,7 @@ fn test_sdd_single_toon_block_show_and_validate_spec() {
     let llmanspec_dir = work_dir.join("llmanspec");
     let spec_dir = llmanspec_dir.join("specs").join("sample");
     fs::create_dir_all(&spec_dir).expect("create spec dir");
-    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nvalid_commands[1]: \"cargo test\"\nevidence[1]: tests/sdd_integration_tests.rs\nrequirements[1]{req_id,title,statement}:\n  r1,First requirement,System MUST do the first thing.\nscenarios[1]{req_id,id,given,when,then}:\n  r1,s1,,doing the first thing,it works\n";
+    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nrequirements[1]{req_id,title,statement}:\n  r1,First requirement,System MUST do the first thing.\nscenarios[1]{req_id,id,given,when,then}:\n  r1,s1,,doing the first thing,it works\n";
     fs::write(spec_dir.join("spec.toon"), spec_content).expect("write spec");
 
     git_commit_all(work_dir, "add toon spec");
@@ -387,7 +387,7 @@ fn test_sdd_given_mapping_to_raw_text_is_deterministic() {
     let llmanspec_dir = work_dir.join("llmanspec");
     let spec_dir = llmanspec_dir.join("specs").join("sample");
     fs::create_dir_all(&spec_dir).expect("create spec dir");
-    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nvalid_commands[1]: \"cargo test\"\nevidence[1]: tests/sdd_integration_tests.rs\nrequirements[1]{req_id,title,statement}:\n  r1,First requirement,System MUST do the first thing.\nscenarios[2]{req_id,id,given,when,then}:\n  r1,s1,,run the flow,it works\n  r1,s2,user exists,run the flow,it works\n";
+    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nrequirements[1]{req_id,title,statement}:\n  r1,First requirement,System MUST do the first thing.\nscenarios[2]{req_id,id,given,when,then}:\n  r1,s1,,run the flow,it works\n  r1,s2,user exists,run the flow,it works\n";
     fs::write(spec_dir.join("spec.toon"), spec_content).expect("write spec");
 
     let show_output = run_llman(

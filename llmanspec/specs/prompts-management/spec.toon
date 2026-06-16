@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "prompts-management"
 purpose: "TBD - created by archiving change add-prompts-injection. Update Purpose after archive."
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate prompts-management --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[13]{req_id,title,statement}:
   r1,`llman prompts` 仅作为交互式编排入口,"`llman prompts` MUST 仅在交互环境中运行，并作为对 `llman x <app> prompts` 的编排入口（不承载具体的模板 CRUD 或注入落盘逻辑）。 命令 MUST 提供 `--no-interactive` 选项，用于在非交互环境下输出迁移提示并正常退出。"
   r2,`prompts` 为主命令并保留 `prompt` 别名,CLI MUST 将 `llman prompts` 作为主命令名，并且 MUST 接受 `llman prompt` 作为等价别名。

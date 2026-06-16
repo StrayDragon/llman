@@ -8,13 +8,7 @@ SDD 主 spec 与 delta spec 都以**独立的 `.toon` 文件**承载——每个
 kind: llman.sdd.spec
 name: sample
 purpose: "One-line overview."
-valid_scope[2]:
-  src/
-  tests/
-valid_commands[1]:
-  "llman sdd validate sample --type spec --strict --no-interactive"
-evidence[1]:
-  "TODO: add evidence (CI link, benchmark output, etc.)"
+valid_scope[2]: src/,tests/
 requirements[1]{req_id,title,statement}:
   r1,Requirement title,System MUST do something.
 scenarios[1]{req_id,id,given,when,then}:
@@ -23,7 +17,7 @@ scenarios[1]{req_id,id,given,when,then}:
 
 - `kind` 必须为 `llman.sdd.spec`。
 - `name` 应与 spec 目录名一致。
-- `valid_scope` / `valid_commands` / `evidence` 是校验元数据（原 YAML frontmatter）。三者都必须存在且非空。它们是扁平的单列表格化数组（例如 `valid_scope[2]: src/,tests/`）。
+- `valid_scope` 是校验作用域（驱动 staleness 检查）。必须存在且非空，为扁平单列表格化数组（例如 `valid_scope[2]: src/,tests/`）。（`valid_commands` 与 `evidence` 已移除——仅有 `valid_scope` 被实际消费。）
 
 ### Main spec with BDD feature_refs（point-only 模式）
 
@@ -33,13 +27,7 @@ scenarios[1]{req_id,id,given,when,then}:
 kind: llman.sdd.spec
 name: sample
 purpose: "Behavior lives in the referenced .feature file."
-valid_scope[2]:
-  src/
-  tests/
-valid_commands[1]:
-  "pytest tests/features/sample.feature -v"
-evidence[1]:
-  "covered by .feature"
+valid_scope[2]: src/,tests/features/sample.feature
 feature_refs[1]{path,scope,required}:
   tests/features/sample.feature,acceptance,true
 ```

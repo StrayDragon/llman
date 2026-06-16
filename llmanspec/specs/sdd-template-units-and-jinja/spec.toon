@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "sdd-template-units-and-jinja"
 purpose: "TBD - created by archiving change refactor-sdd-template-units-minijinja. Update Purpose after archive."
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate sdd-template-units-and-jinja --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[4]{req_id,title,statement}:
   r1,SDD Template Units Must Be Independent and Discoverable,"SDD prompt composition MUST split reusable prompt fragments into independent template-unit files, with explicit unit identifiers and deterministic lookup rules by locale."
   r2,SDD Rendering Must Use MiniJinja Injection Contracts,"SDD template rendering MUST use MiniJinja-based injection for unit composition, and rendering MUST fail fast on missing unit references or missing required variables."

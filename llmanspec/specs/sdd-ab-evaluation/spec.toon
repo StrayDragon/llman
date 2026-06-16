@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "sdd-ab-evaluation"
 purpose: "Define reproducible evaluation suites for SDD prompts and agentic workflows, including multi-style comparisons and hard-gated validation."
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate sdd-ab-evaluation --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[12]{req_id,title,statement}:
   r1,"Built-In Old-vs-New Evaluation Flow",The SDD workflow MUST provide an evaluation flow that compares legacy and new style outputs on the same scenario set.
   r2,提供可复现的 SDD prompts Promptfoo 评估套件,SDD workflow MUST 提供一套可复现的 Promptfoo 评估套件，用于对比不同风格/版本的 SDD prompt（baseline vs candidate）。该评估套件（fixtures + 默认模型列表）MUST 存放在仓库顶层 `agentdev/promptfoo/`（而不是 `artifacts/`），并且评估流程 MUST 支持在隔离的临时目录下运行以避免触碰真实用户配置。

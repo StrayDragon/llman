@@ -48,15 +48,13 @@ pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
 
-    // Standalone `.toon` file: validation proof-metadata lives inside the TOON
-    // document (valid_scope / valid_commands / evidence), not a YAML frontmatter.
+    // Standalone `.toon` file: validation scope (valid_scope) lives inside the
+    // TOON document, not a YAML frontmatter.
     let spec = MainSpecDoc {
         kind: "llman.sdd.spec".to_string(),
         name: args.capability.clone(),
         purpose: "TODO: Describe this capability and its purpose.".to_string(),
         valid_scope: vec!["src/".to_string(), "tests/".to_string()],
-        valid_commands: vec!["cargo test".to_string()],
-        evidence: vec!["TODO: add evidence (CI link, benchmark output, etc.)".to_string()],
         requirements: Vec::new(),
         scenarios: Vec::new(),
         feature_refs: None,

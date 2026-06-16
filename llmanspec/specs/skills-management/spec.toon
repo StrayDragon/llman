@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "skills-management"
 purpose: 描述 llman 在不同来源中发现技能、进行托管快照、处理冲突并为目标路径建立链接的整体流程和约束。
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate skills-management --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[17]{req_id,title,statement}:
   r1,交互式技能管理入口,`llman skills` MUST 在交互式终端扫描 `<skills_root>` 后，直接进入既有交互主流程：先选择 agent，再选择 scope，最后进入 skills 多选。`mode=skip` 的 target 必须展示为只读不可切换。用户确认后，管理器 MUST 仅对选定 target 执行差异同步：新增项创建软链接、取消项移除软链接。命令 MUST NOT 创建或更新 `store/` 快照。
   r2,尊重忽略规则并跳过软链接,管理器 MUST 在扫描时遵循 `.gitignore` 与全局忽略规则；若技能目录或 `SKILL.md` 为软链接，管理器 MUST 解析其目标并在目标包含 `SKILL.md` 时将其视为可管理技能。

@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "nightly-toolchain-governance"
 purpose: "TBD - created by archiving change deps-and-toolchain-upgrade. Update Purpose after archive."
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate nightly-toolchain-governance --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[3]{req_id,title,statement}:
   r1,Pinned nightly is the single build baseline,"The repository MUST define a single pinned nightly toolchain baseline in `rust-toolchain.toml`, and maintainers MUST treat it as the authoritative local build toolchain."
   r2,Nightly bump uses explicit validation gates,"When the pinned nightly date is upgraded, maintainers MUST validate the new baseline with the project quality gates before considering the bump complete."

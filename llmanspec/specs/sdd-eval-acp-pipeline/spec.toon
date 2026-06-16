@@ -2,8 +2,6 @@ kind: llman.sdd.spec
 name: "sdd-eval-acp-pipeline"
 purpose: "Provide an experimental `llman x sdd-eval` pipeline that can run scripted, repeatable SDD evaluations across multiple workflow styles (`sdd` vs `sdd-legacy`) and multiple ACP agents (Claude Code / Cod"
 valid_scope[2]: src/,tests/
-valid_commands[1]: "llman sdd validate sdd-eval-acp-pipeline --type spec --strict --no-interactive"
-evidence[1]: migrated from openspec
 requirements[11]{req_id,title,statement}:
   r1,"`llman x sdd-eval` command is available","The CLI MUST provide the experimental subcommand `llman x sdd-eval` with playbook-driven execution."
   r2,Playbooks are managed under the project `.llman/` directory,"By default, `llman x sdd-eval init` MUST create playbooks under `<project>/.llman/sdd-eval/playbooks/`. `llman x sdd-eval run` MUST accept an explicit playbook path, and MUST resolve relative paths from the current working directory."

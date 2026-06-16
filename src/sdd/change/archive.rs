@@ -307,11 +307,6 @@ fn build_updated_spec(
             name: update.capability.clone(),
             purpose,
             valid_scope: vec!["src/".to_string(), "tests/".to_string()],
-            valid_commands: vec!["cargo test".to_string()],
-            evidence: vec![format!(
-                "Archived from change {change}",
-                change = change_name
-            )],
             requirements: Vec::new(),
             scenarios: Vec::new(),
             feature_refs: None,
@@ -693,8 +688,6 @@ mod tests {
         assert!(result.0.contains("New capability"));
         assert!(result.0.contains("System MUST support the new capability."));
         assert!(result.0.contains("valid_scope"));
-        assert!(result.0.contains("valid_commands"));
-        assert!(result.0.contains("evidence"));
     }
 
     #[test]
@@ -722,7 +715,7 @@ mod tests {
         let delta = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  modify_requirement,beta,\"Beta\",\"System MUST update beta.\",null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  beta,beta,\"\",beta changes,it is updated\n";
         write_file(&change_spec, delta);
 
-        let existing_spec = "kind: llman.sdd.spec\nname: foo\npurpose: \"Test spec.\"\nvalid_scope[1]:\n  src\nvalid_commands[1]:\n  cargo test\nevidence[1]:\n  tests\nrequirements[1]{req_id,title,statement}:\n  alpha,\"Alpha\",\"System MUST support alpha.\"\nscenarios[1]{req_id,id,given,when,then}:\n  alpha,alpha,\"\",alpha is used,it works\n";
+        let existing_spec = "kind: llman.sdd.spec\nname: foo\npurpose: \"Test spec.\"\nvalid_scope[1]: src\nrequirements[1]{req_id,title,statement}:\n  alpha,\"Alpha\",\"System MUST support alpha.\"\nscenarios[1]{req_id,id,given,when,then}:\n  alpha,alpha,\"\",alpha is used,it works\n";
         let target = dir.path().join("llmanspec/specs/foo/spec.toon");
         write_file(&target, existing_spec);
 

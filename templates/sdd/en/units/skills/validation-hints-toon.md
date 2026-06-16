@@ -1,18 +1,13 @@
 Validation fixes (TOON standalone specs):
 
-1) Missing validation meta (`Spec valid_scope must not be empty` etc.):
-Main specs MUST carry non-empty `valid_scope` / `valid_commands` / `evidence` inside the `.toon` document.
+1) Missing validation scope (`Spec valid_scope must not be empty`):
+Main specs MUST carry a non-empty `valid_scope` inside the `.toon` document.
 `llmanspec/specs/<feature-id>/spec.toon`:
 ```toon
 kind: llman.sdd.spec
 name: sample
 purpose: "One-line overview."
-valid_scope[1]:
-  src
-valid_commands[1]:
-  "llman sdd validate sample --type spec --strict --no-interactive"
-evidence[1]:
-  "<evidence>"
+valid_scope[1]: src
 requirements[1]{req_id,title,statement}:
   r1,Title,System MUST do something.
 scenarios[1]{req_id,id,given,when,then}:
