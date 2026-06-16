@@ -286,12 +286,18 @@ pub enum SddCommands {
     },
     /// Migrate specs to the current canonical format (one-shot, idempotent)
     Migrate {
-        /// Parse and report without writing files
+        /// Scan and report without writing files (no confirmation prompt)
         #[arg(long)]
         dry_run: bool,
-        /// Re-migrate even if a `.toon` file already exists
+        /// Re-migrate even when both `spec.toon` and legacy `spec.md` exist
         #[arg(long)]
         force: bool,
+        /// Skip the confirmation prompt and apply (for agents/scripts)
+        #[arg(short = 'y', long)]
+        yes: bool,
+        /// Treat the terminal as non-interactive
+        #[arg(long)]
+        no_interactive: bool,
     },
     /// Output an upgrade guide prompt for the current SDD project
     UpgradeGuide,
@@ -575,9 +581,16 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 force: *force,
             },
         ),
-        SddCommands::Migrate { dry_run, force } => migrate::run(migrate::MigrateArgs {
+        SddCommands::Migrate {
+            dry_run,
+            force,
+            yes,
+            no_interactive,
+        } => migrate::run(migrate::MigrateArgs {
             dry_run: *dry_run,
             force: *force,
+            yes: *yes,
+            no_interactive: *no_interactive,
         }),
         SddCommands::UpgradeGuide => upgrade_guide::run(),
     }
