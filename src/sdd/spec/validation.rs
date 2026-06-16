@@ -1,4 +1,5 @@
 use crate::sdd::project::config::{ArchiveConfig, BddConfig};
+use crate::sdd::shared::constants::SPEC_FILE;
 use crate::sdd::shared::tasks::{self, TaskStatus};
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
 use crate::sdd::spec::frontmatter::split_frontmatter;
@@ -80,18 +81,32 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
         .unwrap_or("spec")
         .to_string();
 
-    let parsed_frontmatter = parse_spec_frontmatter(path, content);
-    let mut issues = parsed_frontmatter.issues;
-    let body = parsed_frontmatter.body.clone();
-
     let context = format!("spec `{}`", spec_name);
+    let bdd_enabled = bdd_config.is_some();
+
+    // Specs are standalone TOON documents: parse the whole file directly.
     let parse_result = if strict {
-        BACKEND.parse_main_spec_strict(&body, &context)
+        BACKEND.parse_main_spec_strict(content, &context)
     } else {
-        BACKEND.parse_main_spec(&body, &context)
+        BACKEND.parse_main_spec(content, &context)
     };
     match parse_result {
         Ok(doc) => {
+            let mut issues = Vec::new();
+
+            // Validation proof-metadata now lives inside the TOON document
+            // (valid_scope / valid_commands / evidence), replacing the YAML frontmatter.
+            validate_spec_meta(&doc, &spec_name, &mut issues);
+            let frontmatter = if has_meta_errors(&issues) {
+                None
+            } else {
+                Some(SpecFrontmatter {
+                    valid_scope: doc.valid_scope.clone(),
+                    valid_commands: doc.valid_commands.clone(),
+                    evidence: doc.evidence.clone(),
+                })
+            };
+
             if doc.name.trim() != spec_name {
                 issues.push(ValidationIssue {
                     level: ValidationLevel::Warning,
@@ -104,7 +119,7 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
                 });
             }
 
-            issues.extend(validate_main_spec_doc(&doc, &spec_name));
+            issues.extend(validate_main_spec_doc(&doc, &spec_name, bdd_enabled));
 
             // BDD feature_refs validation
             let feature_ref_paths: Option<Vec<String>> = doc
@@ -113,202 +128,73 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
                 .map(|refs| refs.iter().map(|r| r.path.clone()).collect());
             if let (Some(root), Some(bdd)) = (project_root, bdd_config) {
                 issues.extend(validate_feature_refs(&doc, root, bdd));
-            } else if doc.feature_refs.is_some() && bdd_config.is_none() {
+            } else if doc.feature_refs.is_some() && !bdd_enabled {
                 issues.push(ValidationIssue {
                     level: ValidationLevel::Warning,
-                    path: format!("specs/{}/spec.md", spec_name),
+                    path: format!("specs/{}/spec.toon", spec_name),
                     message: t!("sdd.validate.feature_refs_no_bdd_config").to_string(),
                 });
             }
 
             SpecValidation {
                 report: build_report(issues, strict),
-                frontmatter: parsed_frontmatter.frontmatter,
+                frontmatter,
                 feature_refs: feature_ref_paths,
             }
         }
         Err(err) => {
-            issues.push(ValidationIssue {
+            let issues = vec![ValidationIssue {
                 level: ValidationLevel::Error,
                 path: "file".to_string(),
                 message: err.to_string(),
-            });
+            }];
             SpecValidation {
                 report: build_report(issues, strict),
-                frontmatter: parsed_frontmatter.frontmatter,
+                frontmatter: None,
                 feature_refs: None,
             }
         }
     }
 }
 
-struct FrontmatterParse {
-    frontmatter: Option<SpecFrontmatter>,
-    body: String,
-    issues: Vec<ValidationIssue>,
+/// Validate the in-document proof-metadata (valid_scope / valid_commands /
+/// evidence). Each list must be present and non-empty for a main spec.
+fn validate_spec_meta(doc: &MainSpecDoc, spec_name: &str, issues: &mut Vec<ValidationIssue>) {
+    validate_meta_list(&doc.valid_scope, spec_name, "valid_scope", issues);
+    validate_meta_list(&doc.valid_commands, spec_name, "valid_commands", issues);
+    validate_meta_list(&doc.evidence, spec_name, "evidence", issues);
 }
 
-fn parse_spec_frontmatter(_path: &Path, content: &str) -> FrontmatterParse {
-    let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
-    let mut issues = Vec::new();
-
-    if !normalized.starts_with("---\n") {
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Error,
-            path: "frontmatter".to_string(),
-            message: t!("sdd.validate.frontmatter_missing").to_string(),
-        });
-        return FrontmatterParse {
-            frontmatter: None,
-            body: normalized,
-            issues,
-        };
-    }
-
-    let mut lines = normalized.lines();
-    let mut yaml_lines = Vec::new();
-    let mut reached_end = false;
-
-    lines.next();
-    for line in lines.by_ref() {
-        if line.trim() == "---" {
-            reached_end = true;
-            break;
-        }
-        yaml_lines.push(line);
-    }
-
-    if !reached_end {
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Error,
-            path: "frontmatter".to_string(),
-            message: t!("sdd.validate.frontmatter_unterminated").to_string(),
-        });
-        return FrontmatterParse {
-            frontmatter: None,
-            body: normalized,
-            issues,
-        };
-    }
-
-    let yaml = yaml_lines.join("\n");
-    let body = lines.collect::<Vec<_>>().join("\n");
-
-    let parsed: serde_yaml::Value = match serde_yaml::from_str(&yaml) {
-        Ok(value) => value,
-        Err(err) => {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: "frontmatter".to_string(),
-                message: t!("sdd.validate.frontmatter_parse_error", error = err).to_string(),
-            });
-            return FrontmatterParse {
-                frontmatter: None,
-                body,
-                issues,
-            };
-        }
-    };
-
-    let scope = parse_frontmatter_list(&parsed, "llman_spec_valid_scope", &mut issues);
-    let commands = parse_frontmatter_list(&parsed, "llman_spec_valid_commands", &mut issues);
-    let evidence = parse_frontmatter_list(&parsed, "llman_spec_evidence", &mut issues);
-
-    let frontmatter = if issues.is_empty() {
-        Some(SpecFrontmatter {
-            valid_scope: scope,
-            valid_commands: commands,
-            evidence,
-        })
-    } else {
-        None
-    };
-
-    FrontmatterParse {
-        frontmatter,
-        body,
-        issues,
-    }
-}
-
-fn parse_frontmatter_list(
-    doc: &serde_yaml::Value,
+fn validate_meta_list(
+    list: &[String],
+    spec_name: &str,
     key: &str,
     issues: &mut Vec<ValidationIssue>,
-) -> Vec<String> {
-    let value = match doc.get(key) {
-        Some(value) => value,
-        None => {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: format!("frontmatter.{}", key),
-                message: t!("sdd.validate.frontmatter_key_missing", key = key).to_string(),
-            });
-            return Vec::new();
-        }
-    };
-
-    let mut items = Vec::new();
-    match value {
-        serde_yaml::Value::String(value) => {
-            let trimmed = value.trim();
-            if trimmed.is_empty() {
-                issues.push(ValidationIssue {
-                    level: ValidationLevel::Error,
-                    path: format!("frontmatter.{}", key),
-                    message: t!("sdd.validate.frontmatter_value_empty", key = key).to_string(),
-                });
-            } else {
-                items.extend(split_csv(trimmed));
-            }
-        }
-        serde_yaml::Value::Sequence(values) => {
-            if values.is_empty() {
-                issues.push(ValidationIssue {
-                    level: ValidationLevel::Error,
-                    path: format!("frontmatter.{}", key),
-                    message: t!("sdd.validate.frontmatter_value_empty", key = key).to_string(),
-                });
-            }
-            for value in values {
-                match value {
-                    serde_yaml::Value::String(value) => {
-                        let trimmed = value.trim();
-                        if trimmed.is_empty() {
-                            continue;
-                        }
-                        items.extend(split_csv(trimmed));
-                    }
-                    _ => {
-                        issues.push(ValidationIssue {
-                            level: ValidationLevel::Error,
-                            path: format!("frontmatter.{}", key),
-                            message: t!("sdd.validate.frontmatter_value_invalid", key = key)
-                                .to_string(),
-                        });
-                    }
-                }
-            }
-        }
-        _ => {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: format!("frontmatter.{}", key),
-                message: t!("sdd.validate.frontmatter_value_invalid", key = key).to_string(),
-            });
-        }
+) {
+    if list
+        .iter()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .count()
+        == 0
+    {
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Error,
+            path: format!("{spec_name}/{key}"),
+            message: t!("sdd.validate.meta_field_empty", key = key).to_string(),
+        });
     }
-
-    items
 }
 
-fn split_csv(value: &str) -> Vec<String> {
-    value
-        .split(',')
-        .map(|item| item.trim().trim_matches('"').trim_matches('\''))
-        .filter(|item| !item.is_empty())
-        .map(|item| item.to_string())
-        .collect()
+/// Whether any issue emitted so far is a meta-field ERROR (used to suppress
+/// populating `SpecFrontmatter` for staleness when meta is malformed).
+fn has_meta_errors(issues: &[ValidationIssue]) -> bool {
+    issues.iter().any(|issue| {
+        issue.level == ValidationLevel::Error
+            && (issue.path.ends_with("/valid_scope")
+                || issue.path.ends_with("/valid_commands")
+                || issue.path.ends_with("/evidence"))
+    })
 }
 
 #[allow(clippy::items_after_test_module)]
@@ -317,36 +203,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn frontmatter_missing_is_error() {
-        let content = "## Purpose\nTest\n\n## Requirements\n";
-        let result = parse_spec_frontmatter(Path::new("spec.md"), content);
-        assert!(!result.issues.is_empty());
-        assert!(result.frontmatter.is_none());
+    fn meta_missing_is_error() {
+        // A spec with no valid_scope / valid_commands / evidence is invalid.
+        let doc = MainSpecDoc {
+            kind: "llman.sdd.spec".to_string(),
+            name: "sample".to_string(),
+            purpose: "x".to_string(),
+            valid_scope: Vec::new(),
+            valid_commands: Vec::new(),
+            evidence: Vec::new(),
+            requirements: Vec::new(),
+            scenarios: Vec::new(),
+            feature_refs: None,
+        };
+        let mut issues = Vec::new();
+        validate_spec_meta(&doc, "sample", &mut issues);
+        assert_eq!(issues.len(), 3);
+        assert!(issues.iter().all(|i| i.level == ValidationLevel::Error));
     }
 
     #[test]
-    fn frontmatter_parses_string_and_list() {
-        let content = r#"---
-llman_spec_valid_scope: "src, tests"
-llman_spec_valid_commands:
-  - cargo test
-llman_spec_evidence: "CI #123"
----
-
-## Purpose
-Test
-
-## Requirements
-"#;
-        let result = parse_spec_frontmatter(Path::new("spec.md"), content);
-        assert!(result.issues.is_empty());
-        let frontmatter = result.frontmatter.expect("frontmatter");
-        assert_eq!(
-            frontmatter.valid_scope,
-            vec!["src".to_string(), "tests".to_string()]
-        );
-        assert_eq!(frontmatter.valid_commands, vec!["cargo test".to_string()]);
-        assert_eq!(frontmatter.evidence, vec!["CI #123".to_string()]);
+    fn meta_present_no_error() {
+        let doc = MainSpecDoc {
+            kind: "llman.sdd.spec".to_string(),
+            name: "sample".to_string(),
+            purpose: "x".to_string(),
+            valid_scope: vec!["src/".to_string(), "tests/".to_string()],
+            valid_commands: vec!["cargo test".to_string()],
+            evidence: vec!["CI #123".to_string()],
+            requirements: Vec::new(),
+            scenarios: Vec::new(),
+            feature_refs: None,
+        };
+        let mut issues = Vec::new();
+        validate_spec_meta(&doc, "sample", &mut issues);
+        assert!(issues.is_empty(), "{issues:?}");
     }
 
     // --- Change-level validation tests ---
@@ -725,7 +616,7 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
             continue;
         }
         let spec_name = entry.file_name().to_string_lossy().to_string();
-        let spec_file = entry.path().join("spec.md");
+        let spec_file = entry.path().join(SPEC_FILE);
         if !spec_file.exists() {
             continue;
         }
@@ -897,8 +788,39 @@ fn count_feature_scenarios(doc: &gherkin::Feature) -> usize {
     count
 }
 
-fn validate_main_spec_doc(doc: &MainSpecDoc, spec_name: &str) -> Vec<ValidationIssue> {
+fn validate_main_spec_doc(
+    doc: &MainSpecDoc,
+    spec_name: &str,
+    bdd_enabled: bool,
+) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
+
+    // BDD "point-only" mode: when the project enables BDD and the spec carries
+    // feature_refs, behavior lives in .feature files. The spec needs no inline
+    // requirements/scenarios; we only enforce pointer hygiene.
+    let has_feature_refs = doc
+        .feature_refs
+        .as_ref()
+        .is_some_and(|refs| !refs.is_empty());
+    let point_only = bdd_enabled && has_feature_refs;
+
+    if bdd_enabled && !has_feature_refs && doc.requirements.is_empty() {
+        // Guardrail: BDD on but the spec neither points to a feature nor declares
+        // requirements → force an explicit mode choice.
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Error,
+            path: format!("{spec_name}/requirements"),
+            message: t!("sdd.validate.bdd_empty_spec_guardrail").to_string(),
+        });
+    }
+
+    if point_only && has_feature_refs && doc.requirements.is_empty() {
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Info,
+            path: format!("{spec_name}/feature_refs"),
+            message: t!("sdd.validate.bdd_point_only").to_string(),
+        });
+    }
 
     let mut req_id_seen = std::collections::HashSet::new();
     for (idx, req) in doc.requirements.iter().enumerate() {
@@ -975,7 +897,9 @@ fn validate_main_spec_doc(doc: &MainSpecDoc, spec_name: &str) -> Vec<ValidationI
             .get(req.req_id.trim())
             .copied()
             .unwrap_or(0);
-        if count == 0 {
+        // In BDD point-only mode, inline scenarios are optional (behavior lives
+        // in the referenced .feature files), so skip the coverage check.
+        if count == 0 && !point_only {
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
                 path: format!("{}/requirements[{}]", spec_name, idx),
@@ -1600,7 +1524,7 @@ fn has_spec_files(specs_dir: &Path) -> bool {
     }
     match fs::read_dir(specs_dir) {
         Ok(entries) => entries.flatten().any(|e| {
-            e.file_type().map(|t| t.is_dir()).unwrap_or(false) && e.path().join("spec.md").exists()
+            e.file_type().map(|t| t.is_dir()).unwrap_or(false) && e.path().join(SPEC_FILE).exists()
         }),
         Err(_) => false,
     }

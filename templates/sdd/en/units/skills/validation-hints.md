@@ -12,7 +12,7 @@ llman_spec_evidence:
 ---
 ```
 
-2) Missing canonical ISON blocks in a main spec (`llmanspec/specs/<feature-id>/spec.md`):
+2) Missing canonical ISON blocks in a main spec (`llmanspec/specs/<feature-id>/spec.toon`):
 ```ison
 object.spec
 kind name purpose
@@ -28,7 +28,7 @@ r1 happy "" "a trigger happens" "the outcome is observed"
 ```
 
 3) No delta ops in a change: add at least one op + scenario in
-`llmanspec/changes/<change-id>/specs/<feature-id>/spec.md`:
+`llmanspec/changes/<change-id>/specs/<feature-id>/spec.toon`:
 ```ison
 object.delta
 kind

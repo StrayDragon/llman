@@ -12,7 +12,7 @@ llman_spec_evidence:
 ---
 ```
 
-2) Main spec 缺少 canonical ISON blocks（`llmanspec/specs/<feature-id>/spec.md`）：
+2) Main spec 缺少 canonical ISON blocks（`llmanspec/specs/<feature-id>/spec.toon`）：
 ```ison
 object.spec
 kind name purpose
@@ -28,7 +28,7 @@ r1 happy "" "发生触发条件" "观察到预期结果"
 ```
 
 3) Change 中没有 delta ops：至少在
-`llmanspec/changes/<change-id>/specs/<feature-id>/spec.md` 添加一条 op + 场景：
+`llmanspec/changes/<change-id>/specs/<feature-id>/spec.toon` 添加一条 op + 场景：
 ```ison
 object.delta
 kind

@@ -25,7 +25,7 @@ description: "进入 llman SDD 探索模式（仅思考；不做实现）。"
 4. 探索 2–3 个选项与权衡。
 5. 当结论逐渐清晰时，建议用户把它记录下来（不要自动写入）：
    - 范围变化 → `proposal.md`
-   - 需求变化 → `llmanspec/changes/<id>/specs/<capability>/spec.md`
+   - 需求变化 → `llmanspec/changes/<id>/specs/<capability>/spec.toon`
    - 设计决策 → `design.md`
    - 新工作项 → `tasks.md`
 

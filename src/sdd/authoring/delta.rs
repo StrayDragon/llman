@@ -1,9 +1,8 @@
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::config::load_required_config;
-use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-use crate::sdd::spec::fence::render_code_fence;
 use crate::sdd::spec::ir::{DeltaOpEntry, DeltaSpecDoc, ScenarioEntry};
 use anyhow::{Result, anyhow};
 use std::fs;
@@ -63,8 +62,7 @@ pub fn run_skeleton(root: &Path, args: DeltaSkeletonArgs) -> Result<()> {
         op_scenarios: Vec::new(),
     };
     let payload = BACKEND.dump_delta_spec(&delta)?;
-    let rebuilt = render_code_fence("toon", &payload);
-    atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
+    atomic_write_with_mode(&delta_path, payload.as_bytes(), None)?;
     println!("{}", delta_path.display());
     Ok(())
 }
@@ -106,8 +104,7 @@ pub fn run_add_op(root: &Path, args: DeltaAddOpArgs) -> Result<()> {
     delta.ops.push(row);
 
     let payload = BACKEND.dump_delta_spec(&delta)?;
-    let rebuilt = render_code_fence("toon", &payload);
-    atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
+    atomic_write_with_mode(&delta_path, payload.as_bytes(), None)?;
     println!("{}", delta_path.display());
     Ok(())
 }
@@ -181,8 +178,7 @@ pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs) -> Result<()> {
     });
 
     let payload = BACKEND.dump_delta_spec(&delta)?;
-    let rebuilt = render_code_fence("toon", &payload);
-    atomic_write_with_mode(&delta_path, rebuilt.as_bytes(), None)?;
+    atomic_write_with_mode(&delta_path, payload.as_bytes(), None)?;
     println!("{}", delta_path.display());
     Ok(())
 }
@@ -193,7 +189,7 @@ fn delta_path(root: &Path, change_id: &str, capability: &str) -> PathBuf {
         .join(change_id)
         .join("specs")
         .join(capability)
-        .join("spec.md")
+        .join(SPEC_FILE)
 }
 
 fn build_op_row(

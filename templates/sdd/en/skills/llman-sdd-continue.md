@@ -21,7 +21,7 @@ Use this skill to continue an existing change and create the next missing artifa
    - If `stage` is `draft` (proposal.md only), explicitly tell the user: "This is a draft proposal. Grow it to `full` (specs → design → tasks) before it can be implemented; a draft cannot be applied or verified directly."
 3. Determine the next artifact to create (in order):
    1) `proposal.md`
-   2) `specs/<capability>/spec.md` (one folder per capability)
+   2) `specs/<capability>/spec.toon` (one folder per capability)
    3) `design.md` (only if design tradeoffs matter)
    4) `tasks.md`
 4. Create exactly ONE missing artifact under `llmanspec/changes/<id>/`.

@@ -25,7 +25,7 @@ Use this skill when the user wants to think through ideas, investigate problems,
 4. Explore options and tradeoffs (2–3 options).
 5. When something crystallizes, offer to capture it (don’t auto-write):
    - Scope changes → `proposal.md`
-   - Requirements → `llmanspec/changes/<id>/specs/<capability>/spec.md`
+   - Requirements → `llmanspec/changes/<id>/specs/<capability>/spec.toon`
    - Design decisions → `design.md`
    - Work items → `tasks.md`
 

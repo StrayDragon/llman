@@ -1,10 +1,8 @@
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::config::load_required_config;
-use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-use crate::sdd::spec::fence::render_code_fence;
-use crate::sdd::spec::frontmatter::{compose_with_frontmatter, split_frontmatter};
 use crate::sdd::spec::ir::{MainSpecDoc, RequirementEntry, ScenarioEntry};
 use anyhow::{Result, anyhow};
 use std::fs;
@@ -50,20 +48,22 @@ pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
 
-    let frontmatter = default_spec_frontmatter_yaml();
+    // Standalone `.toon` file: validation proof-metadata lives inside the TOON
+    // document (valid_scope / valid_commands / evidence), not a YAML frontmatter.
     let spec = MainSpecDoc {
         kind: "llman.sdd.spec".to_string(),
         name: args.capability.clone(),
         purpose: "TODO: Describe this capability and its purpose.".to_string(),
+        valid_scope: vec!["src/".to_string(), "tests/".to_string()],
+        valid_commands: vec!["cargo test".to_string()],
+        evidence: vec!["TODO: add evidence (CI link, benchmark output, etc.)".to_string()],
         requirements: Vec::new(),
         scenarios: Vec::new(),
         feature_refs: None,
     };
     let payload = BACKEND.dump_main_spec(&spec)?;
-    let body = render_code_fence("toon", &payload);
-    let rebuilt = compose_with_frontmatter(Some(&frontmatter), &body);
 
-    atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
+    atomic_write_with_mode(&spec_path, payload.as_bytes(), None)?;
     println!("{}", spec_path.display());
     Ok(())
 }
@@ -86,19 +86,9 @@ pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<
     let spec_path = spec_path(root, &args.capability);
     let content = fs::read_to_string(&spec_path)
         .map_err(|err| anyhow!("failed to read spec: {} ({})", spec_path.display(), err))?;
-    let (frontmatter_yaml, body) = split_frontmatter(&content);
-    let Some(frontmatter_yaml) = frontmatter_yaml else {
-        return Err(anyhow!(
-            "spec is missing YAML frontmatter: {} (run `llman sdd spec skeleton {}` to initialize)",
-            spec_path.display(),
-            args.capability
-        ));
-    };
 
     let context = format!("spec `{}`", args.capability);
-    let old_doc = BACKEND.parse_main_spec(&body, &context)?;
-    let mut spec = old_doc.clone();
-
+    let mut spec = BACKEND.parse_main_spec(&content, &context)?;
     spec.kind = "llman.sdd.spec".to_string();
     spec.name = args.capability.clone();
 
@@ -128,9 +118,7 @@ pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<
     });
 
     let payload = BACKEND.dump_main_spec(&spec)?;
-    let body = render_code_fence("toon", &payload);
-    let rebuilt = compose_with_frontmatter(Some(&frontmatter_yaml), &body);
-    atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
+    atomic_write_with_mode(&spec_path, payload.as_bytes(), None)?;
     println!("{}", spec_path.display());
     Ok(())
 }
@@ -151,19 +139,9 @@ pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs) -> Result<()> {
     let spec_path = spec_path(root, &args.capability);
     let content = fs::read_to_string(&spec_path)
         .map_err(|err| anyhow!("failed to read spec: {} ({})", spec_path.display(), err))?;
-    let (frontmatter_yaml, body) = split_frontmatter(&content);
-    let Some(frontmatter_yaml) = frontmatter_yaml else {
-        return Err(anyhow!(
-            "spec is missing YAML frontmatter: {} (run `llman sdd spec skeleton {}` to initialize)",
-            spec_path.display(),
-            args.capability
-        ));
-    };
 
     let context = format!("spec `{}`", args.capability);
-    let _old_doc = BACKEND.parse_main_spec(&body, &context)?;
-    let mut spec = _old_doc.clone();
-
+    let mut spec = BACKEND.parse_main_spec(&content, &context)?;
     spec.kind = "llman.sdd.spec".to_string();
     spec.name = args.capability.clone();
 
@@ -197,9 +175,7 @@ pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs) -> Result<()> {
     });
 
     let payload = BACKEND.dump_main_spec(&spec)?;
-    let body = render_code_fence("toon", &payload);
-    let rebuilt = compose_with_frontmatter(Some(&frontmatter_yaml), &body);
-    atomic_write_with_mode(&spec_path, rebuilt.as_bytes(), None)?;
+    atomic_write_with_mode(&spec_path, payload.as_bytes(), None)?;
     println!("{}", spec_path.display());
     Ok(())
 }
@@ -208,20 +184,7 @@ fn spec_path(root: &Path, capability: &str) -> PathBuf {
     root.join(LLMANSPEC_DIR_NAME)
         .join("specs")
         .join(capability)
-        .join("spec.md")
-}
-
-fn default_spec_frontmatter_yaml() -> String {
-    [
-        "llman_spec_valid_scope:",
-        "  - src/",
-        "  - tests/",
-        "llman_spec_valid_commands:",
-        "  - cargo test",
-        "llman_spec_evidence:",
-        "  - \"TODO: add evidence (CI link, benchmark output, etc.)\"",
-    ]
-    .join("\n")
+        .join(SPEC_FILE)
 }
 
 fn contains_shall_or_must(text: &str) -> bool {

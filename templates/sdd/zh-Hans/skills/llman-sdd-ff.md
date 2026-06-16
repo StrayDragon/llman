@@ -21,7 +21,7 @@ description: "Fast-forward：一次性创建 proposal/specs/design/tasks。"
    不要在未明确确认的情况下覆盖已有工件。
 4. 在 `llmanspec/changes/<id>/` 下创建 artifacts：
    - `proposal.md`
-   - `specs/<capability>/spec.md`（至少一个）
+   - `specs/<capability>/spec.toon`（至少一个）
    - `design.md`（仅当需要时）
    - `tasks.md`（有序、小步、可验证，包含校验步骤）
 5. 校验：

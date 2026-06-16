@@ -1,7 +1,7 @@
 use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
-use crate::sdd::project::{init, interop, upgrade_guide};
+use crate::sdd::project::{convert, init, interop, upgrade_guide};
 use crate::sdd::shared::{graph, list, orphans, show, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -281,6 +281,15 @@ pub enum SddCommands {
         #[arg(long)]
         dry_run: bool,
         /// Overwrite existing specs in target
+        #[arg(long)]
+        force: bool,
+    },
+    /// Migrate legacy `.md`+fence specs to standalone `.toon` files
+    Convert {
+        /// Parse and report without writing files
+        #[arg(long)]
+        dry_run: bool,
+        /// Re-migrate even if a `.toon` file already exists
         #[arg(long)]
         force: bool,
     },
@@ -566,6 +575,10 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 force: *force,
             },
         ),
+        SddCommands::Convert { dry_run, force } => convert::run(convert::ConvertArgs {
+            dry_run: *dry_run,
+            force: *force,
+        }),
         SddCommands::UpgradeGuide => upgrade_guide::run(),
     }
 }

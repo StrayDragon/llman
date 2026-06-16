@@ -1,5 +1,5 @@
 use crate::sdd::project::config::load_required_config;
-use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
 use crate::sdd::shared::discovery::{list_changes, list_specs};
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
@@ -232,7 +232,7 @@ fn list_change_artifacts(change_dir: &Path) -> Vec<&'static str> {
     }
     let has_specs = match fs::read_dir(change_dir.join("specs")) {
         Ok(entries) => entries.flatten().any(|e| {
-            e.file_type().map(|t| t.is_dir()).unwrap_or(false) && e.path().join("spec.md").exists()
+            e.file_type().map(|t| t.is_dir()).unwrap_or(false) && e.path().join(SPEC_FILE).exists()
         }),
         Err(_) => false,
     };
@@ -257,7 +257,7 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
         .join(LLMANSPEC_DIR_NAME)
         .join("specs")
         .join(spec_id)
-        .join("spec.md");
+        .join(SPEC_FILE);
     if !spec_path.exists() {
         return Err(anyhow!(t!("sdd.show.spec_not_found", id = spec_id)));
     }

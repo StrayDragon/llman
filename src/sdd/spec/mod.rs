@@ -1,5 +1,4 @@
 pub mod backend;
-pub mod fence;
 pub mod frontmatter;
 pub mod ir;
 pub mod parser;
