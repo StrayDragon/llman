@@ -15,6 +15,7 @@ pub struct ImportArgs {
     pub scope: Option<String>,
     pub dry_run: bool,
     pub force: bool,
+    pub no_interactive: bool,
 }
 
 #[derive(Debug, Clone)]

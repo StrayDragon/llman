@@ -18,6 +18,7 @@ pub struct ListArgs {
     pub sort: String,
     pub json: bool,
     pub compact_json: bool,
+    pub no_interactive: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,6 +70,7 @@ mod tests {
             sort: "recent".to_string(),
             json: false,
             compact_json: false,
+            no_interactive: false,
         });
         assert!(result.is_err());
     }

@@ -13,6 +13,7 @@ pub struct FreezeArgs {
     pub before: Option<String>,
     pub keep_recent: usize,
     pub dry_run: bool,
+    pub no_interactive: bool,
 }
 
 #[derive(Debug, Clone)]
