@@ -1,0 +1,8 @@
+kind: llman.sdd.spec
+name: cli
+purpose: "TBD - created by archiving change refactor-config-dir-guard. Update purpose after archive."
+valid_scope[2]: src/,tests/
+requirements[1]{req_id,title,statement}:
+  r1,"Config dir guard only for global-config commands","System MUST only perform dev-project config directory validation for subcommands that require global configuration"
+scenarios[1]{req_id,id,given,when,then}:
+  r1,"sdd-list-works","","user runs llman sdd list in llman project directory without --config-dir","command executes successfully without dev-project config error"
