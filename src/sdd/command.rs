@@ -158,6 +158,9 @@ pub enum SddCommands {
         /// Emit compact JSON (no pretty whitespace). Requires `--json`.
         #[arg(long, requires = "json")]
         compact_json: bool,
+        /// Disable interactive prompts
+        #[arg(long)]
+        no_interactive: bool,
     },
     /// Show a change or spec
     Show {
@@ -283,6 +286,9 @@ pub enum SddCommands {
         /// Overwrite existing specs in target
         #[arg(long)]
         force: bool,
+        /// Disable interactive prompts
+        #[arg(long)]
+        no_interactive: bool,
     },
     /// Migrate specs to the current canonical format (one-shot, idempotent)
     Migrate {
@@ -333,6 +339,9 @@ pub enum ArchiveSubcommand {
         /// Dry run mode
         #[arg(long)]
         dry_run: bool,
+        /// Disable interactive prompts
+        #[arg(long)]
+        no_interactive: bool,
     },
     /// Thaw archived changes from the cold-backup archive
     Thaw {
@@ -358,12 +367,14 @@ pub fn run(args: &SddArgs) -> Result<()> {
             sort,
             json,
             compact_json,
+            no_interactive,
         } => list::run(list::ListArgs {
             specs: *specs,
             changes: *changes,
             sort: sort.clone(),
             json: *json,
             compact_json: *compact_json,
+            no_interactive: *no_interactive,
         }),
         SddCommands::Show {
             item,
@@ -436,10 +447,12 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 before,
                 keep_recent,
                 dry_run,
+                no_interactive,
             }) => freeze::run_freeze(freeze::FreezeArgs {
                 before: before.clone(),
                 keep_recent: *keep_recent,
                 dry_run: *dry_run,
+                no_interactive: *no_interactive,
             }),
             Some(ArchiveSubcommand::Thaw { change, dest }) => freeze::run_thaw(freeze::ThawArgs {
                 change: change.clone(),
@@ -572,6 +585,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             scope,
             dry_run,
             force,
+            no_interactive,
         } => interop::run(
             std::path::Path::new("."),
             interop::ImportArgs {
@@ -579,6 +593,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 scope: scope.clone(),
                 dry_run: *dry_run,
                 force: *force,
+                no_interactive: *no_interactive,
             },
         ),
         SddCommands::Migrate {
