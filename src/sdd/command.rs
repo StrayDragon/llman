@@ -1,7 +1,7 @@
 use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
-use crate::sdd::project::{convert, init, interop, upgrade_guide};
+use crate::sdd::project::{init, interop, migrate, upgrade_guide};
 use crate::sdd::shared::{graph, list, orphans, show, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -284,8 +284,8 @@ pub enum SddCommands {
         #[arg(long)]
         force: bool,
     },
-    /// Migrate legacy `.md`+fence specs to standalone `.toon` files
-    Convert {
+    /// Migrate specs to the current canonical format (one-shot, idempotent)
+    Migrate {
         /// Parse and report without writing files
         #[arg(long)]
         dry_run: bool,
@@ -575,7 +575,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 force: *force,
             },
         ),
-        SddCommands::Convert { dry_run, force } => convert::run(convert::ConvertArgs {
+        SddCommands::Migrate { dry_run, force } => migrate::run(migrate::MigrateArgs {
             dry_run: *dry_run,
             force: *force,
         }),

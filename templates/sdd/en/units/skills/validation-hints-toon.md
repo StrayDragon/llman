@@ -40,4 +40,4 @@ When `config.yaml` has a `bdd` block, a spec must either declare `requirements`,
 Notes:
 - Each spec is a single standalone `.toon` file; there is no Markdown shell or ```toon fence.
 - `null` represents missing optional fields.
-- Migrate legacy `.md`+fence specs with `llman sdd convert`.
+- Migrate legacy `.md`+fence specs with `llman sdd migrate`.

@@ -39,4 +39,4 @@ r1,happy,"","a trigger happens","the outcome is observed"
 备注：
 - 每个 spec 是一个独立的 `.toon` 文件；没有 Markdown 外壳，也没有 ```toon fence。
 - `null` 表示可选字段缺失。
-- 从旧版 `.md`+fence 迁移请使用 `llman sdd convert`。
+- 从旧版 `.md`+fence 迁移请使用 `llman sdd migrate`。
