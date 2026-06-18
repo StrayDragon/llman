@@ -7,5 +7,6 @@ pub mod list;
 pub mod match_utils;
 pub mod orphans;
 pub mod show;
+pub mod status;
 pub mod tasks;
 pub mod validate;
