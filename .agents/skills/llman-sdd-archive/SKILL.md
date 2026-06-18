@@ -14,9 +14,9 @@ description: "归档单个或多个变更，并将增量合并到 specs。"
    - 批量模式：多个 ID（来自用户输入或 `llman sdd list --json`）。
    - 始终说明："归档 IDs：<id1>, <id2>, ..."。
 3. 先逐个校验：`llman sdd validate <id> --strict --no-interactive`。
-4. 可选逐个预览归档：`llman sdd archive <id> --dry-run`。
+4. 可选逐个预览归档：`llman sdd archive run <id> --dry-run`。
 5. 按顺序执行归档：
-   - 默认：`llman sdd archive run <id>`（或 `llman sdd archive <id>`）
+   - 默认：`llman sdd archive run <id>`
    - 仅工具类变更：`llman sdd archive run <id> --skip-specs`
    - 任一失败立即停止，并报告剩余未处理 ID。
 6. 全部结束后执行一次全量校验：`llman sdd validate --strict --no-interactive`。
@@ -39,7 +39,6 @@ description: "归档单个或多个变更，并将增量合并到 specs。"
 - `llman sdd validate --all`（批量校验）
 - `llman sdd convert --to <style> --project`（显式风格迁移；toon/yaml 为 experimental）
 - `llman sdd archive run <id>`（归档变更）
-- `llman sdd archive <id>`（`archive run` 的兼容别名）
 - `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（将已归档目录冻结到单一冷备文件）
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备文件恢复目录）
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图并输出到标准输出）
