@@ -22,7 +22,7 @@ description: "提出一个新变更并一次性生成规划工件。"
    - 为每个 capability 创建 `specs/<capability>/spec.md`，并匹配项目配置的 `spec_style`（`toon`）：
      - 建议优先通过 authoring helpers 生成，确保 fenced payload 与 `spec_style` 一致：
        - `llman sdd delta skeleton <change-id> <capability>`
-       - `llman sdd delta add-op ...`
+       - `llman sdd delta add-req <change-id> <capability> <req_id> --title <title> --statement <statement>`
        - `llman sdd delta add-scenario ...`
      - 至少包含一个 `add_requirement`/`modify_requirement` op（statement 必须含 MUST/SHALL），并且至少包含一行匹配的 op scenario
    - 仅在涉及权衡/迁移时创建 `design.md`
@@ -44,7 +44,6 @@ description: "提出一个新变更并一次性生成规划工件。"
 - `llman sdd validate --all`（批量校验）
 - `llman sdd convert --to <style> --project`（显式风格迁移；toon/yaml 为 experimental）
 - `llman sdd archive run <id>`（归档变更）
-- `llman sdd archive <id>`（`archive run` 的兼容别名）
 - `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（将已归档目录冻结到单一冷备文件）
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备文件恢复目录）
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图并输出到标准输出）
