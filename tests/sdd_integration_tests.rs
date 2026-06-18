@@ -111,10 +111,9 @@ fn author_sample_change(work_dir: &Path, change_id: &str) {
         &[
             "sdd",
             "delta",
-            "add-op",
+            "add-req",
             change_id,
             "sample",
-            "add_requirement",
             "r2",
             "--title",
             "R2",
@@ -258,7 +257,7 @@ Need a sample change.
         serde_json::from_slice(&validate_output.stdout).expect("validate json");
     assert_eq!(validate_json["items"][0]["valid"], true);
 
-    let archive_output = run_llman(&["sdd", "archive", "add-sample"], work_dir, work_dir);
+    let archive_output = run_llman(&["sdd", "archive", "run", "add-sample"], work_dir, work_dir);
     assert_success(&archive_output);
 
     let archive_root = llmanspec_dir.join("changes").join("archive");
@@ -312,7 +311,7 @@ fn test_sdd_archive_flow_works_in_toon_project() {
     );
     assert_success(&validate_spec);
 
-    let archive_output = run_llman(&["sdd", "archive", "add-sample"], work_dir, work_dir);
+    let archive_output = run_llman(&["sdd", "archive", "run", "add-sample"], work_dir, work_dir);
     assert_success(&archive_output);
 
     let updated = fs::read_to_string(work_dir.join("llmanspec/specs/sample/spec.toon"))
@@ -505,10 +504,9 @@ fn test_sdd_authoring_helpers_produce_strict_valid_spec_and_change() {
         &[
             "sdd",
             "delta",
-            "add-op",
+            "add-req",
             "add-sample",
             "sample",
-            "add_requirement",
             "r2",
             "--title",
             "R2",

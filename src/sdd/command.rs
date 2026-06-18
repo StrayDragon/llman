@@ -2,7 +2,7 @@ use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
 use crate::sdd::project::{init, interop, migrate, upgrade_guide};
-use crate::sdd::shared::{graph, list, orphans, show, validate};
+use crate::sdd::shared::{graph, list, orphans, show, status, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use std::path::PathBuf;
@@ -30,7 +30,8 @@ pub enum SddSpecCommands {
         force: bool,
     },
     /// Add a requirement row to a spec
-    AddRequirement {
+    #[command(alias = "add-requirement")]
+    AddReq {
         /// Capability / spec id
         capability: String,
         /// Requirement id (req_id)
@@ -80,31 +81,61 @@ pub enum SddDeltaCommands {
         #[arg(long)]
         force: bool,
     },
-    /// Add a delta op row
-    AddOp {
+    /// Add a new requirement (extracted from add-op)
+    #[command(alias = "add-op")]
+    AddReq {
         /// Change id
         change_id: String,
         /// Capability / spec id
         capability: String,
-        /// Op: add_requirement|modify_requirement|remove_requirement|rename_requirement
-        op: String,
         /// Requirement id (req_id)
         req_id: String,
-        /// Title (required for add/modify)
+        /// Requirement title
+        #[arg(long)]
+        title: String,
+        /// Requirement statement (MUST/SHALL)
+        #[arg(long)]
+        statement: String,
+    },
+    /// Modify an existing requirement
+    ModifyReq {
+        /// Change id
+        change_id: String,
+        /// Capability / spec id
+        capability: String,
+        /// Requirement id (req_id)
+        req_id: String,
+        /// New title
         #[arg(long)]
         title: Option<String>,
-        /// Statement (required for add/modify; MUST/SHALL)
+        /// New statement (MUST/SHALL)
         #[arg(long)]
         statement: Option<String>,
-        /// Rename source (required for rename)
-        #[arg(long)]
-        from: Option<String>,
-        /// Rename target (required for rename)
-        #[arg(long)]
-        to: Option<String>,
-        /// Name hint (optional for remove)
+    },
+    /// Remove a requirement
+    RemoveReq {
+        /// Change id
+        change_id: String,
+        /// Capability / spec id
+        capability: String,
+        /// Requirement id (req_id)
+        req_id: String,
+        /// Name hint
         #[arg(long)]
         name: Option<String>,
+    },
+    /// Rename a requirement
+    RenameReq {
+        /// Change id
+        change_id: String,
+        /// Capability / spec id
+        capability: String,
+        /// Source requirement id
+        #[arg(long)]
+        from: String,
+        /// Target requirement id
+        #[arg(long)]
+        to: String,
     },
     /// Add a delta op scenario row (add/modify ops only)
     AddScenario {
@@ -166,14 +197,17 @@ pub enum SddCommands {
     Show {
         /// Item name (change id or spec id)
         item: Option<String>,
-        /// Output as JSON
+        /// Output format (e.g. json,compact,meta-only,deltas,reqs-only,no-scenarios)
         #[arg(long)]
+        output: Option<String>,
+        /// Output as JSON (deprecated: use --output json)
+        #[arg(long, hide = true)]
         json: bool,
-        /// Emit compact JSON (no pretty whitespace). Requires `--json`.
-        #[arg(long, requires = "json")]
+        /// Emit compact JSON (deprecated: use --output json,compact)
+        #[arg(long, hide = true, requires = "json")]
         compact_json: bool,
-        /// Spec-only: output metadata only (no `requirements`). Requires `--json`.
-        #[arg(long, requires = "json")]
+        /// Spec-only: output metadata only (deprecated: use --output json,meta-only)
+        #[arg(long, hide = true, requires = "json")]
         meta_only: bool,
         /// Specify item type when ambiguous: change|spec
         #[arg(long = "type")]
@@ -181,17 +215,17 @@ pub enum SddCommands {
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
-        /// Change-only: show only deltas (JSON only)
-        #[arg(long)]
+        /// Change-only: show only deltas (deprecated: use --output deltas)
+        #[arg(long, hide = true)]
         deltas_only: bool,
         /// Change-only: alias for --deltas-only (deprecated)
-        #[arg(long)]
+        #[arg(long, hide = true)]
         requirements_only: bool,
-        /// Spec-only: show only requirements (JSON only)
-        #[arg(long)]
+        /// Spec-only: show only requirements (deprecated: use --output reqs-only)
+        #[arg(long, hide = true)]
         requirements: bool,
-        /// Spec-only: exclude scenarios (JSON only)
-        #[arg(long)]
+        /// Spec-only: exclude scenarios (deprecated: use --output no-scenarios)
+        #[arg(long, hide = true)]
         no_scenarios: bool,
         /// Spec-only: show specific requirement by ID (1-based)
         #[arg(short = 'r', long)]
@@ -228,22 +262,11 @@ pub enum SddCommands {
     },
     /// Archive workflow commands
     Archive {
-        /// Legacy: change id (equivalent to `archive run <change-id>`)
-        change: Option<String>,
-        /// Legacy: skip updating specs
-        #[arg(long)]
-        skip_specs: bool,
-        /// Legacy: dry run mode
-        #[arg(long)]
-        dry_run: bool,
-        /// Legacy: force archive even if validation fails
-        #[arg(long, hide = true)]
-        force: bool,
         /// Disable interactive prompts (e.g. purpose input for new specs)
         #[arg(long)]
         no_interactive: bool,
         #[command(subcommand)]
-        command: Option<ArchiveSubcommand>,
+        command: ArchiveSubcommand,
     },
     /// Spec authoring helpers
     Spec(SddSpecArgs),
@@ -272,6 +295,24 @@ pub enum SddCommands {
         #[arg(long, requires = "json")]
         compact_json: bool,
     },
+    /// Show project status overview
+    Status {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Project management commands
+    Project(SddProjectArgs),
+}
+
+#[derive(Args)]
+pub struct SddProjectArgs {
+    #[command(subcommand)]
+    pub command: SddProjectCommands,
+}
+
+#[derive(Subcommand)]
+pub enum SddProjectCommands {
     /// Import specs from OpenSpec markdown format into llmanspec
     Import {
         /// Source OpenSpec specs directory (default: openspec/specs)
@@ -378,6 +419,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
         }),
         SddCommands::Show {
             item,
+            output,
             json,
             compact_json,
             meta_only,
@@ -388,19 +430,43 @@ pub fn run(args: &SddArgs) -> Result<()> {
             requirements,
             no_scenarios,
             requirement,
-        } => show::run(show::ShowArgs {
-            item: item.clone(),
-            json: *json,
-            compact_json: *compact_json,
-            meta_only: *meta_only,
-            item_type: item_type.clone(),
-            no_interactive: *no_interactive,
-            deltas_only: *deltas_only,
-            requirements_only: *requirements_only,
-            requirements: *requirements,
-            no_scenarios: *no_scenarios,
-            requirement: *requirement,
-        }),
+        } => {
+            // Parse --output option or fall back to legacy flags
+            let (use_json, use_compact, use_meta_only, use_deltas, use_reqs_only, use_no_scenarios) =
+                if let Some(output_str) = output {
+                    let flags: Vec<&str> = output_str.split(',').map(|s| s.trim()).collect();
+                    (
+                        flags.contains(&"json"),
+                        flags.contains(&"compact"),
+                        flags.contains(&"meta-only"),
+                        flags.contains(&"deltas"),
+                        flags.contains(&"reqs-only"),
+                        flags.contains(&"no-scenarios"),
+                    )
+                } else {
+                    (
+                        *json,
+                        *compact_json,
+                        *meta_only,
+                        *deltas_only || *requirements_only,
+                        *requirements,
+                        *no_scenarios,
+                    )
+                };
+            show::run(show::ShowArgs {
+                item: item.clone(),
+                json: use_json,
+                compact_json: use_compact,
+                meta_only: use_meta_only,
+                item_type: item_type.clone(),
+                no_interactive: *no_interactive,
+                deltas_only: use_deltas,
+                requirements_only: false,
+                requirements: use_reqs_only,
+                no_scenarios: use_no_scenarios,
+                requirement: *requirement,
+            })
+        }
         SddCommands::Validate {
             item,
             all,
@@ -423,47 +489,36 @@ pub fn run(args: &SddArgs) -> Result<()> {
             no_interactive: *no_interactive,
         }),
         SddCommands::Archive {
-            change,
-            skip_specs,
-            dry_run,
-            force,
-            no_interactive,
+            no_interactive: _,
             command,
         } => match command {
-            Some(ArchiveSubcommand::Run {
+            ArchiveSubcommand::Run {
                 change,
                 skip_specs,
                 dry_run,
                 force,
                 no_interactive,
-            }) => archive::run(archive::ArchiveArgs {
+            } => archive::run(archive::ArchiveArgs {
                 change: change.clone(),
                 skip_specs: *skip_specs,
                 dry_run: *dry_run,
                 force: *force,
                 no_interactive: *no_interactive,
             }),
-            Some(ArchiveSubcommand::Freeze {
+            ArchiveSubcommand::Freeze {
                 before,
                 keep_recent,
                 dry_run,
                 no_interactive,
-            }) => freeze::run_freeze(freeze::FreezeArgs {
+            } => freeze::run_freeze(freeze::FreezeArgs {
                 before: before.clone(),
                 keep_recent: *keep_recent,
                 dry_run: *dry_run,
                 no_interactive: *no_interactive,
             }),
-            Some(ArchiveSubcommand::Thaw { change, dest }) => freeze::run_thaw(freeze::ThawArgs {
+            ArchiveSubcommand::Thaw { change, dest } => freeze::run_thaw(freeze::ThawArgs {
                 change: change.clone(),
                 dest: dest.clone(),
-            }),
-            None => archive::run(archive::ArchiveArgs {
-                change: change.clone(),
-                skip_specs: *skip_specs,
-                dry_run: *dry_run,
-                force: *force,
-                no_interactive: *no_interactive,
             }),
         },
         SddCommands::Spec(args) => match &args.command {
@@ -474,7 +529,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
                     force: *force,
                 },
             ),
-            SddSpecCommands::AddRequirement {
+            SddSpecCommands::AddReq {
                 capability,
                 req_id,
                 title,
@@ -520,28 +575,82 @@ pub fn run(args: &SddArgs) -> Result<()> {
                     force: *force,
                 },
             ),
-            SddDeltaCommands::AddOp {
+            SddDeltaCommands::AddReq {
                 change_id,
                 capability,
-                op,
                 req_id,
                 title,
                 statement,
-                from,
-                to,
+            } => authoring::delta::run_add_op(
+                std::path::Path::new("."),
+                authoring::delta::DeltaAddOpArgs {
+                    change_id: change_id.clone(),
+                    capability: capability.clone(),
+                    op: "add_requirement".to_string(),
+                    req_id: req_id.clone(),
+                    title: Some(title.clone()),
+                    statement: Some(statement.clone()),
+                    from: None,
+                    to: None,
+                    name: None,
+                },
+            ),
+            SddDeltaCommands::ModifyReq {
+                change_id,
+                capability,
+                req_id,
+                title,
+                statement,
+            } => authoring::delta::run_add_op(
+                std::path::Path::new("."),
+                authoring::delta::DeltaAddOpArgs {
+                    change_id: change_id.clone(),
+                    capability: capability.clone(),
+                    op: "modify_requirement".to_string(),
+                    req_id: req_id.clone(),
+                    title: title.clone(),
+                    statement: statement.clone(),
+                    from: None,
+                    to: None,
+                    name: None,
+                },
+            ),
+            SddDeltaCommands::RemoveReq {
+                change_id,
+                capability,
+                req_id,
                 name,
             } => authoring::delta::run_add_op(
                 std::path::Path::new("."),
                 authoring::delta::DeltaAddOpArgs {
                     change_id: change_id.clone(),
                     capability: capability.clone(),
-                    op: op.clone(),
+                    op: "remove_requirement".to_string(),
                     req_id: req_id.clone(),
-                    title: title.clone(),
-                    statement: statement.clone(),
-                    from: from.clone(),
-                    to: to.clone(),
+                    title: None,
+                    statement: None,
+                    from: None,
+                    to: None,
                     name: name.clone(),
+                },
+            ),
+            SddDeltaCommands::RenameReq {
+                change_id,
+                capability,
+                from,
+                to,
+            } => authoring::delta::run_add_op(
+                std::path::Path::new("."),
+                authoring::delta::DeltaAddOpArgs {
+                    change_id: change_id.clone(),
+                    capability: capability.clone(),
+                    op: "rename_requirement".to_string(),
+                    req_id: from.clone(),
+                    title: None,
+                    statement: None,
+                    from: Some(from.clone()),
+                    to: Some(to.clone()),
+                    name: None,
                 },
             ),
             SddDeltaCommands::AddScenario {
@@ -580,33 +689,36 @@ pub fn run(args: &SddArgs) -> Result<()> {
             json: *json,
             compact_json: *compact_json,
         }),
-        SddCommands::Import {
-            source,
-            scope,
-            dry_run,
-            force,
-            no_interactive,
-        } => interop::run(
-            std::path::Path::new("."),
-            interop::ImportArgs {
-                source: source.clone(),
-                scope: scope.clone(),
+        SddCommands::Status { json } => status::run(status::StatusArgs { json: *json }),
+        SddCommands::Project(args) => match &args.command {
+            SddProjectCommands::Import {
+                source,
+                scope,
+                dry_run,
+                force,
+                no_interactive,
+            } => interop::run(
+                std::path::Path::new("."),
+                interop::ImportArgs {
+                    source: source.clone(),
+                    scope: scope.clone(),
+                    dry_run: *dry_run,
+                    force: *force,
+                    no_interactive: *no_interactive,
+                },
+            ),
+            SddProjectCommands::Migrate {
+                dry_run,
+                force,
+                yes,
+                no_interactive,
+            } => migrate::run(migrate::MigrateArgs {
                 dry_run: *dry_run,
                 force: *force,
+                yes: *yes,
                 no_interactive: *no_interactive,
-            },
-        ),
-        SddCommands::Migrate {
-            dry_run,
-            force,
-            yes,
-            no_interactive,
-        } => migrate::run(migrate::MigrateArgs {
-            dry_run: *dry_run,
-            force: *force,
-            yes: *yes,
-            no_interactive: *no_interactive,
-        }),
-        SddCommands::UpgradeGuide => upgrade_guide::run(),
+            }),
+            SddProjectCommands::UpgradeGuide => upgrade_guide::run(),
+        },
     }
 }
