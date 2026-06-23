@@ -2,11 +2,12 @@ kind: llman.sdd.spec
 name: "upgrade-guide"
 purpose: Detect and report available but unused SDD features to guide project upgrades.
 valid_scope[3]: src/sdd/project/upgrade_guide.rs,src/sdd/command.rs,"llmanspec/specs/upgrade-guide/"
-requirements[4]{req_id,title,statement}:
+requirements[5]{req_id,title,statement}:
   r1,TOON output format,"The upgrade-guide command MUST output a TOON document with kind `llman.sdd.upgrade_guide`, a features table, and a suggestions table."
   r2,Feature registry is the single source of truth,"All upgradeable SDD features MUST be listed in the `FEATURES` constant in `src/sdd/project/upgrade_guide.rs`. When a new SDD feature is added (config field, skill, workflow), the developer MUST register a corresponding `FeatureDef` entry before merge."
   r3,"Agent-readable suggestions",Each feature entry MUST include a `suggestion` field containing the exact YAML snippet an agent can present to the user for integration.
   r4,No file modifications,The command MUST only read and report. It MUST NOT modify any files in the project or llmanspec directory.
+  r5,All features enabled output,"When all features are enabled and templates are current, the command MUST omit the suggestions table and indicate no upgrades are available in the footer."
 scenarios[5]{req_id,id,given,when,then}:
   r1,"toon-output","",the command runs against a project with partial config,output is a valid TOON document with kind `llman.sdd.upgrade_guide` and a features table
   r2,"new-feature-registration","",a developer adds a new SDD config field or skill,the developer MUST add a FeatureDef entry to the FEATURES constant in upgrade_guide.rs

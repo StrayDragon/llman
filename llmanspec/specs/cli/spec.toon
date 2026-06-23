@@ -2,7 +2,21 @@ kind: llman.sdd.spec
 name: cli
 purpose: "TBD - created by archiving change refactor-config-dir-guard. Update purpose after archive."
 valid_scope[2]: src/,tests/
-requirements[1]{req_id,title,statement}:
+requirements[7]{req_id,title,statement}:
   r1,"Config dir guard only for global-config commands","System MUST only perform dev-project config directory validation for subcommands that require global configuration"
-scenarios[1]{req_id,id,given,when,then}:
+  r2,Status Command,"System MUST provide a `status` subcommand that displays project overview including active changes count, pending validations, and specs count."
+  r3,Unified Authoring Commands,"System MUST use consistent naming for spec and delta authoring commands (`add-req`, `remove-req`, `rename-req`)."
+  r4,Project Subgroup,"System MUST group non-core commands (`import`, `migrate`, `upgrade-guide`) under `sdd project` subgroup."
+  r5,Alias Backward Compatibility,System MUST provide deprecated aliases for renamed commands to maintain backward compatibility during migration period.
+  r6,Archive Command Consistency,System MUST remove legacy positional argument pattern from `archive` command and require explicit subcommand.
+  r7,Simplified Show Options,System MUST provide combined output options for `show` command to reduce option count.
+scenarios[9]{req_id,id,given,when,then}:
   r1,"sdd-list-works","","user runs llman sdd list in llman project directory without --config-dir","command executes successfully without dev-project config error"
+  r2,status_json,project has 2 active changes and 5 specs,"user runs `llman sdd status --json`",system outputs JSON with active_changes=2 specs=5
+  r3,add_req_alias,"","user runs `llman sdd spec add-req`",system executes the add requirement command
+  r3,add_req_old_alias,"","user runs `llman sdd spec add-requirement`",system executes the add requirement command via alias
+  r4,project_import,"",user runs `llman sdd project import`,system executes the import command
+  r4,project_migrate,"",user runs `llman sdd project migrate`,system executes the migrate command
+  r5,deprecated_alias_works,"",user runs `llman sdd import`,system shows deprecation warning and executes import
+  r6,archive_requires_subcommand,"",user runs `llman sdd archive c1`,system returns error requiring `archive run c1`
+  r7,combined_output_option,"","user runs `llman sdd show c1 --output json,deltas`",system outputs JSON with deltas only
