@@ -7,10 +7,10 @@ use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
 use crate::sdd::spec::staleness::{StalenessEvaluator, StalenessInfo, evaluate_staleness};
 use crate::sdd::spec::validation::{
-    ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
+    ChangeStage, ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
     check_completeness_stage, check_dag_cycles, check_design_md, check_design_tasks_constraint,
     check_proposal_exists, check_proposal_frontmatter, check_tasks_completion, check_tasks_exists,
-    validate_change_delta_specs, validate_spec_content_with_frontmatter_and_bdd,
+    determine_stage, validate_change_delta_specs, validate_spec_content_with_frontmatter_and_bdd,
 };
 use anyhow::{Result, anyhow};
 use inquire::Select;
@@ -347,26 +347,39 @@ fn validate_change_full(
     dag_issues: &[ValidationIssue],
     archive_config: &ArchiveConfig,
 ) -> ValidationReport {
+    let stage = determine_stage(change_dir);
     let mut issues = Vec::new();
 
+    // Stage-agnostic: always validate proposal existence and frontmatter
     issues.extend(check_proposal_exists(change_dir));
     issues.extend(
         check_proposal_frontmatter(change_dir, all_change_ids, archived_change_ids, has_frozen).0,
     );
-    issues.extend(check_design_tasks_constraint(change_dir));
-    issues.extend(check_tasks_exists(change_dir));
-    issues.extend(check_tasks_completion(
-        change_dir,
-        all_change_ids,
-        archived_change_ids,
-        has_frozen,
-        archive_config,
-    ));
-    issues.extend(check_design_md(change_dir));
-    issues.extend(check_completeness_stage(change_dir, strict));
 
-    let delta_report = validate_change_delta_specs(change_dir, strict);
-    issues.extend(delta_report.issues);
+    // Non-draft stages must have valid delta specs
+    if stage != ChangeStage::Draft {
+        let delta_report = validate_change_delta_specs(change_dir, strict);
+        issues.extend(delta_report.issues);
+    }
+
+    // tasks.md without design.md is inconsistent at any stage
+    issues.extend(check_design_tasks_constraint(change_dir));
+
+    // Full stage: all artifacts present, validate task completion
+    if stage == ChangeStage::Full {
+        issues.extend(check_tasks_exists(change_dir));
+        issues.extend(check_tasks_completion(
+            change_dir,
+            all_change_ids,
+            archived_change_ids,
+            has_frozen,
+            archive_config,
+        ));
+        issues.extend(check_design_md(change_dir));
+    }
+
+    // Stage hint (always Info — stage determines which checks apply)
+    issues.extend(check_completeness_stage(change_dir, strict));
 
     issues.extend(dag_issues.to_vec());
 

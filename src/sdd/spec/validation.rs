@@ -1531,35 +1531,31 @@ pub fn check_design_tasks_constraint(change_dir: &Path) -> Vec<ValidationIssue> 
     Vec::new()
 }
 
-pub fn check_completeness_stage(change_dir: &Path, strict: bool) -> Vec<ValidationIssue> {
+pub fn check_completeness_stage(change_dir: &Path, _strict: bool) -> Vec<ValidationIssue> {
     let stage = determine_stage(change_dir);
     let mut issues = Vec::new();
 
-    let level = if strict {
-        ValidationLevel::Warning
-    } else {
-        ValidationLevel::Info
-    };
-
+    // Stage hints are always Info — they describe the current state without
+    // blocking validation. Stage-aware enforcement lives in validate_change_full.
     match stage {
         ChangeStage::Full => {}
         ChangeStage::Designed => {
             issues.push(ValidationIssue {
-                level: level.clone(),
+                level: ValidationLevel::Info,
                 path: "completeness".to_string(),
                 message: t!("sdd.validate.stage_designed_hint").to_string(),
             });
         }
         ChangeStage::Specified => {
             issues.push(ValidationIssue {
-                level: level.clone(),
+                level: ValidationLevel::Info,
                 path: "completeness".to_string(),
                 message: t!("sdd.validate.stage_specified_hint").to_string(),
             });
         }
         ChangeStage::Draft => {
             issues.push(ValidationIssue {
-                level,
+                level: ValidationLevel::Info,
                 path: "completeness".to_string(),
                 message: t!("sdd.validate.stage_draft_hint").to_string(),
             });
