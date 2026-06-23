@@ -18,10 +18,9 @@ description: "实施一个 llman SDD 变更的 tasks，并同步更新 tasks.md 
      stage=$(llman sdd show <id> --json --type change | jq -r .stage)
      ```
      （若无 `jq`，可用任意工具从 JSON 中解析 `stage` 值。）
-   - 若 `stage` 不为 `full`，变更尚未准备好被实现 → 必须停止并给出守卫提示：
-     - `draft`："变更 <id> 是 draft 提案（仅 proposal.md），尚未准备好被实现。请先用 llman-sdd-continue <id> 把它长大到 full（proposal → specs → design → tasks）。"
-     - 其他非 full 阶段（`specified`/`designed`）："变更 <id> 处于 <stage> 阶段，尚未准备好被实现。请先用 llman-sdd-continue <id> 长大到 full。"
-   - `full` 阶段意味着 `tasks.md` 已存在，继续。
+   - 若 `stage` 为 `draft`，变更尚未准备好被实现 → 必须停止并给出守卫提示：
+     `draft`："变更 <id> 是 draft 提案（仅 proposal.md），尚未准备好被实现。请先用 llman-sdd-continue <id> 把它长大到至少 `spec` 阶段（proposal → specs → tasks）。"
+   - `specified`、`designed`、`full` 阶段均可被实现（存在 tasks.md 即可 apply），继续。
 3. 阅读上下文文件（视情况而定）：
    - `llmanspec/changes/<id>/proposal.md`
    - `llmanspec/changes/<id>/design.md`（如存在）

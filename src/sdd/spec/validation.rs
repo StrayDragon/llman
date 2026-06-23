@@ -1505,7 +1505,7 @@ pub fn determine_stage(change_dir: &Path) -> ChangeStage {
     }
 }
 
-fn has_spec_files(specs_dir: &Path) -> bool {
+pub fn has_spec_files(specs_dir: &Path) -> bool {
     if !specs_dir.is_dir() {
         return false;
     }
@@ -1531,8 +1531,12 @@ pub fn check_design_tasks_constraint(change_dir: &Path) -> Vec<ValidationIssue> 
     Vec::new()
 }
 
-pub fn check_completeness_stage(change_dir: &Path, _strict: bool) -> Vec<ValidationIssue> {
-    let stage = determine_stage(change_dir);
+pub fn check_completeness_stage(
+    change_dir: &Path,
+    _strict: bool,
+    force_stage: Option<ChangeStage>,
+) -> Vec<ValidationIssue> {
+    let stage = force_stage.unwrap_or_else(|| determine_stage(change_dir));
     let mut issues = Vec::new();
 
     // Stage hints are always Info — they describe the current state without
