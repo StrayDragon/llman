@@ -10,7 +10,8 @@ use crate::sdd::spec::validation::{
     ChangeStage, ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
     check_completeness_stage, check_dag_cycles, check_design_md, check_design_tasks_constraint,
     check_proposal_exists, check_proposal_frontmatter, check_tasks_completion, check_tasks_exists,
-    determine_stage, validate_change_delta_specs, validate_spec_content_with_frontmatter_and_bdd,
+    determine_stage, has_spec_files, validate_change_delta_specs,
+    validate_spec_content_with_frontmatter_and_bdd,
 };
 use anyhow::{Result, anyhow};
 use inquire::Select;
@@ -39,6 +40,7 @@ pub struct ValidateArgs {
     pub strict: bool,
     pub json: bool,
     pub compact_json: bool,
+    pub stage: Option<String>,
     pub no_interactive: bool,
 }
 
@@ -79,6 +81,15 @@ struct ValidationItem {
     staleness: StalenessInfo,
 }
 
+fn parse_stage_override(value: Option<&str>) -> Option<ChangeStage> {
+    match value?.to_lowercase().as_str() {
+        "draft" => Some(ChangeStage::Draft),
+        "spec" => Some(ChangeStage::Specified),
+        "full" => Some(ChangeStage::Full),
+        _ => None,
+    }
+}
+
 pub fn run(args: ValidateArgs) -> Result<()> {
     let root = Path::new(".");
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
@@ -88,6 +99,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
 
     let interactive = is_interactive(args.no_interactive);
     let type_override = normalize_type(args.item_type.as_deref());
+    let stage_override = parse_stage_override(args.stage.as_deref());
 
     if args.all || args.changes || args.specs {
         let do_changes = args.all || args.changes;
@@ -99,6 +111,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
             args.strict,
             args.json,
             args.compact_json,
+            stage_override,
             &archive_config,
             bdd_config,
         )?;
@@ -112,6 +125,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                 args.strict,
                 args.json,
                 args.compact_json,
+                stage_override,
                 &archive_config,
                 bdd_config,
             )?;
@@ -130,6 +144,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
         args.strict,
         args.json,
         args.compact_json,
+        stage_override,
         &archive_config,
         bdd_config,
     )
@@ -149,6 +164,7 @@ fn run_interactive_selector(
     strict: bool,
     json: bool,
     compact_json: bool,
+    stage_override: Option<ChangeStage>,
     archive_config: &ArchiveConfig,
     bdd_config: Option<&BddConfig>,
 ) -> Result<()> {
@@ -171,6 +187,7 @@ fn run_interactive_selector(
             strict,
             json,
             compact_json,
+            stage_override,
             archive_config,
             bdd_config,
         )?;
@@ -184,6 +201,7 @@ fn run_interactive_selector(
             strict,
             json,
             compact_json,
+            stage_override,
             archive_config,
             bdd_config,
         )?;
@@ -197,6 +215,7 @@ fn run_interactive_selector(
             strict,
             json,
             compact_json,
+            stage_override,
             archive_config,
             bdd_config,
         )?;
@@ -221,6 +240,7 @@ fn run_interactive_selector(
         strict,
         json,
         compact_json,
+        stage_override,
         &archived_changes,
         has_frozen_archive(root),
         archive_config,
@@ -248,6 +268,7 @@ fn validate_direct(
     strict: bool,
     json: bool,
     compact_json: bool,
+    stage_override: Option<ChangeStage>,
     archive_config: &ArchiveConfig,
     bdd_config: Option<&BddConfig>,
 ) -> Result<()> {
@@ -303,6 +324,7 @@ fn validate_direct(
         strict,
         json,
         compact_json,
+        stage_override,
         &archived_changes,
         has_frozen_archive(root),
         archive_config,
@@ -338,17 +360,54 @@ fn compute_dag_issues_for_single(
     all_dag_issues.get(change_id).cloned().unwrap_or_default()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_change_full(
     change_dir: &Path,
     all_change_ids: &[String],
     archived_change_ids: &[String],
     has_frozen: bool,
     strict: bool,
+    stage_override: Option<ChangeStage>,
     dag_issues: &[ValidationIssue],
     archive_config: &ArchiveConfig,
 ) -> ValidationReport {
-    let stage = determine_stage(change_dir);
+    let stage = stage_override.unwrap_or_else(|| determine_stage(change_dir));
     let mut issues = Vec::new();
+
+    // Validate consistency when stage is forced via --stage
+    if let Some(s) = stage_override {
+        match s {
+            ChangeStage::Draft => {
+                if !change_dir.join("proposal.md").exists() {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: "proposal.md".to_string(),
+                        message: "Stage forced to 'draft' but proposal.md is missing".to_string(),
+                    });
+                }
+            }
+            ChangeStage::Specified => {
+                if !has_spec_files(&change_dir.join("specs")) {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: "specs".to_string(),
+                        message: "Stage forced to 'spec' but specs/ is missing or empty"
+                            .to_string(),
+                    });
+                }
+            }
+            ChangeStage::Full => {
+                if !change_dir.join("tasks.md").exists() {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: "tasks.md".to_string(),
+                        message: "Stage forced to 'full' but tasks.md is missing".to_string(),
+                    });
+                }
+            }
+            ChangeStage::Designed => {}
+        }
+    }
 
     // Stage-agnostic: always validate proposal existence and frontmatter
     issues.extend(check_proposal_exists(change_dir));
@@ -378,8 +437,8 @@ fn validate_change_full(
         issues.extend(check_design_md(change_dir));
     }
 
-    // Stage hint (always Info — stage determines which checks apply)
-    issues.extend(check_completeness_stage(change_dir, strict));
+    // Stage hint (always Info — stage reflects effective stage)
+    issues.extend(check_completeness_stage(change_dir, strict, stage_override));
 
     issues.extend(dag_issues.to_vec());
 
@@ -421,6 +480,7 @@ fn validate_by_type(
     strict: bool,
     json: bool,
     compact_json: bool,
+    stage_override: Option<ChangeStage>,
     archived_change_ids: &[String],
     has_frozen: bool,
     archive_config: &ArchiveConfig,
@@ -445,6 +505,7 @@ fn validate_by_type(
                 archived_change_ids,
                 has_frozen,
                 strict,
+                stage_override,
                 &dag_issues,
                 archive_config,
             );
@@ -675,6 +736,7 @@ fn run_bulk_validation(
     strict: bool,
     json: bool,
     compact_json: bool,
+    stage_override: Option<ChangeStage>,
     archive_config: &ArchiveConfig,
     bdd_config: Option<&BddConfig>,
 ) -> Result<()> {
@@ -714,6 +776,7 @@ fn run_bulk_validation(
             &archived_changes,
             frozen,
             strict,
+            stage_override,
             &dag_issues,
             archive_config,
         );

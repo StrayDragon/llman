@@ -12,9 +12,15 @@ description: "实施一个 llman SDD 变更的 tasks，并同步更新 tasks.md 
    - 若已提供，直接使用。
    - 否则先从上下文推断；若不明确，运行 `llman sdd list --json` 并让用户选择。
    - 始终说明："使用变更：<id>"，并告知如何覆盖。
-2. 检查前置条件：
-   - 必须存在：`llmanspec/changes/<id>/tasks.md`
-   - 若缺失，建议先用 `llman-sdd-continue`（或 `llman-sdd-ff`）补齐规划工件，然后 STOP。
+2. 检查前置条件（权威阶段守卫）：
+   - 从权威来源读取变更阶段：
+     ```bash
+     stage=$(llman sdd show <id> --json --type change | jq -r .stage)
+     ```
+     （若无 `jq`，可用任意工具从 JSON 中解析 `stage` 值。）
+   - 若 `stage` 为 `draft`，变更尚未准备好被实现 → 必须停止并给出守卫提示：
+     `draft`："变更 <id> 是 draft 提案（仅 proposal.md），尚未准备好被实现。请先用 llman-sdd-continue <id> 把它长大到至少 `spec` 阶段（proposal → specs → tasks）。"
+   - `specified`、`designed`、`full` 阶段均可被实现（存在 tasks.md 即可 apply），继续。
 3. 阅读上下文文件（视情况而定）：
    - `llmanspec/changes/<id>/proposal.md`
    - `llmanspec/changes/<id>/design.md`（如存在）

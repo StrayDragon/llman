@@ -256,6 +256,9 @@ pub enum SddCommands {
         /// Emit compact JSON (no pretty whitespace). Requires `--json`.
         #[arg(long, requires = "json")]
         compact_json: bool,
+        /// Force validation stage: draft, spec, or full (overrides auto-detection)
+        #[arg(long, value_parser = ["draft", "spec", "full"])]
+        stage: Option<String>,
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
@@ -476,6 +479,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             strict,
             json,
             compact_json,
+            stage,
             no_interactive,
         } => validate::run(validate::ValidateArgs {
             item: item.clone(),
@@ -486,6 +490,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             strict: *strict,
             json: *json,
             compact_json: *compact_json,
+            stage: stage.clone(),
             no_interactive: *no_interactive,
         }),
         SddCommands::Archive {

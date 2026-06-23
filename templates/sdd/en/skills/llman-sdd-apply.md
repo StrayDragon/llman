@@ -18,10 +18,9 @@ Implement a change by completing `llmanspec/changes/<id>/tasks.md` from top to b
      stage=$(llman sdd show <id> --json --type change | jq -r .stage)
      ```
      (If `jq` is unavailable, parse the `stage` value from the JSON with any tool.)
-   - If `stage` is not `full`, the change is not ready to implement → STOP with a guard:
-     - `draft`: "Change <id> is a draft proposal (proposal.md only). It is not ready to implement. Grow it to full first with: llman-sdd-continue <id> (proposal → specs → design → tasks)."
-     - other non-full (`specified`/`designed`): "Change <id> is in <stage> stage, not ready to implement. Grow it to full first with: llman-sdd-continue <id>."
-   - `full` stage implies `tasks.md` exists; proceed.
+   - If `stage` is `draft`, the change is not ready to implement → STOP with a guard:
+     `draft`: "Change <id> is a draft proposal (proposal.md only). It is not ready to implement. Grow it to at least `spec` stage first with: llman-sdd-continue <id> (proposal → specs → tasks)."
+   - `specified`, `designed`, and `full` stages are all ready to implement (tasks.md exists), proceed.
 3. Read context files (as applicable):
    - `llmanspec/changes/<id>/proposal.md`
    - `llmanspec/changes/<id>/design.md` (if present)
