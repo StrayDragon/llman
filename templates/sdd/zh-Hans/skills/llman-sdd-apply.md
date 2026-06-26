@@ -8,7 +8,9 @@ description: "实施一个 llman SDD 变更的 tasks，并同步更新 tasks.md 
 使用此 skill 按顺序完成 `llmanspec/changes/<id>/tasks.md`，直到完成或受阻。
 
 ## 步骤
-1. 选择变更 id：
+1. 使用 `llman sdd context --task "<proposal 中的目标>" --paths "<specs 中的 scope>"` 确认相关 specs。
+   - 如果 context 不可用，启动 `llman sdd index rebuild --run-async` 后台重建后继续。
+2. 选择变更 id：
    - 若已提供，直接使用。
    - 否则先从上下文推断；若不明确，运行 `llman sdd list --json` 并让用户选择。
    - 始终说明："使用变更：<id>"，并告知如何覆盖。

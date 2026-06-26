@@ -8,7 +8,14 @@ description: "Propose a new change and generate planning artifacts in one pass."
 Create a new change and generate all planning artifacts in one pass (proposal + delta specs + tasks; design optional), then validate and suggest next actions.
 
 ## Steps
-1. Gather input:
+1. Assess change scale (triage):
+   - **Behavioural contract change** (modify MUST/SHALL, change external behaviour) → full SDD workflow
+   - **Implementation change** (refactor, typo, perf) → quick path via `llman-sdd-quick`
+   - **Meta-spec change** (SDD templates/process) → full SDD workflow
+   - When uncertain, choose full SDD (conservative).
+2. Use `llman sdd context --task "<goal>" --paths "<scope>"` to find relevant specs.
+   - If context unavailable, start `llman sdd index rebuild --run-async` in background and continue.
+3. Gather input:
    - A short description of the change
    - A change id (or derive one; kebab-case, verb prefix: `add-`, `update-`, `remove-`, `refactor-`)
    - The impacted capability/capabilities (to name `specs/<capability>/`)

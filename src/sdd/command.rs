@@ -304,8 +304,50 @@ pub enum SddCommands {
         #[arg(long)]
         json: bool,
     },
+    /// Get specs relevant to a task and/or file paths (agent-oriented)
+    Context {
+        /// Natural language description of the current change
+        #[arg(long)]
+        task: Option<String>,
+        /// File paths involved in the change (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        paths: Vec<String>,
+        /// Maximum number of specs to return (default: 10)
+        #[arg(long, default_value_t = 10)]
+        top: usize,
+    },
+    /// Index management commands (rebuild, check freshness)
+    Index(IndexCommands),
     /// Project management commands
     Project(SddProjectArgs),
+}
+
+/// Index management commands
+#[derive(Args)]
+pub struct IndexCommands {
+    #[command(subcommand)]
+    pub command: IndexSubcommand,
+}
+
+#[derive(Subcommand)]
+pub enum IndexSubcommand {
+    /// Rebuild the embedding index (sync or async)
+    Rebuild {
+        /// Embedding API URL
+        #[arg(long)]
+        api_url: Option<String>,
+        /// Embedding model name
+        #[arg(long)]
+        model: Option<String>,
+        /// API key for embedding service
+        #[arg(long)]
+        api_key: Option<String>,
+        /// Run rebuild in background and return immediately
+        #[arg(long)]
+        run_async: bool,
+    },
+    /// Check index freshness without rebuilding
+    Check {},
 }
 
 #[derive(Args)]
@@ -695,6 +737,23 @@ pub fn run(args: &SddArgs) -> Result<()> {
             compact_json: *compact_json,
         }),
         SddCommands::Status { json } => status::run(status::StatusArgs { json: *json }),
+        SddCommands::Context { task, paths, top } => {
+            crate::sdd::context::context_run(task.clone(), paths.clone(), *top)
+        }
+        SddCommands::Index(cmd) => match &cmd.command {
+            IndexSubcommand::Check {} => crate::sdd::context::index_check(),
+            IndexSubcommand::Rebuild {
+                api_url,
+                model,
+                api_key,
+                run_async,
+            } => crate::sdd::context::index_rebuild(
+                api_url.clone(),
+                model.clone(),
+                api_key.clone(),
+                *run_async,
+            ),
+        },
         SddCommands::Project(args) => match &args.command {
             SddProjectCommands::Import {
                 source,

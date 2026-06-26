@@ -19,11 +19,14 @@ description: "进入 llman SDD 探索模式（仅思考；不做实现）。"
 - 同时保留多个选项与权衡
 
 ## 建议动作
-1. 澄清目标与约束（问 1–3 个问题）。
-2. 先看上下文：`llman sdd list --json`
+1. 使用 `llman sdd context --task "<任务>" --paths "<文件>"` 快速定位相关 specs。
+   - 阅读 context 的 `direct` 列出的 spec 全文（这些是必须理解的合约）。
+   - 如果 context 不可用，启动 `llman sdd index rebuild --run-async` 后台重建后继续。
+2. 澄清目标与约束（问 1–3 个问题）。
 3. 如果某个 change id 相关，阅读 `llmanspec/changes/<id>/` 下的 artifacts。
 4. 探索 2–3 个选项与权衡。
-5. 当结论逐渐清晰时，建议用户把它记录下来（不要自动写入）：
+5. 判断变更规模（triage），确定是否需要走完整 SDD 流程。
+6. 当结论逐渐清晰时，建议用户把它记录下来（不要自动写入）：
    - 范围变化 → `proposal.md`
    - 需求变化 → `llmanspec/changes/<id>/specs/<capability>/spec.toon`
    - 设计决策 → `design.md`
@@ -35,6 +38,7 @@ description: "进入 llman SDD 探索模式（仅思考；不做实现）。"
 - `llman-sdd-new-change`（创建 change）
 - `llman-sdd-ff`（一次性创建所有 artifacts）
 - `llman-sdd-apply`（按 tasks 实施）
+- `llman-sdd-quick`（快速路径：小改动直接改）
 若用户在探索模式中要求你开始实现，STOP 并提醒其先退出探索模式。
 
 {{ unit("skills/sdd-commands") }}

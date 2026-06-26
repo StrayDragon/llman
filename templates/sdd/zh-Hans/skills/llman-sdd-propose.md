@@ -8,7 +8,14 @@ description: "提出一个新变更并一次性生成规划工件。"
 创建一个新变更，并一次性生成所有规划工件（proposal + delta specs + tasks；design 可选），然后执行校验并建议下一步动作。
 
 ## 步骤
-1. 收集输入：
+1. 判断变更规模（triage）：
+   - **行为合约变更**（改 MUST/SHALL、改外部行为）→ 走完整 SDD 流程
+   - **实现变更**（重构、typo、性能）→ 建议走快速路径，用 `llman-sdd-quick`
+   - **元规范变更**（改 SDD 模板/流程）→ 必须走完整 SDD 流程
+   - 不确定时走完整 SDD 流程（保守选择）
+2. 使用 `llman sdd context --task "<目标>" --paths "<范围>"` 获取相关 specs。
+   - 如果 context 不可用，启动 `llman sdd index rebuild --run-async` 后台重建后继续。
+3. 收集输入：
    - 变更的简要描述
    - change id（若未给出则推导；kebab-case，动词前缀：`add-`、`update-`、`remove-`、`refactor-`）
    - 受影响的 capability/capabilities（用于命名 `specs/<capability>/`）
