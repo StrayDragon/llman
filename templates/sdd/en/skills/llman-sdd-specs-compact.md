@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-specs-compact"
 description: "Compact and refactor llman SDD specs while preserving normative behavior."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Specs Compact

@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-apply"
 description: "实施一个 llman SDD 变更的 tasks，并同步更新 tasks.md 勾选状态。"
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Apply

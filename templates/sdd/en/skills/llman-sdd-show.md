@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-show"
 description: "Inspect llmanspec changes and specs quickly."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Show

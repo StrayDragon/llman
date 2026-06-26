@@ -1,0 +1,9 @@
+kind: llman.sdd.delta
+ops[2]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r18,技能版本元数据,"Skills 模板 MUST 包含 metadata.version 字段，其值 MUST 与生成该 skill 的 llman CLI 版本一致。llman sdd init 与 llman sdd update-skills MUST 在写入 SKILL.md 时自动填充当前 CLI 版本。",null,null,null
+  add_requirement,r19,版本不匹配警告,当 skill 的 metadata.version 与当前运行的 llman CLI 主版本（major.minor）不一致时，harness 或 skill 执行流程 SHOULD 输出警告。该警告 MUST NOT 阻断 skill 加载或执行。,null,null,null
+op_scenarios[4]{req_id,id,given,when,then}:
+  r18,"init-填充版本","",用户运行 llman sdd init,生成的 skills 的 metadata.version 为当前 CLI 版本
+  r18,"update-skills-同步版本","","用户运行 llman sdd update-skills",更新后的 skills 的 metadata.version 为当前 CLI 版本
+  r18,"缺失-version-不阻断","",现有 skill 无 metadata.version,skill 正常加载，视为未版本化
+  r19,主版本不匹配警告,"",skill 的 metadata.version 为 0.0.40，当前 CLI 为 0.0.50,加载时输出版本不匹配警告

@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-ff"
 description: "Fast-forward: create proposal/specs/design/tasks for a change in one pass."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Fast-Forward (FF)

@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-archive"
 description: "Archive one or multiple changes and merge deltas into specs."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Archive

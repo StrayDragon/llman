@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-onboard"
 description: "了解 llman SDD 工作流并完成项目入门。"
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD 入门

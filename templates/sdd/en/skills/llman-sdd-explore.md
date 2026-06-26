@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-explore"
 description: "Enter explore mode for llman SDD (thinking only; no implementation)."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Explore

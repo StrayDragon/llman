@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-graph"
 description: "Generate a dependency graph from change proposal frontmatter (depends_on/blocks)."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Graph

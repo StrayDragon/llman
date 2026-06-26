@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-new-change"
 description: "创建新的 SDD 变更提案与增量 specs。"
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD 新变更

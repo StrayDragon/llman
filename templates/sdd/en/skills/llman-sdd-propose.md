@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-propose"
 description: "Propose a new change and generate planning artifacts in one pass."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Propose

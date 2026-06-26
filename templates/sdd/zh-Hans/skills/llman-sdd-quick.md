@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-quick"
 description: "小变更快速路径：不涉及行为合约时直接修改代码。"
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Quick Path

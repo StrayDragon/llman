@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-new-change"
 description: "Create a new change proposal and delta specs."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD New Change
