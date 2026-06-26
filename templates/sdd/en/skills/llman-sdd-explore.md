@@ -19,11 +19,14 @@ Use this skill when the user wants to think through ideas, investigate problems,
 - Willing to hold multiple options and tradeoffs
 
 ## Suggested moves
-1. Clarify the goal and constraints (ask 1–3 questions).
-2. Check context: `llman sdd list --json`
+1. Use `llman sdd context --task "<task>" --paths "<files>"` to quickly locate relevant specs.
+   - Read the `direct` spec files (these are the contracts you must understand).
+   - If context is unavailable, start `llman sdd index rebuild --run-async` in background.
+2. Clarify the goal and constraints (ask 1–3 questions).
 3. If a change id is relevant, read its artifacts under `llmanspec/changes/<id>/`.
 4. Explore options and tradeoffs (2–3 options).
-5. When something crystallizes, offer to capture it (don’t auto-write):
+5. Assess change scale (triage) to determine if full SDD is needed.
+6. When something crystallizes, offer to capture it (don't auto-write):
    - Scope changes → `proposal.md`
    - Requirements → `llmanspec/changes/<id>/specs/<capability>/spec.toon`
    - Design decisions → `design.md`
@@ -35,6 +38,7 @@ When the user is ready to implement, suggest:
 - `llman-sdd-new-change` (start a change)
 - `llman-sdd-ff` (create all artifacts quickly)
 - `llman-sdd-apply` (implement tasks)
+- `llman-sdd-quick` (quick path: direct implementation for small changes)
 If the user asks you to implement while in explore mode, STOP and remind them to exit explore mode first.
 
 {{ unit("skills/sdd-commands") }}

@@ -176,7 +176,34 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
             .map_err(|err| anyhow!("failed to read spec {}: {}", spec_path.display(), err))?;
         let spec =
             parse_spec(&content, &id).map_err(|err| anyhow!("{}: {}", spec_path.display(), err))?;
-        specs.push((id, spec.requirements.len()));
+        let count = spec.requirements.len();
+        let purpose = spec.overview.clone();
+
+        // Extract valid_scope from raw TOON content
+        let valid_scope: Vec<String> = content
+            .lines()
+            .find_map(|line| {
+                let line = line.trim();
+                if line.starts_with("valid_scope") || line.starts_with("validScope") {
+                    // Parse: valid_scope[N]: val1,val2
+                    if let Some(eq_idx) = line.find(':') {
+                        let vals = line[eq_idx + 1..].trim();
+                        Some(
+                            vals.split(',')
+                                .map(|v| v.trim().trim_matches('"').to_string())
+                                .filter(|v| !v.is_empty())
+                                .collect(),
+                        )
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
+
+        specs.push((id, count, purpose, valid_scope));
     }
 
     specs.sort_by(|a, b| natural_cmp(&a.0, &b.0));
@@ -184,11 +211,15 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     if args.json {
         let json_output: Vec<_> = specs
             .iter()
-            .map(|(id, count)| {
+            .map(|(id, count, purpose, scope)| {
                 serde_json::json!({
                     "id": id,
                     "title": id,
-                    "requirementCount": count
+                    "purpose": purpose,
+                    "validScope": scope,
+                    "requirementCount": count,
+                    "health": null,
+                    "staleness": null,
                 })
             })
             .collect();
@@ -198,7 +229,7 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
 
     println!("{}", t!("sdd.list.specs_header"));
     let name_width = specs.iter().map(|s| s.0.len()).fold(0, max);
-    for (id, count) in specs {
+    for (id, count, _purpose, _scope) in specs {
         let padded = format!("{:<width$}", id, width = name_width);
         println!("  {}     requirements {}", padded, count);
     }

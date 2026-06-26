@@ -8,7 +8,9 @@ description: "Implement tasks from an llman SDD change and update tasks.md check
 Implement a change by completing `llmanspec/changes/<id>/tasks.md` from top to bottom.
 
 ## Steps
-1. Select the change id:
+1. Use `llman sdd context --task "<goal from proposal>" --paths "<scope from specs>"` to confirm relevant specs.
+   - If context unavailable, start `llman sdd index rebuild --run-async` in background and continue.
+2. Select the change id:
    - If provided, use it.
    - Otherwise infer from context; if ambiguous, run `llman sdd list --json` and ask the user to choose.
    - Always announce: "Using change: <id>" and how to override.
