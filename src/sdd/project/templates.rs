@@ -97,6 +97,11 @@ fn load_template(config: &SddConfig, root: &Path, relative_path: &str) -> Result
 
 fn build_template_vars(config: &SddConfig) -> BTreeMap<String, String> {
     let mut vars = BTreeMap::new();
+    // Add llman CLI version for skill metadata
+    vars.insert(
+        "llman_version".to_string(),
+        env!("CARGO_PKG_VERSION").to_string(),
+    );
     if let Some(ref bdd) = config.bdd {
         vars.insert("bdd_enabled".to_string(), "true".to_string());
         vars.insert("bdd_framework".to_string(), bdd.framework.clone());

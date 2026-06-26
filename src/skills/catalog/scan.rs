@@ -122,6 +122,68 @@ fn read_frontmatter_name(path: &Path) -> Option<String> {
         .map(|value| value.to_string())
 }
 
+/// Read the `metadata.version` field from a SKILL.md frontmatter.
+/// Returns None if the field is missing or cannot be parsed.
+pub fn read_frontmatter_version(path: &Path) -> Option<String> {
+    let content = fs::read_to_string(path).ok()?;
+    let mut lines = content.lines();
+    if lines.next()? != "---" {
+        return None;
+    }
+    let mut yaml = String::new();
+    for line in lines {
+        if line.trim() == "---" {
+            break;
+        }
+        yaml.push_str(line);
+        yaml.push('\n');
+    }
+    if yaml.trim().is_empty() {
+        return None;
+    }
+    let parsed: Value = serde_yaml::from_str(&yaml).ok()?;
+    parsed
+        .get("metadata")
+        .and_then(|m| m.get("version"))
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string())
+}
+
+/// Extract major.minor version from a semver string.
+/// For example, "0.0.50" -> "0.0"
+fn extract_major_minor(version: &str) -> Option<String> {
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() >= 2 {
+        Some(format!("{}.{}", parts[0], parts[1]))
+    } else {
+        None
+    }
+}
+
+/// Check if a skill version is compatible with the current CLI version.
+/// Returns a warning message if versions are incompatible, None otherwise.
+pub fn check_skill_version_compat(skill_path: &Path) -> Option<String> {
+    let skill_version = read_frontmatter_version(skill_path)?;
+    let cli_version = env!("CARGO_PKG_VERSION");
+
+    let skill_major_minor = extract_major_minor(&skill_version);
+    let cli_major_minor = extract_major_minor(cli_version);
+
+    match (skill_major_minor, cli_major_minor) {
+        (Some(skill_mm), Some(cli_mm)) => {
+            if skill_mm != cli_mm {
+                Some(format!(
+                    "Warning: This skill was generated for llman {}, but you are running {}. Content may be outdated.",
+                    skill_version, cli_version
+                ))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 fn is_symlink_dir(path: &Path) -> bool {
     fs::symlink_metadata(path)
         .map(|meta| meta.file_type().is_symlink())
@@ -253,5 +315,94 @@ mod tests {
             .expect("discover skills");
         assert_eq!(discovered.len(), 1);
         assert_eq!(discovered[0].skill_id, "kept-skill");
+    }
+
+    #[test]
+    fn test_read_frontmatter_version_with_metadata() {
+        let temp = TempDir::new().expect("temp dir");
+        let skill_file = temp.path().join("SKILL.md");
+        fs::write(
+            &skill_file,
+            "---\nname: test-skill\nmetadata:\n  version: \"0.0.50\"\n---\n# Test",
+        )
+        .expect("write file");
+
+        let version = read_frontmatter_version(&skill_file);
+        assert_eq!(version, Some("0.0.50".to_string()));
+    }
+
+    #[test]
+    fn test_read_frontmatter_version_without_metadata() {
+        let temp = TempDir::new().expect("temp dir");
+        let skill_file = temp.path().join("SKILL.md");
+        fs::write(&skill_file, "---\nname: test-skill\n---\n# Test").expect("write file");
+
+        let version = read_frontmatter_version(&skill_file);
+        assert_eq!(version, None);
+    }
+
+    #[test]
+    fn test_read_frontmatter_version_no_frontmatter() {
+        let temp = TempDir::new().expect("temp dir");
+        let skill_file = temp.path().join("SKILL.md");
+        fs::write(&skill_file, "# No frontmatter").expect("write file");
+
+        let version = read_frontmatter_version(&skill_file);
+        assert_eq!(version, None);
+    }
+
+    #[test]
+    fn test_extract_major_minor() {
+        assert_eq!(extract_major_minor("0.0.50"), Some("0.0".to_string()));
+        assert_eq!(extract_major_minor("1.2.3"), Some("1.2".to_string()));
+        assert_eq!(extract_major_minor("0.1"), Some("0.1".to_string()));
+        assert_eq!(extract_major_minor("1"), None);
+        assert_eq!(extract_major_minor(""), None);
+    }
+
+    #[test]
+    fn test_check_skill_version_compat_matching() {
+        let temp = TempDir::new().expect("temp dir");
+        let skill_file = temp.path().join("SKILL.md");
+        let cli_version = env!("CARGO_PKG_VERSION");
+        fs::write(
+            &skill_file,
+            format!(
+                "---\nname: test-skill\nmetadata:\n  version: \"{}\"\n---\n# Test",
+                cli_version
+            ),
+        )
+        .expect("write file");
+
+        let warning = check_skill_version_compat(&skill_file);
+        assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn test_check_skill_version_compat_mismatch() {
+        let temp = TempDir::new().expect("temp dir");
+        let skill_file = temp.path().join("SKILL.md");
+        // Use a different major.minor version (1.0 vs current 0.0)
+        fs::write(
+            &skill_file,
+            "---\nname: test-skill\nmetadata:\n  version: \"1.0.0\"\n---\n# Test",
+        )
+        .expect("write file");
+
+        let warning = check_skill_version_compat(&skill_file);
+        assert!(warning.is_some());
+        let msg = warning.unwrap();
+        assert!(msg.contains("1.0.0"));
+        assert!(msg.contains("may be outdated"));
+    }
+
+    #[test]
+    fn test_check_skill_version_compat_no_version() {
+        let temp = TempDir::new().expect("temp dir");
+        let skill_file = temp.path().join("SKILL.md");
+        fs::write(&skill_file, "---\nname: test-skill\n---\n# Test").expect("write file");
+
+        let warning = check_skill_version_compat(&skill_file);
+        assert_eq!(warning, None);
     }
 }

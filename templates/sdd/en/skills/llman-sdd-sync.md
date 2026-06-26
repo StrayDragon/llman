@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-sync"
 description: "Manually sync delta specs into main specs without archiving the change."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Sync

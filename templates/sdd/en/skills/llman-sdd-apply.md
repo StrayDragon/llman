@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-apply"
 description: "Implement tasks from an llman SDD change and update tasks.md checkboxes."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Apply

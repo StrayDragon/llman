@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-propose"
 description: "提出一个新变更并一次性生成规划工件。"
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD 提案（Propose）

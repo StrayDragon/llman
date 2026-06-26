@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-verify"
 description: "Verify implementation matches llman SDD specs/design and propose fixes."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Verify

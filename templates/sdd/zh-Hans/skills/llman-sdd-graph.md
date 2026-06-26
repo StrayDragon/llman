@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-graph"
 description: "根据变更提案的 frontmatter（depends_on/blocks）生成依赖关系图。"
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD 依赖图

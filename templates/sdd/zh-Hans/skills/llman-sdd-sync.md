@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-sync"
 description: "手动把 delta specs 同步到主 specs（不归档 change）。"
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Sync

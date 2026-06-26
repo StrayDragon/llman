@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-quick"
 description: "Quick path for small changes that don't affect behavioral contracts."
+metadata:
+  version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Quick Path
