@@ -24,6 +24,7 @@ struct DependencyEdge {
 struct DeferEdge {
     from: String,
     to: String,
+    count: usize,
 }
 
 #[derive(Clone)]
@@ -361,7 +362,7 @@ fn collect_edges_for_nodes(root: &Path, nodes: &[GraphNode]) -> Vec<DependencyEd
 }
 
 fn collect_defer_edges(root: &Path, nodes: &[GraphNode]) -> Vec<DeferEdge> {
-    let mut edges = Vec::new();
+    let mut counts: HashMap<(String, String), usize> = HashMap::new();
 
     for node in nodes {
         if !node.present {
@@ -377,14 +378,16 @@ fn collect_defer_edges(root: &Path, nodes: &[GraphNode]) -> Vec<DeferEdge> {
             if let TaskStatus::Deferred { target } = &item.status
                 && !target.is_empty()
             {
-                edges.push(DeferEdge {
-                    from: node.id.clone(),
-                    to: target.clone(),
-                });
+                let key = (node.id.clone(), target.clone());
+                *counts.entry(key).or_insert(0) += 1;
             }
         }
     }
-    edges
+
+    counts
+        .into_iter()
+        .map(|((from, to), count)| DeferEdge { from, to, count })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -621,10 +624,16 @@ fn render_nodes_and_edges(
         if !component_ids.contains(edge.from.as_str()) {
             continue;
         }
+        let label = if edge.count > 1 {
+            format!("defer: {} tasks", edge.count)
+        } else {
+            "defer".to_string()
+        };
         println!(
-            "{}{} -.->|defer| {}",
+            "{}{} -.->|{}| {}",
             pad,
             sanitize_id(&edge.from),
+            label,
             sanitize_id(&edge.to),
         );
     }

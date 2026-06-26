@@ -1,3 +1,4 @@
+pub mod embed;
 pub mod index;
 
 pub use index::*;
@@ -9,7 +10,6 @@ use anyhow::{Context as _, Result};
 use serde_json;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
 /// Find the llmanspec directory by walking up from start_dir
 fn find_llmanspec_dir(start_dir: &Path) -> Result<PathBuf> {
@@ -202,55 +202,17 @@ pub fn context_run(task: Option<String>, paths: Vec<String>, top: usize) -> Resu
     Ok(())
 }
 
-/// Helper: embed a single query text via Python helper
+/// Helper: embed a single query text via native Rust HTTP
 fn embed_query(text: &str) -> std::result::Result<Vec<f32>, String> {
-    let api_url = std::env::var("LLMAN_EMBED_API_URL")
-        .unwrap_or_else(|_| "http://coral:11534/v1".to_string());
-    let api_key = std::env::var("LLMAN_EMBED_API_KEY")
-        .unwrap_or_else(|_| "omlx-gdpzzt2g5351xhqm".to_string());
-    let model =
-        std::env::var("LLMAN_EMBED_MODEL").unwrap_or_else(|_| "bge-m3-mlx-8bit".to_string());
-
-    let input = serde_json::json!({
-        "texts": [text],
-        "api_url": api_url,
-        "api_key": api_key,
-        "model": model,
+    let cfg = resolve_api_config(ResolveCtx {
+        cli_api_host: None,
+        cli_api_key: None,
+        cli_model: None,
     });
-
-    let python_script =
-        find_script_path("embed_chunks.py").map_err(|e| format!("Script not found: {}", e))?;
-
-    let mut child = std::process::Command::new("python3")
-        .arg(&python_script)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::inherit())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn Python: {}", e))?;
-
-    if let Some(stdin) = child.stdin.as_mut() {
-        use std::io::Write;
-        let _ = stdin.write_all(input.to_string().as_bytes());
-    }
-    drop(child.stdin.take());
-
-    let output = child
-        .wait_with_output()
-        .map_err(|e| format!("Python failed: {}", e))?;
-
-    if !output.status.success() {
-        return Err("Embedding API returned an error. Check LLMAN_EMBED_API_URL.".to_string());
-    }
-
-    let result: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .map_err(|e| format!("Invalid JSON from Python: {}", e))?;
-
-    result["embeddings"]
-        .as_array()
-        .and_then(|arr| arr.first())
-        .and_then(|first| first.as_array())
-        .map(|v| v.iter().map(|x| x.as_f64().unwrap_or(0.0) as f32).collect())
+    embed::embed_texts(&[text], &cfg.api_host, &cfg.api_key, &cfg.model)
+        .map_err(|e| format!("Embedding API error: {}", e))?
+        .into_iter()
+        .next()
         .ok_or_else(|| "No embeddings in response".to_string())
 }
 
@@ -334,15 +296,14 @@ pub fn index_rebuild(
     let specs_dir = llmanspec_dir.join("specs");
 
     // Resolve API config: CLI args > env vars > defaults
-    let api_url = api_url.unwrap_or_else(|| {
-        std::env::var("LLMAN_EMBED_API_URL").unwrap_or_else(|_| "http://coral:11534/v1".to_string())
+    let cfg = resolve_api_config(ResolveCtx {
+        cli_api_host: api_url,
+        cli_api_key: api_key,
+        cli_model: model,
     });
-    let api_key = api_key.unwrap_or_else(|| {
-        std::env::var("LLMAN_EMBED_API_KEY").unwrap_or_else(|_| "omlx-gdpzzt2g5351xhqm".to_string())
-    });
-    let model = model.unwrap_or_else(|| {
-        std::env::var("LLMAN_EMBED_MODEL").unwrap_or_else(|_| "bge-m3-mlx-8bit".to_string())
-    });
+    let api_host = &cfg.api_host;
+    let api_key = &cfg.api_key;
+    let model = &cfg.model;
 
     // Ensure context directory exists
     std::fs::create_dir_all(&context_dir)?;
@@ -407,57 +368,14 @@ pub fn index_rebuild(
         );
     }
 
-    // 2. Call embedding API via Python helper
-    eprintln!("Embedding {} chunks via {}...", chunks.len(), api_url);
+    // 2. Call embedding API via native Rust HTTP
+    eprintln!("Embedding {} chunks via {}...", chunks.len(), api_host);
 
     let chunk_texts: Vec<&str> = chunks.iter().map(|c| c.text.as_str()).collect();
-    let input = serde_json::json!({
-        "texts": chunk_texts,
-        "api_url": api_url,
-        "api_key": api_key,
-        "model": model,
-    });
+    let all_embeddings = embed::embed_texts(&chunk_texts, api_host, api_key, model)
+        .context("Failed to embed chunks")?;
 
-    let python_script = find_script_path("embed_chunks.py")?;
-
-    // Spawn Python script and pipe input to stdin
-    let mut child = Command::new("python3")
-        .arg(&python_script)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .context("Failed to spawn scripts/embed_chunks.py")?;
-
-    if let Some(stdin) = child.stdin.as_mut() {
-        use std::io::Write;
-        stdin
-            .write_all(input.to_string().as_bytes())
-            .context("Failed to write input to embed script")?;
-    }
-    // Drop stdin to close pipe, allowing Python to read EOF
-    drop(child.stdin.take());
-
-    let output = child
-        .wait_with_output()
-        .context("Failed to wait for embed script")?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Embedding script failed: {}", stderr);
-    }
-
-    let embed_result: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    let all_vectors: Vec<f32> = embed_result["embeddings"]
-        .as_array()
-        .context("No embeddings in response")?
-        .iter()
-        .flat_map(|v| {
-            v.as_array()
-                .unwrap()
-                .iter()
-                .map(|x| x.as_f64().unwrap() as f32)
-        })
-        .collect();
+    let all_vectors: Vec<f32> = all_embeddings.iter().flatten().copied().collect();
 
     let dim = if !chunks.is_empty() {
         all_vectors.len() / chunks.len()
@@ -507,20 +425,37 @@ pub fn index_rebuild(
     Ok(())
 }
 
-/// Find a script path relative to the project root
-fn find_script_path(name: &str) -> Result<PathBuf> {
-    // Try relative to current dir
-    let local = PathBuf::from("scripts").join(name);
-    if local.exists() {
-        return Ok(local);
+/// Resolved embedding API configuration.
+struct ApiConfig {
+    api_host: String,
+    api_key: String,
+    model: String,
+}
+
+/// CLI-sourced partial config for resolution.
+struct ResolveCtx {
+    cli_api_host: Option<String>,
+    cli_api_key: Option<String>,
+    cli_model: Option<String>,
+}
+
+/// Resolve embedding API config with priority:
+/// CLI args > LLMAN_SDD_INDEX_OPENAI_* env vars > hardcoded defaults.
+fn resolve_api_config(ctx: ResolveCtx) -> ApiConfig {
+    let api_host = ctx.cli_api_host.unwrap_or_else(|| {
+        std::env::var("LLMAN_SDD_INDEX_OPENAI_API_HOST")
+            .unwrap_or_else(|_| "http://coral:11534/v1".to_string())
+    });
+    let api_key = ctx.cli_api_key.unwrap_or_else(|| {
+        std::env::var("LLMAN_SDD_INDEX_OPENAI_API_KEY")
+            .unwrap_or_else(|_| "omlx-gdpzzt2g5351xhqm".to_string())
+    });
+    let model = ctx.cli_model.unwrap_or_else(|| {
+        std::env::var("LLMAN_SDD_INDEX_MODEL").unwrap_or_else(|_| "bge-m3-mlx-8bit".to_string())
+    });
+    ApiConfig {
+        api_host,
+        api_key,
+        model,
     }
-    // Try relative to llmanspec parent
-    if let Ok(llmanspec) = find_llmanspec_dir(Path::new(".")) {
-        let parent = llmanspec.parent().unwrap_or(Path::new("."));
-        let candidate = parent.join("scripts").join(name);
-        if candidate.exists() {
-            return Ok(candidate);
-        }
-    }
-    anyhow::bail!("Script not found: scripts/{}", name);
 }

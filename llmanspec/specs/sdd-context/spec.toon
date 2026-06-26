@@ -1,0 +1,12 @@
+kind: llman.sdd.spec
+name: "sdd-context"
+purpose: "TBD - created by archiving change refactor-embed-native-rust. Update purpose after archive."
+valid_scope[2]: src/,tests/
+requirements[3]{req_id,title,statement}:
+  r1,原生 Rust HTTP 客户端替换 Python 脚本,"System MUST replace scripts/embed_chunks.py invocation in index_rebuild() and embed_query() with native Rust HTTP (reqwest::blocking) using an OpenAI-compatible embeddings API."
+  r2,LLMAN_SDD_INDEX_* 环境变量,"System MUST support LLMAN_SDD_INDEX_OPENAI_API_HOST, LLMAN_SDD_INDEX_OPENAI_API_KEY and LLMAN_SDD_INDEX_MODEL env vars with priority: CLI args > env vars > hardcoded defaults"
+  r3,Cargo.toml HTTP 客户端依赖,Cargo.toml MUST add reqwest (with blocking + rustls features) as a dependency for making blocking HTTP requests to the embeddings API
+scenarios[3]{req_id,id,given,when,then}:
+  r1,"native-http",Python embed_chunks.py currently called from index_rebuild() and embed_query(),index_rebuild() or embed_query() needs to embed text,Rust reqwest::blocking HTTP request is made instead of spawning a Python subprocess; responses are parsed directly in Rust
+  r2,"env-var-priority","CLI arg --api-host, env var LLMAN_SDD_INDEX_OPENAI_API_HOST both set",index_rebuild() resolves the API host,"CLI arg wins, then LLMAN_SDD_INDEX_OPENAI_API_HOST, then hardcoded default"
+  r3,"dep-added",Cargo.toml does not currently have an explicit HTTP client dependency,reqwest (with blocking+rustls) is added as a direct dependency,just build succeeds and index_rebuild() can make HTTP requests using reqwest
