@@ -1,15 +1,16 @@
 use anyhow::{Context as _, Result};
-use std::time::Duration;
-
-const BATCH_SIZE: usize = 8;
-const MAX_RETRIES: usize = 3;
-const RETRY_DELAY_MS: u64 = 1000;
+use async_openai::Client;
+use async_openai::config::OpenAIConfig;
+use async_openai::types::{CreateEmbeddingRequestArgs, EmbeddingInput};
 
 /// Embed a list of texts using an OpenAI-compatible embeddings API.
 ///
-/// Sends batched POST requests to `{api_host}/embeddings` with retry logic.
-/// Returns a flat `Vec<Vec<f32>>` where each inner vector is one embedding.
-pub fn embed_texts(
+/// Uses `async_openai::Client` as the unified HTTP client (shared with the chat /
+/// tool-calling path used by the pageindex backend). Per the sdd-context spec
+/// (async-openai replaces reqwest), batching and retries are handled by the
+/// client's built-in backoff, so this issues a single request for all inputs
+/// rather than hand-written per-batch loops.
+pub async fn embed_texts(
     texts: &[&str],
     api_host: &str,
     api_key: &str,
@@ -19,123 +20,45 @@ pub fn embed_texts(
         return Ok(Vec::new());
     }
 
-    // Normalize: ensure host ends without trailing slash for URL building
-    let host = api_host.trim_end_matches('/');
-    let embeddings_url = format!("{}/embeddings", host);
+    let config = OpenAIConfig::new()
+        .with_api_base(normalize_base(api_host))
+        .with_api_key(api_key);
+    let client = Client::with_config(config);
 
-    let client = reqwest::blocking::Client::new();
-    let mut all_embeddings: Vec<Vec<f32>> = Vec::with_capacity(texts.len());
-
-    for batch in texts.chunks(BATCH_SIZE) {
-        let batch_embeddings =
-            embed_batch_with_retry(batch, &embeddings_url, api_key, model, &client).with_context(
-                || {
-                    format!(
-                        "Failed to embed batch of {} texts via {}",
-                        batch.len(),
-                        embeddings_url
-                    )
-                },
-            )?;
-        all_embeddings.extend(batch_embeddings);
-    }
-
-    Ok(all_embeddings)
-}
-
-/// Send a single batch to the embeddings API, with retry.
-fn embed_batch_with_retry(
-    batch: &[&str],
-    url: &str,
-    api_key: &str,
-    model: &str,
-    client: &reqwest::blocking::Client,
-) -> Result<Vec<Vec<f32>>> {
-    let mut last_error = None;
-
-    for attempt in 0..MAX_RETRIES {
-        match embed_batch(batch, url, api_key, model, client) {
-            Ok(embeddings) => return Ok(embeddings),
-            Err(e) => {
-                last_error = Some(e);
-                if attempt < MAX_RETRIES - 1 {
-                    std::thread::sleep(Duration::from_millis(RETRY_DELAY_MS));
-                }
-            }
-        }
-    }
-
-    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("Embedding request failed after retries")))
-}
-
-/// Send a single batch request and parse the response.
-fn embed_batch(
-    batch: &[&str],
-    url: &str,
-    api_key: &str,
-    model: &str,
-    client: &reqwest::blocking::Client,
-) -> Result<Vec<Vec<f32>>> {
-    let body = serde_json::json!({
-        "model": model,
-        "input": batch,
-        "encoding_format": "float",
-    });
+    let request = CreateEmbeddingRequestArgs::default()
+        .model(model)
+        .input(EmbeddingInput::StringArray(
+            texts.iter().map(|s| s.to_string()).collect(),
+        ))
+        .build()
+        .context("Failed to build embedding request")?;
 
     let response = client
-        .post(url)
-        .header("Authorization", format!("Bearer {}", api_key))
-        .json(&body)
-        .send()
-        .with_context(|| format!("HTTP request to {} failed", url))?;
+        .embeddings()
+        .create(request)
+        .await
+        .with_context(|| format!("Embedding API request via {} failed", api_host))?;
 
-    let status = response.status();
-    if status != reqwest::StatusCode::OK {
-        let body_text = response
-            .text()
-            .unwrap_or_else(|_| "<unreadable>".to_string());
-        anyhow::bail!("Embedding API returned HTTP {}: {}", status, body_text);
-    }
+    // The API may return embeddings out of order; restore input order by index.
+    let mut data = response.data;
+    data.sort_by_key(|e| e.index);
+    let embeddings: Vec<Vec<f32>> = data.into_iter().map(|e| e.embedding).collect();
 
-    let body_str = response
-        .text()
-        .context("Failed to read embedding API response body")?;
-    let data: serde_json::Value = serde_json::from_str(&body_str)
-        .context("Failed to parse embedding API response as JSON")?;
-
-    let embeddings_arr = data["data"]
-        .as_array()
-        .context("Response missing 'data' array")?;
-
-    // Sort by index to maintain order (API may return out of order)
-    let mut sorted: Vec<&serde_json::Value> = embeddings_arr.iter().collect();
-    sorted.sort_by(|a, b| {
-        let ai = a["index"].as_u64().unwrap_or(0);
-        let bi = b["index"].as_u64().unwrap_or(0);
-        ai.cmp(&bi)
-    });
-
-    let embeddings: Vec<Vec<f32>> = sorted
-        .iter()
-        .map(|entry| {
-            entry["embedding"]
-                .as_array()
-                .map(|arr| {
-                    arr.iter()
-                        .map(|x| x.as_f64().unwrap_or(0.0) as f32)
-                        .collect()
-                })
-                .ok_or_else(|| anyhow::anyhow!("Entry missing 'embedding' field"))
-        })
-        .collect::<Result<Vec<_>>>()?;
-
-    if embeddings.len() != batch.len() {
+    if embeddings.len() != texts.len() {
         anyhow::bail!(
             "Expected {} embeddings, got {}",
-            batch.len(),
+            texts.len(),
             embeddings.len()
         );
     }
 
     Ok(embeddings)
+}
+
+/// Normalize an API host into an OpenAI-compatible base URL.
+///
+/// async-openai joins `api_base` with request paths like `/embeddings`, so the
+/// base must not end with a trailing slash.
+fn normalize_base(api_host: &str) -> String {
+    api_host.trim_end_matches('/').to_string()
 }

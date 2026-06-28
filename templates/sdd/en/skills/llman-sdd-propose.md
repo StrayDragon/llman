@@ -16,7 +16,7 @@ Create a new change and generate all planning artifacts in one pass (proposal + 
    - **Meta-spec change** (SDD templates/process) → full SDD workflow
    - When uncertain, choose full SDD (conservative).
 2. Use `llman sdd context --task "<goal>" --paths "<scope>"` to find relevant specs.
-   - If context unavailable, start `llman sdd index rebuild --run-async` in background and continue.
+   - If context unavailable, rebuild with `llman sdd index rebuild` (default `pageindex`, no model needed) and continue.
 3. Gather input:
    - A short description of the change
    - A change id (or derive one; kebab-case, verb prefix: `add-`, `update-`, `remove-`, `refactor-`)

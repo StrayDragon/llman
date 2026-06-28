@@ -315,6 +315,12 @@ pub enum SddCommands {
         /// Maximum number of specs to return (default: 10)
         #[arg(long, default_value_t = 10)]
         top: usize,
+        /// Retrieval/index backend: `pageindex` (default, agentic tree search) or
+        /// `rag` (embedding vector similarity).
+        ///
+        /// Can also be preset via `LLMAN_SDD_INDEX_BACKEND`.
+        #[arg(long, value_parser = ["rag", "pageindex"])]
+        backend: Option<String>,
     },
     /// Index management commands (rebuild, check freshness)
     Index(IndexCommands),
@@ -331,20 +337,25 @@ pub struct IndexCommands {
 
 #[derive(Subcommand)]
 pub enum IndexSubcommand {
-    /// Rebuild the embedding index (sync or async)
+    /// Rebuild the index (sync or async)
     Rebuild {
-        /// Embedding API URL
+        /// Embedding API URL (rag backend only)
         #[arg(long)]
         api_url: Option<String>,
-        /// Embedding model name
+        /// Embedding model name (rag backend only)
         #[arg(long)]
         model: Option<String>,
-        /// API key for embedding service
+        /// API key for embedding service (rag backend only)
         #[arg(long)]
         api_key: Option<String>,
         /// Run rebuild in background and return immediately
         #[arg(long)]
         run_async: bool,
+        /// Which backend's index to rebuild: `pageindex` (default) or `rag`.
+        ///
+        /// Can also be preset via `LLMAN_SDD_INDEX_BACKEND`.
+        #[arg(long, value_parser = ["rag", "pageindex"])]
+        backend: Option<String>,
     },
     /// Check index freshness without rebuilding
     Check {},
@@ -737,8 +748,20 @@ pub fn run(args: &SddArgs) -> Result<()> {
             compact_json: *compact_json,
         }),
         SddCommands::Status { json } => status::run(status::StatusArgs { json: *json }),
-        SddCommands::Context { task, paths, top } => {
-            crate::sdd::context::context_run(task.clone(), paths.clone(), *top)
+        SddCommands::Context {
+            task,
+            paths,
+            top,
+            backend,
+        } => {
+            let backend = crate::sdd::context::resolve_backend(backend.clone())?;
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(crate::sdd::context::context_run(
+                task.clone(),
+                paths.clone(),
+                *top,
+                backend,
+            ))
         }
         SddCommands::Index(cmd) => match &cmd.command {
             IndexSubcommand::Check {} => crate::sdd::context::index_check(),
@@ -747,12 +770,18 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 model,
                 api_key,
                 run_async,
-            } => crate::sdd::context::index_rebuild(
-                api_url.clone(),
-                model.clone(),
-                api_key.clone(),
-                *run_async,
-            ),
+                backend,
+            } => {
+                let backend = crate::sdd::context::resolve_backend(backend.clone())?;
+                let rt = tokio::runtime::Runtime::new()?;
+                rt.block_on(crate::sdd::context::index_rebuild(
+                    api_url.clone(),
+                    model.clone(),
+                    api_key.clone(),
+                    *run_async,
+                    backend,
+                ))
+            }
         },
         SddCommands::Project(args) => match &args.command {
             SddProjectCommands::Import {

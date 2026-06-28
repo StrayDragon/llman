@@ -23,7 +23,7 @@ Use this skill when the user wants to think through ideas, investigate problems,
 ## Suggested moves
 1. Use `llman sdd context --task "<task>" --paths "<files>"` to quickly locate relevant specs.
    - Read the `direct` spec files (these are the contracts you must understand).
-   - If context is unavailable, start `llman sdd index rebuild --run-async` in background.
+   - If context is unavailable, rebuild with `llman sdd index rebuild` (default `pageindex`, no model needed) and retry.
 2. Clarify the goal and constraints (ask 1–3 questions).
 3. If a change id is relevant, read its artifacts under `llmanspec/changes/<id>/`.
 4. Explore options and tradeoffs (2–3 options).

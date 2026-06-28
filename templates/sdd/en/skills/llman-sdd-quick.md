@@ -17,7 +17,7 @@ Use this path for small changes that don't modify behavioral contracts.
 
 ## Steps
 1. Use `llman sdd context --task "..." --paths "..."` to confirm no spec changes needed.
-   - If context returns `quality: "unavailable"`, start `llman sdd index rebuild --run-async`.
+   - If context returns `quality: "unavailable"`, rebuild with `llman sdd index rebuild` (default `pageindex`, no model needed).
    - Use `llman sdd list --specs --json` for keyword-level spec metadata.
 2. Modify the code directly.
 3. If spec maintenance is needed (typo fix, scope tightening), edit the spec file directly and run `llman sdd validate --specs`.

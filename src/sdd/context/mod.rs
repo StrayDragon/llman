@@ -1,5 +1,8 @@
+pub mod chat;
 pub mod embed;
 pub mod index;
+pub mod retrieve;
+pub mod tree;
 
 pub use index::*;
 
@@ -10,6 +13,48 @@ use anyhow::{Context as _, Result};
 use serde_json;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// Which retrieval/index backend to use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Backend {
+    /// Traditional embedding RAG (vector similarity).
+    Rag,
+    /// PageIndex-style agentic tree retrieval (default).
+    Pageindex,
+}
+
+impl Backend {
+    /// Parse a backend name (`rag` / `pageindex`).
+    pub fn parse(s: &str) -> Result<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "rag" => Ok(Backend::Rag),
+            "pageindex" | "page-index" => Ok(Backend::Pageindex),
+            other => anyhow::bail!(
+                "invalid backend {:?} (expected `rag` or `pageindex`)",
+                other
+            ),
+        }
+    }
+}
+
+/// Resolve the effective backend with priority: CLI flag > env var > default.
+///
+/// - `cli`: value of the `--backend` flag, if present.
+/// - `LLMAN_SDD_INDEX_BACKEND`: environment override.
+/// - default: `pageindex`.
+pub fn resolve_backend(cli: Option<String>) -> Result<Backend> {
+    if let Some(raw) = cli {
+        let raw = raw.trim();
+        if raw.is_empty() {
+            return Ok(Backend::Pageindex);
+        }
+        return Backend::parse(raw);
+    }
+    match std::env::var("LLMAN_SDD_INDEX_BACKEND") {
+        Ok(v) if !v.trim().is_empty() => Backend::parse(&v),
+        _ => Ok(Backend::Pageindex),
+    }
+}
 
 /// Find the llmanspec directory by walking up from start_dir
 fn find_llmanspec_dir(start_dir: &Path) -> Result<PathBuf> {
@@ -28,30 +73,53 @@ fn find_llmanspec_dir(start_dir: &Path) -> Result<PathBuf> {
 }
 
 /// Run the `context` command: find specs relevant to a task and/or paths.
-/// Single path: if index exists + fresh + API works → semantic results.
-/// Otherwise → clear error, no fallback.
-pub fn context_run(task: Option<String>, paths: Vec<String>, top: usize) -> Result<()> {
+///
+/// Dispatches to the selected backend. Both backends emit the same top-level JSON
+/// shape (`status`/`direct`/`related`/`summary`); `status.quality` is `semantic`
+/// for rag and `agentic` for pageindex.
+pub async fn context_run(
+    task: Option<String>,
+    paths: Vec<String>,
+    top: usize,
+    backend: Backend,
+) -> Result<()> {
     let llmanspec_dir = find_llmanspec_dir(Path::new("."))?;
     let _config = load_required_config(&llmanspec_dir)?;
     let context_dir = llmanspec_dir.join(".context");
     let specs_dir = llmanspec_dir.join("specs");
 
-    // Check freshness — single gate
-    match check_freshness(&context_dir, &specs_dir) {
+    match backend {
+        Backend::Rag => context_run_rag(&context_dir, &specs_dir, task, paths, top).await,
+        Backend::Pageindex => {
+            context_run_pageindex(&context_dir, &specs_dir, task, paths, top).await
+        }
+    }
+}
+
+/// rag backend: vector-similarity retrieval over the embedding index.
+async fn context_run_rag(
+    context_dir: &Path,
+    specs_dir: &Path,
+    task: Option<String>,
+    paths: Vec<String>,
+    top: usize,
+) -> Result<()> {
+    // Check freshness — single gate, scoped to the rag backend.
+    match check_freshness(context_dir, specs_dir, Backend::Rag) {
         IndexFreshness::Fresh => {}
         IndexFreshness::Stale { .. } => {
             print_err(
                 "index_stale",
-                "Index is stale. Run `llman sdd index rebuild --async` to rebuild in background, then retry.",
+                "Index is stale. Run `llman sdd index rebuild --backend rag --run-async` to rebuild in background, then retry.",
             );
             return Ok(());
         }
         IndexFreshness::Missing => {
             print_err(
                 "index_missing",
-                "No embedding index found.\n\
-                 1. Run `llman sdd index rebuild --run-async` in background (~30s) then retry.\n\
-                 2. Run `llman sdd index rebuild` (synchronous).",
+                "No embedding index found for the rag backend.\n\
+                 1. Run `llman sdd index rebuild --backend rag --run-async` in background (~30s) then retry.\n\
+                 2. Run `llman sdd index rebuild --backend rag` (synchronous).",
             );
             return Ok(());
         }
@@ -59,7 +127,7 @@ pub fn context_run(task: Option<String>, paths: Vec<String>, top: usize) -> Resu
             print_err(
                 "index_corrupted",
                 &format!(
-                    "Index corrupted ({}). Rebuild with `llman sdd index rebuild`.",
+                    "Index corrupted ({}). Rebuild with `llman sdd index rebuild --backend rag`.",
                     msg
                 ),
             );
@@ -67,7 +135,8 @@ pub fn context_run(task: Option<String>, paths: Vec<String>, top: usize) -> Resu
         }
     }
 
-    let index = ContextIndex::load(&context_dir)?;
+    let backend_dir = resolve_backend_dir(context_dir, Backend::Rag);
+    let index = ContextIndex::load(&backend_dir)?;
 
     // Path filter: only consider specs whose valid_scope covers any of the given paths
     let path_filtered_specs: std::collections::HashSet<String> = if paths.is_empty() {
@@ -105,7 +174,7 @@ pub fn context_run(task: Option<String>, paths: Vec<String>, top: usize) -> Resu
     // Embed query via API
     let query_vector: Option<Vec<f32>> = if let Some(task_text) = &task {
         if !task_text.is_empty() {
-            match embed_query(task_text) {
+            match embed_query(task_text).await {
                 Ok(v) => Some(v),
                 Err(e) => {
                     print_err("api_error", &e);
@@ -202,14 +271,149 @@ pub fn context_run(task: Option<String>, paths: Vec<String>, top: usize) -> Resu
     Ok(())
 }
 
-/// Helper: embed a single query text via native Rust HTTP
-fn embed_query(text: &str) -> std::result::Result<Vec<f32>, String> {
+/// pageindex backend: agentic tree retrieval.
+async fn context_run_pageindex(
+    context_dir: &Path,
+    specs_dir: &Path,
+    task: Option<String>,
+    paths: Vec<String>,
+    top: usize,
+) -> Result<()> {
+    match check_freshness(context_dir, specs_dir, Backend::Pageindex) {
+        IndexFreshness::Fresh => run_pageindex_retrieval(context_dir, task, paths, top).await,
+        IndexFreshness::Stale { .. } => {
+            print_err(
+                "index_stale",
+                "pageindex tree index is stale. Run `llman sdd index rebuild --backend pageindex`, then retry.",
+            );
+            Ok(())
+        }
+        IndexFreshness::Missing => {
+            print_err(
+                "index_missing",
+                "No pageindex tree index found.\
+                 \nRun `llman sdd index rebuild --backend pageindex` (no model required), then retry.",
+            );
+            Ok(())
+        }
+        IndexFreshness::Corrupted(msg) => {
+            print_err(
+                "index_corrupted",
+                &format!(
+                    "pageindex tree index corrupted ({}). Rebuild with `llman sdd index rebuild --backend pageindex`.",
+                    msg
+                ),
+            );
+            Ok(())
+        }
+    }
+}
+
+/// Load the pageindex tree and run the agentic retrieval loop.
+async fn run_pageindex_retrieval(
+    context_dir: &Path,
+    task: Option<String>,
+    paths: Vec<String>,
+    top: usize,
+) -> Result<()> {
+    let backend_dir = resolve_backend_dir(context_dir, Backend::Pageindex);
+    let tree = match tree::TreeIndex::load(&backend_dir) {
+        Ok(t) => t,
+        Err(e) => {
+            print_err(
+                "index_corrupted",
+                &format!("Failed to load pageindex tree index: {e}"),
+            );
+            return Ok(());
+        }
+    };
+
+    let chat_cfg = match chat::ChatConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => {
+            print_err("api_error", &format!("pageindex chat config error: {e}"));
+            return Ok(());
+        }
+    };
+    let invoker = chat::OpenAiInvoker::new(&chat_cfg);
+
+    let task_str = task.clone().unwrap_or_default();
+    let out = match retrieve::retrieve(&invoker, &tree, &task_str, &paths).await {
+        Ok(o) => o,
+        Err(e) => {
+            print_err("api_error", &format!("pageindex retrieval failed: {e}"));
+            return Ok(());
+        }
+    };
+
+    print_pageindex_output(out, &tree, &paths, top);
+    Ok(())
+}
+
+/// Render the pageindex retrieval result as the shared output JSON shape.
+fn print_pageindex_output(
+    out: retrieve::RetrievalOutput,
+    tree: &tree::TreeIndex,
+    paths: &[String],
+    top: usize,
+) {
+    let direct: Vec<serde_json::Value> = out
+        .direct
+        .into_iter()
+        .take(top)
+        .map(|e| serde_json::json!({ "id": e.id, "reason": e.reason }))
+        .collect();
+    let related: Vec<serde_json::Value> = out
+        .related
+        .into_iter()
+        .take(top)
+        .map(|e| serde_json::json!({ "id": e.id, "reason": e.reason }))
+        .collect();
+    let tier_direct = direct.len();
+    let tier_related = related.len();
+    let read_recommended: Vec<String> = direct
+        .iter()
+        .map(|d| d["id"].as_str().unwrap_or("").to_string())
+        .collect();
+    let quality_note = if out.truncated {
+        Some(format!(
+            "agentic loop hit the {}-round tool-call limit; result may be incomplete",
+            retrieve::MAX_TOOL_ROUNDS
+        ))
+    } else {
+        None
+    };
+
+    let output = serde_json::json!({
+        "status": { "ok": true, "quality": "agentic", "qualityNote": quality_note },
+        "direct": direct,
+        "related": related,
+        "summary": {
+            "totalSpecs": tree.docs.len(),
+            "tierDirect": tier_direct,
+            "tierRelated": tier_related,
+            "unrelatedCount": tree.docs.len().saturating_sub(tier_direct + tier_related),
+            "toolCalls": out.tool_calls,
+            "staleWarnings": [],
+            "readRecommended": read_recommended,
+            "paths": paths,
+        },
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output).unwrap_or_else(|_| "{}".to_string())
+    );
+}
+
+/// Helper: embed a single query text via async-openai.
+async fn embed_query(text: &str) -> std::result::Result<Vec<f32>, String> {
     let cfg = resolve_api_config(ResolveCtx {
         cli_api_host: None,
         cli_api_key: None,
         cli_model: None,
     });
     embed::embed_texts(&[text], &cfg.api_host, &cfg.api_key, &cfg.model)
+        .await
         .map_err(|e| format!("Embedding API error: {}", e))?
         .into_iter()
         .next()
@@ -235,66 +439,114 @@ fn print_err(error_kind: &str, msg: &str) {
     );
 }
 
-/// Check index freshness and print status.
+/// Check index freshness for every backend and print status.
 pub fn index_check() -> Result<()> {
     let llmanspec_dir = find_llmanspec_dir(Path::new("."))?;
     let context_dir = llmanspec_dir.join(".context");
     let specs_dir = llmanspec_dir.join("specs");
 
-    match check_freshness(&context_dir, &specs_dir) {
-        IndexFreshness::Fresh => {
-            // Try to load metadata for details
-            if let Ok(index) = ContextIndex::load(&context_dir) {
-                println!(
-                    "Index: fresh (built {}, {} specs, {} chunks, model: {})",
-                    index.metadata.build_timestamp,
-                    index.metadata.spec_count,
-                    index.metadata.chunk_count,
-                    index.metadata.model,
-                );
-            } else {
-                println!("Index: fresh (details unavailable)");
-            }
-        }
-        IndexFreshness::Stale { .. } => {
-            println!("Index: stale (current specs differ from index)");
-            println!("Hint: rebuild with `llman sdd index rebuild`");
-        }
-        IndexFreshness::Missing => {
-            // Check for rebuild lock
-            match check_rebuild_lock(&context_dir) {
-                Ok(Some(lock)) => {
-                    println!(
-                        "Index: building (PID {}, {:.1}% done, {}/{} chunks)",
-                        lock.pid, lock.progress_pct, lock.chunks_done, lock.chunks_total
-                    );
-                }
-                _ => {
-                    println!("Index: missing (no embedding index found)");
-                    println!("Hint: run `llman sdd index rebuild --api-url <URL>`");
-                }
-            }
-        }
-        IndexFreshness::Corrupted(msg) => {
-            println!("Index: corrupted ({})", msg);
-            println!("Hint: rebuild with `llman sdd index rebuild`");
-        }
-    }
+    // pageindex is the default, list it first.
+    print_index_status(&context_dir, &specs_dir, Backend::Pageindex);
+    print_index_status(&context_dir, &specs_dir, Backend::Rag);
 
     Ok(())
 }
 
-/// Rebuild the embedding index.
-pub fn index_rebuild(
+fn backend_label(backend: Backend) -> &'static str {
+    match backend {
+        Backend::Pageindex => "pageindex",
+        Backend::Rag => "rag",
+    }
+}
+
+fn print_index_status(context_dir: &Path, specs_dir: &Path, backend: Backend) {
+    let label = backend_label(backend);
+    match check_freshness(context_dir, specs_dir, backend) {
+        IndexFreshness::Fresh => {
+            let backend_dir = resolve_backend_dir(context_dir, backend);
+            match backend {
+                Backend::Rag => {
+                    if let Ok(index) = ContextIndex::load(&backend_dir) {
+                        println!(
+                            "[{}] fresh (built {}, {} specs, {} chunks, model: {})",
+                            label,
+                            index.metadata.build_timestamp,
+                            index.metadata.spec_count,
+                            index.metadata.chunk_count,
+                            index.metadata.model,
+                        );
+                    } else {
+                        println!("[{}] fresh (details unavailable)", label);
+                    }
+                }
+                Backend::Pageindex => match pageindex_summary(&backend_dir) {
+                    Some((docs, ts, model)) => {
+                        let model = if model.is_empty() {
+                            "<unset>".to_string()
+                        } else {
+                            model
+                        };
+                        println!(
+                            "[{}] fresh (built {}, {} specs, chat model: {})",
+                            label, ts, docs, model,
+                        )
+                    }
+                    None => println!("[{}] fresh (details unavailable)", label),
+                },
+            }
+        }
+        IndexFreshness::Stale { .. } => println!(
+            "[{}] stale (current specs differ from index). Rebuild: `llman sdd index rebuild --backend {}`",
+            label, label,
+        ),
+        IndexFreshness::Missing => {
+            if matches!(backend, Backend::Rag)
+                && let Ok(Some(lock)) = check_rebuild_lock(context_dir)
+            {
+                println!(
+                    "[{}] building (PID {}, {:.1}% done, {}/{} chunks)",
+                    label, lock.pid, lock.progress_pct, lock.chunks_done, lock.chunks_total
+                );
+                return;
+            }
+            println!(
+                "[{}] missing. Build: `llman sdd index rebuild --backend {}`",
+                label, label,
+            );
+        }
+        IndexFreshness::Corrupted(msg) => println!(
+            "[{}] corrupted ({}). Rebuild: `llman sdd index rebuild --backend {}`",
+            label, msg, label,
+        ),
+    }
+}
+
+/// Rebuild the index for the selected backend.
+pub async fn index_rebuild(
     api_url: Option<String>,
     model: Option<String>,
     api_key: Option<String>,
     _run_async: bool,
+    backend: Backend,
 ) -> Result<()> {
     let llmanspec_dir = find_llmanspec_dir(Path::new("."))?;
     let context_dir = llmanspec_dir.join(".context");
     let specs_dir = llmanspec_dir.join("specs");
 
+    match backend {
+        Backend::Rag => index_rebuild_rag(&context_dir, &specs_dir, api_url, model, api_key).await,
+        Backend::Pageindex => index_rebuild_pageindex(&context_dir, &specs_dir).await,
+    }
+}
+
+/// rag backend rebuild: scan specs → chunks → embeddings → write index.
+async fn index_rebuild_rag(
+    context_dir: &Path,
+    specs_dir: &Path,
+    api_url: Option<String>,
+    model: Option<String>,
+    api_key: Option<String>,
+) -> Result<()> {
     // Resolve API config: CLI args > env vars > defaults
     let cfg = resolve_api_config(ResolveCtx {
         cli_api_host: api_url,
@@ -305,15 +557,16 @@ pub fn index_rebuild(
     let api_key = &cfg.api_key;
     let model = &cfg.model;
 
-    // Ensure context directory exists
-    std::fs::create_dir_all(&context_dir)?;
+    // Always write to the canonical rag subdir.
+    let rag_dir = context_dir.join(backend_subdir(Backend::Rag));
+    std::fs::create_dir_all(&rag_dir)?;
 
     // 1. Scan specs and extract chunks
     eprintln!("Scanning specs...");
     let mut specs_meta: Vec<serde_json::Value> = Vec::new();
     let mut chunks: Vec<Chunk> = Vec::new();
 
-    let mut entries: Vec<PathBuf> = fs::read_dir(&specs_dir)?
+    let mut entries: Vec<PathBuf> = fs::read_dir(specs_dir)?
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
         .map(|e| e.path())
@@ -368,11 +621,12 @@ pub fn index_rebuild(
         );
     }
 
-    // 2. Call embedding API via native Rust HTTP
+    // 2. Call embedding API via async-openai
     eprintln!("Embedding {} chunks via {}...", chunks.len(), api_host);
 
     let chunk_texts: Vec<&str> = chunks.iter().map(|c| c.text.as_str()).collect();
     let all_embeddings = embed::embed_texts(&chunk_texts, api_host, api_key, model)
+        .await
         .context("Failed to embed chunks")?;
 
     let all_vectors: Vec<f32> = all_embeddings.iter().flatten().copied().collect();
@@ -384,24 +638,24 @@ pub fn index_rebuild(
     };
 
     // 3. Write index files
-    eprintln!("Writing index to {}...", context_dir.display());
+    eprintln!("Writing index to {}...", rag_dir.display());
 
     // specs.json
     let specs_json = serde_json::to_string_pretty(&specs_meta)?;
-    fs::write(context_dir.join("specs.json"), &specs_json)?;
+    fs::write(rag_dir.join("specs.json"), &specs_json)?;
 
     // chunks.json
     let chunks_json = serde_json::to_string_pretty(&chunks)?;
-    fs::write(context_dir.join("chunks.json"), &chunks_json)?;
+    fs::write(rag_dir.join("chunks.json"), &chunks_json)?;
 
     // vectors.bin (flat f32)
     let vec_bytes: Vec<u8> = all_vectors.iter().flat_map(|f| f.to_le_bytes()).collect();
-    fs::write(context_dir.join("vectors.bin"), &vec_bytes)?;
+    fs::write(rag_dir.join("vectors.bin"), &vec_bytes)?;
 
     // metadata.toml
     let metadata = ContextMetadata {
         version: 1,
-        spec_hash: compute_spec_hash(&specs_dir)?,
+        spec_hash: compute_spec_hash(specs_dir)?,
         spec_count: specs_meta.len(),
         chunk_count: chunks.len(),
         build_timestamp: chrono::Utc::now().to_rfc3339(),
@@ -409,7 +663,7 @@ pub fn index_rebuild(
         embedding_dim: dim,
     };
     let toml_str = toml::to_string(&metadata)?;
-    fs::write(context_dir.join("metadata.toml"), &toml_str)?;
+    fs::write(rag_dir.join("metadata.toml"), &toml_str)?;
 
     // Remove rebuild lock if present
     let _ = fs::remove_file(context_dir.join(".rebuild.lock"));
@@ -420,6 +674,74 @@ pub fn index_rebuild(
         chunks.len(),
         dim,
         model,
+    );
+
+    Ok(())
+}
+
+/// pageindex backend rebuild: build the spec tree index (no LLM).
+///
+/// Maps the parsed spec IR (`MainSpecDoc`) directly into a `TreeIndex` and
+/// serializes it to `.context/pageindex/tree.json`. No embedding or chat model
+/// is contacted — the spec tree is already structured, so building is a pure
+/// transform.
+async fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path) -> Result<()> {
+    use crate::sdd::spec::backend::{BACKEND, SpecBackend};
+    use crate::sdd::spec::ir::MainSpecDoc;
+
+    let pageindex_dir = context_dir.join(backend_subdir(Backend::Pageindex));
+    std::fs::create_dir_all(&pageindex_dir)?;
+
+    eprintln!("Scanning specs for pageindex tree (no LLM)...");
+    let mut entries: Vec<PathBuf> = fs::read_dir(specs_dir)?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .map(|e| e.path())
+        .collect();
+    entries.sort();
+
+    let mut parsed: Vec<(String, MainSpecDoc)> = Vec::new();
+    for spec_dir in &entries {
+        let spec_file = spec_dir.join("spec.toon");
+        if !spec_file.exists() {
+            continue;
+        }
+        let content = fs::read_to_string(&spec_file)?;
+        let spec_id = spec_dir.file_name().unwrap().to_string_lossy().to_string();
+        let ctx = format!("spec `{}`", spec_id);
+        match BACKEND.parse_main_spec(&content, &ctx) {
+            Ok(doc) => parsed.push((spec_id, doc)),
+            Err(e) => eprintln!("Warning: failed to parse {}: {}", spec_id, e),
+        }
+    }
+
+    if parsed.is_empty() {
+        anyhow::bail!(
+            "No specs parsed. Are there spec files in {}?",
+            specs_dir.display()
+        );
+    }
+
+    eprintln!("Building tree from {} specs...", parsed.len());
+    let docs = tree::build_docs(&parsed);
+    let spec_hash = compute_spec_hash(specs_dir)?;
+    let chat_model = std::env::var("LLMAN_SDD_INDEX_CHAT_MODEL").unwrap_or_default();
+    let tree = tree::TreeIndex::new(
+        docs,
+        spec_hash,
+        chrono::Utc::now().to_rfc3339(),
+        chat_model.clone(),
+    );
+    tree.save(&pageindex_dir)?;
+
+    println!(
+        "pageindex tree index rebuilt ({} specs, chat_model={})",
+        parsed.len(),
+        if chat_model.is_empty() {
+            "<unset>"
+        } else {
+            &chat_model
+        },
     );
 
     Ok(())

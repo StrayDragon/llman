@@ -23,7 +23,7 @@ metadata:
 ## 建议动作
 1. 使用 `llman sdd context --task "<任务>" --paths "<文件>"` 快速定位相关 specs。
    - 阅读 context 的 `direct` 列出的 spec 全文（这些是必须理解的合约）。
-   - 如果 context 不可用，启动 `llman sdd index rebuild --run-async` 后台重建后继续。
+   - 如果 context 不可用，运行 `llman sdd index rebuild`（默认 `pageindex`，无需模型）后重试。
 2. 澄清目标与约束（问 1–3 个问题）。
 3. 如果某个 change id 相关，阅读 `llmanspec/changes/<id>/` 下的 artifacts。
 4. 探索 2–3 个选项与权衡。

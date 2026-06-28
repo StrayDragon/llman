@@ -17,7 +17,7 @@ metadata:
 
 ## 步骤
 1. 用 `llman sdd context --task "..." --paths "..."` 确认无相关 spec 变更需要。
-   - 如果 context 返回 `quality: "unavailable"`，启动 `llman sdd index rebuild --run-async` 后台重建。
+   - 如果 context 返回 `quality: "unavailable"`，运行 `llman sdd index rebuild`（默认 `pageindex`，无需模型）。
    - 可以用 `llman sdd list --specs --json` 查看 specs 元数据。
 2. 直接修改代码。
 3. 如果涉及 spec 的维护性调整（修错字、收紧 scope），直接编辑 spec 文件并用 `llman sdd validate --specs` 校验。
