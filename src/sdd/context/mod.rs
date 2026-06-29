@@ -56,9 +56,19 @@ pub fn resolve_backend(cli: Option<String>) -> Result<Backend> {
     }
 }
 
-/// Find the llmanspec directory by walking up from start_dir
+/// Find the llmanspec directory by walking up from start_dir.
+///
+/// The start dir is canonicalized first: all real callers pass `Path::new(".")`,
+/// and `Path::new(".").parent()` returns `Some("")` (an empty path) rather than
+/// the real parent. Without canonicalization the loop would exit on the first
+/// iteration and never find a `llmanspec/` in an ancestor directory — so the
+/// command only worked when run from a directory that *directly* contained
+/// `llmanspec/`.
 fn find_llmanspec_dir(start_dir: &Path) -> Result<PathBuf> {
-    let mut dir = Some(start_dir.to_path_buf());
+    let start = start_dir
+        .canonicalize()
+        .unwrap_or_else(|_| start_dir.to_path_buf());
+    let mut dir = Some(start);
     while let Some(d) = dir {
         let candidate = d.join(LLMANSPEC_DIR_NAME);
         if candidate.is_dir() {
@@ -779,5 +789,45 @@ fn resolve_api_config(ctx: ResolveCtx) -> ApiConfig {
         api_host,
         api_key,
         model,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::TestProcess;
+
+    /// Walking up from an absolute nested path finds an ancestor `llmanspec/`.
+    #[test]
+    fn find_llmanspec_dir_walks_up_from_absolute_subdir() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("llmanspec")).unwrap();
+        let nested = root.join("a/b/c");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        let found = find_llmanspec_dir(&nested).unwrap();
+        assert_eq!(found, root.join("llmanspec"));
+    }
+
+    /// Regression: the real-world start is `Path::new(".")` (every caller in
+    /// this module passes it). `Path::new(".").parent()` is `Some("")`, which
+    /// used to stop traversal immediately, so `sdd context/index` only worked
+    /// when cwd *directly* contained `llmanspec/`. Canonicalization fixes it.
+    /// Uses `TestProcess` to chdir safely (serialized + restored on drop).
+    #[test]
+    fn find_llmanspec_dir_walks_up_from_relative_dot() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        std::fs::create_dir_all(root.join("llmanspec")).unwrap();
+        let nested = root.join("a/b/c");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        let mut proc = TestProcess::new();
+        proc.chdir(&nested).unwrap();
+
+        let found = find_llmanspec_dir(Path::new(".")).unwrap();
+        assert_eq!(found.canonicalize().unwrap(), root.join("llmanspec"));
+        // proc restores cwd on drop
     }
 }
