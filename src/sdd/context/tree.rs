@@ -32,7 +32,7 @@ pub struct DocNode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TreeIndex {
     pub version: u32,
-    /// Hash of the source specs (same scheme as the rag backend) for freshness.
+    /// Hash of the source specs for freshness checks.
     pub spec_hash: String,
     pub build_timestamp: String,
     /// Chat model recorded at build time (informational only; building is LLM-free).
@@ -45,7 +45,7 @@ const TREE_VERSION: u32 = 1;
 /// Build the tree documents from parsed spec IR.
 ///
 /// Takes `(spec_id, MainSpecDoc)` pairs (spec_id is the spec directory name, kept
-/// consistent with the rag backend's `spec_id` so retrieval IDs are comparable
+/// consistent with the old spec_id scheme so retrieval IDs are comparable
 /// across backends). The parser-level `Spec` type is intentionally avoided: it
 /// drops `req_id`/`title` during conversion, which the tree needs.
 pub fn build_docs(parsed: &[(String, MainSpecDoc)]) -> Vec<DocNode> {

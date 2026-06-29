@@ -53,9 +53,8 @@ tokio = { version = "1.49.0", features = ["rt-multi-thread", "time", "process", 
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 tempfile = "3.26.0"
 sha2 = "0.10.9"
-# Unified LLM HTTP client for sdd context/index (embeddings + chat + tool-calling).
-# Replaces the hand-written `reqwest::blocking` client previously used by the
-# context subcommand. async-openai itself depends on reqwest transitively, but
+# LLM HTTP client for sdd context/index (chat + tool-calling).
+# async-openai itself depends on reqwest transitively, but
 # llman no longer depends on reqwest directly.
 async-openai = "0.28"
 
