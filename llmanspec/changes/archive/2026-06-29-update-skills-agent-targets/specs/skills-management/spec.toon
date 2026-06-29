@@ -1,0 +1,11 @@
+kind: llman.sdd.delta
+ops[3]{op,req_id,title,statement,from,to,name}:
+  modify_requirement,r5,默认 target 改为 claude 与 .agents,"默认 targets MUST 覆盖个人范围与项目范围：Claude user（~/.claude/skills）、Claude project（.claude/skills）、agents project（.agents/skills）。\n移除 codex user/repo 默认 targets。",null,null,null
+  modify_requirement,r10,交互菜单展示 agent/scope 语义（移除 codex 添加 .agents）,"交互菜单 MUST 展示与工具语义一致的文案。\nAgent 菜单必须包含：claude、agents、Exit\nClaude scope 菜单必须包含：Personal (All your projects)、Project (This project only)、Exit\nAgents scope 菜单必须包含：.agents (This project only)、Exit",null,null,null
+  add_requirement,r20,scope 排序动态化,技能管理器 MUST 根据当前工作目录上下文动态排序 scope 选项：在 git 仓库内（且非家目录）project scope 优先，否则 user scope 优先。,null,null,null
+op_scenarios[5]{req_id,id,given,when,then}:
+  r5,"agents-default",skills root 无 config.toml,默认 targets 被加载,默认 targets 包含 agents project（.agents/skills）以及 claude user/project
+  r10,"agent-menu","",用户运行 llman skills 选择 agent,菜单展示 claude、agents、Exit
+  r10,"agents-scope","",用户选择 agents,scope 菜单展示 .agents (This project only) 与 Exit
+  r20,"git-repo-project-first",当前目录在 git 仓库内且非家目录,用户运行 llman skills 选择 scope,project scope 选项排在 user scope 之前
+  r20,"home-user-first",当前目录是家目录或不在 git 仓库内,用户运行 llman skills 选择 scope,user scope 选项排在 project scope 之前

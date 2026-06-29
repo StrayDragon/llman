@@ -1249,9 +1249,9 @@ mod tests {
             skill_dir: skill_dir.clone(),
         };
         let target = ConfigEntry {
-            id: "codex_repo".to_string(),
-            agent: "codex".to_string(),
-            scope: "repo".to_string(),
+            id: "repo".to_string(),
+            agent: "claude".to_string(),
+            scope: "project".to_string(),
             path: target_root.clone(),
             enabled: true,
             mode: TargetMode::Copy,
@@ -1295,9 +1295,9 @@ mod tests {
             skill_dir: skill_dir.clone(),
         };
         let target = ConfigEntry {
-            id: "codex_repo".to_string(),
-            agent: "codex".to_string(),
-            scope: "repo".to_string(),
+            id: "repo".to_string(),
+            agent: "claude".to_string(),
+            scope: "project".to_string(),
             path: target_root.clone(),
             enabled: true,
             mode: TargetMode::Copy,
@@ -1341,9 +1341,9 @@ mod tests {
             skill_dir: skill_dir.clone(),
         };
         let target = ConfigEntry {
-            id: "codex_repo".to_string(),
-            agent: "codex".to_string(),
-            scope: "repo".to_string(),
+            id: "repo".to_string(),
+            agent: "claude".to_string(),
+            scope: "project".to_string(),
             path: target_root.clone(),
             enabled: true,
             mode: TargetMode::Copy,
@@ -1380,9 +1380,9 @@ mod tests {
             skill_dir: skill_dir.clone(),
         };
         let target = ConfigEntry {
-            id: "codex_repo".to_string(),
-            agent: "codex".to_string(),
-            scope: "repo".to_string(),
+            id: "claude_project".to_string(),
+            agent: "claude".to_string(),
+            scope: "project".to_string(),
             path: target_root.clone(),
             enabled: true,
             mode: TargetMode::Copy,
@@ -1435,9 +1435,9 @@ mod tests {
             skill_dir: skill_dir.clone(),
         };
         let target = ConfigEntry {
-            id: "codex_repo".to_string(),
-            agent: "codex".to_string(),
-            scope: "repo".to_string(),
+            id: "repo".to_string(),
+            agent: "claude".to_string(),
+            scope: "project".to_string(),
             path: target_root,
             enabled: true,
             mode: TargetMode::Copy,
@@ -1473,9 +1473,9 @@ mod tests {
             skill_dir: skill_dir.clone(),
         };
         let target = ConfigEntry {
-            id: "codex_repo".to_string(),
-            agent: "codex".to_string(),
-            scope: "repo".to_string(),
+            id: "repo".to_string(),
+            agent: "claude".to_string(),
+            scope: "project".to_string(),
             path: target_root.clone(),
             enabled: true,
             mode: TargetMode::Copy,
