@@ -1,6 +1,8 @@
 ---
 name: "llman-sdd-propose"
 description: "提出一个新变更并一次性生成规划工件。"
+metadata:
+  version: "0.0.53"
 ---
 
 # LLMAN SDD 提案（Propose）
@@ -8,7 +10,14 @@ description: "提出一个新变更并一次性生成规划工件。"
 创建一个新变更，并一次性生成所有规划工件（proposal + delta specs + tasks；design 可选），然后执行校验并建议下一步动作。
 
 ## 步骤
-1. 收集输入：
+1. 判断变更规模（triage）：
+   - **行为合约变更**（改 MUST/SHALL、改外部行为）→ 走完整 SDD 流程
+   - **实现变更**（重构、typo、性能）→ 建议走快速路径，用 `llman-sdd-quick`
+   - **元规范变更**（改 SDD 模板/流程）→ 必须走完整 SDD 流程
+   - 不确定时走完整 SDD 流程（保守选择）
+2. 使用 `llman sdd context --task "<目标>" --paths "<范围>"` 获取相关 specs。
+   - 如果 context 不可用，运行 `llman sdd index rebuild`（默认 `pageindex`，无需模型）后继续。
+3. 收集输入：
    - 变更的简要描述
    - change id（若未给出则推导；kebab-case，动词前缀：`add-`、`update-`、`remove-`、`refactor-`）
    - 受影响的 capability/capabilities（用于命名 `specs/<capability>/`）
@@ -19,10 +28,10 @@ description: "提出一个新变更并一次性生成规划工件。"
    - 若变更已存在，STOP 并建议使用 `llman-sdd-continue`。
 4. 在 `llmanspec/changes/<change-id>/` 下创建工件：
    - `proposal.md`（Why / What Changes / Capabilities / Impact）
-   - 为每个 capability 创建 `specs/<capability>/spec.md`，并匹配项目配置的 `spec_style`（`toon`）：
-     - 建议优先通过 authoring helpers 生成，确保 fenced payload 与 `spec_style` 一致：
+   - 为每个 capability 创建 `specs/<capability>/spec.toon`（每个文件一份独立的 TOON 文档）：
+     - 建议优先通过 authoring helpers 生成，确保 TOON payload 规范：
        - `llman sdd delta skeleton <change-id> <capability>`
-       - `llman sdd delta add-req <change-id> <capability> <req_id> --title <title> --statement <statement>`
+       - `llman sdd delta add-op ...`
        - `llman sdd delta add-scenario ...`
      - 至少包含一个 `add_requirement`/`modify_requirement` op（statement 必须含 MUST/SHALL），并且至少包含一行匹配的 op scenario
    - 仅在涉及权衡/迁移时创建 `design.md`
@@ -37,43 +46,36 @@ description: "提出一个新变更并一次性生成规划工件。"
 在执行之前，请先阅读 `llmanspec/config.yaml`，若其中包含 `context` 与 `rules` 请遵循。
 
 常用命令：
+- `llman sdd context --task "<description>" --paths "<files>"`（获取相关 specs）。使用 pageindex agentic 树检索后端（需配置 `LLMAN_SDD_INDEX_CHAT_MODEL`）。可用 `LLMAN_SDD_INDEX_BACKEND` 预设。
 - `llman sdd list`（列出变更）
-- `llman sdd list --specs`（列出 specs）
+- `llman sdd list --specs`（列出 specs，含 purpose/scope 元数据）
 - `llman sdd show <id>`（查看 change/spec）
 - `llman sdd validate <id>`（校验变更或 spec）
 - `llman sdd validate --all`（批量校验）
-- `llman sdd convert --to <style> --project`（显式风格迁移；toon/yaml 为 experimental）
+- `llman sdd index rebuild`（重建 pageindex 树索引——无需模型）
+- `llman sdd index check`（检查索引新鲜度）
 - `llman sdd archive run <id>`（归档变更）
-- `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（将已归档目录冻结到单一冷备文件）
-- `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备文件恢复目录）
-- `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图并输出到标准输出）
+- `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（冻结归档目录）
+- `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（解冻归档）
+- `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图）
 
-常见校验修复（TOON 风格）：
+常见校验修复（TOON 独立文件 spec）：
 
-1) Main spec 缺少 YAML frontmatter（仅 main spec 需要）：
-```markdown
----
-llman_spec_valid_scope:
-  - src
-llman_spec_valid_commands:
-  - llman sdd validate <feature-id> --type spec --strict --no-interactive
-llman_spec_evidence:
-  - <evidence>
----
-```
-
-2) Main spec 缺少 canonical ` ```toon ` payload（`llmanspec/specs/<feature-id>/spec.md`）：
+1) 缺少校验作用域（`Spec valid_scope must not be empty`）：
+Main spec 必须在 `.toon` 文档内携带非空的 `valid_scope`。
+`llmanspec/specs/<feature-id>/spec.toon`：
 ```toon
 kind: llman.sdd.spec
 name: sample
 purpose: "One-line overview."
+valid_scope[1]: src
 requirements[1]{req_id,title,statement}:
   r1,Title,System MUST do something.
 scenarios[1]{req_id,id,given,when,then}:
   r1,happy,"",a trigger happens,the outcome is observed
 ```
 
-3) Change 缺少 delta ops：至少补一个 op + scenario（`llmanspec/changes/<change-id>/specs/<feature-id>/spec.md`）：
+2) Change 缺少 delta ops：至少补一个 op + scenario（`llmanspec/changes/<change-id>/specs/<feature-id>/spec.toon`）：
 ```toon
 kind: llman.sdd.delta
 ops[1]{op,req_id,title,statement,from,to,name}:
@@ -82,24 +84,28 @@ op_scenarios[1]{req_id,id,given,when,then}:
   r1,happy,"",a trigger happens,the outcome is observed
 ```
 
-4) 表格化行引号错误（"Expected N tabular row values, but got M"）：
-值包含逗号、冒号或方括号时，必须用双引号包裹。
+3) 表格化行引号错误（"Expected N tabular row values, but got M"）：
+值包含**空格**、逗号、冒号或方括号时，必须用双引号包裹。
 ```toon
-# 错误：statement 中的逗号被解析为分隔符
-r1,title,System MUST do X, Y, and Z.
+# 错误：未加引号的空格值会被拆成多个值
+r1,happy,"",a trigger happens,the outcome is observed
 
-# 正确：用引号包裹包含逗号的值
-r1,title,"System MUST do X, Y, and Z."
+# 正确：多词值加引号
+r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
+4) BDD 空 spec 护栏（`BDD is enabled but this spec declares no requirements and no feature_refs`）：
+当 `config.yaml` 含 `bdd` 块时，spec 必须要么声明 `requirements`，要么通过 `feature_refs` 指向 `.feature`（point-only 模式）。
+
 备注：
-- `toon` 文件必须只有一个 ` ```toon ` fence。
+- 每个 spec 是一个独立的 `.toon` 文件；没有 Markdown 外壳，也没有 ```toon fence。
 - `null` 表示可选字段缺失。
-- `toon` 为 experimental：跨风格迁移请使用显式的 `llman sdd convert`。
+- 从旧版 `.md`+fence 迁移请使用 `llman sdd migrate`。
 
 
 ## Context
 - 执行前先确认当前 change/spec 状态。
+- 优先使用 `llman sdd context --task --paths` 获取相关 specs，而非全量读取或猜测。
 
 ## Goal
 - 明确本次命令/skill 要达成的可验证结果。
@@ -107,10 +113,14 @@ r1,title,"System MUST do X, Y, and Z."
 ## Constraints
 - 变更保持最小化且范围明确。
 - 标识符或意图不明确时禁止猜测。
+- 在读取 spec 全文前，先使用 `llman sdd context --task --paths` 获取相关 specs。
+- 判断变更规模后选择路径：行为合约变更走完整 SDD 流程，实现变更走快速路径。
 
 ## Workflow
 - 以 `llman sdd` 命令结果为事实来源。
 - 涉及文件/规范变更时执行校验。
+- 首选 `llman sdd context` 获取相关 specs，而非全量读取或猜测。
+- 当 context 不可用时，按错误提示处理（重建 index 或降级到 `list --specs --json`）。
 
 ## Decision Policy
 - 高影响歧义必须先澄清。
