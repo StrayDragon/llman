@@ -1,0 +1,13 @@
+kind: llman.sdd.delta
+ops[7]{op,req_id,title,statement,from,to,name}:
+  modify_requirement,r4,backend 选项与默认值,"`llman sdd index` 与 `llman sdd context` MUST 仅支持 `--backend pageindex` 选项（唯一检索后端）。MUST NOT 接受 `rag` 等其它值；传入非法值 MUST 报错退出并在提示中引导用户配置 pageindex 所需环境变量。`--backend` 仍可经 `LLMAN_SDD_INDEX_BACKEND` 预设，但仅用于显式声明 pageindex，不存在回退机制。",null,null,null
+  modify_requirement,r5,pageindex 为唯一检索后端,`sdd context` MUST 使用基于 spec 树结构的 agentic 推理检索（pageindex）。检索 MUST 产出顶层 JSON 结构（`status`/`direct`/`related`/`summary`），`status.quality` 字段 MUST 为 `agentic`。当 pageindex 索引缺失/过期或 chat 模型未配置时 MUST 返回 `quality=unavailable` 并在 `qualityNote` 给出言简意赅的可操作提示（缺哪个环境变量、如何 rebuild），MUST NOT 回退到其它检索方式。,null,null,null
+  remove_requirement,r1,null,null,null,null,null
+  remove_requirement,r2,null,null,null,null,null
+  remove_requirement,r3,null,null,null,null,null
+  remove_requirement,r6,null,null,null,null,null
+  add_requirement,r11,配置缺失的友好可操作提示,当 `LLMAN_SDD_INDEX_CHAT_MODEL` 等必需配置缺失、或 pageindex 索引缺失/过期时，`sdd context`/`sdd index` MUST 输出言简意赅的可操作错误提示，明确列出需设置的环境变量名与 rebuild 命令，避免冗余说明以减少 token 消耗。该提示 MUST 通过 `status.qualityNote` 与（或）stderr 输出，MUST NOT 静默失败或输出与排查无关的内容。,null,null,null
+op_scenarios[3]{req_id,id,given,when,then}:
+  r4,"reject-rag-backend","用户执行 sdd context --backend rag","命令解析 --backend 值",报错退出，提示 backend 仅支持 pageindex，并引导配置所需环境变量
+  r5,"no-silent-fallback",pageindex 索引缺失,"执行 sdd context（未显式 --backend）","返回 quality=unavailable 且 qualityNote 含 rebuild 命令，不回退到任何其它检索方式"
+  r11,"actionable-error",LLMAN_SDD_INDEX_CHAT_MODEL 未设置,执行 sdd context,提示明确列出需设置的变量名与 rebuild 命令，内容简洁无冗余

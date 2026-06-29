@@ -19,8 +19,11 @@ function env(key: string, fallback = ""): string {
   return v && v.trim() ? v : fallback;
 }
 
-/** API endpoints shared by all variants. Chat = pageindex + pi-retriever;
- *  embedding = rag. NewAPI base/key default to the project's known-good values. */
+/** API endpoints shared by all variants.
+ *  Chat = pageindex + pi-retriever.
+ *  rag embedding: **legacy** — rag backend removed; kept here only for
+ *  historical reproduction against a pre-existing old rag index.
+ *  NewAPI base/key default to the project's known-good values. */
 function resolveApi() {
   const NEWAPI_API_KEY = env("NEWAPI_API_KEY");
   const NEWAPI_API_BASE = env("NEWAPI_API_BASE", "http://urchinet.lan:50256/v1");
@@ -162,7 +165,10 @@ async function main() {
     ? resolve("fixtures", fixtureName)
     : resolve(option(args, "--project", "../.."));
   const casesPath = resolve(option(args, "--cases", "cases.json"));
-  const variantsArg = option(args, "--variants", "rag,pageindex,pi-retriever");
+  // rag is **legacy**: the rag backend was removed from llman. It can still
+  // be selected explicitly for historical reproduction against a pre-existing
+  // old rag index, but is excluded from the default variants.
+  const variantsArg = option(args, "--variants", "pageindex,pi-retriever");
   const repeat = Number(option(args, "--repeat", "1"));
   const dry = args.includes("--dry");
   const noIndex = args.includes("--no-index");
@@ -230,6 +236,13 @@ async function main() {
   const variantsSet = new Set(variants);
   await ensureIndex("pageindex", projectDir, bin, configDir, api, noIndex);
   if (variantsSet.has("rag")) {
+    // rag is **legacy**: the rag backend was removed from llman, so
+    // `--backend rag` is rejected. Rebuild will fail unless you pin to an
+    // older llman binary that still accepts it.
+    console.warn(
+      "[WARN] rag is legacy and `llman sdd index rebuild --backend rag` will fail " +
+      "on the current llman. Run with an older llman binary (LLMAN_BIN) to rebuild."
+    );
     await ensureIndex("rag", projectDir, bin, configDir, api, noIndex);
   }
 

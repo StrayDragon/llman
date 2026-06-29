@@ -2,26 +2,19 @@ kind: llman.sdd.spec
 name: "sdd-context"
 purpose: "TBD - created by archiving change refactor-embed-native-rust. Update purpose after archive."
 valid_scope[2]: src/,tests/
-requirements[10]{req_id,title,statement}:
-  r1,原生 Rust HTTP 客户端替换 Python 脚本,"System MUST replace scripts/embed_chunks.py invocation in index_rebuild() and embed_query() with native Rust HTTP (reqwest::blocking) using an OpenAI-compatible embeddings API."
-  r2,LLMAN_SDD_INDEX_* 环境变量,"System MUST support LLMAN_SDD_INDEX_OPENAI_API_HOST, LLMAN_SDD_INDEX_OPENAI_API_KEY and LLMAN_SDD_INDEX_MODEL env vars with priority: CLI args > env vars > hardcoded defaults"
-  r3,Cargo.toml HTTP 客户端依赖,Cargo.toml MUST add reqwest (with blocking + rustls features) as a dependency for making blocking HTTP requests to the embeddings API
-  r4,"--backend 选项与默认值","`llman sdd index` 与 `llman sdd context` MUST 支持 `--backend <rag|pageindex>` 选项。`--backend` MUST 可经环境变量 `LLMAN_SDD_INDEX_BACKEND` 预设，优先级为 CLI 参数 > 环境变量 > 默认值。未指定时 MUST 默认使用 `pageindex`。传入非法值 MUST 报错退出。"
-  r5,pageindex 作为默认检索后端,当 backend 为 `pageindex`（含默认）时，`sdd context` MUST 使用基于 spec 树结构的 agentic 推理检索，而非向量相似度检索。检索 MUST 产出与 rag backend 相同顶层 JSON 结构（`status`/`direct`/`related`/`summary`），`status.quality` 字段 MUST 标记为 `agentic` 以与 rag 的 `semantic` 区分。
-  r6,"async-openai 替换 reqwest","Cargo.toml MUST 移除 context 子命令对 `reqwest` 的直接依赖，改为引入 `async-openai` 作为 LLM 与 embedding 的统一 HTTP 客户端。embedding 批处理、重试、chat-completion、tool-calling MUST 统一经 `async-openai::Client` 完成，MUST NOT 手写重复的批处理或重试逻辑。"
+requirements[7]{req_id,title,statement}:
+  r4,backend 选项与默认值,"`llman sdd index` 与 `llman sdd context` MUST 仅支持 `--backend pageindex` 选项（唯一检索后端）。MUST NOT 接受 `rag` 等其它值；传入非法值 MUST 报错退出并在提示中引导用户配置 pageindex 所需环境变量。`--backend` 仍可经 `LLMAN_SDD_INDEX_BACKEND` 预设，但仅用于显式声明 pageindex，不存在回退机制。"
+  r5,pageindex 为唯一检索后端,`sdd context` MUST 使用基于 spec 树结构的 agentic 推理检索（pageindex）。检索 MUST 产出顶层 JSON 结构（`status`/`direct`/`related`/`summary`），`status.quality` 字段 MUST 为 `agentic`。当 pageindex 索引缺失/过期或 chat 模型未配置时 MUST 返回 `quality=unavailable` 并在 `qualityNote` 给出言简意赅的可操作提示（缺哪个环境变量、如何 rebuild），MUST NOT 回退到其它检索方式。
   r7,chat 模型配置与 embedding 模型分离,System MUST 新增 `LLMAN_SDD_INDEX_CHAT_MODEL`、`LLMAN_SDD_INDEX_CHAT_API_HOST`、`LLMAN_SDD_INDEX_CHAT_API_KEY` 环境变量，用于 pageindex agentic 检索所需的 chat 模型（必须支持 tool/function calling），与现有 `LLMAN_SDD_INDEX_MODEL`（embedding 模型）分离配置。`LLMAN_SDD_INDEX_CHAT_*` 未设置时 MUST 回退复用对应 `LLMAN_SDD_INDEX_OPENAI_*` 的值。配置解析优先级 MUST 为 CLI 参数 > 环境变量 > 硬编码默认。
   r8,pageindex 树索引构建无需 LLM 抽取,pageindex backend 的 `sdd index rebuild` MUST 从已解析的 sdd spec IR（`Spec` 的 overview/requirements/scenarios）直接构建树结构索引并序列化到 `llmanspec/.context/pageindex/tree.json`，MUST NOT 调用 LLM 抽取目录。每个 spec MUST 映射为一个根 `DocumentNode`，其 requirements MUST 映射为子节点并保留 `req_id`。树索引 MUST 记录与现有 rag 索引一致的 spec_hash 用于新鲜度检测。
   r9,pageindex 三工具 agentic 检索,pageindex backend 的检索 MUST 通过 agentic loop 实现：向 chat 模型提供 system prompt 与三个工具函数（`list_specs` 返回所有 spec 元数据、`get_document_structure` 返回指定 spec 去 text 的树结构、`get_spec_content` 按 spec_id 与 req_ids 取 requirement 内容），由 LLM 自主调用工具推理导航，最终输出 `direct`/`related` 分类的 specs。loop MUST 设置最大工具调用轮次上限以防失控。
   r10,backend 索引存储隔离与新鲜度,"不同 backend 的索引 MUST 存储在隔离子目录（`.context/rag/` 与 `.context/pageindex/`）。`check_freshness` MUST 按 `--backend` 检测对应子目录的索引新鲜度。当请求 backend 的索引缺失或过期时 MUST 返回与现有 quality 为 unavailable 时相同结构的错误 JSON（errorKind 为 index_missing/index_stale/index_corrupted），MUST NOT 静默降级到另一 backend。"
-scenarios[11]{req_id,id,given,when,then}:
-  r1,"native-http",Python embed_chunks.py currently called from index_rebuild() and embed_query(),index_rebuild() or embed_query() needs to embed text,"Rust reqwest::blocking HTTP request is made instead of spawning a Python subprocess; responses are parsed directly in Rust"
-  r2,"env-var-priority","CLI arg --api-host, env var LLMAN_SDD_INDEX_OPENAI_API_HOST both set",index_rebuild() resolves the API host,"CLI arg wins, then LLMAN_SDD_INDEX_OPENAI_API_HOST, then hardcoded default"
-  r3,"dep-added",Cargo.toml does not currently have an explicit HTTP client dependency,reqwest (with blocking+rustls) is added as a direct dependency,just build succeeds and index_rebuild() can make HTTP requests using reqwest
-  r4,"backend-flag-default",默认配置,"sdd context 或 sdd index rebuild 未显式指定 --backend",系统使用 pageindex 作为 backend
-  r4,"backend-env-override",环境变量 LLMAN_SDD_INDEX_BACKEND=rag 已设置,"sdd context 未传 --backend",系统使用 rag backend
-  r5,"pageindex-quality-field",使用 pageindex backend 执行 sdd context,检索完成,输出 JSON 的 status.quality 值为 agentic 而非 semantic
-  r6,"async-openai-client",index rebuild 与 pageindex 检索发起 LLM/embedding 请求,代码编译,"请求经 async-openai::Client 发出且 Cargo.toml 不再直接依赖 reqwest"
+  r11,配置缺失的友好可操作提示,当 `LLMAN_SDD_INDEX_CHAT_MODEL` 等必需配置缺失、或 pageindex 索引缺失/过期时，`sdd context`/`sdd index` MUST 输出言简意赅的可操作错误提示，明确列出需设置的环境变量名与 rebuild 命令，避免冗余说明以减少 token 消耗。该提示 MUST 通过 `status.qualityNote` 与（或）stderr 输出，MUST NOT 静默失败或输出与排查无关的内容。
+scenarios[7]{req_id,id,given,when,then}:
+  r4,"reject-rag-backend","用户执行 sdd context --backend rag","命令解析 --backend 值",报错退出，提示 backend 仅支持 pageindex，并引导配置所需环境变量
+  r5,"no-silent-fallback",pageindex 索引缺失,"执行 sdd context（未显式 --backend）",返回 quality=unavailable 且 qualityNote 含 rebuild 命令，不回退到任何其它检索方式
   r7,"chat-model-fallback",LLMAN_SDD_INDEX_CHAT_API_HOST 未设置但 LLMAN_SDD_INDEX_OPENAI_API_HOST 已设置,解析 chat 模型 endpoint,回退复用 LLMAN_SDD_INDEX_OPENAI_API_HOST 的值
   r8,"tree-from-ir",存在多个已解析的 sdd spec,"执行 sdd index rebuild --backend pageindex",生成 tree.json 且构建过程不发起任何 LLM 请求
   r9,"agentic-tool-navigation",chat 模型收到 system prompt 与三工具,sdd context 检索执行,LLM 依次调用 list_specs 与 get_document_structure 与 get_spec_content 后输出 direct/related 分类结果
   r10,"backend-isolation",.context/rag/ 已有索引但 .context/pageindex/ 不存在,"执行 sdd context --backend pageindex",返回 quality 为 unavailable 且 errorKind 为 index_missing 而非降级使用 rag 索引
+  r11,"actionable-error",LLMAN_SDD_INDEX_CHAT_MODEL 未设置,执行 sdd context,提示明确列出需设置的变量名与 rebuild 命令，内容简洁无冗余
