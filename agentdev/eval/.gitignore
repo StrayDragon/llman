@@ -1,0 +1,15 @@
+# Build artifacts (install locally; do not commit).
+node_modules/
+bun.lockb
+
+# Generated eval outputs (timestamped; review them locally).
+results/
+
+# Indexes are PRODUCED by the SUT (current llman binary) each run — never commit.
+# Applies to fixtures and any --project target.
+**/.context/
+
+# Generated case fixtures (regenerate with `bun run run.ts gen`).
+cases.json
+cases-*.json
+needs-gold.json
