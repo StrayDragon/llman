@@ -1,0 +1,9 @@
+{
+  "name": "llman-sdd-context-eval",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.80.2",
+    "@earendil-works/pi-agent-core": "0.80.2"
+  }
+}
