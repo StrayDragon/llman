@@ -43,9 +43,9 @@ fn test_copy_mode_does_not_write_vendored_metadata_file() {
         skill_dir: skill_dir.clone(),
     };
     let target = ConfigEntry {
-        id: "codex_repo".to_string(),
-        agent: "codex".to_string(),
-        scope: "repo".to_string(),
+        id: "project".to_string(),
+        agent: "claude".to_string(),
+        scope: "project".to_string(),
         path: target_root.clone(),
         enabled: true,
         mode: TargetMode::Copy,

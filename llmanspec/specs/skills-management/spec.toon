@@ -2,17 +2,17 @@ kind: llman.sdd.spec
 name: "skills-management"
 purpose: 描述 llman 在不同来源中发现技能、进行托管快照、处理冲突并为目标路径建立链接的整体流程和约束。
 valid_scope[2]: src/,tests/
-requirements[19]{req_id,title,statement}:
+requirements[20]{req_id,title,statement}:
   r1,交互式技能管理入口,`llman skills` MUST 在交互式终端扫描 `<skills_root>` 后，直接进入既有交互主流程：先选择 agent，再选择 scope，最后进入 skills 多选。`mode=skip` 的 target 必须展示为只读不可切换。用户确认后，管理器 MUST 仅对选定 target 执行差异同步：新增项创建软链接、取消项移除软链接。命令 MUST NOT 创建或更新 `store/` 快照。
   r2,尊重忽略规则并跳过软链接,管理器 MUST 在扫描时遵循 `.gitignore` 与全局忽略规则；若技能目录或 `SKILL.md` 为软链接，管理器 MUST 解析其目标并在目标包含 `SKILL.md` 时将其视为可管理技能。
   r3,按 agent 目标启用/禁用,管理器 MUST 支持按 agent 目标启用或禁用技能；启用在目标目录下创建 `<skill_id>` 软链接（`mode=link`），`mode=skip` 目标必须跳过。禁用仅移除该链接。目标路径不存在时 MUST 创建；若目标路径存在但不是目录，必须记录错误并跳过该目标。
   r4,技能标识规则,"管理器 MUST 使用 `SKILL.md` frontmatter `name` 经过 slugify（小写、非字母数字替换为 `-`、去除首尾 `-`、最多 64 个字符）作为 skill_id；若该字段缺失或 slugify 后为空，则回退目录名。"
-  r5,可配置目标并提供默认值,"技能管理器 MUST 解析 skills 根目录，优先级如下： 1) CLI `--skills-dir` 2) 环境变量 `LLMAN_SKILLS_DIR` 3) llman 全局配置文件 `LLMAN_CONFIG_DIR/config.yaml` 的 `skills.dir` 4) 默认值 `LLMAN_CONFIG_DIR/skills` 本地 `.llman/config.yaml` 中的 `skills.dir` MUST 被忽略，不得覆盖全局配置。 技能管理器 MUST 从 `<skills_root>/config.toml` 加载 version=2 的 target 配置；若配置缺失，则使用默认 targets。`[[source]]` 配置 MUST 被拒绝并提示迁移。配置路径 MUST 支持 `~` 与环境变量展开。target 配置 MAY 指定 `mode`（`link`、`skip`），缺省为 `link`；`skip` 目标必须被跳过且在交互式管理器中以只读状态展示。 默认 targets MUST 同时覆盖个人范围与项目范围： - Claude：`u"
+  r5,默认 target 改为 claude 与 .agents,"默认 targets MUST 覆盖个人范围与项目范围：Claude user（~/.claude/skills）、Claude project（.claude/skills）、agents project（.agents/skills）。\n移除 codex user/repo 默认 targets。"
   r6,单一来源扫描,技能管理器 MUST 以 `<skills_root>` 作为唯一来源扫描技能目录；来源路径不可配置。
   r7,Skills 重构保持行为一致,Skills 模块重构 MUST 保持技能发现、目标链接、冲突处理与 CLI 输出行为一致，且不得改变配置解析优先级。
   r8,断链 symlink 必须被视为已存在条目,在同步 targets 时，技能管理器 MUST 将断链 symlink 视为“已存在的文件系统条目”。即使 `exists()` 为 false，只要 `symlink_metadata()` 表明这是一个 symlink，也必须能够按冲突策略执行覆盖或移除。
   r9,"冲突提示取消必须是安全 no-op",在交互模式下，如果用户取消冲突处理提示，管理器 MUST 将其视为安全的整体 abort（安全退出），并 MUST NOT 产生部分变更。
-  r10,交互菜单必须展示 agent 与 scope 语义,"交互菜单 MUST 展示与工具语义一致的文案，而不是直接暴露内部 target id。 - Agent 菜单必须包含：`claude`、`codex`、`Exit` - Claude scope 菜单必须包含：`Personal (All your projects)`、`Project (This project only)`、`Exit` - Codex scope 菜单必须包含：`User (All your projects)`、`Repo (This project only)`、`Exit`"
+  r10,交互菜单展示 agent/scope 语义（移除 codex 添加 .agents）,"交互菜单 MUST 展示与工具语义一致的文案。\nAgent 菜单必须包含：claude、agents、Exit\nClaude scope 菜单必须包含：Personal (All your projects)、Project (This project only)、Exit\nAgents scope 菜单必须包含：.agents (This project only)、Exit"
   r11,项目范围菜单应隐藏用户范围已管理技能,当用户在 `project/repo` scope 下管理技能时，技能列表 SHOULD 隐藏“仅由同 agent 的 `user` scope 链接且当前 scope 未链接”的技能，减少重复噪音；若某技能已在当前 scope 链接，则即使也存在于 user scope，仍 MUST 展示。
   r12,预设来源与默认推断,管理器 MUST 仅支持运行时目录推断预设：MUST 从技能目录名按 `<preset>.<skill>` 规则自动推断分组。推断得到的预设 MUST 仅存在于运行时，不得依赖或写入任何 registry 持久化字段。
   r13,预设功能仅限交互模式,本变更中，预设能力 MUST 仅通过交互流程提供。`llman skills` MUST NOT 新增任何 presets 专用命令参数。
@@ -22,7 +22,8 @@ requirements[19]{req_id,title,statement}:
   r17,启用状态实时计算,管理器 MUST 不再依赖任何 registry 文件作为技能启用状态来源。交互与非交互流程都 MUST 基于目标目录真实链接状态实时计算技能启用状态，并仅将 `config.toml` 的 `target.enabled` 作为“当前未链接时”的默认回退值。
   r18,技能版本元数据,"Skills 模板 MUST 包含 metadata.version 字段，其值 MUST 与生成该 skill 的 llman CLI 版本一致。llman sdd init 与 llman sdd update-skills MUST 在写入 SKILL.md 时自动填充当前 CLI 版本。"
   r19,版本不匹配警告,当 skill 的 metadata.version 与当前运行的 llman CLI 主版本（major.minor）不一致时，harness 或 skill 执行流程 SHOULD 输出警告。该警告 MUST NOT 阻断 skill 加载或执行。
-scenarios[51]{req_id,id,given,when,then}:
+  r20,scope 排序动态化,技能管理器 MUST 根据当前工作目录上下文动态排序 scope 选项：在 git 仓库内（且非家目录）project scope 优先，否则 user scope 优先。
+scenarios[45]{req_id,id,given,when,then}:
   r1,"直接进入-agent-菜单","",用户运行 `llman skills`,管理器直接展示 `Select which agent tools to manage`，不再出现 `Select mode`
   r1,"select-individually-既有流程保留","",用户进入交互流程,管理器按 agent → scope → skills 流程执行
   r1,取消不产生变更,"",用户在确认前退出或返回,不修改任何目标链接且不写入持久化状态文件
@@ -36,22 +37,14 @@ scenarios[51]{req_id,id,given,when,then}:
   r3,非交互冲突使用策略,"","非交互模式下 `mode=link` 目标存在冲突且传入 `--target-conflict=overwrite|skip`",管理器按策略执行覆盖或跳过
   r4,"name-缺失或非法","",`SKILL.md` 缺失 `name` 或包含非法值,管理器使用目录名作为 skill_id
   r4,"name-需要-slugify","",`SKILL.md` 的 `name` 为 `Slint GUI Expert`,"skill_id 为 `slint-gui-expert`"
-  r5,缺省配置时使用默认目标,"",`<skills_root>/config.toml` 不存在,管理器使用默认 targets（claude user/project、codex user/repo）
-  r5,仓库内启用项目目标,"",当前目录位于 git 仓库内且配置文件缺失,Claude `project` 与 Codex `repo` 默认目标为 `mode=link`，路径指向仓库根目录对应 skills 目录
-  r5,非仓库内项目目标只读,"",当前目录不在 git 仓库内且配置文件缺失,Claude `project` 与 Codex `repo` 默认目标为 `mode=skip`
-  r5,"codex-user-使用-agents-目录","",配置文件缺失且用户存在 `~/.agents/skills`,Codex user 默认目标路径使用 `~/.agents/skills`
-  r5,"codex-user-回退-codex-目录","",配置文件缺失且 `~/.agents/skills` 不可用但 `~/.codex/skills` 可用,Codex user 默认目标路径回退为 `~/.codex/skills`
-  r5,"cli-覆盖-skills-根目录","","用户运行 `llman skills --skills-dir /tmp/llman.skills`",管理器使用 `/tmp/llman.skills` 作为 skills 根目录并读取 `/tmp/llman.skills/config.toml`
-  r5,"环境变量覆盖-skills-根目录","",未传入 CLI 覆盖且设置 `LLMAN_SKILLS_DIR`,管理器使用该环境变量作为 skills 根目录
-  r5,"全局配置文件提供-skills-根目录","",未传入 CLI/ENV 覆盖且全局 `LLMAN_CONFIG_DIR/config.yaml` 设置 `skills.dir`,管理器使用该 `skills.dir` 作为 skills 根目录
-  r5,本地配置被忽略,"",当前目录存在 `.llman/config.yaml` 且其中设置 `skills.dir`,"管理器忽略本地配置并继续使用全局配置或默认值 --"
+  r5,"agents-default",skills root 无 config.toml,默认 targets 被加载,默认 targets 包含 agents project（.agents/skills）以及 claude user/project
   r6,扫描单一根目录,"",`<skills_root>` 下存在包含 `SKILL.md` 的技能目录,管理器将其作为可管理技能展示
   r7,"skills-重构后回归","",`src/skills/` 的模块结构被重组,`llman skills` 的扫描与链接行为保持不变
   r8,"覆盖断链-symlink","",某 target 目录中存在名为 `<skill_id>` 的断链 symlink，且用户希望为该 target 启用该 skill,冲突处理流程会运行，并可按选定冲突策略覆盖该断链 symlink
   r8,"移除断链-symlink","",某 target 目录中存在名为 `<skill_id>` 的断链 symlink，且用户希望为该 target 禁用该 skill,该断链 symlink 会被移除
   r9,取消冲突提示,"",target 存在冲突条目且用户在 overwrite/skip 提示中取消,命令整体 abort 且不应用任何变更，并以成功状态退出
-  r10,"claude-scope-文案","",用户选择 `claude`,scope 菜单展示 `Personal (All your projects)` 与 `Project (This project only)`
-  r10,"codex-scope-文案","",用户选择 `codex`,scope 菜单展示 `User (All your projects)` 与 `Repo (This project only)`
+  r10,"agent-menu","",用户运行 llman skills 选择 agent,菜单展示 claude、agents、Exit
+  r10,"agents-scope","",用户选择 agents,scope 菜单展示 .agents (This project only) 与 Exit
   r11,"隐藏仅-user-scope-已链接技能","",用户进入 `claude project` 或 `codex repo` 管理，某技能在同 agent 的 `user` scope 已链接且当前 scope 未链接,该技能不出现在当前 scope 的多选列表中
   r11,"保留当前-scope-已链接技能","",用户进入 `project/repo` 管理，某技能在当前 scope 已链接（无论 user scope 是否也链接）,该技能继续显示在多选列表中
   r12,自动推断默认预设,"",技能目录名为 `superpowers.brainstorming`,该目录被归入预设 `superpowers`，并以完整目录名作为该预设成员
@@ -74,3 +67,5 @@ scenarios[51]{req_id,id,given,when,then}:
   r18,"update-skills-同步版本","","用户运行 llman sdd update-skills",更新后的 skills 的 metadata.version 为当前 CLI 版本
   r18,"缺失-version-不阻断","",现有 skill 无 metadata.version,skill 正常加载，视为未版本化
   r19,主版本不匹配警告,"",skill 的 metadata.version 为 0.0.40，当前 CLI 为 0.0.50,加载时输出版本不匹配警告
+  r20,"git-repo-project-first",当前目录在 git 仓库内且非家目录,用户运行 llman skills 选择 scope,project scope 选项排在 user scope 之前
+  r20,"home-user-first",当前目录是家目录或不在 git 仓库内,用户运行 llman skills 选择 scope,user scope 选项排在 project scope 之前

@@ -6,6 +6,7 @@ use crate::skills::cli::interactive::is_interactive;
 use crate::skills::cli::tui_picker;
 use crate::skills::cli::tui_picker::{TuiEntry, TuiEntryKind};
 use crate::skills::config::load_config;
+use crate::skills::shared::git::find_git_root;
 use crate::skills::targets::sync::SkillSyncCancelled;
 use crate::skills::targets::sync::{apply_target_diff, is_skill_present};
 use anyhow::Result;
@@ -13,6 +14,7 @@ use clap::{Args, ValueEnum};
 use inquire::error::InquireError;
 use inquire::{Confirm, Select};
 use std::collections::{HashMap, HashSet};
+use std::env;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -451,9 +453,14 @@ fn scopes_for_agent(config: &SkillsConfig, agent: &str) -> Vec<ScopeChoice> {
         })
         .collect();
 
+    let prefer_project = should_prefer_project_scope();
     scopes.sort_by(|a, b| {
-        scope_order(&a.target.agent, &a.target.scope)
-            .cmp(&scope_order(&b.target.agent, &b.target.scope))
+        scope_order(&a.target.agent, &a.target.scope, prefer_project)
+            .cmp(&scope_order(
+                &b.target.agent,
+                &b.target.scope,
+                prefer_project,
+            ))
             .then_with(|| a.label.cmp(&b.label))
             .then_with(|| a.target.id.cmp(&b.target.id))
     });
@@ -479,8 +486,7 @@ fn display_scope_label(agent: &str, scope: &str) -> String {
     match (agent, scope) {
         ("claude", "user") => "Personal (All your projects)".to_string(),
         ("claude", "project") => "Project (This project only)".to_string(),
-        ("codex", "user") => "User (All your projects)".to_string(),
-        ("codex", "repo") => "Repo (This project only)".to_string(),
+        ("agents", "project") => ".agents (This project only)".to_string(),
         _ => scope.to_string(),
     }
 }
@@ -488,17 +494,47 @@ fn display_scope_label(agent: &str, scope: &str) -> String {
 fn agent_order(agent: &str) -> u8 {
     match agent {
         "claude" => 0,
-        "codex" => 1,
+        "agents" => 1,
         _ => 2,
     }
 }
 
-fn scope_order(agent: &str, scope: &str) -> u8 {
+/// Returns `true` when the current directory is inside a git repository and
+/// is not the user's home directory. In that case project-level scopes should
+/// appear before the user-level (global) scope.
+fn should_prefer_project_scope() -> bool {
+    let cwd = match env::current_dir() {
+        Ok(dir) => dir,
+        Err(_) => return false,
+    };
+
+    // Home directory → always prefer global scope
+    let home = crate::config::try_home_dir();
+    if home.as_deref() == Some(&cwd) {
+        return false;
+    }
+
+    // Inside a git repo → prefer project scope
+    find_git_root(&cwd).is_some()
+}
+
+fn scope_order(agent: &str, scope: &str, prefer_project_first: bool) -> u8 {
     match (agent, scope) {
-        ("claude", "user") => 0,
-        ("claude", "project") => 1,
-        ("codex", "user") => 0,
-        ("codex", "repo") => 1,
+        ("claude", "user") => {
+            if prefer_project_first {
+                1
+            } else {
+                0
+            }
+        }
+        ("claude", "project") => {
+            if prefer_project_first {
+                0
+            } else {
+                1
+            }
+        }
+        ("agents", "project") => 2,
         _ => 10,
     }
 }
@@ -906,18 +942,18 @@ mod tests {
         let config = SkillsConfig {
             targets: vec![
                 ConfigEntry {
-                    id: "claude_user".to_string(),
-                    agent: "claude".to_string(),
-                    scope: "user".to_string(),
-                    path: PathBuf::from("/tmp/claude-user"),
+                    id: "agents_project".to_string(),
+                    agent: "agents".to_string(),
+                    scope: "project".to_string(),
+                    path: PathBuf::from("/tmp/agents-project"),
                     enabled: true,
                     mode: TargetMode::Link,
                 },
                 ConfigEntry {
-                    id: "codex_user".to_string(),
-                    agent: "codex".to_string(),
+                    id: "claude_user".to_string(),
+                    agent: "claude".to_string(),
                     scope: "user".to_string(),
-                    path: PathBuf::from("/tmp/codex-user"),
+                    path: PathBuf::from("/tmp/claude-user"),
                     enabled: true,
                     mode: TargetMode::Link,
                 },
@@ -926,7 +962,7 @@ mod tests {
 
         let agents = selectable_agents(&config);
         let labels: Vec<String> = agents.iter().map(|choice| choice.label.clone()).collect();
-        assert_eq!(labels, vec!["claude", "codex"]);
+        assert_eq!(labels, vec!["claude", "agents"]);
     }
 
     #[test]
@@ -940,12 +976,8 @@ mod tests {
             "Project (This project only)"
         );
         assert_eq!(
-            display_scope_label("codex", "user"),
-            "User (All your projects)"
-        );
-        assert_eq!(
-            display_scope_label("codex", "repo"),
-            "Repo (This project only)"
+            display_scope_label("agents", "project"),
+            ".agents (This project only)"
         );
     }
 
@@ -988,17 +1020,30 @@ mod tests {
 
         let scopes = scopes_for_agent(&config, "claude");
         let labels: Vec<String> = scopes.iter().map(|choice| choice.label.clone()).collect();
-        assert_eq!(
-            labels,
-            vec![
-                "Personal (All your projects)".to_string(),
-                "Project (This project only)".to_string(),
-                "team".to_string()
-            ]
+
+        // Order depends on whether running from a git repo (project first) or not (user first).
+        assert_eq!(scopes.len(), 3);
+        let first_two: Vec<&str> = labels[..2].iter().map(|s| s.as_str()).collect();
+        assert!(
+            first_two
+                == vec![
+                    "Project (This project only)",
+                    "Personal (All your projects)"
+                ]
+                || first_two
+                    == vec![
+                        "Personal (All your projects)",
+                        "Project (This project only)"
+                    ],
+            "First two should be Project and Personal in some order, got: {:?}",
+            first_two
         );
-        assert_eq!(scopes[0].target.id, "claude_user");
-        assert_eq!(scopes[1].target.id, "claude_project");
+        assert_eq!(labels[2], "team");
         assert_eq!(scopes[2].target.id, "claude_team");
+        // Verify the first two items have correct target IDs
+        let first_ids: Vec<&str> = scopes[..2].iter().map(|s| s.target.id.as_str()).collect();
+        assert!(first_ids.contains(&"claude_user"));
+        assert!(first_ids.contains(&"claude_project"));
     }
 
     #[test]

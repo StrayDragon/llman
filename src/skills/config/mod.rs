@@ -212,23 +212,16 @@ fn default_targets() -> Result<Vec<ConfigEntry>> {
     let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let home_dir = crate::config::try_home_dir();
     let claude_home = env::var("CLAUDE_HOME").ok().map(PathBuf::from);
-    let codex_home = env::var("CODEX_HOME").ok().map(PathBuf::from);
-    default_targets_with(
-        &cwd,
-        home_dir.as_deref(),
-        claude_home.as_deref(),
-        codex_home.as_deref(),
-    )
+    default_targets_with(&cwd, home_dir.as_deref(), claude_home.as_deref())
 }
 
 fn default_targets_with(
     cwd: &Path,
     home_dir: Option<&Path>,
     claude_home: Option<&Path>,
-    codex_home: Option<&Path>,
 ) -> Result<Vec<ConfigEntry>> {
     let (claude_project_path, claude_project_mode) = default_repo_scope_dir(cwd, ".claude/skills");
-    let (codex_repo_path, codex_repo_mode) = default_repo_scope_dir(cwd, ".codex/skills");
+    let (agents_project_path, agents_project_mode) = default_repo_scope_dir(cwd, ".agents/skills");
 
     Ok(vec![
         ConfigEntry {
@@ -248,20 +241,12 @@ fn default_targets_with(
             mode: claude_project_mode,
         },
         ConfigEntry {
-            id: "codex_user".to_string(),
-            agent: "codex".to_string(),
-            scope: "user".to_string(),
-            path: default_codex_user_dir_with(codex_home, home_dir)?,
+            id: "agents_project".to_string(),
+            agent: "agents".to_string(),
+            scope: "project".to_string(),
+            path: agents_project_path,
             enabled: true,
-            mode: TargetMode::Link,
-        },
-        ConfigEntry {
-            id: "codex_repo".to_string(),
-            agent: "codex".to_string(),
-            scope: "repo".to_string(),
-            path: codex_repo_path,
-            enabled: true,
-            mode: codex_repo_mode,
+            mode: agents_project_mode,
         },
     ])
 }
@@ -274,17 +259,6 @@ fn default_claude_user_dir_with(
         return Ok(home.join("skills"));
     }
     expand_path_with("~/.claude/skills", home_dir, |_key| None)
-}
-
-fn default_codex_user_dir_with(
-    codex_home: Option<&Path>,
-    home_dir: Option<&Path>,
-) -> Result<PathBuf> {
-    if let Some(home) = codex_home {
-        return Ok(home.join("skills"));
-    }
-
-    expand_path_with("~/.codex/skills", home_dir, |_key| None)
 }
 
 fn default_repo_scope_dir(cwd: &Path, relative: &str) -> (PathBuf, TargetMode) {
@@ -524,7 +498,7 @@ mod tests {
         let home_root = temp.path().join("home");
         fs::create_dir_all(&home_root).expect("create home");
         let targets =
-            default_targets_with(&nested, Some(&home_root), None, None).expect("default targets");
+            default_targets_with(&nested, Some(&home_root), None).expect("default targets");
 
         let claude_project = targets
             .iter()
@@ -533,12 +507,12 @@ mod tests {
         assert_eq!(claude_project.mode, TargetMode::Copy);
         assert_eq!(claude_project.path, repo_root.join(".claude/skills"));
 
-        let codex_repo = targets
+        let agents_project = targets
             .iter()
-            .find(|target| target.id == "codex_repo")
-            .expect("codex_repo target");
-        assert_eq!(codex_repo.mode, TargetMode::Copy);
-        assert_eq!(codex_repo.path, repo_root.join(".codex/skills"));
+            .find(|target| target.id == "agents_project")
+            .expect("agents_project target");
+        assert_eq!(agents_project.mode, TargetMode::Copy);
+        assert_eq!(agents_project.path, repo_root.join(".agents/skills"));
     }
 
     #[test]
@@ -549,7 +523,7 @@ mod tests {
 
         let home_root = temp.path().join("home");
         fs::create_dir_all(&home_root).expect("create home");
-        let targets = default_targets_with(&cwd, Some(&home_root), None, None).expect("default");
+        let targets = default_targets_with(&cwd, Some(&home_root), None).expect("default");
 
         let claude_project = targets
             .iter()
@@ -557,20 +531,10 @@ mod tests {
             .expect("claude_project target");
         assert_eq!(claude_project.mode, TargetMode::Skip);
 
-        let codex_repo = targets
+        let agents_project = targets
             .iter()
-            .find(|target| target.id == "codex_repo")
-            .expect("codex_repo target");
-        assert_eq!(codex_repo.mode, TargetMode::Skip);
-    }
-
-    #[test]
-    fn test_codex_user_defaults_to_codex_skills_path() {
-        let temp = TempDir::new().expect("temp dir");
-        let home_root = temp.path().join("home");
-        fs::create_dir_all(home_root.join(".codex/skills")).expect("create codex skills");
-
-        let path = default_codex_user_dir_with(None, Some(&home_root)).expect("codex user dir");
-        assert_eq!(path, home_root.join(".codex/skills"));
+            .find(|target| target.id == "agents_project")
+            .expect("agents_project target");
+        assert_eq!(agents_project.mode, TargetMode::Skip);
     }
 }
