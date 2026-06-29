@@ -1,3 +1,4 @@
+use super::Backend;
 use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -133,30 +134,109 @@ pub enum IndexFreshness {
     Corrupted(String),
 }
 
-/// Check the freshness of the embedding index
-pub fn check_freshness(context_dir: &Path, specs_dir: &Path) -> IndexFreshness {
-    let meta_path = context_dir.join("metadata.toml");
-    if !meta_path.exists() {
-        return IndexFreshness::Missing;
+/// Subdirectory name under `.context/` for each backend's index storage.
+pub fn backend_subdir(backend: Backend) -> &'static str {
+    match backend {
+        Backend::Rag => "rag",
+        Backend::Pageindex => "pageindex",
     }
+}
 
+/// Resolve the directory holding the given backend's index.
+///
+/// For the rag backend this falls back to the legacy flat layout (index files
+/// directly under `context_dir`) when a `.context/rag/` subdirectory does not
+/// yet exist, so existing users keep their indexes after the storage split.
+/// The pageindex backend is always scoped to `.context/pageindex/`.
+pub fn resolve_backend_dir(context_dir: &Path, backend: Backend) -> PathBuf {
+    let sub = context_dir.join(backend_subdir(backend));
+    if sub.join("metadata.toml").exists() || sub.join("tree.json").exists() {
+        return sub;
+    }
+    if matches!(backend, Backend::Rag) && context_dir.join("metadata.toml").exists() {
+        return context_dir.to_path_buf();
+    }
+    sub
+}
+
+/// Best-effort summary of a pageindex tree index: (doc_count, build_timestamp, chat_model).
+///
+/// Parsed as generic JSON so this works without depending on the `tree.rs` types.
+pub fn pageindex_summary(backend_dir: &Path) -> Option<(usize, String, String)> {
+    let content = fs::read_to_string(backend_dir.join("tree.json")).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let docs = value["docs"].as_array().map(|a| a.len()).unwrap_or(0);
+    let ts = value["build_timestamp"]
+        .as_str()
+        .unwrap_or("unknown")
+        .to_string();
+    let model = value["chat_model"]
+        .as_str()
+        .unwrap_or("unknown")
+        .to_string();
+    Some((docs, ts, model))
+}
+
+enum FreshErr {
+    Missing,
+    Corrupted(String),
+}
+
+/// Read the stored spec_hash for the rag backend from `metadata.toml`.
+fn read_rag_spec_hash(backend_dir: &Path) -> std::result::Result<String, FreshErr> {
+    let meta_path = backend_dir.join("metadata.toml");
+    if !meta_path.exists() {
+        return Err(FreshErr::Missing);
+    }
+    let toml_str =
+        fs::read_to_string(&meta_path).map_err(|e| FreshErr::Corrupted(e.to_string()))?;
     let meta: ContextMetadata =
-        match toml::from_str(&fs::read_to_string(&meta_path).unwrap_or_default()) {
-            Ok(m) => m,
-            Err(e) => return IndexFreshness::Corrupted(e.to_string()),
-        };
+        toml::from_str(&toml_str).map_err(|e| FreshErr::Corrupted(e.to_string()))?;
+    Ok(meta.spec_hash)
+}
+
+/// Read the stored spec_hash for the pageindex backend from `tree.json`.
+///
+/// Parsed as generic JSON to avoid coupling `index.rs` to the `tree.rs` types
+/// (and to keep the Phase-1 freshness check working before `tree.rs` exists).
+fn read_pageindex_spec_hash(backend_dir: &Path) -> std::result::Result<String, FreshErr> {
+    let tree_path = backend_dir.join("tree.json");
+    if !tree_path.exists() {
+        return Err(FreshErr::Missing);
+    }
+    let content = fs::read_to_string(&tree_path).map_err(|e| FreshErr::Corrupted(e.to_string()))?;
+    let value: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| FreshErr::Corrupted(e.to_string()))?;
+    value["spec_hash"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| FreshErr::Corrupted("tree.json missing spec_hash".to_string()))
+}
+
+/// Check the freshness of the index for a specific backend.
+pub fn check_freshness(context_dir: &Path, specs_dir: &Path, backend: Backend) -> IndexFreshness {
+    let backend_dir = resolve_backend_dir(context_dir, backend);
+    let stored_hash = match backend {
+        Backend::Rag => read_rag_spec_hash(&backend_dir),
+        Backend::Pageindex => read_pageindex_spec_hash(&backend_dir),
+    };
+    let stored_hash = match stored_hash {
+        Ok(h) => h,
+        Err(FreshErr::Missing) => return IndexFreshness::Missing,
+        Err(FreshErr::Corrupted(msg)) => return IndexFreshness::Corrupted(msg),
+    };
 
     let current_hash = match compute_spec_hash(specs_dir) {
         Ok(h) => h,
         Err(e) => return IndexFreshness::Corrupted(e.to_string()),
     };
 
-    if meta.spec_hash == current_hash {
+    if stored_hash == current_hash {
         IndexFreshness::Fresh
     } else {
         IndexFreshness::Stale {
             current_hash,
-            stored_hash: meta.spec_hash,
+            stored_hash,
         }
     }
 }
@@ -257,5 +337,100 @@ mod tests {
         let scores = vec![3.0, 1.0, 2.0];
         let normalized = z_score_normalize(&scores);
         assert!((normalized.iter().sum::<f32>()).abs() < 1e-6);
+    }
+
+    /// r10: pageindex storage MUST be isolated from rag. A present rag index must
+    /// never satisfy a pageindex freshness check.
+    #[test]
+    fn test_backend_storage_isolation_pageindex_ignores_rag() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let context_dir = root.join(".context");
+        let specs_dir = root.join("specs");
+        std::fs::create_dir_all(&specs_dir).unwrap();
+
+        // Simulate an existing rag index (new isolated layout).
+        let rag_dir = context_dir.join("rag");
+        std::fs::create_dir_all(&rag_dir).unwrap();
+        let hash = compute_spec_hash(&specs_dir).unwrap();
+        std::fs::write(
+            rag_dir.join("metadata.toml"),
+            format!(
+                "version = 1\nspec_hash = \"{hash}\"\nspec_count = 1\nchunk_count = 1\n\
+                 build_timestamp = \"2026-01-01T00:00:00Z\"\nmodel = \"m\"\nembedding_dim = 4\n"
+            ),
+        )
+        .unwrap();
+
+        // pageindex dir absent → pageindex freshness is Missing, NOT Fresh.
+        assert_eq!(
+            check_freshness(&context_dir, &specs_dir, Backend::Pageindex),
+            IndexFreshness::Missing,
+            "pageindex must not silently use the rag index"
+        );
+        // rag resolves to its own (fresh) dir.
+        assert_eq!(
+            check_freshness(&context_dir, &specs_dir, Backend::Rag),
+            IndexFreshness::Fresh
+        );
+        // resolve_backend_dir for pageindex points at pageindex/, never rag/.
+        assert_eq!(
+            resolve_backend_dir(&context_dir, Backend::Pageindex),
+            context_dir.join("pageindex")
+        );
+    }
+
+    /// r10 (legacy compat): an old flat `.context/metadata.toml` is treated as the
+    /// rag index, but still does not satisfy pageindex.
+    #[test]
+    fn test_backend_legacy_layout_treated_as_rag_only() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let context_dir = root.join(".context");
+        let specs_dir = root.join("specs");
+        std::fs::create_dir_all(&specs_dir).unwrap();
+
+        let hash = compute_spec_hash(&specs_dir).unwrap();
+        std::fs::create_dir_all(&context_dir).unwrap();
+        std::fs::write(
+            context_dir.join("metadata.toml"),
+            format!(
+                "version = 1\nspec_hash = \"{hash}\"\nspec_count = 1\nchunk_count = 1\n\
+                 build_timestamp = \"2026-01-01T00:00:00Z\"\nmodel = \"m\"\nembedding_dim = 4\n"
+            ),
+        )
+        .unwrap();
+
+        // Legacy flat layout is recognized as rag (read fallback).
+        assert_eq!(
+            check_freshness(&context_dir, &specs_dir, Backend::Rag),
+            IndexFreshness::Fresh
+        );
+        assert_eq!(resolve_backend_dir(&context_dir, Backend::Rag), context_dir);
+        // ...but pageindex is still missing.
+        assert_eq!(
+            check_freshness(&context_dir, &specs_dir, Backend::Pageindex),
+            IndexFreshness::Missing
+        );
+    }
+
+    #[test]
+    fn test_backend_parse_and_resolve() {
+        use super::super::{Backend, resolve_backend};
+        assert_eq!(Backend::parse("rag").unwrap(), Backend::Rag);
+        assert_eq!(Backend::parse("pageindex").unwrap(), Backend::Pageindex);
+        assert_eq!(Backend::parse(" PageIndex ").unwrap(), Backend::Pageindex);
+        assert!(Backend::parse("nope").is_err());
+
+        // A present CLI flag wins without consulting the environment.
+        assert_eq!(
+            resolve_backend(Some(String::from("rag"))).unwrap(),
+            Backend::Rag
+        );
+        // An empty CLI flag falls through to the default (pageindex).
+        assert_eq!(
+            resolve_backend(Some(String::new())).unwrap(),
+            Backend::Pageindex
+        );
     }
 }

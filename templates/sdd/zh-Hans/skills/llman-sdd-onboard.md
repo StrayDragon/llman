@@ -13,7 +13,7 @@ metadata:
 1. 阅读 `llmanspec/config.yaml` 了解项目上下文、约定与规则。
 2. 使用 `llman sdd list --specs --json` 了解项目中的 specs 概览。
    - 或者使用 `llman sdd context --task "<任务描述>" --paths "<路径>"` 获取与当前任务相关的 specs。
-   - 如果 context 返回 `quality: "unavailable"`，先运行 `llman sdd index rebuild` 重建索引。
+   - 如果 context 返回 `quality: "unavailable"`，先运行 `llman sdd index rebuild` 重建索引（默认 backend 为 `pageindex`；检索需 `LLMAN_SDD_INDEX_CHAT_MODEL`，但重建不需要）。
 3. 根据 context 的 `direct`/`related` 分类，只读 target spec 全文。
 4. 判断变更规模（见 triage 规则），决定走完整 SDD 流程或快速路径。
 5. 按照 提案 -> 实施 -> 归档 的流程（完整路径）或直接修改（快速路径）推进。

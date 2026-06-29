@@ -16,7 +16,7 @@ metadata:
    - **元规范变更**（改 SDD 模板/流程）→ 必须走完整 SDD 流程
    - 不确定时走完整 SDD 流程（保守选择）
 2. 使用 `llman sdd context --task "<目标>" --paths "<范围>"` 获取相关 specs。
-   - 如果 context 不可用，启动 `llman sdd index rebuild --run-async` 后台重建后继续。
+   - 如果 context 不可用，运行 `llman sdd index rebuild`（默认 `pageindex`，无需模型）后继续。
 3. 收集输入：
    - 变更的简要描述
    - change id（若未给出则推导；kebab-case，动词前缀：`add-`、`update-`、`remove-`、`refactor-`）

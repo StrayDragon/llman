@@ -11,7 +11,7 @@ metadata:
 
 ## 步骤
 1. 使用 `llman sdd context --task "<proposal 中的目标>" --paths "<specs 中的 scope>"` 确认相关 specs。
-   - 如果 context 不可用，启动 `llman sdd index rebuild --run-async` 后台重建后继续。
+   - 如果 context 不可用，运行 `llman sdd index rebuild`（默认 `pageindex` 树索引，无需模型）后重试；rag backend 则加 `--backend rag`。
 2. 选择变更 id：
    - 若已提供，直接使用。
    - 否则先从上下文推断；若不明确，运行 `llman sdd list --json` 并让用户选择。

@@ -11,7 +11,7 @@ Implement a change by completing `llmanspec/changes/<id>/tasks.md` from top to b
 
 ## Steps
 1. Use `llman sdd context --task "<goal from proposal>" --paths "<scope from specs>"` to confirm relevant specs.
-   - If context unavailable, start `llman sdd index rebuild --run-async` in background and continue.
+   - If context is unavailable, rebuild with `llman sdd index rebuild` (default `pageindex` tree index, no model needed) and retry; for the `rag` backend add `--backend rag`.
 2. Select the change id:
    - If provided, use it.
    - Otherwise infer from context; if ambiguous, run `llman sdd list --json` and ask the user to choose.
