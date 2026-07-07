@@ -42,3 +42,9 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
+      - id: check-skills-version
+        name: check skills version
+        entry: python3 scripts/check-skills-version.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
