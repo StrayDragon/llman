@@ -5,7 +5,7 @@ use crate::sdd::spec::backend::{BACKEND, SpecBackend};
 use crate::sdd::spec::frontmatter::split_frontmatter;
 use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
@@ -393,7 +393,7 @@ mod tests {
             ],
         );
         let config = ArchiveConfig::default();
-        let issues = check_tasks_completion(&change_dir, &[], &[], false, &config);
+        let issues = check_tasks_completion(&change_dir, &config);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].level, ValidationLevel::Warning);
     }
@@ -412,45 +412,9 @@ mod tests {
             strict_defer: Some(true),
             min_completion_ratio: None,
         };
-        let issues = check_tasks_completion(&change_dir, &[], &[], false, &config);
+        let issues = check_tasks_completion(&change_dir, &config);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].level, ValidationLevel::Error);
-    }
-
-    #[test]
-    fn task_completion_linked_defer_valid_target() {
-        let tmp = tempfile::tempdir().unwrap();
-        let change_dir = setup_change_dir(
-            &tmp,
-            &[
-                ("proposal.md", "## Why\nTest"),
-                (
-                    "tasks.md",
-                    "- [x] Done\n- [ ] Deferred (defer → c99-followup)",
-                ),
-            ],
-        );
-        let config = ArchiveConfig::default();
-        let all_ids = vec!["c99-followup".to_string()];
-        let issues = check_tasks_completion(&change_dir, &all_ids, &[], false, &config);
-        assert!(issues.is_empty());
-    }
-
-    #[test]
-    fn task_completion_linked_defer_missing_target() {
-        let tmp = tempfile::tempdir().unwrap();
-        let change_dir = setup_change_dir(
-            &tmp,
-            &[
-                ("proposal.md", "## Why\nTest"),
-                ("tasks.md", "- [ ] Deferred (defer → nonexistent-change)"),
-            ],
-        );
-        let config = ArchiveConfig::default();
-        let issues = check_tasks_completion(&change_dir, &[], &[], false, &config);
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].level, ValidationLevel::Error);
-        assert!(issues[0].message.contains("nonexistent-change"));
     }
 
     #[test]
@@ -464,13 +428,14 @@ mod tests {
             ],
         );
         let config = ArchiveConfig::default();
-        let issues = check_tasks_completion(&change_dir, &[], &[], false, &config);
+        let issues = check_tasks_completion(&change_dir, &config);
+        // Legacy annotations are now Pending, so they produce warnings
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].level, ValidationLevel::Warning);
     }
 
     #[test]
-    fn task_completion_cancelled_no_issue() {
+    fn task_completion_cancelled_now_pending() {
         let tmp = tempfile::tempdir().unwrap();
         let change_dir = setup_change_dir(
             &tmp,
@@ -483,8 +448,10 @@ mod tests {
             ],
         );
         let config = ArchiveConfig::default();
-        let issues = check_tasks_completion(&change_dir, &[], &[], false, &config);
-        assert!(issues.is_empty());
+        // Cancelled tasks are now Pending, so they produce a warning
+        let issues = check_tasks_completion(&change_dir, &config);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Warning);
     }
 
     #[test]
@@ -492,7 +459,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let change_dir = setup_change_dir(&tmp, &[("proposal.md", "## Why\nTest")]);
         let config = ArchiveConfig::default();
-        let issues = check_tasks_completion(&change_dir, &[], &[], false, &config);
+        let issues = check_tasks_completion(&change_dir, &config);
         assert!(issues.is_empty());
     }
 
@@ -1380,13 +1347,10 @@ pub fn check_tasks_exists(change_dir: &Path) -> Vec<ValidationIssue> {
 }
 
 pub fn check_tasks_completion(
-    change_dir: &Path,
-    all_change_ids: &[String],
-    archived_change_ids: &[String],
-    has_frozen: bool,
+    _change_dir: &Path,
     archive_config: &ArchiveConfig,
 ) -> Vec<ValidationIssue> {
-    let tasks_path = change_dir.join("tasks.md");
+    let tasks_path = _change_dir.join("tasks.md");
     let report = match tasks::parse_tasks_file(&tasks_path) {
         Ok(Some(r)) => r,
         _ => return Vec::new(),
@@ -1395,13 +1359,11 @@ pub fn check_tasks_completion(
         return Vec::new();
     }
 
-    let active_ids: HashSet<&str> = all_change_ids.iter().map(|s| s.as_str()).collect();
-    let archived_ids: HashSet<&str> = archived_change_ids.iter().map(|s| s.as_str()).collect();
     let mut issues = Vec::new();
 
     for item in &report.items {
         match &item.status {
-            TaskStatus::Completed | TaskStatus::Cancelled { .. } => {}
+            TaskStatus::Completed => {}
             TaskStatus::Pending => {
                 let level = if archive_config.strict_defer() {
                     ValidationLevel::Error
@@ -1417,41 +1379,6 @@ pub fn check_tasks_completion(
                         task = item.text
                     )
                     .to_string(),
-                });
-            }
-            TaskStatus::Deferred { target } => {
-                if active_ids.contains(target.as_str()) || archived_ids.contains(target.as_str()) {
-                    // valid reference
-                } else if has_frozen {
-                    issues.push(ValidationIssue {
-                        level: ValidationLevel::Info,
-                        path: "tasks.md".to_string(),
-                        message: t!(
-                            "sdd.validate.task_defer_target_may_be_frozen",
-                            target = target,
-                            line = item.line_num
-                        )
-                        .to_string(),
-                    });
-                } else {
-                    issues.push(ValidationIssue {
-                        level: ValidationLevel::Error,
-                        path: "tasks.md".to_string(),
-                        message: t!(
-                            "sdd.validate.task_defer_target_missing",
-                            target = target,
-                            line = item.line_num,
-                            task = item.text
-                        )
-                        .to_string(),
-                    });
-                }
-            }
-            TaskStatus::LegacyDefer { .. } => {
-                issues.push(ValidationIssue {
-                    level: ValidationLevel::Warning,
-                    path: "tasks.md".to_string(),
-                    message: t!("sdd.validate.task_defer_legacy", line = item.line_num).to_string(),
                 });
             }
         }

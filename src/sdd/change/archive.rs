@@ -73,10 +73,7 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
                     t!("sdd.archive.task_gate_blocked", pending = report.pending)
                 );
                 for item in &report.items {
-                    if matches!(
-                        item.status,
-                        tasks::TaskStatus::Pending | tasks::TaskStatus::LegacyDefer { .. }
-                    ) {
+                    if matches!(item.status, tasks::TaskStatus::Pending) {
                         eprintln!("{}", t!("sdd.archive.task_gate_item", task = item.text));
                     }
                 }
@@ -815,7 +812,8 @@ mod tests {
     }
 
     #[test]
-    fn archive_passes_with_cancelled_tasks() {
+    fn archive_blocked_by_cancelled_now_pending() {
+        // Cancelled tasks are now Pending, so they block archive.
         let dir = tempdir().expect("tempdir");
         let root = dir.path();
         let config_path = root.join("llmanspec/config.yaml");
@@ -834,7 +832,8 @@ mod tests {
             no_interactive: true,
         };
         let result = run_with_root(root, args);
-        assert!(result.is_ok());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("unchecked"));
     }
 
     #[test]
@@ -850,6 +849,7 @@ mod tests {
         write_file(&change_dir.join("proposal.md"), "## Why\nTest");
         write_file(
             &change_dir.join("tasks.md"),
+            // All cancelled are now pending, so pending > 0 blocks first
             "- [x] Done\n- [ ] Not needed (cancelled — x)\n- [ ] Also cancelled (cancelled — y)\n",
         );
         let args = ArchiveArgs {
@@ -862,6 +862,11 @@ mod tests {
         let result = run_with_root(root, args);
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("completion ratio") || msg.contains("below minimum"));
+        assert!(
+            msg.contains("unchecked")
+                || msg.contains("completion ratio")
+                || msg.contains("below minimum"),
+            "got: {msg}"
+        );
     }
 }

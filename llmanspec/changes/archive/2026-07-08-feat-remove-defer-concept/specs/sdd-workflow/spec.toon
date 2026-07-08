@@ -1,0 +1,15 @@
+kind: llman.sdd.delta
+ops[2]{op,req_id,title,statement,from,to,name}:
+  modify_requirement,r12,"SDD 校验","命令 MUST 支持 `--all --changes --specs --type change|spec --strict --no-interactive --json`。`--json` 输出 MUST 采用 OpenSpec 顶层 validate 结构。`llman sdd validate` MUST 只将 task 解析为 Completed（`- [x]`）或 Pending（`- [ ]`）两种状态，不再使用 Deferred/LegacyDefer/Cancelled 等特殊 task status。validate MUST 通过 `archive_config.strict_defer()` 决定 pending task 是 Error 还是 Warning。Orphans 子命令 MUST 被移除。",null,null,null
+  modify_requirement,r16,"SDD 归档流程","`llman sdd archive` MUST 支持子命令组工作流：`llman sdd archive run <change-id>` 将 delta 合并到 `llmanspec/specs` 并将 change 移动到 `llmanspec/changes/archive/YYYY-MM-DD-<change-id>`。`--skip-specs`、`--dry-run`、隐藏 `--force` 行为 MUST 保持一致。Archive gate MUST 仅基于 `report.pending > 0` 判定是否阻塞归档；min_completion_ratio 门禁 MUST 仅基于 `completed / total` 计算（`total` 为所有 task 数，不再有 Cancelled 或 Deferred 被排除在分母外）。",null,null,null
+op_scenarios[10]{req_id,id,given,when,then}:
+  r12,task-status-binary,"",task 行为 `- [x]` 或 `- [ ]`,"task 仅被解析为 Completed 或 Pending"
+  r12,defer-link-is-pending,遗留 tasks.md 包含 `- [ ] task (defer → X)`,执行 validate,该 task 被解析为 Pending
+  r12,cancelled-is-pending,遗留 tasks.md 包含 `- [ ] task (cancelled - reason)`,执行 validate,该 task 被解析为 Pending
+  r12,strict-pending-is-error,`archive.strict_defer` 为 true 且存在 pending,执行 validate,该 pending 报 Error
+  r12,no-orphans-command,SDD 命令集合,执行 `llman sdd --help`,不再包含 orphans 子命令
+  r12,no-defer-graph-edges,tasks.md 包含 `(defer → X)`,执行 `llman sdd graph`,graph 中不显示 defer 虚线边
+  r16,archive-pending-blocks,"tasks.md 有 pending",执行 archive,归档被阻塞
+  r16,archive-all-completed,"tasks.md 全部 completed",执行 archive,归档成功
+  r16,completion-ratio-counts-all,"全部 completed 且 min_completion_ratio 启用",执行 archive,ratio 为 completed/total（不再排除 cancelled）
+  r16,force-bypasses,`--force` 且 tasks.md 有 pending,执行 archive,强制归档成功

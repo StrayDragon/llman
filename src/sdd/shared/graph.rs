@@ -1,6 +1,5 @@
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{extract_archived_change_id, list_changes};
-use crate::sdd::shared::tasks::{self, TaskStatus};
 use crate::sdd::spec::frontmatter::split_frontmatter;
 use anyhow::{Result, anyhow};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -19,12 +18,6 @@ pub struct GraphArgs {
 struct DependencyEdge {
     from: String,
     to: String,
-}
-
-struct DeferEdge {
-    from: String,
-    to: String,
-    count: usize,
 }
 
 #[derive(Clone)]
@@ -361,35 +354,6 @@ fn collect_edges_for_nodes(root: &Path, nodes: &[GraphNode]) -> Vec<DependencyEd
     edges
 }
 
-fn collect_defer_edges(root: &Path, nodes: &[GraphNode]) -> Vec<DeferEdge> {
-    let mut counts: HashMap<(String, String), usize> = HashMap::new();
-
-    for node in nodes {
-        if !node.present {
-            continue;
-        }
-        let dir = find_node_dir(root, node);
-        let tasks_path = dir.join("tasks.md");
-        let report = match tasks::parse_tasks_file(&tasks_path) {
-            Ok(Some(r)) => r,
-            _ => continue,
-        };
-        for item in &report.items {
-            if let TaskStatus::Deferred { target } = &item.status
-                && !target.is_empty()
-            {
-                let key = (node.id.clone(), target.clone());
-                *counts.entry(key).or_insert(0) += 1;
-            }
-        }
-    }
-
-    counts
-        .into_iter()
-        .map(|((from, to), count)| DeferEdge { from, to, count })
-        .collect()
-}
-
 // ---------------------------------------------------------------------------
 // Connected components (union-find)
 // ---------------------------------------------------------------------------
@@ -529,33 +493,11 @@ fn render_mermaid(root: &Path, args: &GraphArgs) -> Result<()> {
     }
 
     let edges = collect_edges_for_nodes(root, &nodes);
-    let defer_edges = collect_defer_edges(root, &nodes);
-
-    let existing_ids: HashSet<String> = nodes.iter().map(|n| n.id.clone()).collect();
-    let mut nodes = nodes;
-    let mut seen = existing_ids;
-    for de in &defer_edges {
-        if seen.insert(de.to.clone()) {
-            nodes.push(GraphNode {
-                id: de.to.clone(),
-                archived: false,
-                present: false,
-            });
-        }
-    }
 
     let node_id_list: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
-    let mut union_edges: Vec<DependencyEdge> = edges.clone();
-    for de in &defer_edges {
-        union_edges.push(DependencyEdge {
-            from: de.from.clone(),
-            to: de.to.clone(),
-        });
-    }
-    let components = find_connected_components(&node_id_list, &union_edges);
+    let components = find_connected_components(&node_id_list, &edges);
     let has_archived = nodes.iter().any(|n| n.archived);
     let has_missing = nodes.iter().any(|n| !n.present);
-    let has_defer = !defer_edges.is_empty();
 
     println!("flowchart TD");
 
@@ -564,12 +506,12 @@ fn render_mermaid(root: &Path, args: &GraphArgs) -> Result<()> {
             let comp_ids: HashSet<&str> = component.iter().map(|s| s.as_str()).collect();
             let label = compute_subgraph_label(&nodes, &comp_ids);
             println!("    subgraph sg{}[\"{}\"]", idx + 1, label);
-            render_nodes_and_edges(&nodes, &edges, &defer_edges, &comp_ids, true);
+            render_nodes_and_edges(&nodes, &edges, &comp_ids, true);
             println!("    end");
         }
     } else {
         let all_ids: HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
-        render_nodes_and_edges(&nodes, &edges, &defer_edges, &all_ids, false);
+        render_nodes_and_edges(&nodes, &edges, &all_ids, false);
     }
 
     if has_archived {
@@ -578,9 +520,6 @@ fn render_mermaid(root: &Path, args: &GraphArgs) -> Result<()> {
     if has_missing {
         println!("    classDef missing fill:#f8d7da,stroke:#dc3545,color:#333");
     }
-    if has_defer {
-        println!("    classDef defer stroke-dasharray:5 5");
-    }
 
     Ok(())
 }
@@ -588,7 +527,6 @@ fn render_mermaid(root: &Path, args: &GraphArgs) -> Result<()> {
 fn render_nodes_and_edges(
     nodes: &[GraphNode],
     edges: &[DependencyEdge],
-    defer_edges: &[DeferEdge],
     component_ids: &HashSet<&str>,
     indented: bool,
 ) {
@@ -616,24 +554,6 @@ fn render_nodes_and_edges(
             "{}{} -->|depends on| {}",
             pad,
             sanitize_id(&edge.from),
-            sanitize_id(&edge.to),
-        );
-    }
-
-    for edge in defer_edges {
-        if !component_ids.contains(edge.from.as_str()) {
-            continue;
-        }
-        let label = if edge.count > 1 {
-            format!("defer: {} tasks", edge.count)
-        } else {
-            "defer".to_string()
-        };
-        println!(
-            "{}{} -.->|{}| {}",
-            pad,
-            sanitize_id(&edge.from),
-            label,
             sanitize_id(&edge.to),
         );
     }

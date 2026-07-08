@@ -1,25 +1,11 @@
 use anyhow::Result;
-use regex::Regex;
 use std::fs;
 use std::path::Path;
-use std::sync::LazyLock;
-
-static RE_DEFER_LINKED: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\(defer\s*→\s*([\w-]+)\)").unwrap());
-
-static RE_CANCELLED: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)\(cancell?ed\s*[-–—]\s*(.+)\)").unwrap());
-
-static RE_DEFER_LEGACY: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\(defer\s*[-–—]\s*(.+)\)").unwrap());
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TaskStatus {
     Completed,
     Pending,
-    Deferred { target: String },
-    LegacyDefer { reason: String },
-    Cancelled { reason: String },
 }
 
 #[derive(Debug, Clone)]
@@ -33,9 +19,6 @@ pub struct TaskItem {
 pub struct TasksReport {
     pub items: Vec<TaskItem>,
     pub completed: usize,
-    pub deferred: usize,
-    pub legacy_defer: usize,
-    pub cancelled: usize,
     pub pending: usize,
 }
 
@@ -62,22 +45,7 @@ fn is_checked(trimmed: &str) -> bool {
     lower.starts_with("- [x]") || lower.starts_with("* [x]")
 }
 
-fn classify_unchecked(text: &str) -> TaskStatus {
-    if let Some(caps) = RE_DEFER_LINKED.captures(text) {
-        return TaskStatus::Deferred {
-            target: caps[1].to_string(),
-        };
-    }
-    if let Some(caps) = RE_CANCELLED.captures(text) {
-        return TaskStatus::Cancelled {
-            reason: caps[1].trim().to_string(),
-        };
-    }
-    if let Some(caps) = RE_DEFER_LEGACY.captures(text) {
-        return TaskStatus::LegacyDefer {
-            reason: caps[1].trim().to_string(),
-        };
-    }
+fn classify_unchecked(_text: &str) -> TaskStatus {
     TaskStatus::Pending
 }
 
@@ -99,9 +67,6 @@ pub fn parse_tasks(content: &str) -> TasksReport {
         match &status {
             TaskStatus::Completed => report.completed += 1,
             TaskStatus::Pending => report.pending += 1,
-            TaskStatus::Deferred { .. } => report.deferred += 1,
-            TaskStatus::LegacyDefer { .. } => report.legacy_defer += 1,
-            TaskStatus::Cancelled { .. } => report.cancelled += 1,
         }
 
         let checkbox_text = extract_task_text(trimmed);
@@ -165,70 +130,13 @@ mod tests {
     }
 
     #[test]
-    fn parse_linked_defer() {
-        let content = "- [ ] Refactor hub (defer → c98-refactor-hub)\n";
+    fn legacy_annotations_are_pending() {
+        // defer/cancelled annotations are no longer special; all unchecked are Pending.
+        let content = "- [ ] Deferred (defer → c100)\n- [ ] Cancelled (cancelled — done)\n- [ ] Legacy (defer - reason)\n";
         let report = parse_tasks(content);
-        assert_eq!(report.total(), 1);
-        assert_eq!(report.deferred, 1);
-        assert_eq!(
-            report.items[0].status,
-            TaskStatus::Deferred {
-                target: "c98-refactor-hub".to_string()
-            }
-        );
-    }
-
-    #[test]
-    fn parse_linked_defer_no_spaces() {
-        let content = "- [ ] Refactor (defer→c98)\n";
-        let report = parse_tasks(content);
-        assert_eq!(report.deferred, 1);
-        assert_eq!(
-            report.items[0].status,
-            TaskStatus::Deferred {
-                target: "c98".to_string()
-            }
-        );
-    }
-
-    #[test]
-    fn parse_legacy_defer() {
-        let content = "- [ ] Refactor hub (defer - needs bigger rewrite)\n";
-        let report = parse_tasks(content);
-        assert_eq!(report.legacy_defer, 1);
-        assert_eq!(
-            report.items[0].status,
-            TaskStatus::LegacyDefer {
-                reason: "needs bigger rewrite".to_string()
-            }
-        );
-    }
-
-    #[test]
-    fn parse_legacy_defer_em_dash() {
-        let content = "- [ ] Clean up (defer — too complex)\n";
-        let report = parse_tasks(content);
-        assert_eq!(report.legacy_defer, 1);
-    }
-
-    #[test]
-    fn parse_cancelled() {
-        let content = "- [ ] Remove deps (cancelled — no longer needed)\n";
-        let report = parse_tasks(content);
-        assert_eq!(report.cancelled, 1);
-        assert_eq!(
-            report.items[0].status,
-            TaskStatus::Cancelled {
-                reason: "no longer needed".to_string()
-            }
-        );
-    }
-
-    #[test]
-    fn parse_canceled_american_spelling() {
-        let content = "- [ ] Remove deps (canceled - done)\n";
-        let report = parse_tasks(content);
-        assert_eq!(report.cancelled, 1);
+        assert_eq!(report.total(), 3);
+        assert_eq!(report.completed, 0);
+        assert_eq!(report.pending, 3);
     }
 
     #[test]
@@ -236,27 +144,17 @@ mod tests {
         let content = "- [x] Done (defer → c99)\n";
         let report = parse_tasks(content);
         assert_eq!(report.completed, 1);
-        assert_eq!(report.deferred, 0);
+        assert_eq!(report.pending, 0);
     }
 
     #[test]
     fn mixed_status_report() {
-        let content = "\
-## Tasks
-- [x] Completed task
-- [ ] Pending task
-- [ ] Deferred (defer → c100-followup)
-- [ ] Legacy deferred (defer - reason)
-- [ ] Cancelled work (cancelled — not needed)
-";
+        let content = "- [x] Completed task\n- [ ] Pending task\n- [ ] Another pending\n";
         let report = parse_tasks(content);
-        assert_eq!(report.total(), 5);
+        assert_eq!(report.total(), 3);
         assert_eq!(report.completed, 1);
-        assert_eq!(report.pending, 1);
-        assert_eq!(report.deferred, 1);
-        assert_eq!(report.legacy_defer, 1);
-        assert_eq!(report.cancelled, 1);
-        assert!((report.completion_ratio() - 0.2).abs() < f64::EPSILON);
+        assert_eq!(report.pending, 2);
+        assert!((report.completion_ratio() - 1.0 / 3.0).abs() < f64::EPSILON);
     }
 
     #[test]
