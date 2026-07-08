@@ -2,7 +2,7 @@ use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
 use crate::sdd::project::{init, interop, migrate, upgrade_guide};
-use crate::sdd::shared::{graph, list, orphans, show, status, validate};
+use crate::sdd::shared::{graph, list, show, status, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use std::path::PathBuf;
@@ -288,15 +288,6 @@ pub enum SddCommands {
         depth: usize,
         /// Seed change ID to center the graph on
         change: Option<String>,
-    },
-    /// Detect orphaned defer items across all changes
-    Orphans {
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
-        /// Emit compact JSON (no pretty whitespace). Requires `--json`.
-        #[arg(long, requires = "json")]
-        compact_json: bool,
     },
     /// Show project status overview
     Status {
@@ -732,10 +723,6 @@ pub fn run(args: &SddArgs) -> Result<()> {
             scope: scope.clone(),
             depth: *depth,
             change: change.clone(),
-        }),
-        SddCommands::Orphans { json, compact_json } => orphans::run(orphans::OrphansArgs {
-            json: *json,
-            compact_json: *compact_json,
         }),
         SddCommands::Status { json } => status::run(status::StatusArgs { json: *json }),
         SddCommands::Context {

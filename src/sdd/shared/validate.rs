@@ -427,13 +427,7 @@ fn validate_change_full(
     // Full stage: all artifacts present, validate task completion
     if stage == ChangeStage::Full {
         issues.extend(check_tasks_exists(change_dir));
-        issues.extend(check_tasks_completion(
-            change_dir,
-            all_change_ids,
-            archived_change_ids,
-            has_frozen,
-            archive_config,
-        ));
+        issues.extend(check_tasks_completion(change_dir, archive_config));
         issues.extend(check_design_md(change_dir));
     }
 

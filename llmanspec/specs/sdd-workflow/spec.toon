@@ -14,11 +14,11 @@ requirements[46]{req_id,title,statement}:
   r9,SDD 互转元数据兼容,"`export` MUST 在缺失时自动补齐 OpenSpec 元数据： - `openspec/config.yaml`（至少包含 `schema: spec-driven`） - active change 的 `.openspec.yaml`（包含 `schema` 与 `created`） `import` MUST 在主 spec 缺失 llman frontmatter 时补齐最小必需键： - `llman_spec_valid_scope` - `llman_spec_valid_commands` - `llman_spec_evidence`"
   r10,SDD 列表与查看,"`llman sdd list` 默认 MUST 列出 `llmanspec/changes/` 下除 `archive` 外的变更 ID，提供 `--specs` 时 MUST 列出 `llmanspec/specs/` 下的 spec ID，提供 `--changes` 时 MUST 显式列出变更。`llman sdd list` MUST 支持 `--sort`（默认 `recent`，可选 `name`）。`llman sdd show` MUST 输出指定 change/spec 的原始 markdown（非 JSON 模式），并遵循 OpenSpec 的自动识别与 `--type change|spec` 覆盖规则。`list` 与 `show` MUST 支持 `--json` 机器可读输出：change JSON 输出 `id/title/deltaCount/deltas`，spec JSON 输出 `id/title/overview/requirementCount/requirements/metadata`。spec JSON MUST 支持 `--requi"
   r11,SDD 交互提示与非交互提示,`llman sdd show` 与 `llman sdd validate` MUST 按 OpenSpec 的交互体验实现：在可交互环境下提供选择式流程；在不可交互或显式禁用交互时输出一致的提示语并退出非零。
-  r12,SDD 校验,"`llman sdd validate` MUST 校验 spec 与 delta 的格式：spec 必须包含 `## Purpose` 与 `## Requirements`，每个 requirement 文本必须包含 `SHALL` 或 `MUST`，且至少包含一个 `#### Scenario:`；delta 必须使用 `## ADDED|MODIFIED|REMOVED|RENAMED Requirements`，每个 requirement 块必须包含文本与场景，同一 requirement 不得出现在多个 section，`RENAMED` section 若存在必须包含 `FROM/TO` 对。命令 MUST 支持 `--all --changes --specs --type change|spec --strict --no-interactive --json`。`--json` 输出 MUST 采用 OpenSpec 顶层 validate 结构（`items`/`summary`/`version`），单项校验亦使用同一结构。"
+  r12,SDD 校验,"命令 MUST 支持 `--all --changes --specs --type change|spec --strict --no-interactive --json`。`--json` 输出 MUST 采用 OpenSpec 顶层 validate 结构。`llman sdd validate` MUST 只将 task 解析为 Completed（`- [x]`）或 Pending（`- [ ]`）两种状态，不再使用 Deferred/LegacyDefer/Cancelled 等特殊 task status。validate MUST 通过 `archive_config.strict_defer()` 决定 pending task 是 Error 还是 Warning。Orphans 子命令 MUST 被移除。"
   r13,SDD 校验提示增强,`llman sdd validate` 在非 JSON 模式下 MUST 为常见结构错误提供可执行修复提示，包含最小示例片段与推荐命令。
   r14,Spec 校验元数据（YAML Frontmatter）,"`llmanspec/specs/<id>/spec.md` MUST 以 YAML frontmatter 开头，包含以下键： - `llman_spec_valid_scope` - `llman_spec_valid_commands` - `llman_spec_evidence` `llman_spec_valid_scope` MUST 是 repo 根目录相对路径的列表或单个字符串；列表项/字符串可以用逗号分隔多个路径。校验范围匹配规则 MUST 为“路径完全相等或以 `<path>/` 为前缀”。`llman_spec_valid_commands` 与 `llman_spec_evidence` MUST 为非空字符串或字符串列表，用于记录最小验证证据。`llman sdd validate` MUST 在校验 spec 时解析并校验这些元数据，缺失或为空 MUST 视为校验失败并提示。"
   r15,Spec 过期（staleness）校验,"`llman sdd validate` MUST 对 specs 进行 staleness 评估： - 基准 MUST 使用 `git merge-base <base-ref> HEAD`，`<base-ref>` 默认 `origin/main`，不存在时回退 `origin/master`，并允许通过 `LLMANSPEC_BASE_REF` 覆盖。 - 校验范围 MUST 使用 `git diff --name-only <base>..HEAD` 获取变更路径，并与 `llman_spec_valid_scope` 匹配。 - 若变更触及范围且 `llmanspec/specs/<id>/spec.md` 未在 `<base>..HEAD` 中更新，则 MUST 标记为 `STALE`。 - 若 spec 更新但范围未触及，则 MUST 记录为 `INFO`。 - 若 Git 无法解析 base（如无 remote / 无 merge-base），则 MUST 记录 `WARN` 并跳过 staleness 评估；`--strict` MUST 将 `WARN` 升级为 `"
-  r16,SDD 归档流程,"`llman sdd archive` MUST 支持子命令组工作流，并保持兼容入口可用： - 兼容入口：`llman sdd archive <change-id>`（等价于 `llman sdd archive run <change-id>`） - 标准入口：`llman sdd archive run <change-id>` `archive run` MUST 延续当前行为：将 delta 合并到 `llmanspec/specs`，并将 change 移动到 `llmanspec/changes/archive/YYYY-MM-DD-<change-id>`；`--skip-specs`、`--dry-run`、隐藏 `--force` 行为 MUST 保持一致。"
+  r16,SDD 归档流程,"`llman sdd archive` MUST 支持子命令组工作流：`llman sdd archive run <change-id>` 将 delta 合并到 `llmanspec/specs` 并将 change 移动到 `llmanspec/changes/archive/YYYY-MM-DD-<change-id>`。`--skip-specs`、`--dry-run`、隐藏 `--force` 行为 MUST 保持一致。Archive gate MUST 仅基于 `report.pending > 0` 判定是否阻塞归档；min_completion_ratio 门禁 MUST 仅基于 `completed / total` 计算（`total` 为所有 task 数，不再有 Cancelled 或 Deferred 被排除在分母外）。"
   r17,"SDD 归档 dry-run","`llman sdd archive --dry-run` MUST 输出将要修改/移动的文件与目标路径，并 MUST 不进行任何文件写入。"
   r18,SDD 归档冻结与解冻,"`llman sdd archive freeze` MUST 将 `llmanspec/changes/archive/` 下符合 `YYYY-MM-DD-*` 的目录合并写入单一冷备文件 `llmanspec/changes/archive/freezed_changes.7z.archived`，并在成功后移除本次冻结源目录。`llman sdd archive thaw` MUST 从该冷备文件恢复归档目录到默认 `.thawed/`（或 `--dest` 指定目录），并支持 `--change` 选择性恢复。"
   r19,SDD 模板版本元信息,"SDD locale 模板 MUST 包含 `llman-template-version` 元信息。对于带 YAML frontmatter 的模板，frontmatter MUST 在 `metadata` 字段中包含 `llman-template-version` 键；其他模板 MUST 在第一行使用 `<!-- llman-template-version: N -->` 形式。相同相对路径的不同 locale 模板 MUST 使用相同的版本值。仓库 MUST 提供维护者检查命令以验证版本一致性与模板集合一致性。"
@@ -99,13 +99,12 @@ scenarios[119]{req_id,id,given,when,then}:
   r11,"show-非交互提示语","","用户执行 `llman sdd show` 且为非交互环境或使用 `--no-interactive`","输出以下提示并退出码为 1： `Nothing to show. Try one of:` ` llman sdd show <item>` ` llman sdd show --type change` ` llman sdd show --type spec` `Or run in an interactive terminal.`"
   r11,"validate-交互选择","",用户执行 `llman sdd validate` 且终端可交互,提示选择验证范围，提示语为 `What would you like to validate?`
   r11,"validate-非交互提示语","","用户执行 `llman sdd validate` 且为非交互环境或使用 `--no-interactive`","输出以下提示并退出码为 1： `Nothing to validate. Try one of:` ` llman sdd validate --all` ` llman sdd validate --changes` ` llman sdd validate --specs` ` llman sdd validate <item-name>` `Or run in an interactive terminal.`"
-  r12,非法场景标题,"","某个 requirement 使用了不合法的场景标题（非 `#### Scenario:`）",校验失败并报告具体文件
-  r12,"缺少-purpose-或-requirements","",spec 缺少 `## Purpose` 或 `## Requirements` 章节,校验失败并报告具体文件
-  r12,"requirement-缺少-shall-must","",requirement 文本未包含 `SHALL` 或 `MUST`,校验失败并报告具体 requirement
-  r12,"renamed-缺少配对","",delta 包含 `## RENAMED Requirements` 但未提供 FROM/TO 配对,校验失败并报告具体文件
-  r12,合法变更,"",变更包含完整且格式正确的 deltas 与必需文件,校验成功并返回退出码 0
-  r12,"校验-json-输出","","用户执行 `llman sdd validate <id> --json`",输出包含 `items`、`summary` 与 `version` 的机器可读 JSON
-  r12,校验歧义,"","`llman sdd validate <item-name>` 同时匹配 change 与 spec","报错并提示使用 `--type change|spec`"
+  r12,"task-status-binary","","task 行为 `- [x]` 或 `- [ ]`",task 仅被解析为 Completed 或 Pending
+  r12,"defer-link-is-pending","遗留 tasks.md 包含 `- [ ] task (defer → X)`",执行 validate,该 task 被解析为 Pending
+  r12,"cancelled-is-pending","遗留 tasks.md 包含 `- [ ] task (cancelled - reason)`",执行 validate,该 task 被解析为 Pending
+  r12,"strict-pending-is-error",`archive.strict_defer` 为 true 且存在 pending,执行 validate,该 pending 报 Error
+  r12,"no-orphans-command",SDD 命令集合,"执行 `llman sdd --help`",不再包含 orphans 子命令
+  r12,"no-defer-graph-edges",tasks.md 包含 `(defer → X)`,执行 `llman sdd graph`,graph 中不显示 defer 虚线边
   r13,缺少必需章节,"",spec 缺少 `## Purpose` 或 `## Requirements`,输出提示包含期望标题与最小示例片段
   r13,场景标题格式错误,"","requirement 使用了非 `#### Scenario:` 标题","输出提示包含标准 `#### Scenario:` 示例"
   r13,"无-delta-变更","",change 目录中未找到任何 delta,输出提示包含 delta section 示例与文件路径提示
@@ -114,9 +113,10 @@ scenarios[119]{req_id,id,given,when,then}:
   r15,"范围触及但-spec-未更新","",`<base>..HEAD` 变更触及 `llman_spec_valid_scope`，且 spec 文件未更新,staleness 状态为 `STALE` 且在输出中提示
   r15,"spec-更新但范围未触及","",spec 文件更新，但变更未触及 `llman_spec_valid_scope`,staleness 状态为 `INFO`
   r15,"无法解析-base","","git 无法解析 merge-base","staleness 记录为 `WARN`，`--strict` 时视为错误"
-  r16,兼容入口仍可归档,"","用户执行 `llman sdd archive add-sample`","命令成功归档并与 `llman sdd archive run add-sample` 结果一致"
-  r16,"run-子命令行为与历史一致","","用户执行 `llman sdd archive run <change-id> --skip-specs`",仅移动目录到 archive 且不修改主 specs
-  r16,"force-仍保持隐藏","","用户执行 `llman sdd archive --help` 或 `llman sdd archive run --help`","帮助文本不显示 `--force`"
+  r16,"archive-pending-blocks",tasks.md 有 pending,执行 archive,归档被阻塞
+  r16,"archive-all-completed",tasks.md 全部 completed,执行 archive,归档成功
+  r16,"completion-ratio-counts-all",全部 completed 且 min_completion_ratio 启用,执行 archive,ratio 为 completed/total（不再排除 cancelled）
+  r16,"force-bypasses","`--force` 且 tasks.md 有 pending",执行 archive,强制归档成功
   r17,"归档-dry-run","","用户执行 `llman sdd archive <change-id> --dry-run`",输出预览信息且文件系统无任何改动
   r18,单文件冻结,"",用户执行 `llman sdd archive freeze`,生成或更新 `freezed_changes.7z.archived`
   r18,"冻结-dry-run","","用户执行 `llman sdd archive freeze --dry-run`",仅输出候选与目标文件
