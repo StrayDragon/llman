@@ -2,7 +2,7 @@
 name: "llman-sdd-archive"
 description: "归档单个或多个变更，并将增量合并到 specs。"
 metadata:
-  version: "0.0.53"
+  version: "0.0.54"
 ---
 
 # LLMAN SDD 归档
