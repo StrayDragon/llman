@@ -2,7 +2,7 @@
 name: "llman-sdd-explore"
 description: "进入 llman SDD 探索模式（仅思考；不做实现）。"
 metadata:
-  version: "0.0.55"
+  version: "0.0.56"
 ---
 
 # LLMAN SDD Explore

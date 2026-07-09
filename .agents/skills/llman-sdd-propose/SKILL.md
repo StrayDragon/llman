@@ -2,7 +2,7 @@
 name: "llman-sdd-propose"
 description: "提出一个新变更并一次性生成规划工件。"
 metadata:
-  version: "0.0.55"
+  version: "0.0.56"
 ---
 
 # LLMAN SDD 提案（Propose）
