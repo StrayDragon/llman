@@ -2,7 +2,7 @@
 name: "llman-sdd-onboard"
 description: "了解 llman SDD 工作流并完成项目入门。"
 metadata:
-  version: "0.0.55"
+  version: "0.0.56"
 ---
 
 # LLMAN SDD 入门

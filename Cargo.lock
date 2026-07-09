@@ -1931,7 +1931,7 @@ dependencies = [
 
 [[package]]
 name = "llman"
-version = "0.0.55"
+version = "0.0.56"
 dependencies = [
  "anyhow",
  "async-openai",
@@ -1975,7 +1975,7 @@ dependencies = [
 
 [[package]]
 name = "llman-fake-acp-agent"
-version = "0.0.55"
+version = "0.0.56"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
