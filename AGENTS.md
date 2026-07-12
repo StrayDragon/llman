@@ -26,9 +26,9 @@ This project targets Rust edition 2024 and uses the nightly toolchain.
 - `just build` / `just build-release`: debug or release builds.
 - `just run -- <args>`: run with test config (`LLMAN_CONFIG_DIR=./artifacts/testing_config_home`).
 - `just run-prod -- <args>`: run with production config.
-- `just test`: run the full test suite.
+- `just test`: run the full test suite (`cargo nextest run --profile ci` when `cargo-nextest` is installed; otherwise `cargo test`). Config: `.config/nextest.toml`.
 - `just check`: format check, lint, and tests.
-- `just check-all`: check plus docs, release build, and SDD template checks.
+- `just check-all`: check plus docs (`RUSTDOCFLAGS=-D warnings`), release build, and SDD template checks.
 - `just check-sdd-templates`: verify SDD template version headers and locale parity.
 - `just fmt` / `just lint`: rustfmt and clippy.
 
