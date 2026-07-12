@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "cli-experience"
 purpose: "Describe llman CLI messaging, localization coverage, and stdout/stderr conventions."
-valid_scope[2]: src/,tests/
+valid_scope[5]: src/self_command.rs,src/lib.rs,src/main.rs,locales/app.yml,"llmanspec/specs/cli-experience/"
 requirements[10]{req_id,title,statement}:
   r1,Localized runtime messaging with documented exceptions,"Runtime prompts, status lines, and errors MUST use `t!` keys from `locales/app.yml` when a suitable key exists. When no localization key exists, commands MAY emit inline strings (for example: task count labels, on/off markers, separators, or generated export content)."
   r2,Locale is fixed to English,The CLI MUST set the locale to English at startup and use the `locales/app.yml` bundle.

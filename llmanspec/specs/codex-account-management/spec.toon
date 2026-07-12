@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "codex-account-management"
 purpose: "TBD - created by archiving change fix-codex-command-editor-handling. Update Purpose after archive."
-valid_scope[2]: src/,tests/
+valid_scope[6]: src/x/codex/command.rs,src/x/codex/config.rs,src/x/codex/interactive.rs,src/editor.rs,src/env_safety.rs,"llmanspec/specs/codex-account-management/"
 requirements[7]{req_id,title,statement}:
   r1,编辑器命令必须支持参数,"当打开配置文件进行编辑时，Codex account manager MUST 支持 `$VISUAL` 或 `$EDITOR` 包含参数（例如 `code --wait`）。实现 MUST 执行解析后的命令，并将 `codex.toml` 配置文件路径作为最后一个参数追加。"
   r2,Provider 配置 upsert 到 codex config,"切换组时，系统 MUST 将选中组的 provider 配置 upsert 到 `~/.codex/config.toml`，同时设置顶层 `model_provider = \"<effective_name>\"`。其中： - `<effective_name>` 默认等于组名 `<group>`。 - 当存在 `[model_providers.<group>.llman_configs]` 且其中 `override_name` 为非空字符串时，`<effective_name>` MUST 使用该 `override_name`（而不是 `<group>`）。 同步写入时，系统 MUST： - upsert 到 `[model_providers.<effective_name>]`（key 使用 `<effective_name>`） - 将写入的 provider table 内 `name` 字段覆写为 `<effective_name>` - 透传 provider table 的其它字段（例如 `request_max_retries`），但 MUST 排除 `.env"

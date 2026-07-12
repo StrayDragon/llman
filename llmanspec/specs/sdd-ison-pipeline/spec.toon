@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "sdd-ison-pipeline"
 purpose: "TBD - created by archiving change add-ison-first-sdd-pipeline. Update Purpose after archive."
-valid_scope[2]: src/,tests/
+valid_scope[5]: "src/sdd/spec/",src/sdd/project/templates.rs,"src/sdd/shared/","templates/sdd/","llmanspec/specs/sdd-ison-pipeline/"
 requirements[5]{req_id,title,statement}:
   r1,"ISON-First SDD Template Sources",The SDD template system MUST support ISON source templates as the primary authoring format for the new style track.
   r2,ISON Validation Before Render,The system MUST validate ISON source templates before rendering outputs.

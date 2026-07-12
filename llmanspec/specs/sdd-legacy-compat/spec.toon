@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "sdd-legacy-compat"
 purpose: "TBD - created by archiving change add-ison-first-sdd-pipeline. Update Purpose after archive."
-valid_scope[2]: src/,tests/
+valid_scope[4]: src/sdd/project/templates.rs,src/sdd/command.rs,"templates/sdd/","llmanspec/specs/sdd-legacy-compat/"
 requirements[1]{req_id,title,statement}:
   r1,Legacy Track Is Retired,"The SDD workflow MUST NOT provide a legacy track (`sdd-legacy`) for templates/skills/prompts."
 scenarios[1]{req_id,id,given,when,then}:

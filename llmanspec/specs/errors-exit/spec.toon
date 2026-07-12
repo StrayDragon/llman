@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "errors-exit"
 purpose: Define llman CLI error rendering and exit behavior.
-valid_scope[2]: src/,tests/
+valid_scope[6]: src/main.rs,src/error.rs,src/cli.rs,tests/error_tests.rs,locales/app.yml,"llmanspec/specs/errors-exit/"
 requirements[2]{req_id,title,statement}:
   r1,Entrypoint error rendering,"The CLI entrypoint MUST render a single user-facing error message to stderr and exit with code 1 when a command returns an error. `LlmanError` values MUST be localized before being wrapped by `messages.error`; other errors use `to_string()`."
   r2,Subcommand error handling,"Command handlers MUST return `Err` on fatal failures. Interactive flows MAY print their own error messages and exit directly, and recoverable issues MAY be logged to stderr without failing the command."

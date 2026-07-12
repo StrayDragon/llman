@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "sdd-context"
 purpose: "TBD - created by archiving change refactor-embed-native-rust. Update purpose after archive."
-valid_scope[2]: src/,tests/
+valid_scope[3]: "src/sdd/context/",src/sdd/command.rs,"llmanspec/specs/sdd-context/"
 requirements[7]{req_id,title,statement}:
   r4,backend 选项与默认值,"`llman sdd index` 与 `llman sdd context` MUST 仅支持 `--backend pageindex` 选项（唯一检索后端）。MUST NOT 接受 `rag` 等其它值；传入非法值 MUST 报错退出并在提示中引导用户配置 pageindex 所需环境变量。`--backend` 仍可经 `LLMAN_SDD_INDEX_BACKEND` 预设，但仅用于显式声明 pageindex，不存在回退机制。"
   r5,pageindex 为唯一检索后端,`sdd context` MUST 使用基于 spec 树结构的 agentic 推理检索（pageindex）。检索 MUST 产出顶层 JSON 结构（`status`/`direct`/`related`/`summary`），`status.quality` 字段 MUST 为 `agentic`。当 pageindex 索引缺失/过期或 chat 模型未配置时 MUST 返回 `quality=unavailable` 并在 `qualityNote` 给出言简意赅的可操作提示（缺哪个环境变量、如何 rebuild），MUST NOT 回退到其它检索方式。

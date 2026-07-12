@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "tests-ci"
 purpose: Describe CI quality gates and required checks for llman.
-valid_scope[2]: src/,tests/
+valid_scope[4]: ".github/workflows/ci.yaml",justfile,"tests/","llmanspec/specs/tests-ci/"
 requirements[4]{req_id,title,statement}:
   r1,CI runs fmt and clippy with warnings denied,"CI MUST run format checks and clippy with `-D warnings` as part of the standard check pipeline, and the checks MUST run on the same pinned nightly baseline used by the repository toolchain configuration."
   r2,CI runs a release build check,CI MUST run a release build to ensure the project builds on the same pinned nightly baseline used for local development and quality checks.

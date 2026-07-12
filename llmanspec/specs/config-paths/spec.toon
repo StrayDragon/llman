@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "config-paths"
 purpose: Define how llman resolves the configuration directory and enforces safe defaults.
-valid_scope[2]: src/,tests/
+valid_scope[6]: src/config.rs,src/cli.rs,tests/config_tests.rs,tests/print_config_dir_path_tests.rs,tests/path_validation_tests.rs,"llmanspec/specs/config-paths/"
 requirements[4]{req_id,title,statement}:
   r1,Config directory resolution precedence,"The CLI MUST resolve the configuration directory with the following precedence: CLI `--config-dir` override, `LLMAN_CONFIG_DIR` environment variable, then the default path `~/.config/llman`. The resolved value MUST be assigned to `LLMAN_CONFIG_DIR` for all subcommands, and resolution MUST NOT create directories."
   r2,"Tilde expansion for config-dir overrides","If the CLI `--config-dir` override or `LLMAN_CONFIG_DIR` environment variable begins with `~`, the resolver MUST expand `~` to the current user's home directory before use, and MUST set `LLMAN_CONFIG_DIR` to the expanded path."

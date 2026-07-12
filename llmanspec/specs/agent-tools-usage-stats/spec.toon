@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "agent-tools-usage-stats"
 purpose: "Provide local, per-project historical usage statistics (tokens + time) for Codex CLI, Claude Code, and Cursor, with a consistent UX (CLI table/JSON + optional TUI) and safe handling of missing token f"
-valid_scope[2]: src/,tests/
+valid_scope[9]: "src/usage_stats/",src/x/codex/stats.rs,src/x/claude_code/stats.rs,src/x/cursor/stats.rs,src/x/cursor/database.rs,tests/codex_stats_tests.rs,tests/claude_code_stats_tests.rs,tests/cursor_stats_tests.rs,"llmanspec/specs/agent-tools-usage-stats/"
 requirements[22]{req_id,title,statement}:
   r1,Stats subcommand exists for all three tools,"The CLI MUST provide a `stats` subcommand under each tool namespace: - `llman x codex stats` - `llman x claude-code stats` (and the alias path `llman x cc stats`) - `llman x cursor stats`"
   r2,Stats is scoped to current working directory (v1),"In the first version, stats MUST only include records whose recorded `cwd` equals the current process working directory (string/path exact match). The stats command MUST NOT provide repo/all scope auto-detection or filtering options in v1."

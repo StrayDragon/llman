@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "dependency-upgrade-workflow"
 purpose: "TBD - created by archiving change deps-and-toolchain-upgrade. Update Purpose after archive."
-valid_scope[2]: src/,tests/
+valid_scope[6]: Cargo.toml,Cargo.lock,rust-toolchain.toml,justfile,".github/workflows/ci.yaml","llmanspec/specs/dependency-upgrade-workflow/"
 requirements[3]{req_id,title,statement}:
   r1,"Dependency upgrades use a lockfile-first sequence","Maintainers MUST perform dependency upgrades in a lockfile-first sequence under the pinned nightly baseline, updating `Cargo.toml` constraints only when lockfile-only updates are insufficient."
   r2,Constraint changes are minimal and justified,"Any dependency version-constraint changes in `Cargo.toml` MUST be minimal, scoped to compatibility needs, and validated with project quality gates."

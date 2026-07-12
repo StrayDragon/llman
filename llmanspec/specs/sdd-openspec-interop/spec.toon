@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "sdd-openspec-interop"
 purpose: "TBD - created by archiving change add-sdd-openspec-import-export. Update Purpose after archive."
-valid_scope[2]: src/,tests/
+valid_scope[3]: src/sdd/project/interop.rs,src/sdd/command.rs,"llmanspec/specs/sdd-openspec-interop/"
 requirements[6]{req_id,title,statement}:
   r1,OpenSpec 风格导入命令,"系统 MUST 提供 `llman sdd import --style openspec [path]`，用于将 `openspec/` 目录迁移为 `llmanspec/` 结构。 `--style` MUST 为必填，且当前仅允许值 `openspec`。"
   r2,OpenSpec 风格导出命令,"系统 MUST 提供 `llman sdd export --style openspec [path]`，用于将 `llmanspec/` 目录迁移为 `openspec/` 结构。 `--style` MUST 为必填，且当前仅允许值 `openspec`。"
