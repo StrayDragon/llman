@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-quick"
-description: "小变更快速路径：不涉及行为合约时直接修改代码。"
+description: "快速路径：处理不改行为合约的小改动——重构、修错字、性能优化。不涉及 MUST/SHALL 变更。如发现需要改合约，立即切换到 propose 完整路径。"
 metadata:
   version: "{{ llman_version }}"
 ---
@@ -8,6 +8,25 @@ metadata:
 # LLMAN SDD Quick Path
 
 对于不涉及行为合约变更的小改动使用此路径。
+
+## Pipeline 位置
+
+```mermaid
+flowchart LR
+    explore["llman-sdd-explore<br/>探索"] --> quick
+
+    quick["★ llman-sdd-quick ★<br/>快速路径（你现在在这里）"]
+    quick --> commit["git commit<br/>完成"]
+
+    explore --> propose["完整路径:<br/>propose → apply → verify → archive"]
+    propose --> apply["..."]
+    apply --> verify["..."]
+    verify --> archive["..."]
+
+    style quick fill:#d4edda,stroke:#28a745,stroke-width:3px
+```
+
+> 📍 快速路径：不改行为合约，直接改代码 commit。如果发现需要改合约 → STOP，改走完整路径 `llman-sdd-propose`
 
 ## 使用条件（所有条件必须满足）
 - 不改变任何 spec 中 MUST/SHALL 定义的外部可观测行为
@@ -25,8 +44,10 @@ metadata:
 5. 无需 change 目录，无需 archive。
 
 ## 边界处理
-- 如果在修改中发现需要改变行为合约 → STOP，改走 `llman-sdd-propose`。
+- 如果在修改中发现需要改变行为合约 → STOP，改走 `llman-sdd-propose`（完整路径）。
 - 如果涉及到多个文件且不确定 scope → 先用 `llman sdd context` 确认。
+
+> 💡 快速路径完成 → git commit 即可。若需要走完整路径 → `llman-sdd-propose` → `llman-sdd-apply` → `llman-sdd-verify` → `llman-sdd-archive`
 
 {{ unit("skills/sdd-commands") }}
 

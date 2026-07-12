@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-verify"
-description: "Verify implementation matches llman SDD specs/design and propose fixes."
+description: "Verify that an implemented llman SDD change matches its specs, design, and tasks. Produces a report (CRITICAL / WARNING / SUGGESTION) comparing code to artifacts. Run after apply completes. If clean, the change is ready to archive."
 metadata:
   version: "{{ llman_version }}"
 ---
@@ -8,6 +8,26 @@ metadata:
 # LLMAN SDD Verify
 
 Use this skill to verify that the implementation matches the change's artifacts.
+
+## Pipeline Position
+
+```mermaid
+flowchart LR
+    apply["llman-sdd-apply<br/>Implement"] --> verify
+    verify["★ llman-sdd-verify ★<br/>Verify (you are here)"]
+    verify --> archive["llman-sdd-archive<br/>Archive"]
+    archive --> commit["git commit<br/>Done"]
+
+    style verify fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
+> 📍 You are in the verify phase → if pass: next `llman-sdd-archive` (archive); if fail: go back to `llman-sdd-apply` (fix)
+
+## Hard Constraints
+
+- **Must pass apply phase all-green first**: don't skip to verify on changes that haven't been implemented.
+- **CRITICAL issues must be fixed**: CRITICAL problems must be resolved before archive.
+- **Don't ask "should I continue?"**: run the full verification flow, output a complete report.
 
 ## Steps
 1. Select the change id (or ask the user to pick from `llman sdd list --json`).
@@ -17,8 +37,8 @@ Use this skill to verify that the implementation matches the change's artifacts.
    ```
    (If `jq` is unavailable, parse the `stage` value from the JSON with any tool.)
    - If `stage` is not `full`, the change has nothing implemented to verify → STOP with a guard:
-     - `draft`: "Change <id> is a draft proposal (proposal.md only); nothing to verify yet. Grow it to full first with: llman-sdd-continue <id>, then implement with llman-sdd-apply <id>."
-     - other non-full (`specified`/`designed`): "Change <id> is in <stage> stage, not ready to verify. Grow it to full and implement first."
+     - `draft`: "Change <id> is a draft proposal (proposal.md only); nothing to verify yet. Generate full artifacts with llman-sdd-propose, then implement with llman-sdd-apply <id>."
+     - other non-full (`specified`/`designed`): "Change <id> is in <stage> stage, not ready to verify. Implement first with llman-sdd-apply."
 3. Run a fast validation gate:
    - `llman sdd validate <id> --strict --no-interactive`
 4. Read:
@@ -29,21 +49,23 @@ Use this skill to verify that the implementation matches the change's artifacts.
    - Identify mismatches (missing behavior, wrong behavior, missing tests/docs)
    - Suggest minimal fixes or artifact updates
 {% if bdd_enabled %}
-6. **BDD 验证**:
-   - 读取 delta specs 中关联的 feature_refs
-   - 对每个 scope=acceptance 且 required=true 的 .feature 文件:
-     - 执行: `{{ bdd_run_command }}`（替换 {feature_name} 为实际 feature 名）
-     - 所有 scenario MUST 通过
-     - 失败的 scenario 映射到对应 requirement ID，标记为 CRITICAL
+6. **BDD verification**:
+   - Read feature_refs from delta specs
+   - For each scope=acceptance, required=true .feature file:
+     - Run: `{{ bdd_run_command }}` (replace {feature_name} with actual feature name)
+     - All scenarios MUST pass
+     - Map failed scenarios to requirement IDs, mark as CRITICAL
 {% if bdd_verify_prompt %}
-   - 额外要求: {{ bdd_verify_prompt }}
+   - Extra requirement: {{ bdd_verify_prompt }}
 {% endif %}
 {% endif %}
 7. Produce a short report:
    - **CRITICAL** (must fix before archive)
    - **WARNING** (should fix)
    - **SUGGESTION** (nice to have)
-8. If CRITICAL exists, suggest `llman-sdd-apply`. If clean, suggest archive: `llman sdd archive run <id>`.
+8. If CRITICAL exists, suggest `llman-sdd-apply` for fixes. If clean, suggest archive: `llman sdd archive run <id>`.
+
+> 💡 Verify pass → next: `llman-sdd-archive` (archive); CRITICAL issues → go back to `llman-sdd-apply` (fix)
 
 {{ unit("skills/sdd-commands") }}
 
