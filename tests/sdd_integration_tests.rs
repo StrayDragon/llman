@@ -749,7 +749,7 @@ fn test_sdd_update_recreates_root_agents_md() {
     let content = fs::read_to_string(&agents_path).expect("read root AGENTS.md");
     assert!(content.contains("<!-- LLMANSPEC:START -->"));
     assert!(content.contains("LLMAN Spec-Driven Development"));
-    assert!(content.contains("/llman-sdd-onboard"));
+    assert!(content.contains("/llman-sdd-explore"));
 }
 
 #[test]
@@ -768,7 +768,7 @@ fn test_sdd_update_skills_writes_agents_skills() {
     let update_output = run_llman(&["sdd", "init", "--update"], work_dir, work_dir);
     assert_success(&update_output);
 
-    let skill_path = output_dir.join("llman-sdd-onboard").join("SKILL.md");
+    let skill_path = output_dir.join("llman-sdd-explore").join("SKILL.md");
     assert!(skill_path.exists());
     let compact_skill_path = output_dir.join("llman-sdd-specs-compact").join("SKILL.md");
     assert!(compact_skill_path.exists());
@@ -818,12 +818,12 @@ fn test_sdd_update_skills_new_style_uses_markdown_override() {
     );
     assert_success(&init_output);
 
-    let override_path = work_dir.join("templates/sdd/en/skills/llman-sdd-onboard.md");
+    let override_path = work_dir.join("templates/sdd/en/skills/llman-sdd-explore.md");
     fs::create_dir_all(override_path.parent().expect("parent")).expect("mkdir override");
     fs::write(
         &override_path,
         r#"---
-name: "llman-sdd-onboard"
+name: "llman-sdd-explore"
 description: "markdown override"
 metadata:
   llman-template-version: 1
@@ -858,7 +858,7 @@ MARKDOWN SOURCE MARKER
     let update_output = run_llman(&["sdd", "init", "--update"], work_dir, work_dir);
     assert_success(&update_output);
 
-    let skill = fs::read_to_string(output_dir.join("llman-sdd-onboard").join("SKILL.md"))
+    let skill = fs::read_to_string(output_dir.join("llman-sdd-explore").join("SKILL.md"))
         .expect("read skill");
     assert!(skill.contains("MARKDOWN SOURCE MARKER"));
 }
@@ -875,12 +875,12 @@ fn test_sdd_update_skills_new_style_fails_when_override_missing_ethics_key() {
     );
     assert_success(&init_output);
 
-    let override_path = work_dir.join("templates/sdd/en/skills/llman-sdd-onboard.md");
+    let override_path = work_dir.join("templates/sdd/en/skills/llman-sdd-explore.md");
     fs::create_dir_all(override_path.parent().expect("parent")).expect("mkdir override");
     fs::write(
         &override_path,
         r#"---
-name: "llman-sdd-onboard"
+name: "llman-sdd-explore"
 description: "missing ethics key"
 metadata:
   llman-template-version: 1

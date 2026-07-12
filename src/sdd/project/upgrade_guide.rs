@@ -330,13 +330,13 @@ mod tests {
     #[test]
     fn scan_extra_skills_partial() {
         let config = SddConfig {
-            extra_skills: Some(vec!["llman-sdd-verify".to_string()]),
+            extra_skills: Some(vec!["llman-sdd-sync".to_string()]),
             ..Default::default()
         };
         let result = scan_extra_skills(&config, Path::new("."));
         assert_eq!(result.status, "partial");
         // Enabled skill should NOT appear in suggestions
-        assert!(!result.suggestion.contains("- llman-sdd-verify\n"));
+        assert!(!result.suggestion.contains("- llman-sdd-sync\n"));
         // Available skills should appear
         assert!(result.suggestion.contains("- llman-sdd-new-change"));
     }

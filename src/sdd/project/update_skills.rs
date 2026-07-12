@@ -21,10 +21,8 @@ const OPTIONAL_SKILL_FILES: &[&str] = &[
     "llman-sdd-new-change.md",
     "llman-sdd-continue.md",
     "llman-sdd-ff.md",
-    "llman-sdd-show.md",
     "llman-sdd-sync.md",
     "llman-sdd-validate.md",
-    "llman-sdd-verify.md",
 ];
 
 pub fn run() -> Result<()> {
@@ -129,10 +127,11 @@ mod tests {
     use tempfile::tempdir;
 
     const EXPECTED_WORKFLOW_SKILLS: &[&str] = &[
-        "llman-sdd-onboard",
         "llman-sdd-explore",
         "llman-sdd-propose",
         "llman-sdd-apply",
+        "llman-sdd-verify",
+        "llman-sdd-quick",
         "llman-sdd-specs-compact",
         "llman-sdd-archive",
         "llman-sdd-graph",
@@ -163,12 +162,12 @@ mod tests {
         let root = dir.path();
         fs::create_dir_all(root.join(LLMANSPEC_DIR_NAME)).expect("create llmanspec");
 
-        let override_skill = root.join("templates/sdd/en/skills/llman-sdd-onboard.md");
+        let override_skill = root.join("templates/sdd/en/skills/llman-sdd-explore.md");
         fs::create_dir_all(override_skill.parent().expect("parent")).expect("mkdir");
         fs::write(
             &override_skill,
             r#"---
-name: "llman-sdd-onboard"
+name: "llman-sdd-explore"
 description: "override for test"
 ---
 
@@ -228,10 +227,8 @@ description: "override for test"
             "llman-sdd-new-change",
             "llman-sdd-continue",
             "llman-sdd-ff",
-            "llman-sdd-show",
             "llman-sdd-sync",
             "llman-sdd-validate",
-            "llman-sdd-verify",
         ];
         for skill in &optional_skills {
             assert!(
@@ -243,6 +240,17 @@ description: "override for test"
                 "optional skill {skill} should not be written by default"
             );
         }
+
+        // verify is a default skill, should exist
+        assert!(
+            root.join(".agents/skills/llman-sdd-verify/SKILL.md")
+                .exists()
+        );
+        // quick is a default skill, should exist
+        assert!(
+            root.join(".agents/skills/llman-sdd-quick/SKILL.md")
+                .exists()
+        );
     }
 
     #[test]
@@ -255,7 +263,7 @@ description: "override for test"
         let config_path = llmanspec_dir.join("config.yaml");
         fs::write(
             &config_path,
-            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-verify\n  - llman-sdd-show\n",
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n  - llman-sdd-new-change\n",
         )
         .expect("write config");
 
@@ -263,32 +271,33 @@ description: "override for test"
 
         // Default skills present
         assert!(
-            root.join(".agents/skills/llman-sdd-onboard/SKILL.md")
+            root.join(".agents/skills/llman-sdd-explore/SKILL.md")
                 .exists()
         );
         assert!(
             root.join(".agents/skills/llman-sdd-apply/SKILL.md")
                 .exists()
         );
-
-        // Enabled extra skills present
+        // verify is now a default skill
         assert!(
             root.join(".agents/skills/llman-sdd-verify/SKILL.md")
                 .exists()
         );
-        assert!(root.join(".agents/skills/llman-sdd-show/SKILL.md").exists());
 
-        // Non-enabled optional skills absent
+        // Enabled extra skills present
+        assert!(root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists());
         assert!(
-            !root
-                .join(".agents/skills/llman-sdd-new-change/SKILL.md")
+            root.join(".agents/skills/llman-sdd-new-change/SKILL.md")
                 .exists()
         );
+
+        // Non-enabled optional skills absent
         assert!(
             !root
                 .join(".agents/skills/llman-sdd-continue/SKILL.md")
                 .exists()
         );
+        assert!(!root.join(".agents/skills/llman-sdd-ff/SKILL.md").exists());
     }
 
     #[test]
@@ -302,7 +311,7 @@ description: "override for test"
         let config_path = llmanspec_dir.join("config.yaml");
         fs::write(
             &config_path,
-            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-verify\n  - llman-sdd-show\n",
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n  - llman-sdd-new-change\n",
         )
         .expect("write config");
 
@@ -310,22 +319,22 @@ description: "override for test"
         super::run_with_root(root).expect("update-skills");
 
         // Verify skills exist
+        assert!(root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists());
         assert!(
-            root.join(".agents/skills/llman-sdd-verify/SKILL.md")
+            root.join(".agents/skills/llman-sdd-new-change/SKILL.md")
                 .exists()
         );
-        assert!(root.join(".agents/skills/llman-sdd-show/SKILL.md").exists());
 
         // Manually create a stale skill directory
-        let stale_skill_dir = root.join(".agents/skills/llman-sdd-sync");
+        let stale_skill_dir = root.join(".agents/skills/llman-sdd-validate");
         fs::create_dir_all(&stale_skill_dir).expect("create stale skill dir");
         fs::write(stale_skill_dir.join("SKILL.md"), "stale content").expect("write stale skill");
         assert!(stale_skill_dir.exists());
 
-        // Update config to remove llman-sdd-show
+        // Update config to remove llman-sdd-new-change
         fs::write(
             &config_path,
-            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-verify\n",
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n",
         )
         .expect("write config");
 
@@ -335,20 +344,19 @@ description: "override for test"
         // Verify stale skills are removed
         assert!(
             !stale_skill_dir.exists(),
-            "stale skill llman-sdd-sync should be removed"
+            "stale skill llman-sdd-validate should be removed"
         );
         assert!(
-            !root.join(".agents/skills/llman-sdd-show/SKILL.md").exists(),
-            "removed skill llman-sdd-show should be cleaned up"
+            !root
+                .join(".agents/skills/llman-sdd-new-change/SKILL.md")
+                .exists(),
+            "removed skill llman-sdd-new-change should be cleaned up"
         );
 
         // Verify kept skills still exist
+        assert!(root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists());
         assert!(
-            root.join(".agents/skills/llman-sdd-verify/SKILL.md")
-                .exists()
-        );
-        assert!(
-            root.join(".agents/skills/llman-sdd-onboard/SKILL.md")
+            root.join(".agents/skills/llman-sdd-explore/SKILL.md")
                 .exists()
         );
     }
@@ -369,11 +377,16 @@ description: "override for test"
 
         // Verify core skills exist
         assert!(
-            root.join(".agents/skills/llman-sdd-onboard/SKILL.md")
+            root.join(".agents/skills/llman-sdd-explore/SKILL.md")
                 .exists()
         );
         assert!(
             root.join(".agents/skills/llman-sdd-apply/SKILL.md")
+                .exists()
+        );
+        // verify is now a default skill
+        assert!(
+            root.join(".agents/skills/llman-sdd-verify/SKILL.md")
                 .exists()
         );
 
@@ -382,11 +395,15 @@ description: "override for test"
 
         // Verify core skills still exist
         assert!(
-            root.join(".agents/skills/llman-sdd-onboard/SKILL.md")
+            root.join(".agents/skills/llman-sdd-explore/SKILL.md")
                 .exists()
         );
         assert!(
             root.join(".agents/skills/llman-sdd-apply/SKILL.md")
+                .exists()
+        );
+        assert!(
+            root.join(".agents/skills/llman-sdd-verify/SKILL.md")
                 .exists()
         );
     }
@@ -428,7 +445,7 @@ description: "override for test"
         let config_path = llmanspec_dir.join("config.yaml");
         fs::write(
             &config_path,
-            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-verify\n  - llman-sdd-show\n",
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n  - llman-sdd-new-change\n",
         )
         .expect("write config");
 
@@ -436,11 +453,11 @@ description: "override for test"
         super::run_with_root(root).expect("update-skills");
 
         // Verify optional skills exist
+        assert!(root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists());
         assert!(
-            root.join(".agents/skills/llman-sdd-verify/SKILL.md")
+            root.join(".agents/skills/llman-sdd-new-change/SKILL.md")
                 .exists()
         );
-        assert!(root.join(".agents/skills/llman-sdd-show/SKILL.md").exists());
 
         // Update config to remove all extra_skills
         fs::write(&config_path, "schema: spec-driven\nlocale: en\n").expect("write config");
@@ -450,19 +467,23 @@ description: "override for test"
 
         // Verify optional skills are removed
         assert!(
-            !root
-                .join(".agents/skills/llman-sdd-verify/SKILL.md")
-                .exists(),
-            "optional skill llman-sdd-verify should be removed"
+            !root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists(),
+            "optional skill llman-sdd-sync should be removed"
         );
         assert!(
-            !root.join(".agents/skills/llman-sdd-show/SKILL.md").exists(),
-            "optional skill llman-sdd-show should be removed"
+            !root
+                .join(".agents/skills/llman-sdd-new-change/SKILL.md")
+                .exists(),
+            "optional skill llman-sdd-new-change should be removed"
         );
 
-        // Verify core skills still exist
+        // Verify core skills still exist (verify is now a default skill)
         assert!(
-            root.join(".agents/skills/llman-sdd-onboard/SKILL.md")
+            root.join(".agents/skills/llman-sdd-verify/SKILL.md")
+                .exists()
+        );
+        assert!(
+            root.join(".agents/skills/llman-sdd-explore/SKILL.md")
                 .exists()
         );
     }

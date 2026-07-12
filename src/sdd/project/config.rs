@@ -16,10 +16,8 @@ pub(crate) const OPTIONAL_SKILL_NAMES: &[&str] = &[
     "llman-sdd-new-change",
     "llman-sdd-continue",
     "llman-sdd-ff",
-    "llman-sdd-show",
     "llman-sdd-sync",
     "llman-sdd-validate",
-    "llman-sdd-verify",
 ];
 
 const DEFAULT_CONFIG_EN: &str = r#"schema: spec-driven
@@ -48,10 +46,8 @@ locale: en
 #   - llman-sdd-new-change
 #   - llman-sdd-continue
 #   - llman-sdd-ff
-#   - llman-sdd-show
 #   - llman-sdd-sync
 #   - llman-sdd-validate
-#   - llman-sdd-verify
 
 # BDD integration (optional, uncomment to enable)
 # bdd:
@@ -89,10 +85,8 @@ locale: zh-Hans
 #   - llman-sdd-new-change
 #   - llman-sdd-continue
 #   - llman-sdd-ff
-#   - llman-sdd-show
 #   - llman-sdd-sync
 #   - llman-sdd-validate
-#   - llman-sdd-verify
 
 # BDD 集成（可选，取消注释以启用）
 # bdd:
@@ -206,9 +200,9 @@ pub struct SddConfig {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(description = "Optional SDD skills to enable beyond the default set. \
+    #[schemars(description = "Additional optional SDD skills to enable. \
         Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, \
-        llman-sdd-show, llman-sdd-sync, llman-sdd-validate, llman-sdd-verify.")]
+        llman-sdd-sync, llman-sdd-validate.")]
     pub extra_skills: Option<Vec<String>>,
 
     #[serde(default)]
@@ -580,14 +574,14 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let llmanspec_dir = dir.path();
         let path = config_path(llmanspec_dir);
-        let content = "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-verify\n  - llman-sdd-show\n";
+        let content = "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n  - llman-sdd-new-change\n";
         fs::write(&path, content).expect("write config");
         let config = load_config(llmanspec_dir).expect("load").expect("config");
         assert_eq!(
             config.extra_skills,
             Some(vec![
-                "llman-sdd-verify".to_string(),
-                "llman-sdd-show".to_string(),
+                "llman-sdd-sync".to_string(),
+                "llman-sdd-new-change".to_string(),
             ])
         );
     }
