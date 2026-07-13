@@ -8,7 +8,7 @@ use inquire::error::InquireError;
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::Read;
+use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, thiserror::Error)]
@@ -573,7 +573,7 @@ fn ensure_target_link(
                     && !preferred_target.is_absolute()
                 {
                     remove_path(&link_path)?;
-                    create_symlink(&preferred_target, &link_path)?;
+                    create_symlink_exclusive(&preferred_target, &link_path, skill, target)?;
                 }
                 return Ok(());
             }
@@ -587,8 +587,41 @@ fn ensure_target_link(
         remove_path(&link_path)?;
     }
 
-    create_symlink(&preferred_target, &link_path)?;
+    create_symlink_exclusive(&preferred_target, &link_path, skill, target)?;
     Ok(())
+}
+
+fn create_symlink_exclusive(
+    preferred_target: &Path,
+    link_path: &Path,
+    skill: &SkillCandidate,
+    target: &ConfigEntry,
+) -> Result<()> {
+    match create_symlink(preferred_target, link_path) {
+        Ok(()) => Ok(()),
+        Err(e) if is_already_exists_err(&e) => {
+            if is_skill_linked(skill, target) {
+                Ok(())
+            } else {
+                Err(e).with_context(|| {
+                    format!(
+                        "skill link race at {}: path exists but is not the expected link",
+                        link_path.display()
+                    )
+                })
+            }
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn is_already_exists_err(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .map(|e| e.kind() == ErrorKind::AlreadyExists)
+            .unwrap_or(false)
+    })
 }
 
 fn remove_target_link(skill: &SkillCandidate, target: &ConfigEntry) -> Result<()> {

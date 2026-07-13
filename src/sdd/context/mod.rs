@@ -321,6 +321,7 @@ async fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path) -> Result
     use crate::sdd::spec::backend::{BACKEND, SpecBackend};
     use crate::sdd::spec::ir::MainSpecDoc;
 
+    let _lock = acquire_rebuild_lock(context_dir)?;
     let pageindex_dir = context_dir.join(backend_subdir(Backend::Pageindex));
     std::fs::create_dir_all(&pageindex_dir)?;
 
