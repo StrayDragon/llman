@@ -63,18 +63,30 @@ pub fn relative_path_from_dir(from_dir: &Path, to: &Path) -> Option<PathBuf> {
     Some(out)
 }
 
-/// Validates that a path string is not empty or just whitespace
+/// Validates that a path string is non-empty and does not contain unsafe components.
+///
+/// This is for multi-segment filesystem paths (config dirs, output dirs). For a single
+/// id/file stem, use [`validate_path_segment`] instead.
 pub fn validate_path_str(path_str: &str) -> Result<(), String> {
-    if path_str.trim().is_empty() {
+    let trimmed = path_str.trim();
+    if trimmed.is_empty() {
         return Err("Path cannot be empty or contain only whitespace".to_string());
+    }
+    if trimmed.contains('\0') {
+        return Err("Path must not contain NUL".to_string());
+    }
+    for component in Path::new(trimmed).components() {
+        if matches!(component, std::path::Component::ParentDir) {
+            return Err("Path must not contain '..'".to_string());
+        }
     }
     Ok(())
 }
 
-/// Creates a PathBuf from a string, validating it's not empty or whitespace
+/// Creates a PathBuf from a string after [`validate_path_str`].
 pub fn create_validated_pathbuf(path_str: &str) -> Result<PathBuf, String> {
     validate_path_str(path_str)?;
-    Ok(PathBuf::from(path_str))
+    Ok(PathBuf::from(path_str.trim()))
 }
 
 /// Safely gets the parent directory for creating directories.
@@ -159,6 +171,9 @@ mod tests {
         assert!(validate_path_str("\t").is_err());
         assert!(validate_path_str("valid/path").is_ok());
         assert!(validate_path_str("config.yaml").is_ok());
+        assert!(validate_path_str("a/../b").is_err());
+        assert!(validate_path_str("../escape").is_err());
+        assert!(validate_path_str("ok\0bad").is_err());
     }
 
     #[test]
@@ -166,6 +181,11 @@ mod tests {
         assert!(create_validated_pathbuf("").is_err());
         assert!(create_validated_pathbuf("   ").is_err());
         assert!(create_validated_pathbuf("valid/path").is_ok());
+        assert!(create_validated_pathbuf("../escape").is_err());
+        assert_eq!(
+            create_validated_pathbuf("  foo/bar  ").unwrap(),
+            PathBuf::from("foo/bar")
+        );
     }
 
     #[test]
