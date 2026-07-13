@@ -232,6 +232,20 @@ fn activate_and_exec(config: &Config, provider_key: &str, args: &[String]) -> Re
 
     println!("{}", t!("codex.run.using_config", name = provider_key));
 
+    let mut invalid_keys: Vec<&str> = provider
+        .env
+        .keys()
+        .filter(|key| !crate::env_safety::is_valid_env_key(key))
+        .map(String::as_str)
+        .collect();
+    invalid_keys.sort_unstable();
+    if !invalid_keys.is_empty() {
+        bail!(t!(
+            "codex.error.env_invalid_keys",
+            keys = invalid_keys.join(", ")
+        ));
+    }
+
     let dangerous =
         crate::env_safety::find_dangerous_env_keys(provider.env.keys().map(String::as_str));
     if !dangerous.is_empty() {

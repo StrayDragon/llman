@@ -17,7 +17,7 @@ requirements[46]{req_id,title,statement}:
   r12,SDD 校验,"命令 MUST 支持 `--all --changes --specs --type change|spec --strict --no-interactive --json`。`--json` 输出 MUST 采用 OpenSpec 顶层 validate 结构。`llman sdd validate` MUST 只将 task 解析为 Completed（`- [x]`）或 Pending（`- [ ]`）两种状态，不再使用 Deferred/LegacyDefer/Cancelled 等特殊 task status。validate MUST 通过 `archive_config.strict_defer()` 决定 pending task 是 Error 还是 Warning。Orphans 子命令 MUST 被移除。"
   r13,SDD 校验提示增强,`llman sdd validate` 在非 JSON 模式下 MUST 为常见结构错误提供可执行修复提示，包含最小示例片段与推荐命令。
   r14,Spec 校验元数据（YAML Frontmatter）,"`llmanspec/specs/<id>/spec.md` MUST 以 YAML frontmatter 开头，包含以下键： - `llman_spec_valid_scope` - `llman_spec_valid_commands` - `llman_spec_evidence` `llman_spec_valid_scope` MUST 是 repo 根目录相对路径的列表或单个字符串；列表项/字符串可以用逗号分隔多个路径。校验范围匹配规则 MUST 为“路径完全相等或以 `<path>/` 为前缀”。`llman_spec_valid_commands` 与 `llman_spec_evidence` MUST 为非空字符串或字符串列表，用于记录最小验证证据。`llman sdd validate` MUST 在校验 spec 时解析并校验这些元数据，缺失或为空 MUST 视为校验失败并提示。"
-  r15,Spec 过期（staleness）校验,"`llman sdd validate` MUST 对 specs 进行 staleness 评估： - 基准 MUST 使用 `git merge-base <base-ref> HEAD`，`<base-ref>` 默认 `origin/main`，不存在时回退 `origin/master`，并允许通过 `LLMANSPEC_BASE_REF` 覆盖。 - 校验范围 MUST 使用 `git diff --name-only <base>..HEAD` 获取变更路径，并与 `llman_spec_valid_scope` 匹配。 - 若变更触及范围且 `llmanspec/specs/<id>/spec.md` 未在 `<base>..HEAD` 中更新，则 MUST 标记为 `STALE`。 - 若 spec 更新但范围未触及，则 MUST 记录为 `INFO`。 - 若 Git 无法解析 base（如无 remote / 无 merge-base），则 MUST 记录 `WARN` 并跳过 staleness 评估；`--strict` MUST 将 `WARN` 升级为 `"
+  r15,Spec 过期（staleness）校验,"`llman sdd validate` MUST 对 specs 进行 staleness 评估： - 基准 MUST 使用 `git merge-base <base-ref> HEAD`，`<base-ref>` 默认 `origin/main`，不存在时回退 `origin/master`，并允许通过 `LLMANSPEC_BASE_REF` 覆盖。 - 当 `LLMANSPEC_BASE_REF` 被设置时，其值 MUST 通过安全校验：不得为空、不得以 `-` 开头，且 MUST 作为独立 git 参数传递（argv 中在 `--` 之后或等价隔离），以防止 option injection。校验失败时 MUST 报错且 MUST NOT 执行依赖该 ref 的 git 调用。 - 校验范围 MUST 使用 `git diff --name-only <base>..HEAD` 获取变更路径，并与 `llman_spec_valid_scope` 匹配。 - 若变更触及范围且对应 spec 未在 `<base>..HEAD` 中更新，则 MUST 标记为 `STALE`。 - 若 spec 更新但范围未触及，则 MUST 记录为 `INFO`。 - 若 Git 无法解析 base（如无 remote / 无 merge-base），则 MUST 记录 `WARN` 并跳过 staleness 评估；`--strict` MUST 将 `WARN` 升级为错误。"
   r16,SDD 归档流程,"`llman sdd archive` MUST 支持子命令组工作流：`llman sdd archive run <change-id>` 将 delta 合并到 `llmanspec/specs` 并将 change 移动到 `llmanspec/changes/archive/YYYY-MM-DD-<change-id>`。`--skip-specs`、`--dry-run`、隐藏 `--force` 行为 MUST 保持一致。Archive gate MUST 仅基于 `report.pending > 0` 判定是否阻塞归档；min_completion_ratio 门禁 MUST 仅基于 `completed / total` 计算（`total` 为所有 task 数，不再有 Cancelled 或 Deferred 被排除在分母外）。"
   r17,"SDD 归档 dry-run","`llman sdd archive --dry-run` MUST 输出将要修改/移动的文件与目标路径，并 MUST 不进行任何文件写入。"
   r18,SDD 归档冻结与解冻,"`llman sdd archive freeze` MUST 将 `llmanspec/changes/archive/` 下符合 `YYYY-MM-DD-*` 的目录合并写入单一冷备文件 `llmanspec/changes/archive/freezed_changes.7z.archived`，并在成功后移除本次冻结源目录。`llman sdd archive thaw` MUST 从该冷备文件恢复归档目录到默认 `.thawed/`（或 `--dest` 指定目录），并支持 `--change` 选择性恢复。"
@@ -49,7 +49,7 @@ requirements[46]{req_id,title,statement}:
   r44,Design 前置约束,"`llman sdd validate` MUST 在变更包含 `tasks.md` 但缺少 `design.md` 时报 ERROR。该约束在 strict 与 non-strict 模式下均 MUST 生效。错误消息 MUST 包含具体的修复指引。"
   r45,分级校验消息,"`llman sdd validate` MUST 根据 strict/non-strict 模式输出不同级别的完整度消息：non-strict 模式下缺少可选 artifact 时 MUST 输出可见的 INFO 级阶段提示（即使整体校验通过，draft 等非 full 阶段的提示仍 MUST 被打印给用户）；strict 模式下未达到 designed 阶段 MUST 输出 WARN（由 INFO 升级）。校验输出 MUST 在所有阶段都包含当前阶段标识，且不得在 valid 时吞掉阶段提示。"
   r46,List 与 Show 阶段输出,`llman sdd list` MUST 在变更列表输出中包含 stage 列，显示每个变更的完整度阶段（draft/specified/designed/full）。JSON 输出 MUST 包含 `stage` 字段。`llman sdd show <id>` 在展示 change 时 MUST 输出当前阶段标识：非 JSON（文本）模式在标题后打印 stage 行；JSON 模式 MUST 包含 `stage`（draft/specified/designed/full）、`artifacts`（已存在的 artifact 文件名列表）与 `readyToImplement`（当且仅当 stage 为 full 时为 true）字段。`stage` MUST 由 artifacts 存在性隐式推断（与 validate 的 `determine_stage` 同源），不引入额外状态文件。
-scenarios[119]{req_id,id,given,when,then}:
+scenarios[117]{req_id,id,given,when,then}:
   r1,初始化新项目,"",用户在不存在 `llmanspec/` 的目录执行 `llman sdd init`,必要的目录结构与模板文件被创建
   r1,初始化指定路径,"",用户执行 `llman sdd init <path>`,在 `<path>` 下创建 `llmanspec/` 结构与模板文件
   r1,初始化时生成提示块,"",`llman sdd init` 生成 `llmanspec/AGENTS.md`,"文件中包含 `<!-- LLMANSPEC:START -->` 与 `<!-- LLMANSPEC:END -->` 包裹的提示块"
@@ -110,9 +110,7 @@ scenarios[119]{req_id,id,given,when,then}:
   r13,"无-delta-变更","",change 目录中未找到任何 delta,输出提示包含 delta section 示例与文件路径提示
   r14,"缺少-frontmatter","",spec 文件缺少 YAML frontmatter 或缺少任一必需键,`llman sdd validate` 报错并提示补充校验元数据
   r14,"frontmatter-字符串与列表","",`llman_spec_valid_scope` 使用字符串或 YAML 列表,`llman sdd validate` 解析为等价的路径列表
-  r15,"范围触及但-spec-未更新","",`<base>..HEAD` 变更触及 `llman_spec_valid_scope`，且 spec 文件未更新,staleness 状态为 `STALE` 且在输出中提示
-  r15,"spec-更新但范围未触及","",spec 文件更新，但变更未触及 `llman_spec_valid_scope`,staleness 状态为 `INFO`
-  r15,"无法解析-base","","git 无法解析 merge-base","staleness 记录为 `WARN`，`--strict` 时视为错误"
+  r15,"reject-option-like-base-ref","LLMANSPEC_BASE_REF=-c","用户运行 `llman sdd validate --strict`","命令失败并报告非法 base ref，且未将 `-c` 作为 git option 执行"
   r16,"archive-pending-blocks",tasks.md 有 pending,执行 archive,归档被阻塞
   r16,"archive-all-completed",tasks.md 全部 completed,执行 archive,归档成功
   r16,"completion-ratio-counts-all",全部 completed 且 min_completion_ratio 启用,执行 archive,ratio 为 completed/total（不再排除 cancelled）
