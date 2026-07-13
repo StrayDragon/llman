@@ -58,6 +58,8 @@ fn test_path_creation_with_validation() -> Result<()> {
     // Invalid paths should fail
     assert!(create_validated_pathbuf("").is_err());
     assert!(create_validated_pathbuf("   ").is_err());
+    assert!(create_validated_pathbuf("../escape").is_err());
+    assert!(create_validated_pathbuf("a/../b").is_err());
 
     Ok(())
 }
