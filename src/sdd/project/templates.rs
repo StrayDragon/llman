@@ -37,7 +37,6 @@ const UNIT_FILES: &[&str] = &[
     "skills/validation-hints-toon.md",
     "spec/toon-contract.md",
     "skills/structured-protocol.md",
-    "skills/future-planning.md",
     "workflow/archive-freeze-guidance.md",
 ];
 
@@ -291,10 +290,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/units/skills/structured-protocol.md"
         ))),
-        "templates/sdd/en/units/skills/future-planning.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/units/skills/future-planning.md"
-        ))),
         "templates/sdd/en/units/workflow/archive-freeze-guidance.md" => {
             Some(include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
@@ -376,10 +371,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/zh-Hans/units/skills/structured-protocol.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/units/skills/structured-protocol.md"
-        ))),
-        "templates/sdd/zh-Hans/units/skills/future-planning.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/zh-Hans/units/skills/future-planning.md"
         ))),
         "templates/sdd/zh-Hans/units/workflow/archive-freeze-guidance.md" => {
             Some(include_str!(concat!(

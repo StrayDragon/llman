@@ -36,4 +36,3 @@ Create a new change with planning artifacts (proposal + delta specs + tasks; des
 {{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
-{{ unit("skills/future-planning") }}

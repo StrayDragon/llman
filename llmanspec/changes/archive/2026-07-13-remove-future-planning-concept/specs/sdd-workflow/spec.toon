@@ -1,0 +1,4 @@
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  remove_requirement,r23,null,null,null,null,null
+op_scenarios[0]:

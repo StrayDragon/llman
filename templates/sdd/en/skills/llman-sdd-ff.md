@@ -36,4 +36,3 @@ Use this skill to create **all** artifacts for a new change quickly (proposal â†
 {{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
-{{ unit("skills/future-planning") }}
