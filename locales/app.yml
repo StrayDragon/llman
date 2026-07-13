@@ -1337,6 +1337,9 @@ claude_code:
     warning_header:
       en: "%{count} Security Warnings Detected:"
 
+    blocked_by_warnings:
+      en: "Aborting: %{count} security warning(s) must be resolved before launching Claude."
+
     warning_separator_char:
       en: "═"
 
@@ -2174,6 +2177,8 @@ self:
       en: "This will add or update the marked llman completion block."
     non_interactive:
       en: "Non-interactive mode cannot modify %{path}; re-run with --yes."
+    profile_outside_home:
+      en: "PowerShell $PROFILE resolves to %{path}, which is outside the user home directory; refusing to install completions."
     read_failed:
       en: "Failed to read file: %{path} (%{error})"
     write_failed:

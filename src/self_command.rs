@@ -208,11 +208,27 @@ fn shell_profile_path(shell: CompletionShell) -> Result<PathBuf> {
         CompletionShell::Zsh => Ok(home.join(".zshrc")),
         CompletionShell::Fish => Ok(home.join(".config/fish/config.fish")),
         CompletionShell::PowerShell => match env::var("PROFILE") {
-            Ok(profile) if !profile.trim().is_empty() => Ok(PathBuf::from(profile)),
+            Ok(profile) if !profile.trim().is_empty() => {
+                resolve_powershell_profile_under_home(&home, &profile)
+            }
             _ => Ok(home.join(".config/powershell/Microsoft.PowerShell_profile.ps1")),
         },
         CompletionShell::Elvish => Ok(home.join(".elvish/rc.elv")),
     }
+}
+
+fn resolve_powershell_profile_under_home(home: &Path, profile: &str) -> Result<PathBuf> {
+    let absolute = std::path::absolute(profile.trim())
+        .map_err(|e| anyhow!(t!("self.completion.read_failed", path = profile, error = e)))?;
+    let resolved = absolute.canonicalize().unwrap_or_else(|_| absolute.clone());
+    let home_resolved = home.canonicalize().unwrap_or_else(|_| home.to_path_buf());
+    if resolved == home_resolved || resolved.starts_with(&home_resolved) {
+        return Ok(resolved);
+    }
+    Err(anyhow!(t!(
+        "self.completion.profile_outside_home",
+        path = resolved.display()
+    )))
 }
 
 fn bash_profile_path(home: &Path) -> PathBuf {
@@ -679,5 +695,61 @@ mod tests {
 
         assert!(err.to_string().contains("--yes"));
         assert!(!prompted, "prompt callback should not be called");
+    }
+
+    #[test]
+    fn powershell_profile_outside_home_is_rejected() {
+        let temp_home = TempDir::new().expect("temp home");
+        let outside = TempDir::new().expect("outside");
+        let evil = outside.path().join("evil.ps1");
+        fs::write(&evil, "existing\n").expect("seed evil");
+
+        let mut proc = crate::test_utils::TestProcess::new();
+        proc.set_var("HOME", temp_home.path());
+        proc.set_var("PROFILE", &evil);
+
+        let err = shell_profile_path(CompletionShell::PowerShell).expect_err("reject");
+        assert!(
+            err.to_string().contains("outside the user home"),
+            "unexpected error: {err}"
+        );
+        let content = fs::read_to_string(&evil).expect("read evil");
+        assert_eq!(content, "existing\n");
+    }
+
+    #[test]
+    fn powershell_profile_under_home_is_accepted() {
+        let temp_home = TempDir::new().expect("temp home");
+        let profile = temp_home
+            .path()
+            .join(".config/powershell/Microsoft.PowerShell_profile.ps1");
+        fs::create_dir_all(profile.parent().unwrap()).expect("mkdir");
+        fs::write(&profile, "").expect("touch profile");
+
+        let mut proc = crate::test_utils::TestProcess::new();
+        proc.set_var("HOME", temp_home.path());
+        proc.set_var("PROFILE", &profile);
+
+        let resolved = shell_profile_path(CompletionShell::PowerShell).expect("accept");
+        assert_eq!(
+            resolved.canonicalize().unwrap(),
+            profile.canonicalize().unwrap()
+        );
+    }
+
+    #[test]
+    fn powershell_default_profile_when_unset() {
+        let temp_home = TempDir::new().expect("temp home");
+        let mut proc = crate::test_utils::TestProcess::new();
+        proc.set_var("HOME", temp_home.path());
+        proc.remove_var("PROFILE");
+
+        let resolved = shell_profile_path(CompletionShell::PowerShell).expect("default");
+        assert_eq!(
+            resolved,
+            temp_home
+                .path()
+                .join(".config/powershell/Microsoft.PowerShell_profile.ps1")
+        );
     }
 }

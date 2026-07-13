@@ -216,11 +216,7 @@ fn handle_main_command(args: &[String]) -> Result<()> {
             ))
         })?;
 
-        // Perform security check before executing claude
-        let security_checker = SecurityChecker::from_config(&config)?;
-        if let Ok(warnings) = security_checker.check_claude_settings() {
-            print_security_warnings(&warnings);
-        }
+        enforce_security_check(&config)?;
 
         // Execute claude command with all environment variables set
         let mut cmd = Command::new("claude");
@@ -372,11 +368,7 @@ fn handle_list_groups(config: &Config) {
 
 fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()> {
     if let Some(group) = config.get_group(name) {
-        // Perform security check before executing claude
-        let security_checker = SecurityChecker::from_config(config)?;
-        if let Ok(warnings) = security_checker.check_claude_settings() {
-            print_security_warnings(&warnings);
-        }
+        enforce_security_check(config)?;
 
         // Execute claude command with all environment variables set
         let mut cmd = Command::new("claude");
@@ -474,11 +466,7 @@ fn handle_run_command(
             t!("claude_code.run.using_config", name = selected_group)
         );
 
-        // Perform security check before executing claude
-        let security_checker = SecurityChecker::from_config(&config)?;
-        if let Ok(warnings) = security_checker.check_claude_settings() {
-            print_security_warnings(&warnings);
-        }
+        enforce_security_check(&config)?;
 
         let mut cmd = Command::new("claude");
         inject_env_vars(&mut cmd, env_vars)?;
@@ -619,6 +607,19 @@ fn print_security_warnings(warnings: &[SecurityWarning]) {
     eprintln!("\n⚠️ {}", t!("claude_code.security.footer_line1"));
     eprintln!("  {}", t!("claude_code.security.footer_line2"));
     eprintln!();
+}
+
+fn enforce_security_check(config: &Config) -> Result<()> {
+    let security_checker = SecurityChecker::from_config(config)?;
+    let warnings = security_checker.check_claude_settings()?;
+    print_security_warnings(&warnings);
+    if !warnings.is_empty() {
+        bail!(t!(
+            "claude_code.security.blocked_by_warnings",
+            count = warnings.len()
+        ));
+    }
+    Ok(())
 }
 
 /// Inject environment variables from a config group into a Command
