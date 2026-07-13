@@ -63,4 +63,3 @@ If the user asks you to implement while in explore mode, STOP and remind them to
 {{ unit("skills/sdd-commands") }}
 
 {{ unit("skills/structured-protocol") }}
-{{ unit("skills/future-planning") }}

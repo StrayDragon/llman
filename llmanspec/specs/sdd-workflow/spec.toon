@@ -2,7 +2,7 @@ kind: llman.sdd.spec
 name: "sdd-workflow"
 purpose: "Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmanspec/`."
 valid_scope[4]: src/sdd/,templates/sdd/,"scripts/check-sdd-templates.py","llmanspec/specs/sdd-workflow/"
-requirements[47]{req_id,title,statement}:
+requirements[46]{req_id,title,statement}:
   r1,SDD 初始化脚手架,"`llman sdd init [path]` 命令 MUST 在目标路径创建 `llmanspec/` 目录结构，包括 `llmanspec/AGENTS.md`、`llmanspec/project.md`、`llmanspec/config.yaml`、`llmanspec/specs/`、`llmanspec/changes/` 与 `llmanspec/changes/archive/`。命令 MUST 在 `llmanspec/config.yaml` 顶部写入 `yaml-language-server` schema 头注释，指向 `llmanspec-config` schema URL。命令 MUST 创建或刷新 repo 根目录下的 `AGENTS.md` 受管块以指向 `llmanspec/AGENTS.md`。当 `llmanspec/` 已存在时，命令 MUST 报错并且不修改任何文件。生成的 `llmanspec/AGENTS.md` MUST 包含 LLMANSPEC 受管提示块且包含完整 llman sdd 方法论说明。 初始化生成的 `llmansp"
   r2,SDD 指令与提示词刷新,"`llman sdd update [path]` MUST 刷新 `llmanspec/AGENTS.md` 的 LLMANSPEC 受管提示块，同时 MUST 保持 `llmanspec/specs/**` 与 `llmanspec/changes/**` 不被修改。命令 MUST 刷新 repo 根目录 `AGENTS.md` 的 LLMANSPEC 受管块并保留非受管内容。更新 `llmanspec/AGENTS.md` 时 MUST 仅替换 LLMANSPEC 受管提示块，并保留受管块以外的用户内容。更新时必须使用 `llmanspec/config.yaml` 的 locale 选择模板。"
   r3,SDD 本地化配置与模板加载,`llman sdd` MUST 使用项目级配置 `llmanspec/config.yaml` 解析 locale，并基于 `templates/sdd/<locale>/` 加载 `llmanspec/AGENTS.md`、`llmanspec/project.md` 与 sdd skills 内容。locale 仅影响模板与 skills 输出，不影响 CLI 文本。
@@ -25,7 +25,6 @@ requirements[47]{req_id,title,statement}:
   r20,SDD 归档前置校验,"`llman sdd archive` MUST 在修改 specs 或移动 change 目录之前，对本次涉及的 specs 执行与 `llman sdd validate --strict --no-interactive` 等价的校验（包括 frontmatter 与 staleness）。归档校验 MUST 以重建后的 spec 内容为准，并在 staleness 判断中将本次归档涉及的 spec 视为已更新。任何 Error 或 Warn MUST 阻止归档并返回非零。"
   r21,SDD skills 输出符合 Agent Skills SKILL.md 规范,"`llman sdd update-skills` MUST 生成符合 Agent Skills 规范的 `SKILL.md` frontmatter，至少包含 `name` 与 `description`： - `name` MUST 与技能目录名一致，且仅包含小写字母/数字/连字符、长度 1-64、不得以连字符开头/结尾、不得包含连续连字符。 - `description` MUST 为 1-1024 字符的非空描述文本。 - `license`、`compatibility`、`metadata`、`allowed-tools` MAY 在需要时提供。"
   r22,SDD skills 不暴露绕过参数,"`llman sdd update-skills` 生成的 skills 内容 MUST 不包含 `--force` 绕过提示或示例。"
-  r23,SDD Future 记录文件为可选,"`llmanspec/changes/<change-id>/future.md` MUST 作为可选记录文件存在，用于承载延期项与分叉路线。缺失该文件 MUST NOT 阻塞 `llman sdd validate` 或 `llman sdd archive`。 与 future 相关的 `skills/*.md` 模板 MUST 提供“future 到执行”的注入式引导：将 future 条目分类为 `now|later|drop`，并为 `now` 条目映射后续 change 与首个可执行动作（如 `/llman-sdd:new`、`/llman-sdd:continue`、`/llman-sdd:ff`、`llman-sdd-apply`）。"
   r24,SDD 模板结构化提示协议,"`templates/sdd/{locale}/skills/*.md` MUST 提供统一结构化章节（或等价命名）：`Context`、`Goal`、`Constraints`、`Workflow`、`Decision Policy`、`Output Contract`。模板 MUST 为自包含规则，不得要求先调用外部技能作为前置步骤。"
   r25,SDD 重构保持行为一致,SDD 模块重构 MUST 保持所有 `llman sdd` 子命令的行为、输出与退出码一致，并且不得改变模板内容与配置生成路径。
   r26,change/spec ID 必须作为标识符处理而不是路径,"所有接受 `change-id` 或 `spec-id` 的 `llman sdd` 子命令 MUST 将其视为标识符。实现 MUST 拒绝包含路径分隔符或穿越片段的值（例如：`/`、`\\\\`、`..`），并 MUST NOT 因此在 `llmanspec/` 之外执行任何文件系统操作。"
@@ -50,7 +49,7 @@ requirements[47]{req_id,title,statement}:
   r45,分级校验消息,"`llman sdd validate` MUST 根据 strict/non-strict 模式输出不同级别的完整度消息：non-strict 模式下缺少可选 artifact 时 MUST 输出可见的 INFO 级阶段提示（即使整体校验通过，draft 等非 full 阶段的提示仍 MUST 被打印给用户）；strict 模式下未达到 designed 阶段 MUST 输出 WARN（由 INFO 升级）。校验输出 MUST 在所有阶段都包含当前阶段标识，且不得在 valid 时吞掉阶段提示。"
   r46,List 与 Show 阶段输出,`llman sdd list` MUST 在变更列表输出中包含 stage 列，显示每个变更的完整度阶段（draft/specified/designed/full）。JSON 输出 MUST 包含 `stage` 字段。`llman sdd show <id>` 在展示 change 时 MUST 输出当前阶段标识：非 JSON（文本）模式在标题后打印 stage 行；JSON 模式 MUST 包含 `stage`（draft/specified/designed/full）、`artifacts`（已存在的 artifact 文件名列表）与 `readyToImplement`（当且仅当 stage 为 full 时为 true）字段。`stage` MUST 由 artifacts 存在性隐式推断（与 validate 的 `determine_stage` 同源），不引入额外状态文件。
   r47,Spec valid_scope 必须精确到所属模块,每个主 spec 的 `valid_scope` MUST 列出该 capability 实际拥有的模块/路径（例如 `src/sdd/context/`、`src/x/codex/`），MUST NOT 仅使用过于宽泛的 `src/` 或 `tests/` 作为唯一范围（除非该 capability 确实是跨全局的伞形合约且已在 statement 中说明）。`valid_scope` 宜包含 `llmanspec/specs/<id>/` 以便合约自身变更可清除 staleness。
-scenarios[118]{req_id,id,given,when,then}:
+scenarios[116]{req_id,id,given,when,then}:
   r1,初始化新项目,"",用户在不存在 `llmanspec/` 的目录执行 `llman sdd init`,必要的目录结构与模板文件被创建
   r1,初始化指定路径,"",用户执行 `llman sdd init <path>`,在 `<path>` 下创建 `llmanspec/` 结构与模板文件
   r1,初始化时生成提示块,"",`llman sdd init` 生成 `llmanspec/AGENTS.md`,"文件中包含 `<!-- LLMANSPEC:START -->` 与 `<!-- LLMANSPEC:END -->` 包裹的提示块"
@@ -132,8 +131,6 @@ scenarios[118]{req_id,id,given,when,then}:
   r21,"name-与目录一致","","`llman sdd update-skills` 写入 `llman-sdd-archive/SKILL.md`","frontmatter `name` 为 `llman-sdd-archive`"
   r21,"description-非空","","`llman sdd update-skills` 生成任意 SKILL.md",frontmatter `description` 为非空字符串
   r22,"skills-不包含-force","","维护者运行 `llman sdd update-skills`","生成的 SKILL.md 不提及 `--force`"
-  r23,"缺失-future-不阻塞","",change 不包含 `future.md`,"`llman sdd validate <change-id> --type change` 仍可通过"
-  r23,"future-条目可转执行","",生成后的 skill/template 处理 `future.md` 中的延期或分叉条目,输出包含 `now|later|drop` 分类与后续落地动作建议
   r24,"skills-模板包含结构化章节","","维护者运行 `llman sdd update-skills`",生成技能中可见结构化章节
   r24,模板无外部技能硬依赖,"",检查生成的 `SKILL.md`,不存在“先调用外部技能再执行”的硬依赖描述
   r25,"sdd-重构后回归","",`src/sdd/` 的模块结构被重组,"`sdd init/update/update-skills/list/show/validate/archive` 的行为与输出保持不变"

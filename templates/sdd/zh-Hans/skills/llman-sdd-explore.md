@@ -63,4 +63,3 @@ flowchart LR
 {{ unit("skills/sdd-commands") }}
 
 {{ unit("skills/structured-protocol") }}
-{{ unit("skills/future-planning") }}

@@ -37,4 +37,3 @@ Use this skill to continue an existing change and create the next missing artifa
 {{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
-{{ unit("skills/future-planning") }}

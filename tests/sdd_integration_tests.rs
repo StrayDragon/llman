@@ -788,8 +788,6 @@ fn test_sdd_update_skills_writes_agents_skills() {
     let explore_skill_path = output_dir.join("llman-sdd-explore").join("SKILL.md");
     assert!(explore_skill_path.exists());
     let explore_skill = fs::read_to_string(&explore_skill_path).expect("read explore skill");
-    assert!(explore_skill.contains("Future-to-Execution Planning"));
-    assert!(explore_skill.contains("llmanspec/changes/<id>/future.md"));
 
     for entry in fs::read_dir(&output_dir).expect("read skills output dir") {
         let entry = entry.expect("skills entry");
@@ -1096,52 +1094,6 @@ fn test_sdd_archive_freeze_second_run_preserves_first_run_content() {
 
     assert!(thaw_dest.join("2026-01-07-first/one.txt").exists());
     assert!(thaw_dest.join("2026-01-08-second/two.txt").exists());
-}
-
-#[test]
-fn test_sdd_validate_change_without_future_md_still_succeeds() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    let init_output = run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&init_output);
-
-    let llmanspec_dir = work_dir.join("llmanspec");
-    let change_dir = llmanspec_dir.join("changes").join("no-future");
-    let change_specs_dir = change_dir.join("specs").join("sample");
-    fs::create_dir_all(&change_specs_dir).expect("create change spec dir");
-    fs::write(
-        change_dir.join("proposal.md"),
-        "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n",
-    )
-    .expect("write proposal");
-    fs::write(
-        change_dir.join("design.md"),
-        "# Design\n\nSimple change, no trade-offs.\n",
-    )
-    .expect("write design");
-    fs::write(change_dir.join("tasks.md"), "## 1. Tasks\n- [x] 1.1 Done\n").expect("write tasks");
-    let delta_spec = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  added,added,,a new action is taken,the new behavior happens\n";
-    fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
-
-    let validate_output = run_llman(
-        &[
-            "sdd",
-            "validate",
-            "no-future",
-            "--type",
-            "change",
-            "--strict",
-            "--no-interactive",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&validate_output);
 }
 
 #[test]

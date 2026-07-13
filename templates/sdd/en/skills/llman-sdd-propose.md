@@ -38,6 +38,7 @@ flowchart LR
 - Read `llmanspec/config.yaml` for project context, rules, locale.
 - `llman sdd validate --all --strict --no-interactive`: ensure current artifacts are clean.
   - If pre-existing errors, stop and report (stacking new changes on dirty artifacts causes cascading errors).
+- **Check spec valid_scope integrity**: use `llman sdd list --specs --json` to list all specs, then for each spec verify every path in its `valid_scope` exists on disk. If any scope file/directory is missing, stop and suggest updating the spec (remove the deleted path from `valid_scope`).
 
 ### 1) Assess change scale (triage)
    - **Behavioral contract change** (modify MUST/SHALL, change external behavior) → full SDD workflow
@@ -85,4 +86,3 @@ flowchart LR
 {{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
-{{ unit("skills/future-planning") }}

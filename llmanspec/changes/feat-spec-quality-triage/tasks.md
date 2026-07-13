@@ -16,6 +16,6 @@
 - [x] 所有 en/zh-Hans 模板存在且对齐
 - [x] `llman sdd validate --strict --no-interactive` 通过
 
-## 待实施（见 old change feat-spec-agent-interface future.md）
+## 待实施
 
 - [x] validate --health 坏口味检测（延期到未来 change 实现）

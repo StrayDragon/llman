@@ -38,6 +38,7 @@ flowchart LR
 - 读取 `llmanspec/config.yaml` 了解项目上下文、规则、locale。
 - `llman sdd validate --all --strict --no-interactive`：确保当前工件状态干净。
   - 若预存错误，先停下报告（在脏工件上叠加新变更会导致级联错误）。
+- **检查 spec valid_scope 完整性**：使用 `llman sdd list --specs --json` 列出所有 spec，然后对每个 spec 验证其 `valid_scope` 中的每个路径是否存在于磁盘上。若存在缺失的文件/目录，停下并建议更新 spec（从 `valid_scope` 中移除已删除的路径）。
 
 ### 1) 判断变更规模（triage）
    - **行为合约变更**（改 MUST/SHALL、改外部行为）→ 走完整 SDD 流程
@@ -84,4 +85,3 @@ flowchart LR
 {{ unit("skills/validation-hints-toon") }}
 
 {{ unit("skills/structured-protocol") }}
-{{ unit("skills/future-planning") }}
