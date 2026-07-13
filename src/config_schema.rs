@@ -1,5 +1,5 @@
 use crate::config::resolve_config_dir;
-use crate::fs_utils::atomic_write_with_mode;
+use crate::fs_utils::{atomic_write_new_with_mode, atomic_write_with_mode};
 use crate::sdd::project::config::SddConfig;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::tool::config as tool_config;
@@ -342,14 +342,14 @@ pub fn ensure_global_sample_config(config_dir: &Path) -> Result<Option<PathBuf>>
     let yaml = serde_yaml::to_string(&config)
         .map_err(|e| anyhow!(t!("self.schema.generate_failed", error = e)))?;
     let content = prepend_schema_header(&yaml, GLOBAL_SCHEMA_URL);
-    atomic_write_with_mode(&path, content.as_bytes(), None).map_err(|e| {
+    let created = atomic_write_new_with_mode(&path, content.as_bytes(), None).map_err(|e| {
         anyhow!(t!(
             "self.schema.write_failed",
             path = path.display(),
             error = e
         ))
     })?;
-    Ok(Some(path))
+    if created { Ok(Some(path)) } else { Ok(None) }
 }
 
 pub fn global_config_path() -> Result<PathBuf> {

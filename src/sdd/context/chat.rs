@@ -192,20 +192,12 @@ fn convert_message(msg: &Msg) -> Result<ChatCompletionRequestMessage> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::TestProcess;
 
     #[test]
     fn test_chat_config_requires_model() {
-        // No chat model set anywhere → error. (Embedding host/key fall back is
-        // covered by the from_env priority; here we only assert the required-model
-        // guard, in isolation from the real environment by clearing chat vars.)
-        // NOTE: this test assumes LLMAN_SDD_INDEX_CHAT_MODEL is unset, which is the
-        // normal CI/local state.
-        if std::env::var("LLMAN_SDD_INDEX_CHAT_MODEL").is_ok() {
-            eprintln!(
-                "skipping test_chat_config_requires_model: LLMAN_SDD_INDEX_CHAT_MODEL is set"
-            );
-            return;
-        }
+        let mut proc = TestProcess::new();
+        proc.remove_var("LLMAN_SDD_INDEX_CHAT_MODEL");
         let res = ChatConfig::from_env();
         assert!(res.is_err(), "chat config without a chat model must error");
         let msg = format!("{}", res.unwrap_err());
