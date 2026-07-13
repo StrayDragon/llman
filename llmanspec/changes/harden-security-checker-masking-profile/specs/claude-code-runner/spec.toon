@@ -1,0 +1,5 @@
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r5,安全告警命中时必须中止执行,"当 `llman x claude-code` / `llman x cc` 在启动子进程前运行 SecurityChecker 且发现一条或多条安全告警时，命令 MUST 将告警输出到 stderr，MUST 以非零退出码失败，且 MUST NOT 启动底层 `claude` 子进程。零告警时 MUST 继续既有执行路径。",null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  r5,block-on-warning,"SecurityChecker 对当前 Claude settings 产生至少一条告警","用户运行 `llman x cc -- --version`","stderr 含安全告警，命令非零退出，且未启动 claude"
