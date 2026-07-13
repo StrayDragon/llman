@@ -1,4 +1,4 @@
-use crate::x::claude_code::config::Config;
+use crate::x::claude_code::config::ClaudeCodeConfig;
 use anyhow::{Context, Result};
 use llm_json::{RepairOptions, loads};
 use regex::Regex;
@@ -70,7 +70,7 @@ pub struct SecurityChecker {
 
 impl SecurityChecker {
     /// Create a new SecurityChecker from configuration
-    pub fn from_config(config: &Config) -> Result<Self> {
+    pub fn from_config(config: &ClaudeCodeConfig) -> Result<Self> {
         let security_config = config.security.as_ref();
 
         let enabled = security_config.and_then(|s| s.enabled).unwrap_or(true);

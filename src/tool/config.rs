@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
     title = "llman Tool Config",
     description = "Tool configuration section for llman."
 )]
-pub struct Config {
+pub struct ToolConfig {
     #[schemars(description = "Configuration version for tool settings.")]
     pub version: String,
     #[schemars(description = "Tool-specific configuration.")]
@@ -245,7 +245,7 @@ fn reject_legacy_rm_empty_dirs(value: &serde_yaml::Value) -> Result<()> {
     Ok(())
 }
 
-impl Config {
+impl ToolConfig {
     /// Load configuration from the specified path
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
@@ -265,7 +265,7 @@ impl Config {
                 error = error
             )));
         }
-        let config: Config = serde_yaml::from_value(yaml_value)
+        let config: ToolConfig = serde_yaml::from_value(yaml_value)
             .map_err(|e| anyhow!(t!("tool.config.parse_failed", error = e)))?;
 
         Ok(config)
@@ -341,13 +341,13 @@ impl Config {
     }
 
     pub fn generate_schema() -> Result<String> {
-        let schema = schema_for!(Config);
+        let schema = schema_for!(ToolConfig);
         serde_json::to_string_pretty(&schema)
             .map_err(|e| anyhow!(t!("tool.config.schema_generate_failed", error = e)))
     }
 }
 
-impl Default for Config {
+impl Default for ToolConfig {
     fn default() -> Self {
         Self {
             version: "0.1".to_string(),
@@ -447,14 +447,14 @@ mod tests {
 
     #[test]
     fn test_default_config() {
-        let config = Config::default();
+        let config = ToolConfig::default();
         assert_eq!(config.version, "0.1");
         assert!(config.tools.clean_useless_comments.is_some());
     }
 
     #[test]
     fn test_config_schema_generation() {
-        let schema = Config::generate_schema();
+        let schema = ToolConfig::generate_schema();
         assert!(schema.is_ok());
     }
 
@@ -477,13 +477,13 @@ tools:
 
         let mut temp_file = NamedTempFile::new().unwrap();
         write!(temp_file, "{}", yaml).unwrap();
-        let config = Config::load(temp_file.path());
+        let config = ToolConfig::load(temp_file.path());
         assert!(config.is_ok());
     }
 
     #[test]
     fn test_default_preserve_patterns_match_todo() {
-        let config = Config::default();
+        let config = ToolConfig::default();
         let clean_config = config.tools.clean_useless_comments.unwrap();
         let patterns = clean_config
             .lang_rules

@@ -1,5 +1,5 @@
 use llman::tool::command::CleanUselessCommentsArgs;
-use llman::tool::config::Config;
+use llman::tool::config::ToolConfig;
 use llman::tool::processor::CommentProcessor;
 mod common;
 use common::*;
@@ -15,7 +15,7 @@ fn test_python_comment_processing_removes_short_comments_and_preserves_important
     let test_file = env.create_file("test.py", test_content::PYTHON_CODE_WITH_COMMENTS);
     env.create_python_clean_config(test_constants::DEFAULT_MIN_COMMENT_LENGTH);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
@@ -53,7 +53,7 @@ fn test_javascript_comment_processing_preserves_patterns_and_filters_by_length()
     let test_file = env.create_file("test.js", test_content::JAVASCRIPT_CODE_WITH_COMMENTS);
     env.create_javascript_clean_config(test_constants::SHORT_COMMENT_LENGTH * 3); // 15 characters
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
@@ -108,7 +108,7 @@ tools:
     let test_file = env.create_file("test.rs", rust_code);
     env.create_config(config_content);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
@@ -153,7 +153,7 @@ tools:
     let test_file = env.create_file("test.ts", ts_code);
     env.create_config(config_content);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
@@ -203,7 +203,7 @@ tools:
     let test_file = env.create_file("test.py", code);
     env.create_config(config_content);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
@@ -252,7 +252,7 @@ tools:
 
     env.create_config(config_content);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
@@ -302,7 +302,7 @@ tools:
 
     env.create_config(config_content);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
@@ -346,7 +346,7 @@ tools:
 
     env.create_config(config_content);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,

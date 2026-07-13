@@ -1,9 +1,11 @@
-use crate::x::claude_code::config::{Config, ConfigGroup, get_display_vars, parse_json_config};
+use crate::x::claude_code::config::{
+    ClaudeCodeConfig, ConfigGroup, get_display_vars, parse_json_config,
+};
 use anyhow::{Context, Result};
 use inquire::{Confirm, Editor, Select, Text, validator::Validation};
 use rust_i18n::t;
 
-pub fn select_config_group(config: &Config) -> Result<Option<String>> {
+pub fn select_config_group(config: &ClaudeCodeConfig) -> Result<Option<String>> {
     if config.is_empty() {
         return Ok(None);
     }
@@ -137,14 +139,14 @@ pub fn prompt_import_config() -> Result<Option<(String, ConfigGroup)>> {
     }
 }
 
-pub fn display_config_list(config: &Config) {
+pub fn display_config_list(config: &ClaudeCodeConfig) {
     if config.is_empty() {
         println!("{}", t!("claude_code.interactive.no_config_groups"));
         println!("{}", t!("claude_code.interactive.use_import_command"));
         println!(
             "{}: {}",
             t!("claude_code.interactive.config_file_location"),
-            crate::x::claude_code::config::Config::config_file_path()
+            crate::x::claude_code::config::ClaudeCodeConfig::config_file_path()
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|_| t!("claude_code.interactive.unknown_path").to_string())
         );

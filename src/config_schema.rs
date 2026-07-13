@@ -61,7 +61,7 @@ pub struct GlobalSkillsConfig {
 
 impl Default for GlobalConfig {
     fn default() -> Self {
-        let tool_defaults = tool_config::Config::default();
+        let tool_defaults = tool_config::ToolConfig::default();
         Self {
             version: tool_defaults.version,
             tools: tool_defaults.tools,
@@ -74,7 +74,7 @@ impl Default for GlobalConfig {
 
 impl Default for ProjectConfig {
     fn default() -> Self {
-        let tool_defaults = tool_config::Config::default();
+        let tool_defaults = tool_config::ToolConfig::default();
         Self {
             version: tool_defaults.version,
             tools: tool_defaults.tools,

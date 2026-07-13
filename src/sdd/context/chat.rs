@@ -36,7 +36,7 @@ impl ChatConfig {
     pub fn from_env() -> Result<Self> {
         let api_host = env_or("LLMAN_SDD_INDEX_CHAT_API_HOST")
             .or_else(|| env_or("LLMAN_SDD_INDEX_OPENAI_API_HOST"))
-            .unwrap_or_else(|| "http://coral:11534/v1".to_string());
+            .unwrap_or_default();
         let api_key = env_or("LLMAN_SDD_INDEX_CHAT_API_KEY")
             .or_else(|| env_or("LLMAN_SDD_INDEX_OPENAI_API_KEY"))
             .unwrap_or_default();
@@ -46,6 +46,11 @@ impl ChatConfig {
                  (agentic retrieval needs a chat model that supports tool/function calling)"
             )
         })?;
+        if api_host.is_empty() {
+            anyhow::bail!(
+                "LLMAN_SDD_INDEX_CHAT_API_HOST (or LLMAN_SDD_INDEX_OPENAI_API_HOST) is required "
+            );
+        }
         Ok(Self {
             api_host,
             api_key,

@@ -1,5 +1,5 @@
 use crate::tool::command::RmUselessDirsArgs;
-use crate::tool::config::{Config, DirListConfig, ListMode};
+use crate::tool::config::{DirListConfig, ListMode, ToolConfig};
 use anyhow::{Result, anyhow};
 use ignore::Match;
 use ignore::gitignore::Gitignore;
@@ -30,7 +30,7 @@ pub fn run(args: &RmUselessDirsArgs) -> Result<()> {
         ));
     }
 
-    let config = Config::load_with_priority_or_default(args.config.as_deref())?;
+    let config = ToolConfig::load_with_priority_or_default(args.config.as_deref())?;
     let rm_config = config.get_rm_useless_dirs_config();
     let protected_dirs = resolve_dir_names(
         DEFAULT_PROTECTED_DIRS,
