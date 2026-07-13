@@ -2,7 +2,7 @@
 members = [".", "tools/fake-acp-agent"]
 
 [workspace.package]
-version = "0.0.58"
+version = "0.0.59"
 edition = "2024"
 
 [package]
@@ -20,6 +20,10 @@ repository = "https://github.com/StrayDragon/llman"
 [[bin]]
 name = "llman"
 path = "src/main.rs"
+
+[[bin]]
+name = "llmanspec"
+path = "src/bin/llmanspec.rs"
 
 [lib]
 name = "llman"
