@@ -60,12 +60,21 @@ impl CursorDatabase {
     }
 
     /// 连接到数据库
+    ///
+    /// # Safety
+    /// Uses `SQLITE_OPEN_NO_MUTEX` — the connection is read-only and used from
+    /// a single thread (cursor export processes one conversation at a time).
+    /// Do NOT add `SQLITE_OPEN_FULL_MUTEX` unless the connection is shared
+    /// across threads.
     pub fn connect(&self) -> Result<Connection> {
         let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
         Ok(Connection::open_with_flags(&self.db_path, flags)?)
     }
 
     /// 连接到全局数据库
+    ///
+    /// # Safety
+    /// Same single-threaded, read-only guarantee as [`Self::connect`].
     pub fn connect_global(&self) -> Result<Option<Connection>> {
         if let Some(ref global_path) = self.global_db_path {
             let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
@@ -392,6 +401,9 @@ impl CursorDatabase {
     }
 
     /// 检查数据库是否包含聊天数据
+    ///
+    /// # Safety
+    /// Same single-threaded, read-only guarantee as [`Self::connect`].
     fn has_chat_data(db_path: &Path) -> Result<bool> {
         let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
         let connection = match Connection::open_with_flags(db_path, flags) {

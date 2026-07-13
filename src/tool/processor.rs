@@ -1,6 +1,6 @@
 use crate::fs_utils::atomic_write_with_mode;
 use crate::tool::command::CleanUselessCommentsArgs;
-use crate::tool::config::Config;
+use crate::tool::config::ToolConfig;
 use crate::tool::tree_sitter_processor::{TreeSitterProcessor, compile_preserve_regexes};
 use anyhow::{Result, anyhow};
 use glob::Pattern;
@@ -61,13 +61,13 @@ impl CompiledScopePatterns {
 }
 
 pub struct CommentProcessor {
-    config: Config,
+    config: ToolConfig,
     args: CleanUselessCommentsArgs,
     tree_sitter_processor: Option<TreeSitterProcessor>,
 }
 
 impl CommentProcessor {
-    pub fn new(config: Config, args: CleanUselessCommentsArgs) -> Self {
+    pub fn new(config: ToolConfig, args: CleanUselessCommentsArgs) -> Self {
         let tree_sitter_processor = match TreeSitterProcessor::new() {
             Ok(processor) => Some(processor),
             Err(e) => {
@@ -692,7 +692,7 @@ mod tests {
     use super::CommentProcessor;
     use crate::tool::command::CleanUselessCommentsArgs;
     use crate::tool::config::{
-        CleanUselessCommentsConfig, Config, LanguageRules, LanguageSpecificRules, ScopeConfig,
+        CleanUselessCommentsConfig, LanguageRules, LanguageSpecificRules, ScopeConfig, ToolConfig,
         ToolsConfig,
     };
     use tempfile::TempDir;
@@ -705,7 +705,7 @@ mod tests {
         let original = "# short\n\ndef test():\n    pass\n";
         std::fs::write(&file_path, original).unwrap();
 
-        let config = Config {
+        let config = ToolConfig {
             version: "0.1".to_string(),
             tools: ToolsConfig {
                 rm_useless_dirs: None,
@@ -773,7 +773,7 @@ mod tests {
         let link = work_dir.join("linked.py");
         unix_fs::symlink(&target, &link).unwrap();
 
-        let config = Config {
+        let config = ToolConfig {
             version: "0.1".to_string(),
             tools: ToolsConfig {
                 rm_useless_dirs: None,

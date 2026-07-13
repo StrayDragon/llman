@@ -3,7 +3,7 @@ use crate::editor::{parse_editor_command, select_editor_raw};
 use crate::fs_utils::atomic_write_new_with_mode;
 use crate::path_utils::safe_parent_for_creation;
 use crate::tool::command::{SyncIgnoreArgs as ToolSyncIgnoreArgs, SyncIgnoreTarget};
-use crate::x::claude_code::config::{Config, ConfigGroup};
+use crate::x::claude_code::config::{ClaudeCodeConfig, ConfigGroup};
 use crate::x::claude_code::env_injection::{
     EnvSyntax, env_syntax_for_current_platform, prepare_env_injection, render_env_injection_lines,
 };
@@ -201,7 +201,7 @@ pub fn run(args: &ClaudeCodeArgs) -> Result<()> {
 }
 
 fn handle_main_command(args: &[String]) -> Result<()> {
-    let config = Config::load().context(t!("claude_code.error.load_config_failed"))?;
+    let config = ClaudeCodeConfig::load().context(t!("claude_code.error.load_config_failed"))?;
 
     if config.is_empty() {
         bail!(no_configs_message());
@@ -248,7 +248,8 @@ fn handle_account_command(action: Option<&AccountAction>) -> Result<()> {
         return Ok(());
     }
 
-    let mut config = Config::load().context(t!("claude_code.error.load_config_failed"))?;
+    let mut config =
+        ClaudeCodeConfig::load().context(t!("claude_code.error.load_config_failed"))?;
 
     match action {
         Some(cli_action) => execute_account_action(&mut config, cli_action)?,
@@ -258,7 +259,7 @@ fn handle_account_command(action: Option<&AccountAction>) -> Result<()> {
     Ok(())
 }
 
-fn execute_account_action(config: &mut Config, action: &AccountAction) -> Result<()> {
+fn execute_account_action(config: &mut ClaudeCodeConfig, action: &AccountAction) -> Result<()> {
     match action {
         AccountAction::Edit => unreachable!("Edit is handled before config load"),
         AccountAction::List => handle_list_groups(config),
@@ -270,7 +271,7 @@ fn execute_account_action(config: &mut Config, action: &AccountAction) -> Result
 }
 
 fn handle_account_edit() -> Result<()> {
-    let config_path = Config::config_file_path()?;
+    let config_path = ClaudeCodeConfig::config_file_path()?;
     let editor_raw = select_editor_raw();
     handle_account_edit_with(&config_path, &editor_raw)
 }
@@ -332,7 +333,7 @@ fn handle_account_edit_with(config_path: &Path, editor_raw: &str) -> Result<()> 
     Ok(())
 }
 
-fn handle_import_group(config: &mut Config, force: bool) -> Result<()> {
+fn handle_import_group(config: &mut ClaudeCodeConfig, force: bool) -> Result<()> {
     if let Some((name, group)) = interactive::prompt_import_config()? {
         // Check if group already exists
         if config.groups.contains_key(&name) {
@@ -362,11 +363,11 @@ fn handle_import_group(config: &mut Config, force: bool) -> Result<()> {
     Ok(())
 }
 
-fn handle_list_groups(config: &Config) {
+fn handle_list_groups(config: &ClaudeCodeConfig) {
     interactive::display_config_list(config);
 }
 
-fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()> {
+fn handle_use_group(config: &ClaudeCodeConfig, name: &str, args: Vec<String>) -> Result<()> {
     if let Some(group) = config.get_group(name) {
         enforce_security_check(config)?;
 
@@ -398,7 +399,7 @@ fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()
     Ok(())
 }
 
-fn handle_env_group(config: &Config, name: &str) -> Result<()> {
+fn handle_env_group(config: &ClaudeCodeConfig, name: &str) -> Result<()> {
     if config.is_empty() {
         bail!(no_configs_message());
     }
@@ -435,7 +436,7 @@ fn handle_run_command(
     group_name: Option<&str>,
     args: Vec<String>,
 ) -> Result<()> {
-    let config = Config::load().context(t!("claude_code.error.load_config_failed"))?;
+    let config = ClaudeCodeConfig::load().context(t!("claude_code.error.load_config_failed"))?;
 
     if config.is_empty() {
         bail!(no_configs_message());
@@ -500,7 +501,7 @@ fn handle_run_command(
 }
 
 fn no_configs_message() -> String {
-    let config_path = Config::config_file_path()
+    let config_path = ClaudeCodeConfig::config_file_path()
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| t!("claude_code.main.unknown_path").to_string());
 
@@ -516,7 +517,7 @@ fn no_configs_message() -> String {
 }
 
 /// 处理交互模式：选择配置和输入参数
-fn handle_interactive_mode(config: &Config) -> Result<(String, Vec<String>)> {
+fn handle_interactive_mode(config: &ClaudeCodeConfig) -> Result<(String, Vec<String>)> {
     // 选择配置组
     let selected_group = interactive::select_config_group(config)?
         .ok_or_else(|| anyhow::anyhow!(t!("claude_code.error.no_configuration_selected")))?;
@@ -609,7 +610,7 @@ fn print_security_warnings(warnings: &[SecurityWarning]) {
     eprintln!();
 }
 
-fn enforce_security_check(config: &Config) -> Result<()> {
+fn enforce_security_check(config: &ClaudeCodeConfig) -> Result<()> {
     let security_checker = SecurityChecker::from_config(config)?;
     let warnings = security_checker.check_claude_settings()?;
     print_security_warnings(&warnings);

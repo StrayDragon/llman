@@ -1,6 +1,6 @@
 use llman::tool::clean_comments;
 use llman::tool::command::CleanUselessCommentsArgs;
-use llman::tool::config::Config;
+use llman::tool::config::ToolConfig;
 use llman::tool::processor::CommentProcessor;
 mod common;
 use common::*;
@@ -79,7 +79,7 @@ fn test_comment_processor_creation() {
     let env = TestEnvironment::new();
     env.create_python_clean_config(test_constants::DEFAULT_MIN_COMMENT_LENGTH);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
@@ -102,7 +102,7 @@ fn test_comment_processor_with_empty_files_list() {
     let env = TestEnvironment::new();
     env.create_python_clean_config(test_constants::SHORT_COMMENT_LENGTH);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let args = CleanUselessCommentsArgs {
         config: Some(env.path().join(".llman").join("config.yaml")),
         dry_run: true,
@@ -128,7 +128,7 @@ fn test_comment_processor_with_nonexistent_files() {
     let env = TestEnvironment::new();
     env.create_python_clean_config(test_constants::SHORT_COMMENT_LENGTH);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let nonexistent_file = env.path().join("nonexistent.py");
 
     let args = CleanUselessCommentsArgs {
@@ -154,7 +154,7 @@ fn test_comment_processor_skips_directory_inputs_without_error() {
     let env = TestEnvironment::new();
     env.create_python_clean_config(test_constants::SHORT_COMMENT_LENGTH);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let dir_path = env.path().join("some_dir");
     std::fs::create_dir_all(&dir_path).unwrap();
 
@@ -193,7 +193,7 @@ tools:
 "#;
     env.create_config(invalid_config);
 
-    let config_result = Config::load(env.path().join(".llman").join("config.yaml"));
+    let config_result = ToolConfig::load(env.path().join(".llman").join("config.yaml"));
     assert!(config_result.is_err());
 }
 

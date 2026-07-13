@@ -1,5 +1,5 @@
 use llman::tool::command::CleanUselessCommentsArgs;
-use llman::tool::config::Config;
+use llman::tool::config::ToolConfig;
 use llman::tool::processor::CommentProcessor;
 use std::time::Instant;
 mod common;
@@ -68,7 +68,7 @@ def helper_function_{}():
         let test_file = create_large_python_file_for_performance(&env, 100);
         env.create_python_clean_config(test_constants::SHORT_COMMENT_LENGTH); // Use lower threshold to ensure some comments are removed
 
-        let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+        let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
         let args = CleanUselessCommentsArgs {
             config: Some(env.path().join(".llman").join("config.yaml")),
             dry_run: true,
@@ -121,7 +121,7 @@ def helper_function_{}():
         let test_file = create_large_python_file_for_performance(&env, 1000);
         env.create_python_clean_config(test_constants::SHORT_COMMENT_LENGTH); // Use lower threshold to ensure some comments are removed
 
-        let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+        let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
         let args = CleanUselessCommentsArgs {
             config: Some(env.path().join(".llman").join("config.yaml")),
             dry_run: true,
@@ -189,7 +189,7 @@ def main_func_{}():
 
         env.create_python_clean_config(test_constants::SHORT_COMMENT_LENGTH); // Use lower threshold
 
-        let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+        let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
         let args = CleanUselessCommentsArgs {
             config: Some(env.path().join(".llman").join("config.yaml")),
             dry_run: true,
@@ -239,7 +239,7 @@ def main_func_{}():
         let test_file = create_large_python_file_for_performance(&env, 5000);
         env.create_python_clean_config(test_constants::SHORT_COMMENT_LENGTH); // Use lower threshold to ensure some comments are removed
 
-        let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+        let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
         let args = CleanUselessCommentsArgs {
             config: Some(env.path().join(".llman").join("config.yaml")),
             dry_run: true,

@@ -1,4 +1,4 @@
-use llman::tool::config::Config;
+use llman::tool::config::ToolConfig;
 use serde_json::Value;
 mod common;
 use common::*;
@@ -8,7 +8,8 @@ use common::*;
 #[test]
 fn test_default_config_loading_contains_expected_values_and_tool_configuration() {
     let env = TestEnvironment::new();
-    let config = Config::load_or_default(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config =
+        ToolConfig::load_or_default(env.path().join(".llman").join("config.yaml")).unwrap();
 
     assert_eq!(config.version, "0.1");
     assert!(config.tools.clean_useless_comments.is_some());
@@ -54,7 +55,7 @@ tools:
 
     env.create_config(&config_content);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let clean_config = config.get_clean_comments_config().unwrap();
 
     assert_eq!(
@@ -142,7 +143,7 @@ tools:
 
     env.create_config(config_content);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let clean_config = config.get_clean_comments_config().unwrap();
 
     // Check defaults for missing fields
@@ -178,13 +179,13 @@ tools:
 
     env.create_config(config_content);
 
-    let result = Config::load(env.path().join(".llman").join("config.yaml"));
+    let result = ToolConfig::load(env.path().join(".llman").join("config.yaml"));
     assert!(result.is_err());
 }
 
 #[test]
 fn test_config_schema_generation() {
-    let schema = Config::generate_schema();
+    let schema = ToolConfig::generate_schema();
     assert!(schema.is_ok());
     let schema_str = schema.unwrap();
 
@@ -233,7 +234,7 @@ tools:
 
     env.create_config(config_content);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let clean_config = config.get_clean_comments_config().unwrap();
 
     let python_rules = clean_config.lang_rules.python.as_ref().unwrap();

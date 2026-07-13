@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 pub type ConfigGroup = HashMap<String, String>;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct Config {
+pub struct ClaudeCodeConfig {
     pub groups: HashMap<String, ConfigGroup>,
     pub security: Option<SecurityConfig>,
 }
@@ -80,7 +80,7 @@ impl SecurityConfig {
     }
 }
 
-impl Config {
+impl ClaudeCodeConfig {
     pub fn load() -> Result<Self> {
         let path = Self::config_file_path()?;
         Self::load_from_path(&path)
@@ -104,11 +104,11 @@ impl Config {
             .with_context(|| t!("claude_code.config.parse_all_failed"))
     }
 
-    fn parse_new_format(content: &str) -> Result<Config> {
+    fn parse_new_format(content: &str) -> Result<ClaudeCodeConfig> {
         toml::from_str(content).with_context(|| t!("claude_code.config.parse_new_failed"))
     }
 
-    fn parse_and_migrate_old_format(content: &str) -> Result<Config> {
+    fn parse_and_migrate_old_format(content: &str) -> Result<ClaudeCodeConfig> {
         #[derive(Debug, Deserialize)]
         struct OldConfigGroup {
             api_host: String,
@@ -124,7 +124,7 @@ impl Config {
             toml::from_str(content).with_context(|| t!("claude_code.config.parse_old_failed"))?;
 
         // Migrate to new format
-        let mut new_config = Config::default();
+        let mut new_config = ClaudeCodeConfig::default();
         for (name, old_group) in old_config.groups {
             let mut env_vars = HashMap::new();
             env_vars.insert("ANTHROPIC_BASE_URL".to_string(), old_group.api_host);

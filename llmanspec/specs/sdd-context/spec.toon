@@ -1,8 +1,8 @@
 kind: llman.sdd.spec
 name: "sdd-context"
 purpose: "TBD - created by archiving change refactor-embed-native-rust. Update purpose after archive."
-valid_scope[3]: "src/sdd/context/",src/sdd/command.rs,"llmanspec/specs/sdd-context/"
-requirements[7]{req_id,title,statement}:
+valid_scope[3]: src/sdd/context/,src/sdd/command.rs,"llmanspec/specs/sdd-context/"
+requirements[8]{req_id,title,statement}:
   r4,backend 选项与默认值,"`llman sdd index` 与 `llman sdd context` MUST 仅支持 `--backend pageindex` 选项（唯一检索后端）。MUST NOT 接受 `rag` 等其它值；传入非法值 MUST 报错退出并在提示中引导用户配置 pageindex 所需环境变量。`--backend` 仍可经 `LLMAN_SDD_INDEX_BACKEND` 预设，但仅用于显式声明 pageindex，不存在回退机制。"
   r5,pageindex 为唯一检索后端,`sdd context` MUST 使用基于 spec 树结构的 agentic 推理检索（pageindex）。检索 MUST 产出顶层 JSON 结构（`status`/`direct`/`related`/`summary`），`status.quality` 字段 MUST 为 `agentic`。当 pageindex 索引缺失/过期或 chat 模型未配置时 MUST 返回 `quality=unavailable` 并在 `qualityNote` 给出言简意赅的可操作提示（缺哪个环境变量、如何 rebuild），MUST NOT 回退到其它检索方式。
   r7,chat 模型配置与 embedding 模型分离,System MUST 新增 `LLMAN_SDD_INDEX_CHAT_MODEL`、`LLMAN_SDD_INDEX_CHAT_API_HOST`、`LLMAN_SDD_INDEX_CHAT_API_KEY` 环境变量，用于 pageindex agentic 检索所需的 chat 模型（必须支持 tool/function calling），与现有 `LLMAN_SDD_INDEX_MODEL`（embedding 模型）分离配置。`LLMAN_SDD_INDEX_CHAT_*` 未设置时 MUST 回退复用对应 `LLMAN_SDD_INDEX_OPENAI_*` 的值。配置解析优先级 MUST 为 CLI 参数 > 环境变量 > 硬编码默认。
@@ -10,7 +10,8 @@ requirements[7]{req_id,title,statement}:
   r9,pageindex 三工具 agentic 检索,pageindex backend 的检索 MUST 通过 agentic loop 实现：向 chat 模型提供 system prompt 与三个工具函数（`list_specs` 返回所有 spec 元数据、`get_document_structure` 返回指定 spec 去 text 的树结构、`get_spec_content` 按 spec_id 与 req_ids 取 requirement 内容），由 LLM 自主调用工具推理导航，最终输出 `direct`/`related` 分类的 specs。loop MUST 设置最大工具调用轮次上限以防失控。
   r10,backend 索引存储隔离与新鲜度,"不同 backend 的索引 MUST 存储在隔离子目录（`.context/rag/` 与 `.context/pageindex/`）。`check_freshness` MUST 按 `--backend` 检测对应子目录的索引新鲜度。当请求 backend 的索引缺失或过期时 MUST 返回与现有 quality 为 unavailable 时相同结构的错误 JSON（errorKind 为 index_missing/index_stale/index_corrupted），MUST NOT 静默降级到另一 backend。"
   r11,配置缺失的友好可操作提示,当 `LLMAN_SDD_INDEX_CHAT_MODEL` 等必需配置缺失、或 pageindex 索引缺失/过期时，`sdd context`/`sdd index` MUST 输出言简意赅的可操作错误提示，明确列出需设置的环境变量名与 rebuild 命令，避免冗余说明以减少 token 消耗。该提示 MUST 通过 `status.qualityNote` 与（或）stderr 输出，MUST NOT 静默失败或输出与排查无关的内容。
-scenarios[7]{req_id,id,given,when,then}:
+  r12,默认 chat host 为安全空值,`ChatConfig` 回退硬编码默认 host 时 MUST 使用空字符串而非内部可路由地址。当解析后的 host 为空时，`from_env()` MUST 报错退出并提示用户配置 `LLMAN_SDD_INDEX_CHAT_API_HOST`。系统 MUST NOT 将未配置的 chat host 回退到任何可路由默认地址。
+scenarios[9]{req_id,id,given,when,then}:
   r4,"reject-rag-backend","用户执行 sdd context --backend rag","命令解析 --backend 值",报错退出，提示 backend 仅支持 pageindex，并引导配置所需环境变量
   r5,"no-silent-fallback",pageindex 索引缺失,"执行 sdd context（未显式 --backend）",返回 quality=unavailable 且 qualityNote 含 rebuild 命令，不回退到任何其它检索方式
   r7,"chat-model-fallback",LLMAN_SDD_INDEX_CHAT_API_HOST 未设置但 LLMAN_SDD_INDEX_OPENAI_API_HOST 已设置,解析 chat 模型 endpoint,回退复用 LLMAN_SDD_INDEX_OPENAI_API_HOST 的值
@@ -18,3 +19,5 @@ scenarios[7]{req_id,id,given,when,then}:
   r9,"agentic-tool-navigation",chat 模型收到 system prompt 与三工具,sdd context 检索执行,LLM 依次调用 list_specs 与 get_document_structure 与 get_spec_content 后输出 direct/related 分类结果
   r10,"backend-isolation",.context/rag/ 已有索引但 .context/pageindex/ 不存在,"执行 sdd context --backend pageindex",返回 quality 为 unavailable 且 errorKind 为 index_missing 而非降级使用 rag 索引
   r11,"actionable-error",LLMAN_SDD_INDEX_CHAT_MODEL 未设置,执行 sdd context,提示明确列出需设置的变量名与 rebuild 命令，内容简洁无冗余
+  r12,"default-host-empty",LLMAN_SDD_INDEX_CHAT_API_HOST 未设置且 LLMAN_SDD_INDEX_OPENAI_API_HOST 也未设置,"ChatConfig::from_env() 执行",返回错误，提示用户配置 LLMAN_SDD_INDEX_CHAT_API_HOST，而不是回退到任何可路由地址
+  r12,"explicit-host-works",LLMAN_SDD_INDEX_CHAT_API_HOST 已设置为合法 URL,"ChatConfig::from_env() 执行",正常返回配置，host 使用用户提供的值

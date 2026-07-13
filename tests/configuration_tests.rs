@@ -1,5 +1,5 @@
 use llman::tool::command::CleanUselessCommentsArgs;
-use llman::tool::config::Config;
+use llman::tool::config::ToolConfig;
 use llman::tool::processor::CommentProcessor;
 mod common;
 use common::*;
@@ -12,7 +12,7 @@ fn test_config_default_values() {
     let _env = TestEnvironment::new();
 
     // Test default configuration loading
-    let config = Config::default();
+    let config = ToolConfig::default();
 
     assert_eq!(config.version, "0.1");
     assert!(config.tools.clean_useless_comments.is_some());
@@ -55,7 +55,7 @@ tools:
 
     env.create_config(config_content);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
 
     assert_eq!(config.version, "0.1");
     assert!(config.tools.clean_useless_comments.is_some());
@@ -102,7 +102,7 @@ tools:
 
     env.create_config(invalid_yaml);
 
-    let config_result = Config::load(env.path().join(".llman").join("config.yaml"));
+    let config_result = ToolConfig::load(env.path().join(".llman").join("config.yaml"));
     assert!(config_result.is_err(), "Should fail to load invalid YAML");
 }
 
@@ -122,7 +122,7 @@ tools:
 
     env.create_config(incomplete_config);
 
-    let config_result = Config::load(env.path().join(".llman").join("config.yaml"));
+    let config_result = ToolConfig::load(env.path().join(".llman").join("config.yaml"));
     // This might succeed with defaults or fail - depends on implementation
     // We just want to ensure it doesn't crash
     match config_result {
@@ -156,7 +156,7 @@ tools:
 
     env.create_config(config_with_invalid_types);
 
-    let config_result = Config::load(env.path().join(".llman").join("config.yaml"));
+    let config_result = ToolConfig::load(env.path().join(".llman").join("config.yaml"));
     // Should fail due to type mismatches
     assert!(config_result.is_err(), "Should fail due to type mismatches");
 }
@@ -183,7 +183,7 @@ tools:
 
     env.create_config(config_with_invalid_regex);
 
-    let config_result = Config::load(env.path().join(".llman").join("config.yaml"));
+    let config_result = ToolConfig::load(env.path().join(".llman").join("config.yaml"));
 
     // Config loading might succeed (regex validation might happen at runtime)
     match config_result {
@@ -248,7 +248,7 @@ tools:
 
     env.create_config(edge_case_config);
 
-    let config_result = Config::load(env.path().join(".llman").join("config.yaml"));
+    let config_result = ToolConfig::load(env.path().join(".llman").join("config.yaml"));
     assert!(config_result.is_ok(), "Should handle edge case values");
 
     let config = config_result.unwrap();
@@ -292,7 +292,7 @@ tools:
 
     env.create_config(unicode_config);
 
-    let config_result = Config::load(env.path().join(".llman").join("config.yaml"));
+    let config_result = ToolConfig::load(env.path().join(".llman").join("config.yaml"));
     assert!(
         config_result.is_ok(),
         "Should handle Unicode in configuration"
@@ -321,7 +321,7 @@ tools:
 fn test_config_file_not_found() {
     let env = TestEnvironment::new();
 
-    let config_result = Config::load(env.path().join("nonexistent_config.yaml"));
+    let config_result = ToolConfig::load(env.path().join("nonexistent_config.yaml"));
     assert!(
         config_result.is_err(),
         "Should fail to load non-existent config file"
@@ -344,7 +344,7 @@ tools:
 
     env.create_config(partial_config);
 
-    let config_result = Config::load(env.path().join(".llman").join("config.yaml"));
+    let config_result = ToolConfig::load(env.path().join(".llman").join("config.yaml"));
     // Check if it succeeds or fails gracefully - both are acceptable
     match config_result {
         Ok(config) => {
@@ -377,10 +377,10 @@ tools:
 
     env.create_config(config_content);
 
-    let _config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let _config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
 
     // Test schema generation
-    let schema_result = Config::generate_schema();
+    let schema_result = ToolConfig::generate_schema();
     assert!(schema_result.is_ok(), "Should generate valid JSON schema");
 
     let schema = schema_result.unwrap();
@@ -407,7 +407,7 @@ tools:
 
     env.create_config(config_with_env);
 
-    let config_result = Config::load(env.path().join(".llman").join("config.yaml"));
+    let config_result = ToolConfig::load(env.path().join(".llman").join("config.yaml"));
 
     // This test depends on whether environment substitution is implemented
     // If it is, the value should be 15; if not, it might fail or remain as string
@@ -453,7 +453,7 @@ tools:
 
     env.create_config(global_config);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let clean_config = config.tools.clean_useless_comments.unwrap();
 
     // Verify inheritance worked correctly
@@ -493,7 +493,7 @@ tools:
 
     env.create_config(valid_config);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
 
     // Test that config works with processor
     let args = CleanUselessCommentsArgs {
@@ -554,7 +554,7 @@ tools:
 
     env.create_config(typescript_config);
 
-    let config = Config::load(env.path().join(".llman").join("config.yaml")).unwrap();
+    let config = ToolConfig::load(env.path().join(".llman").join("config.yaml")).unwrap();
     let clean_config = config.tools.clean_useless_comments.unwrap();
 
     // TypeScript should use javascript rules

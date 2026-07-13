@@ -1,5 +1,5 @@
 use crate::tool::command::CleanUselessCommentsArgs;
-use crate::tool::config::Config;
+use crate::tool::config::ToolConfig;
 use crate::tool::processor::CommentProcessor;
 use anyhow::{Result, anyhow};
 use std::collections::HashSet;
@@ -10,7 +10,7 @@ pub fn run(args: &CleanUselessCommentsArgs) -> Result<()> {
     println!("{}", t!("tool.clean_comments.start"));
 
     // Load configuration with local-first priority
-    let config = Config::load_with_priority_or_default(args.config.as_deref())?;
+    let config = ToolConfig::load_with_priority_or_default(args.config.as_deref())?;
     let safety = config
         .get_clean_comments_config()
         .and_then(|clean_config| clean_config.safety.as_ref());

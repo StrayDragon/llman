@@ -1,0 +1,6 @@
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r8,SQLite 连接线程安全,"cursor export 打开 SQLite 数据库时 MUST 使用 `SQLITE_OPEN_FULL_MUTEX`（或线程安全的等价标志），MUST NOT 使用 `SQLITE_OPEN_NO_MUTEX`。当且仅当通过安全分析确认连接仅在单线程使用且未来不会跨线程时，可保留 `SQLITE_OPEN_NO_MUTEX` 但 MUST 添加代码注释说明理由与约束条件。",null,null,null
+op_scenarios[2]{req_id,id,given,when,then}:
+  r8,"full-mutex-used","cursor export 打开数据库","SQLite 连接创建",使用 FULL_MUTEX（或在注释中明确说明 NO_MUTEX 为单线程安全）
+  r8,"export-works","数据库可正常打开","cursor export 执行导出",功能正常，无退化
