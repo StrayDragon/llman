@@ -1,18 +1,25 @@
 kind: llman.sdd.spec
 name: cli
 purpose: "TBD - created by archiving change refactor-config-dir-guard. Update purpose after archive."
-valid_scope[3]: src/sdd/command.rs,src/cli.rs,"llmanspec/specs/cli/"
-requirements[7]{req_id,title,statement}:
+valid_scope[3]: src/sdd/command.rs,src/cli.rs,llmanspec/specs/cli/
+requirements[11]{req_id,title,statement}:
   r1,"Config dir guard only for global-config commands","System MUST only perform dev-project config directory validation for subcommands that require global configuration"
-  r2,Status Command,"System MUST provide a `status` subcommand that displays project overview including active changes count, pending validations, and specs count."
+  r2,Status Command,"System MUST provide a `status` subcommand accepting optional [TARGET] and optional `--format toon|json`. Default output MUST be pure TOON format (no markdown/mermaid mix). Output MUST show only incomplete tasks and pending ops and MUST include a `next` field as action guidance. `--json` MUST be accepted as shorthand for `--format json`. The old human-readable text output MUST be removed."
   r3,Unified Authoring Commands,"System MUST use consistent naming for spec and delta authoring commands (`add-req`, `remove-req`, `rename-req`)."
   r4,Project Subgroup,"System MUST group non-core commands (`import`, `migrate`, `upgrade-guide`) under `sdd project` subgroup."
   r5,Alias Backward Compatibility,System MUST provide deprecated aliases for renamed commands to maintain backward compatibility during migration period.
   r6,Archive Command Consistency,System MUST remove legacy positional argument pattern from `archive` command and require explicit subcommand.
   r7,Simplified Show Options,System MUST provide combined output options for `show` command to reduce option count.
-scenarios[9]{req_id,id,given,when,then}:
+  r8,Target Resolution,"`llman sdd status [TARGET]` MUST resolve TARGET in order: 1) exact match in `llmanspec/changes/` or `llmanspec/changes/archive/`; 2) date-prefix or fuzzy match that yields exactly ONE unique result; 3) multiple matches MUST output a summary `changes[]` table (same format as project-level) listing all candidates; 4) no match MUST error with nearest suggestions. Omitted TARGET shows project-level overview sorted by priority."
+  r9,TOON Output Format,"TOON output MUST use kind `llman.sdd.status`. Project-level: `counts{}` and `changes[]` table (name,stage,tasks,next). Single-change: `change{}` object and `tasks[]` table (id,title,test) with only incomplete tasks. Archived: `change{}` object (status=archived, archived date, commit) and `ops[]` table. All TOON output MUST end with a `next` field."
+  r10,Priority Sort,"Output MUST be sorted by priority. Priority extracted from `c<N>-` prefix in directory name. Falls back to alphabetical when no prefix."
+  r11,JSON Backward Compat,"`llman sdd status --format json / --json` MUST retain existing JSON format for project-level (activeChanges, draft/specified/designed/full, pendingValidation, specs). For single-change TARGET, JSON output SHOULD add change name, stage, task counts, and nextAction. For archived TARGET, JSON output SHOULD add change name, status, archived date, commit hash."
+scenarios[18]{req_id,id,given,when,then}:
   r1,"sdd-list-works","","user runs llman sdd list in llman project directory without --config-dir","command executes successfully without dev-project config error"
-  r2,status_json,project has 2 active changes and 5 specs,"user runs `llman sdd status --json`",system outputs JSON with active_changes=2 specs=5
+  r2,"status-no-arg-toon","",user runs `llman sdd status`,"output is TOON with kind llman.sdd.status, counts{}, changes[] sorted by priority, and next field"
+  r2,"status-change-name-toon","","user runs `llman sdd status feat-spec-agent-interface`","output is TOON with change{}, tasks[] (incomplete only), and next"
+  r2,"status-archive-unique","","user runs `llman sdd status 2026-05-25-add-validate-completeness-stages`","output is TOON with change{status=archived}, ops[], and next"
+  r2,"status-json-flag","status --json has same output as status --format json","user runs `llman sdd status --json`","output is JSON with same content as `--format json`"
   r3,add_req_alias,"","user runs `llman sdd spec add-req`",system executes the add requirement command
   r3,add_req_old_alias,"","user runs `llman sdd spec add-requirement`",system executes the add requirement command via alias
   r4,project_import,"",user runs `llman sdd project import`,system executes the import command
@@ -20,3 +27,9 @@ scenarios[9]{req_id,id,given,when,then}:
   r5,deprecated_alias_works,"",user runs `llman sdd import`,system shows deprecation warning and executes import
   r6,archive_requires_subcommand,"",user runs `llman sdd archive c1`,system returns error requiring `archive run c1`
   r7,combined_output_option,"","user runs `llman sdd show c1 --output json,deltas`",system outputs JSON with deltas only
+  r8,"status-fuzzy-match-unique","","user runs `llman sdd status harden` (only one match: 2026-07-13-harden-*)","output is single-change TOON with change{}+ops[]"
+  r8,"status-date-prefix-multiple","","user runs `llman sdd status 2026-07-13` (matches 3 archived changes)","output is summary TOON with changes[] listing all 3 matches"
+  r8,"status-no-match-error","",user runs `llman sdd status nonexistent`,"command errors with nearest-suggestion list"
+  r9,"status-only-incomplete-tasks","","user runs `llman sdd status feat-spec-agent-interface` (3/5 tasks done)","tasks[] contains only 2 incomplete tasks, not all 5"
+  r10,"priority-sort-cN-prefix","","user runs `llman sdd status` in project with `c2-foo` and `c1-bar`","TOON changes[] lists c1-bar first, then c2-foo"
+  r11,"status-json-single-change","","user runs `llman sdd status --format json feat-spec-agent-interface`","JSON output includes change name, stage, completedTasks, totalTasks, nextAction"

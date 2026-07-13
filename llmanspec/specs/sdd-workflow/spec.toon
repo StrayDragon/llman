@@ -2,7 +2,7 @@ kind: llman.sdd.spec
 name: "sdd-workflow"
 purpose: "Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmanspec/`."
 valid_scope[4]: src/sdd/,templates/sdd/,"scripts/check-sdd-templates.py","llmanspec/specs/sdd-workflow/"
-requirements[46]{req_id,title,statement}:
+requirements[49]{req_id,title,statement}:
   r1,SDD 初始化脚手架,"`llman sdd init [path]` 命令 MUST 在目标路径创建 `llmanspec/` 目录结构，包括 `llmanspec/AGENTS.md`、`llmanspec/project.md`、`llmanspec/config.yaml`、`llmanspec/specs/`、`llmanspec/changes/` 与 `llmanspec/changes/archive/`。命令 MUST 在 `llmanspec/config.yaml` 顶部写入 `yaml-language-server` schema 头注释，指向 `llmanspec-config` schema URL。命令 MUST 创建或刷新 repo 根目录下的 `AGENTS.md` 受管块以指向 `llmanspec/AGENTS.md`。当 `llmanspec/` 已存在时，命令 MUST 报错并且不修改任何文件。生成的 `llmanspec/AGENTS.md` MUST 包含 LLMANSPEC 受管提示块且包含完整 llman sdd 方法论说明。 初始化生成的 `llmansp"
   r2,SDD 指令与提示词刷新,"`llman sdd update [path]` MUST 刷新 `llmanspec/AGENTS.md` 的 LLMANSPEC 受管提示块，同时 MUST 保持 `llmanspec/specs/**` 与 `llmanspec/changes/**` 不被修改。命令 MUST 刷新 repo 根目录 `AGENTS.md` 的 LLMANSPEC 受管块并保留非受管内容。更新 `llmanspec/AGENTS.md` 时 MUST 仅替换 LLMANSPEC 受管提示块，并保留受管块以外的用户内容。更新时必须使用 `llmanspec/config.yaml` 的 locale 选择模板。"
   r3,SDD 本地化配置与模板加载,`llman sdd` MUST 使用项目级配置 `llmanspec/config.yaml` 解析 locale，并基于 `templates/sdd/<locale>/` 加载 `llmanspec/AGENTS.md`、`llmanspec/project.md` 与 sdd skills 内容。locale 仅影响模板与 skills 输出，不影响 CLI 文本。
@@ -49,7 +49,10 @@ requirements[46]{req_id,title,statement}:
   r45,分级校验消息,"`llman sdd validate` MUST 根据 strict/non-strict 模式输出不同级别的完整度消息：non-strict 模式下缺少可选 artifact 时 MUST 输出可见的 INFO 级阶段提示（即使整体校验通过，draft 等非 full 阶段的提示仍 MUST 被打印给用户）；strict 模式下未达到 designed 阶段 MUST 输出 WARN（由 INFO 升级）。校验输出 MUST 在所有阶段都包含当前阶段标识，且不得在 valid 时吞掉阶段提示。"
   r46,List 与 Show 阶段输出,`llman sdd list` MUST 在变更列表输出中包含 stage 列，显示每个变更的完整度阶段（draft/specified/designed/full）。JSON 输出 MUST 包含 `stage` 字段。`llman sdd show <id>` 在展示 change 时 MUST 输出当前阶段标识：非 JSON（文本）模式在标题后打印 stage 行；JSON 模式 MUST 包含 `stage`（draft/specified/designed/full）、`artifacts`（已存在的 artifact 文件名列表）与 `readyToImplement`（当且仅当 stage 为 full 时为 true）字段。`stage` MUST 由 artifacts 存在性隐式推断（与 validate 的 `determine_stage` 同源），不引入额外状态文件。
   r47,Spec valid_scope 必须精确到所属模块,每个主 spec 的 `valid_scope` MUST 列出该 capability 实际拥有的模块/路径（例如 `src/sdd/context/`、`src/x/codex/`），MUST NOT 仅使用过于宽泛的 `src/` 或 `tests/` 作为唯一范围（除非该 capability 确实是跨全局的伞形合约且已在 statement 中说明）。`valid_scope` 宜包含 `llmanspec/specs/<id>/` 以便合约自身变更可清除 staleness。
-scenarios[116]{req_id,id,given,when,then}:
+  r48,"Apply-Cycle Supplementary Skill","`llman sdd update-skills` MUST generate `llman-sdd-apply-cycle` with `disable-model-invocation: true`. Skill MUST NOT appear in `available_skills`. Agent MUST NOT auto-invoke it. Users trigger via `/skill:llman-sdd-apply-cycle`. MUST NOT generate Claude Code workflow commands. Existing `llman-sdd-apply/verify/archive` remain unchanged."
+  r49,"Apply-Cycle Single-Closed-Loop","`llman-sdd-apply-cycle` MUST: 1) `llman sdd status <change-id>` (TOON output) as sole input; 2) parse `tasks[]` for incomplete tasks; 3) implement code+tests per task; 4) run test command from `tasks[].test`; 5) `llman sdd validate --strict` after all tasks; 6) `llman sdd archive run` on pass; 7) git commit; 8) retry 3x before blocker; 9) NEVER ask `should I continue`; 10) NEVER switch change until current is done."
+  r50,Status as Agent Grip,"`llman sdd status` output (TOON format) is the primary agent-facing grip. Apply-cycle skill MUST use status as SSOT for task state, test commands, and next action. Future skills MAY adopt this pattern."
+scenarios[121]{req_id,id,given,when,then}:
   r1,初始化新项目,"",用户在不存在 `llmanspec/` 的目录执行 `llman sdd init`,必要的目录结构与模板文件被创建
   r1,初始化指定路径,"",用户执行 `llman sdd init <path>`,在 `<path>` 下创建 `llmanspec/` 结构与模板文件
   r1,初始化时生成提示块,"",`llman sdd init` 生成 `llmanspec/AGENTS.md`,"文件中包含 `<!-- LLMANSPEC:START -->` 与 `<!-- LLMANSPEC:END -->` 包裹的提示块"
@@ -166,3 +169,8 @@ scenarios[116]{req_id,id,given,when,then}:
   r46,"show-json-stage",变更目录存在且包含 proposal.md,"用户执行 `llman sdd show <id> --json --type change`",JSON 输出包含 stage、artifacts 与 readyToImplement 字段，且 readyToImplement 在 stage 非 full 时为 false
   r46,"show-text-stage",变更目录存在,用户执行 `llman sdd show <id>`（非 JSON）,输出包含当前阶段标识（draft/specified/designed/full）
   r47,"narrow-scope-example","capability `sdd-context` 仅实现于 `src/sdd/context/`",维护者设置该 spec 的 valid_scope,scope 包含 `src/sdd/context/`（及可选的 spec 自身目录），且不单独使用裸 `src/` 作为唯一条目
+  r48,"apply-cycle-has-disable-invocation","","user runs `llman sdd update-skills --all --no-interactive`","generated SKILL.md has frontmatter `disable-model-invocation: true`"
+  r48,"apply-cycle-not-in-available","","pi scans `.agents/skills/llman-sdd-apply-cycle/`",skill is NOT in `available_skills`
+  r48,"apply-cycle-not-in-claude-commands","","user runs `llman sdd update-skills --tool claude`",".claude/commands/ lacks `llman-sdd-apply-cycle.md`"
+  r49,"apply-cycle-parses-status-toon","","user triggers `/skill:llman-sdd-apply-cycle <id>`","skill runs `llman sdd status <id>` and parses TOON `tasks[]` for incomplete tasks"
+  r50,"status-as-grip-pattern","",a future skill uses `llman sdd status` as input,"it follows same pattern: one status TOON replaces multiple file reads"
