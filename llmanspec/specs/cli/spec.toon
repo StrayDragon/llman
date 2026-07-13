@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: cli
 purpose: "TBD - created by archiving change refactor-config-dir-guard. Update purpose after archive."
-valid_scope[2]: src/,tests/
+valid_scope[3]: src/sdd/command.rs,src/cli.rs,"llmanspec/specs/cli/"
 requirements[7]{req_id,title,statement}:
   r1,"Config dir guard only for global-config commands","System MUST only perform dev-project config directory validation for subcommands that require global configuration"
   r2,Status Command,"System MUST provide a `status` subcommand that displays project overview including active changes count, pending validations, and specs count."

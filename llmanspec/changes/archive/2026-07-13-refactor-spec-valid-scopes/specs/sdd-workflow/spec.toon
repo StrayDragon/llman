@@ -1,0 +1,5 @@
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r47,Spec valid_scope 必须精确到所属模块,"每个主 spec 的 `valid_scope` MUST 列出该 capability 实际拥有的模块/路径（例如 `src/sdd/context/`、`src/x/codex/`），MUST NOT 仅使用过于宽泛的 `src/` 或 `tests/` 作为唯一范围（除非该 capability 确实是跨全局的伞形合约且已在 statement 中说明）。`valid_scope` 宜包含 `llmanspec/specs/<id>/` 以便合约自身变更可清除 staleness。",null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  r47,narrow-scope-example,"capability `sdd-context` 仅实现于 `src/sdd/context/`","维护者设置该 spec 的 valid_scope","scope 包含 `src/sdd/context/`（及可选的 spec 自身目录），且不单独使用裸 `src/` 作为唯一条目"

@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "cursor-claude-ignore-sync"
 purpose: "TBD - created by archiving change add-sync-ignore-tool. Update Purpose after archive."
-valid_scope[2]: src/,tests/
+valid_scope[5]: src/tool/sync_ignore.rs,src/tool/command.rs,src/x/cursor/command.rs,src/x/claude_code/command.rs,"llmanspec/specs/cursor-claude-ignore-sync/"
 requirements[6]{req_id,title,statement}:
   r1,统一解析与 union 同步,"系统 MUST 提供 `llman tool sync-ignore` 命令，用于在项目内对以下 ignore 配置进行统一解析，并以 union（并集）方式同步到选定 targets： - OpenCode：`.ignore` - Cursor：`.cursorignore` - Claude Code：`.claude/settings.json`、`.claude/settings.local.json`（仅处理 `permissions.deny` 的 `Read(...)`）"
   r2,`.ignore` / `.cursorignore` 的 include（`!pattern`）解析,"系统 MUST 支持解析 gitignore 风格的 include 规则，并写回到 gitignore-like 文件中。"

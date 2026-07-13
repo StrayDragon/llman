@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "cursor-export"
 purpose: "Describe Cursor export selection and output behavior (interactive and non-interactive)."
-valid_scope[2]: src/,tests/
+valid_scope[4]: src/x/cursor/command.rs,src/x/cursor/database.rs,src/x/cursor/models.rs,"llmanspec/specs/cursor-export/"
 requirements[7]{req_id,title,statement}:
   r1,"Non-interactive database selection order","Non-interactive cursor export MUST honor `db_path` first, then `workspace_dir` resolution, then auto-discovery when neither is provided. Auto-discovery selects the latest workspace database, preferring a database that contains chat/composer data."
   r2,"Non-interactive selection defaults","When `composer_id` is provided, the export MUST target only that composer conversation; otherwise it MUST export all conversations from the resolved database."

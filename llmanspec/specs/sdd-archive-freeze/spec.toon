@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "sdd-archive-freeze"
 purpose: "TBD - created by archiving change upgrade-sdd-archive-freeze-and-structured-prompts. Update Purpose after archive."
-valid_scope[2]: src/,tests/
+valid_scope[5]: src/sdd/change/freeze.rs,src/sdd/command.rs,templates/sdd/en/units/workflow/archive-freeze-guidance.md,templates/sdd/zh-Hans/units/workflow/archive-freeze-guidance.md,"llmanspec/specs/sdd-archive-freeze/"
 requirements[3]{req_id,title,statement}:
   r1,SDD 单文件归档冻结,"`llman sdd archive freeze` MUST 将 `llmanspec/changes/archive/` 下符合规则的日期归档目录（`YYYY-MM-DD-*`）写入同一个冷备归档文件。 - 冷备文件路径 MUST 为 `llmanspec/changes/archive/freezed_changes.7z.archived` - 命令每次执行 MUST 复用同一路径，不得为每次冻结创建独立归档文件 - 冻结完成后，被纳入本次冻结的源目录 MUST 从 `archive/` 下移除"
   r2,SDD 从单文件归档解冻,"`llman sdd archive thaw` MUST 从 `freezed_changes.7z.archived` 恢复归档目录，支持全量恢复和按 change 选择恢复。 - 默认恢复目录 MUST 为 `llmanspec/changes/archive/.thawed/` - 支持 `--change <id>` 选择性恢复 - 支持 `--dest <path>` 覆盖默认恢复目录"

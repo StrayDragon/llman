@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "config-schemas"
 purpose: "TBD - created by archiving change add-config-schemas. Update Purpose after archive."
-valid_scope[2]: src/,tests/
+valid_scope[5]: src/config_schema.rs,src/self_command.rs,"artifacts/schema/",justfile,"llmanspec/specs/config-schemas/"
 requirements[8]{req_id,title,statement}:
   r1,生成 llman 配置 JSON schema,"系统 MUST 生成配置的 JSON schema，并写入以下路径： - `artifacts/schema/configs/en/llman-config.schema.json`（全局配置） - `artifacts/schema/configs/en/llman-project-config.schema.json`（项目配置） - `artifacts/schema/configs/en/llmanspec-config.schema.json`（llmanspec/config.yaml） - `artifacts/schema/playbooks/en/llman-sdd-eval.schema.json`（`llman x sdd-eval` playbook） `llman x sdd-eval` playbook schema MUST be publishable at the URL: - `https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/playbooks/en/"
   r2,YAML LSP schema 头注释,"系统 MUST 支持以 `# yaml-language-server: $schema=...` 形式为 YAML 配置写入 schema 头注释，并确保该注释位于文件顶部（在 `---` 之前）。 `llman self schema apply` MUST： - 为全局配置写入 `llman-config` schema URL - 为项目配置写入 `llman-project-config` schema URL - 为 llmanspec 配置写入 `llmanspec-config` schema URL - 仅修改/修复头注释，不改写其他内容"

@@ -1,7 +1,7 @@
 kind: llman.sdd.spec
 name: "sdd-multi-style-formats"
 purpose: "TBD - created by archiving change support-multi-style-sdd-specs. Update Purpose after archive."
-valid_scope[2]: src/,tests/
+valid_scope[6]: "src/sdd/spec/",src/sdd/project/config.rs,src/sdd/project/migrate.rs,src/sdd/project/init.rs,src/sdd/command.rs,"llmanspec/specs/sdd-multi-style-formats/"
 requirements[5]{req_id,title,statement}:
   r1,项目必须显式声明唯一的 SDD 主风格,"`llmanspec/config.yaml` MUST 显式声明 `spec_style`，且值 MUST 仅允许 `ison`、`toon`、`yaml` 三者之一。 `llman sdd init` MUST 为新项目写入显式值 `spec_style: ison`。任何读取或改写以下文件的 `llman sdd` 命令： - `llmanspec/specs/<capability>/spec.md` - `llmanspec/changes/<change>/specs/<capability>/spec.md` 都 MUST 先读取 `spec_style`。若该字段缺失、为空或不是受支持值，命令 MUST 失败，并明确提示用户先在 `llmanspec/config.yaml` 中设置主风格。"
   r2,主 spec 与 delta spec 必须严格匹配项目主风格,"一旦项目声明了 `spec_style`，仓库中的主 spec 与 delta spec MUST 全部使用该风格的 canonical payload，而 MUST NOT 混入其他风格。 风格与 fenced payload 的对应关系 MUST 为： - `ison` → ` ```ison ` - `toon` → ` ```toon ` - `yaml` → ` ```yaml ` 当项目声明主风格后，运行时 MUST NOT 自动探测、猜测或兼容其他风格。若文件缺少期望 fence、出现了其他风格 fence、或 payload 结构不属于配置风格，命令 MUST 失败，并同时指出“期望风格”和“实际内容/实际 fence”。"
