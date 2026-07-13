@@ -1,3 +1,4 @@
+use crate::env_safety::{find_dangerous_env_keys, is_valid_env_key};
 use crate::x::claude_code::config::ConfigGroup;
 use anyhow::{Result, bail};
 use rust_i18n::t;
@@ -56,23 +57,28 @@ pub fn render_env_injection_lines(group: &ConfigGroup, syntax: EnvSyntax) -> Res
     Ok(lines)
 }
 
-fn is_valid_env_key(key: &str) -> bool {
-    let mut chars = key.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-
-    if !(first.is_ascii_alphabetic() || first == '_') {
-        return false;
+pub fn prepare_env_injection(group: &ConfigGroup) -> Result<()> {
+    let mut invalid_keys: Vec<&str> = group
+        .keys()
+        .filter(|key| !is_valid_env_key(key))
+        .map(String::as_str)
+        .collect();
+    invalid_keys.sort_unstable();
+    if !invalid_keys.is_empty() {
+        bail!(t!(
+            "claude_code.account.env_invalid_keys",
+            keys = invalid_keys.join(", ")
+        ));
     }
 
-    for ch in chars {
-        if !(ch.is_ascii_alphanumeric() || ch == '_') {
-            return false;
-        }
+    let dangerous = find_dangerous_env_keys(group.keys().map(String::as_str));
+    if !dangerous.is_empty() {
+        bail!(t!(
+            "claude_code.account.env_dangerous_keys",
+            keys = dangerous.join(", ")
+        ));
     }
-
-    true
+    Ok(())
 }
 
 fn quote_posix_single(value: &str) -> String {
@@ -136,6 +142,16 @@ mod tests {
             render_env_injection_lines(&group, EnvSyntax::PosixExport).expect_err("should fail");
         assert!(
             err.to_string().contains("Invalid environment variable key"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn prepare_env_injection_rejects_dangerous_keys() {
+        let group: ConfigGroup = HashMap::from([("LD_PRELOAD".to_string(), "/tmp/x".to_string())]);
+        let err = prepare_env_injection(&group).expect_err("should fail");
+        assert!(
+            err.to_string().contains("dangerous"),
             "unexpected error: {err}"
         );
     }

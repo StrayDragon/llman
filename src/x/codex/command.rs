@@ -232,7 +232,15 @@ fn activate_and_exec(config: &Config, provider_key: &str, args: &[String]) -> Re
 
     println!("{}", t!("codex.run.using_config", name = provider_key));
 
-    // Execute codex with injected env vars
+    let dangerous =
+        crate::env_safety::find_dangerous_env_keys(provider.env.keys().map(String::as_str));
+    if !dangerous.is_empty() {
+        bail!(t!(
+            "codex.error.env_dangerous_keys",
+            keys = dangerous.join(", ")
+        ));
+    }
+
     let mut cmd = Command::new("codex");
     for (key, value) in &provider.env {
         cmd.env(key, value);

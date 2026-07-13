@@ -1,3 +1,4 @@
+use crate::env_safety::validate_user_git_ref;
 use crate::sdd::spec::validation::{SpecFrontmatter, ValidationIssue, ValidationLevel};
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -63,6 +64,7 @@ impl StalenessInfo {
 pub struct StalenessEvaluator {
     root: PathBuf,
     base_ref: Option<String>,
+    base_ref_invalid: Option<String>,
     merge_base: Option<Result<String, String>>,
     diff_paths: Option<Result<Vec<String>, String>>,
     dirty: Result<bool, String>,
@@ -71,21 +73,33 @@ pub struct StalenessEvaluator {
 impl StalenessEvaluator {
     pub fn new(root: &Path) -> Self {
         let root = root.to_path_buf();
-        let base_ref = resolve_base_ref(&root);
-        let merge_base = base_ref
-            .as_deref()
-            .map(|reference| resolve_merge_base(&root, reference));
-        let diff_paths = match merge_base.as_ref() {
-            Some(Ok(base)) => Some(git_diff_names(&root, base)),
-            _ => None,
-        };
         let dirty = git_status_dirty(&root);
-        Self {
-            root,
-            base_ref,
-            merge_base,
-            diff_paths,
-            dirty,
+        match resolve_base_ref(&root) {
+            Ok(base_ref) => {
+                let merge_base = base_ref
+                    .as_deref()
+                    .map(|reference| resolve_merge_base(&root, reference));
+                let diff_paths = match merge_base.as_ref() {
+                    Some(Ok(base)) => Some(git_diff_names(&root, base)),
+                    _ => None,
+                };
+                Self {
+                    root,
+                    base_ref,
+                    base_ref_invalid: None,
+                    merge_base,
+                    diff_paths,
+                    dirty,
+                }
+            }
+            Err(err) => Self {
+                root,
+                base_ref: None,
+                base_ref_invalid: Some(err),
+                merge_base: None,
+                diff_paths: None,
+                dirty,
+            },
         }
     }
 
@@ -99,6 +113,30 @@ impl StalenessEvaluator {
         let mut issues = Vec::new();
         let mut notes = Vec::new();
         let mut status = StalenessStatus::Ok;
+
+        if let Some(msg) = &self.base_ref_invalid {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: format!("{spec_id}/staleness"),
+                message: msg.clone(),
+            });
+            notes.push(msg.clone());
+            let dirty = self.dirty.clone().unwrap_or(true);
+            return StalenessResult {
+                info: StalenessInfo {
+                    status: StalenessStatus::Warn,
+                    base_ref: None,
+                    scope: frontmatter
+                        .map(|fm| normalize_scope_list(&fm.valid_scope))
+                        .unwrap_or_default(),
+                    touched_paths: Vec::new(),
+                    spec_updated: false,
+                    dirty,
+                    notes,
+                },
+                issues,
+            };
+        }
 
         let scope = frontmatter
             .map(|fm| normalize_scope_list(&fm.valid_scope))
@@ -261,32 +299,39 @@ pub fn evaluate_staleness_with_override(
     StalenessEvaluator::new(root).evaluate(spec_id, spec_path, frontmatter, spec_updated_override)
 }
 
-fn resolve_base_ref(root: &Path) -> Option<String> {
+fn resolve_base_ref(root: &Path) -> Result<Option<String>, String> {
     let env_ref = env::var("LLMANSPEC_BASE_REF")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
     if let Some(env_ref) = env_ref {
-        return Some(env_ref);
+        validate_user_git_ref(&env_ref).map_err(|_| {
+            t!(
+                "sdd.validate.staleness_base_ref_invalid",
+                value = env_ref.clone()
+            )
+            .to_string()
+        })?;
+        return Ok(Some(env_ref));
     }
     if git_ref_exists(root, "origin/main") {
-        return Some("origin/main".to_string());
+        return Ok(Some("origin/main".to_string()));
     }
     if git_ref_exists(root, "origin/master") {
-        return Some("origin/master".to_string());
+        return Ok(Some("origin/master".to_string()));
     }
     if git_ref_exists(root, "main") {
-        return Some("main".to_string());
+        return Ok(Some("main".to_string()));
     }
     if git_ref_exists(root, "master") {
-        return Some("master".to_string());
+        return Ok(Some("master".to_string()));
     }
-    None
+    Ok(None)
 }
 
 fn git_ref_exists(root: &Path, reference: &str) -> bool {
     Command::new("git")
-        .args(["rev-parse", "--verify", "--quiet", reference])
+        .args(["rev-parse", "--verify", "--quiet", "--", reference])
         .current_dir(root)
         .output()
         .map(|output| output.status.success())
@@ -294,11 +339,14 @@ fn git_ref_exists(root: &Path, reference: &str) -> bool {
 }
 
 fn resolve_merge_base(root: &Path, reference: &str) -> Result<String, String> {
-    run_git(root, &["merge-base", reference, "HEAD"])
+    run_git(root, &["merge-base", "--", reference, "HEAD"])
 }
 
 fn git_diff_names(root: &Path, base: &str) -> Result<Vec<String>, String> {
-    let output = run_git(root, &["diff", "--name-only", &format!("{base}..HEAD")])?;
+    let output = run_git(
+        root,
+        &["diff", "--name-only", "--", &format!("{base}..HEAD")],
+    )?;
     let mut paths = BTreeSet::new();
     for line in output.lines() {
         let trimmed = line.trim();
@@ -377,5 +425,30 @@ mod tests {
         assert!(scope_matches("src/sub/file.rs", &scope));
         assert!(scope_matches("README.md", &scope));
         assert!(!scope_matches("docs/readme.md", &scope));
+    }
+
+    #[test]
+    fn invalid_llmanspec_base_ref_is_error_without_git() {
+        let mut proc = crate::test_utils::TestProcess::new();
+        proc.set_var("LLMANSPEC_BASE_REF", "-c");
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        let result = StalenessEvaluator::new(root).evaluate(
+            "sample",
+            &root.join("llmanspec/specs/sample/spec.toon"),
+            None,
+            None,
+        );
+        assert!(
+            result
+                .issues
+                .iter()
+                .any(|i| i.level == ValidationLevel::Error
+                    && i.message.contains("LLMANSPEC_BASE_REF")),
+            "expected invalid base-ref error, got {:?}",
+            result.issues
+        );
+        assert!(result.info.base_ref.is_none());
     }
 }
