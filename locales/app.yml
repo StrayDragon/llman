@@ -1561,6 +1561,8 @@ codex:
       en: "Failed to execute codex"
     env_dangerous_keys:
       en: "Refused dangerous environment variable key(s): %{keys}"
+    env_invalid_keys:
+      en: "Invalid environment variable key(s): %{keys}"
     select_group_failed:
       en: "Failed to select group"
     no_configuration_selected:

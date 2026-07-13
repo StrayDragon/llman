@@ -3,7 +3,7 @@
 ## 1. Specs / proposal
 
 - [x] 创建 proposal / design / delta specs（sdd-workflow、codex-account-management、claude-code-runner）
-- [x] `llman sdd validate harden-git-ref-and-env-injection --no-interactive`（deltas/structure OK；`--strict` 会因 pending tasks 报 ERROR，属预期）
+- [x] `llman sdd validate harden-git-ref-and-env-injection --strict --no-interactive`
 
 ## 2. Git base-ref hardening
 
