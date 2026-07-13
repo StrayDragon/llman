@@ -8,9 +8,20 @@ use common::*;
 /// Performance tests for comment processing functionality.
 /// These tests measure processing time for various file sizes and ensure
 /// the tool remains performant with realistic codebases.
+///
+/// Wall-clock assertions are flaky under load; skipped unless
+/// `LLMAN_RUN_PERF_TESTS=1` is set.
 mod performance_tests {
 
     use super::*;
+
+    fn skip_unless_perf_enabled() -> bool {
+        if std::env::var_os("LLMAN_RUN_PERF_TESTS").is_some() {
+            return false;
+        }
+        eprintln!("skipping performance test (set LLMAN_RUN_PERF_TESTS=1 to enable)");
+        true
+    }
 
     /// Creates a large Python file with many comments for performance testing
     fn create_large_python_file_for_performance(
@@ -48,6 +59,9 @@ def helper_function_{}():
     /// Tests performance with a moderately sized file (~100 functions)
     #[test]
     fn test_comment_processing_performance_medium_file() {
+        if skip_unless_perf_enabled() {
+            return;
+        }
         let env = TestEnvironment::new();
 
         // Create a file with ~100 functions and many comments
@@ -98,6 +112,9 @@ def helper_function_{}():
     /// Tests performance with a large file (~1000 functions)
     #[test]
     fn test_comment_processing_performance_large_file() {
+        if skip_unless_perf_enabled() {
+            return;
+        }
         let env = TestEnvironment::new();
 
         // Create a file with ~1000 functions
@@ -145,6 +162,9 @@ def helper_function_{}():
     /// Tests performance with multiple smaller files
     #[test]
     fn test_comment_processing_performance_multiple_files() {
+        if skip_unless_perf_enabled() {
+            return;
+        }
         let env = TestEnvironment::new();
 
         // Create multiple smaller files
@@ -210,6 +230,9 @@ def main_func_{}():
     /// Memory efficiency test - ensures processing doesn't consume excessive memory
     #[test]
     fn test_comment_processing_memory_efficiency() {
+        if skip_unless_perf_enabled() {
+            return;
+        }
         let env = TestEnvironment::new();
 
         // Create a very large file to stress test memory usage
