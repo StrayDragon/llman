@@ -184,6 +184,16 @@ impl Config {
     }
 }
 
+const SENSITIVE_KEY_MARKERS: &[&str] =
+    &["KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL"];
+
+pub fn is_sensitive_env_key(key: &str) -> bool {
+    let upper = key.to_ascii_uppercase();
+    SENSITIVE_KEY_MARKERS
+        .iter()
+        .any(|marker| upper.contains(marker))
+}
+
 // Utility function for display formatting
 pub fn get_display_vars(group: &ConfigGroup) -> Vec<(String, String)> {
     let mut vars: Vec<_> = group.iter().collect();
@@ -192,7 +202,7 @@ pub fn get_display_vars(group: &ConfigGroup) -> Vec<(String, String)> {
         .map(|(k, v)| {
             (
                 k.clone(),
-                if k.contains("KEY") || k.contains("TOKEN") || k.contains("SECRET") {
+                if is_sensitive_env_key(k) {
                     mask_secret(v)
                 } else {
                     v.clone()
@@ -263,4 +273,51 @@ fn convert_env_map(env_map: serde_json::Map<String, Value>) -> ConfigGroup {
     }
 
     config_group
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn is_sensitive_env_key_covers_required_markers() {
+        for key in [
+            "API_KEY",
+            "auth_token",
+            "clientSecret",
+            "DB_PASSWORD",
+            "db_passwd",
+            "oauth_credential",
+            "MyPaSsWoRd",
+        ] {
+            assert!(is_sensitive_env_key(key), "{key} should be sensitive");
+        }
+        assert!(!is_sensitive_env_key("ANTHROPIC_BASE_URL"));
+        assert!(!is_sensitive_env_key("MODEL"));
+    }
+
+    #[test]
+    fn get_display_vars_masks_password_values() {
+        let mut group = HashMap::new();
+        group.insert("DB_PASSWORD".to_string(), "super-secret-value".to_string());
+        group.insert(
+            "ANTHROPIC_BASE_URL".to_string(),
+            "https://example.com".to_string(),
+        );
+
+        let display = get_display_vars(&group);
+        let password = display
+            .iter()
+            .find(|(k, _)| k == "DB_PASSWORD")
+            .expect("password key");
+        assert!(!password.1.contains("super-secret-value"));
+        assert_ne!(password.1, "super-secret-value");
+
+        let url = display
+            .iter()
+            .find(|(k, _)| k == "ANTHROPIC_BASE_URL")
+            .expect("url key");
+        assert_eq!(url.1, "https://example.com");
+    }
 }

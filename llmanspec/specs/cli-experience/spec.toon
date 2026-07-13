@@ -2,7 +2,7 @@ kind: llman.sdd.spec
 name: "cli-experience"
 purpose: "Describe llman CLI messaging, localization coverage, and stdout/stderr conventions."
 valid_scope[5]: src/self_command.rs,src/lib.rs,src/main.rs,locales/app.yml,"llmanspec/specs/cli-experience/"
-requirements[10]{req_id,title,statement}:
+requirements[11]{req_id,title,statement}:
   r1,Localized runtime messaging with documented exceptions,"Runtime prompts, status lines, and errors MUST use `t!` keys from `locales/app.yml` when a suitable key exists. When no localization key exists, commands MAY emit inline strings (for example: task count labels, on/off markers, separators, or generated export content)."
   r2,Locale is fixed to English,The CLI MUST set the locale to English at startup and use the `locales/app.yml` bundle.
   r3,Consistent stdout/stderr usage,"Normal command output and interactive prompts MUST go to stdout. Errors SHOULD be written to stderr; non-fatal notices MAY still use stdout."
@@ -13,7 +13,8 @@ requirements[10]{req_id,title,statement}:
   r8,Explicit confirmation for rc writes,"completion install MUST 在修改 shell rc/profile 文件前提示确认，且当用户拒绝时 MUST 不写入。若处于非交互环境，命令 MUST 拒绝写入并返回错误，除非显式提供 `--yes`；当提供 `--yes` 时 MUST 直接执行写入且不出现交互提示。"
   r9,Idempotent install block,The completion install MUST not create duplicate blocks and MUST update an existing block in place when present.
   r10,Unsupported shell handling,"The CLI MUST reject unsupported shell values with a non-zero exit code and show the supported shell list."
-scenarios[14]{req_id,id,given,when,then}:
+  r11,PowerShell completion 写入目标必须位于 home 下,当 `llman self completion` 为 PowerShell 解析写入目标时，若使用环境变量 `PROFILE`，其解析后的绝对路径 MUST 位于用户 home 目录之下（或即 home 本身）。若 `PROFILE` 指向 home 之外的路径，命令 MUST 失败且 MUST NOT 写入该文件。当 `PROFILE` 未设置时，默认路径 MUST 仍为 home 下的 PowerShell profile 路径。
+scenarios[15]{req_id,id,given,when,then}:
   r1,"localized-prompt-with-inline-formatting","",a command prompts the user or prints a status header,"the primary message text is resolved from `locales/app.yml` and any inline markers (emoji, bullets, separators) are embedded as literals"
   r1,"inline-only-content","",a command outputs generated content (such as exported markdown or file name labels),"the generated content may include hard-coded text that is not localized"
   r2,"cli-startup","",the CLI launches,the runtime locale is set to `en` and localization keys resolve against `locales/app.yml`
@@ -28,3 +29,4 @@ scenarios[14]{req_id,id,given,when,then}:
   r8,"非交互-install-提供-yes","","命令在非交互环境运行，且包含 `--install --yes`",completion block 被安装/更新，且命令成功退出
   r9,"existing-block","",the shell rc/profile file already contains a marked llman completion block,the block is replaced with the latest snippet and no duplicate block is added
   r10,"unsupported-shell-value","","a user passes `--shell tcsh`",the CLI reports the supported shells and exits with failure
+  r11,"reject-external-profile",PROFILE=/tmp/evil.ps1 且该路径不在用户 home 下,"用户运行 `llman self completion --shell powershell --yes`",命令失败并拒绝写入，文件系统中 `/tmp/evil.ps1` 未被 llman 写入 completion 块
