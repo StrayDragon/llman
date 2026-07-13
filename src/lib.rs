@@ -10,6 +10,7 @@ pub mod cli;
 pub mod config;
 pub mod config_schema;
 pub mod editor;
+pub mod env_safety;
 pub mod error;
 pub(crate) mod fs_utils;
 pub mod managed_block;

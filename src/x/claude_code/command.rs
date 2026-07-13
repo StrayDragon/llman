@@ -5,7 +5,7 @@ use crate::path_utils::safe_parent_for_creation;
 use crate::tool::command::{SyncIgnoreArgs as ToolSyncIgnoreArgs, SyncIgnoreTarget};
 use crate::x::claude_code::config::{Config, ConfigGroup};
 use crate::x::claude_code::env_injection::{
-    EnvSyntax, env_syntax_for_current_platform, render_env_injection_lines,
+    EnvSyntax, env_syntax_for_current_platform, prepare_env_injection, render_env_injection_lines,
 };
 use crate::x::claude_code::interactive;
 use crate::x::claude_code::prompts::ClaudeCodePromptsArgs;
@@ -224,7 +224,7 @@ fn handle_main_command(args: &[String]) -> Result<()> {
 
         // Execute claude command with all environment variables set
         let mut cmd = Command::new("claude");
-        inject_env_vars(&mut cmd, group);
+        inject_env_vars(&mut cmd, group)?;
         for arg in args {
             cmd.arg(arg);
         }
@@ -380,7 +380,7 @@ fn handle_use_group(config: &Config, name: &str, args: Vec<String>) -> Result<()
 
         // Execute claude command with all environment variables set
         let mut cmd = Command::new("claude");
-        inject_env_vars(&mut cmd, group);
+        inject_env_vars(&mut cmd, group)?;
 
         // Add any additional arguments
         for arg in args {
@@ -481,7 +481,7 @@ fn handle_run_command(
         }
 
         let mut cmd = Command::new("claude");
-        inject_env_vars(&mut cmd, env_vars);
+        inject_env_vars(&mut cmd, env_vars)?;
 
         // 添加传递的参数
         for arg in claude_args {
@@ -622,8 +622,10 @@ fn print_security_warnings(warnings: &[SecurityWarning]) {
 }
 
 /// Inject environment variables from a config group into a Command
-fn inject_env_vars(cmd: &mut Command, group: &ConfigGroup) {
+fn inject_env_vars(cmd: &mut Command, group: &ConfigGroup) -> Result<()> {
+    prepare_env_injection(group)?;
     for (key, value) in group {
         cmd.env(key, value);
     }
+    Ok(())
 }

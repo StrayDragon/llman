@@ -1239,6 +1239,9 @@ claude_code:
     env_invalid_keys:
       en: "Invalid environment variable key(s): %{keys}"
 
+    env_dangerous_keys:
+      en: "Refused dangerous environment variable key(s): %{keys}"
+
   migrate:
     import_failed:
       en: "Failed to import from klaudes"
@@ -1556,6 +1559,8 @@ codex:
       en: "Editor exited with status: %{status}"
     execute_failed:
       en: "Failed to execute codex"
+    env_dangerous_keys:
+      en: "Refused dangerous environment variable key(s): %{keys}"
     select_group_failed:
       en: "Failed to select group"
     no_configuration_selected:
@@ -1882,6 +1887,8 @@ sdd:
       en: "Spec validation scope is missing."
     staleness_base_missing:
       en: "Unable to resolve base ref for staleness check."
+    staleness_base_ref_invalid:
+      en: "Invalid LLMANSPEC_BASE_REF %{value}: must be non-empty and must not start with '-'."
     staleness_stale:
       en: "Spec may be stale; scope changed without spec update."
     staleness_git_failed:
