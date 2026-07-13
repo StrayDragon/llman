@@ -1,0 +1,5 @@
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  modify_requirement,r15,Spec 过期（staleness）校验,"`llman sdd validate` MUST 对 specs 进行 staleness 评估： - 基准 MUST 使用 `git merge-base <base-ref> HEAD`，`<base-ref>` 默认 `origin/main`，不存在时回退 `origin/master`，并允许通过 `LLMANSPEC_BASE_REF` 覆盖。 - 当 `LLMANSPEC_BASE_REF` 被设置时，其值 MUST 通过安全校验：不得为空、不得以 `-` 开头，且 MUST 作为独立 git 参数传递（argv 中在 `--` 之后或等价隔离），以防止 option injection。校验失败时 MUST 报错且 MUST NOT 执行依赖该 ref 的 git 调用。 - 校验范围 MUST 使用 `git diff --name-only <base>..HEAD` 获取变更路径，并与 `llman_spec_valid_scope` 匹配。 - 若变更触及范围且对应 spec 未在 `<base>..HEAD` 中更新，则 MUST 标记为 `STALE`。 - 若 spec 更新但范围未触及，则 MUST 记录为 `INFO`。 - 若 Git 无法解析 base（如无 remote / 无 merge-base），则 MUST 记录 `WARN` 并跳过 staleness 评估；`--strict` MUST 将 `WARN` 升级为错误。",null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  r15,"reject-option-like-base-ref","LLMANSPEC_BASE_REF=-c","用户运行 `llman sdd validate --strict`","命令失败并报告非法 base ref，且未将 `-c` 作为 git option 执行"

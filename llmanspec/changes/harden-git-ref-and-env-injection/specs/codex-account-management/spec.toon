@@ -1,0 +1,5 @@
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  modify_requirement,r3,环境变量注入执行,"切换组时，系统 MUST 将 `[model_providers.<name>.env]` 中的键值对作为环境变量注入 codex 子进程，但 MUST NOT 注入危险键（至少包括 `LD_PRELOAD`、`LD_LIBRARY_PATH`、`DYLD_*`、`PATH`、以及同名大小写变体）。被拒绝的键 MUST 导致命令失败并报告原因，且 MUST NOT 启动子进程。允许注入的键 MUST 仍通过既有键名语法校验。",null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  r3,reject-ld-preload,"所选组 env 含 `LD_PRELOAD=/tmp/evil.so`","用户切换到该组并触发 codex 子进程启动","命令失败，报告危险环境变量被拒绝，且未启动 codex"
