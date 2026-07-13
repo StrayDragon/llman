@@ -27,7 +27,7 @@ pub struct CodexAgentsArgs {
     #[arg(long = "managed-dir", global = true)]
     pub managed_dir: Option<PathBuf>,
 
-    /// Override Codex home directory (uses <codex-home>/agents unless --agents-dir is set)
+    /// Override Codex home directory (uses `codex-home`/agents unless --agents-dir is set)
     #[arg(long = "codex-home", global = true)]
     pub codex_home: Option<PathBuf>,
 
@@ -35,7 +35,7 @@ pub struct CodexAgentsArgs {
     #[arg(long = "agents-dir", global = true)]
     pub agents_dir: Option<PathBuf>,
 
-    /// Only apply to selected agent names (repeatable; matches <name>.toml)
+    /// Only apply to selected agent names (repeatable; matches `name`.toml)
     #[arg(long, value_delimiter = ',', action = clap::ArgAction::Append, global = true)]
     pub only: Vec<String>,
 

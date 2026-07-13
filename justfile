@@ -33,9 +33,9 @@ clean:
 # 测试命令
 # =============================================================================
 
-# 运行测试
+# 运行测试（优先 cargo-nextest 并发；未安装则回退 cargo test）
 test:
-    cargo test
+    if command -v cargo-nextest >/dev/null; then cargo nextest run --profile ci; else cargo test; fi
 
 # =============================================================================
 # 代码质量检查
@@ -57,9 +57,9 @@ lint:
 check-compile:
     cargo check --all-targets
 
-# 文档检查
+# 文档检查（rustdoc warnings 视为错误）
 doc-check:
-    cargo doc --no-deps --all-features --document-private-items
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features --document-private-items
 
 # 核心检查（格式化检查 + lint + 测试）
 check: fmt-check lint test
