@@ -1,0 +1,5 @@
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r4,子进程环境变量注入必须拒绝危险键,"当 `llman x claude-code` / `llman x cc` 将配置组环境变量注入 `claude` 子进程时，系统 MUST NOT 注入危险键（至少包括 `LD_PRELOAD`、`LD_LIBRARY_PATH`、`DYLD_*`、`PATH`、以及同名大小写变体）。被拒绝的键 MUST 导致命令失败并报告原因，且 MUST NOT 启动子进程。允许注入的键 MUST 通过既有键名语法校验（与 `account env` 一致）。",null,null,null
+op_scenarios[1]{req_id,id,given,when,then}:
+  r4,reject-path-injection,"所选配置组含 `PATH=/tmp/evil:$PATH`","用户运行 `llman x cc -- --version`","命令失败，报告危险环境变量被拒绝，且未启动 claude"
