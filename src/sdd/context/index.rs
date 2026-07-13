@@ -126,20 +126,136 @@ pub struct RebuildLock {
     pub progress_pct: f64,
 }
 
-/// Check if a rebuild lock file exists and if the process is still alive
+/// RAII guard that removes `.rebuild.lock` on drop.
+pub struct RebuildLockGuard {
+    path: PathBuf,
+}
+
+impl Drop for RebuildLockGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+const REBUILD_LOCK_MAX_AGE_SECS: i64 = 6 * 60 * 60;
+
+/// Acquire an exclusive rebuild lock via `create_new`, clearing stale locks first.
+pub fn acquire_rebuild_lock(context_dir: &Path) -> Result<RebuildLockGuard> {
+    fs::create_dir_all(context_dir).context("create context dir for rebuild lock")?;
+    let lock_path = context_dir.join(".rebuild.lock");
+
+    for _ in 0..2 {
+        match try_create_rebuild_lock(&lock_path) {
+            Ok(guard) => return Ok(guard),
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                if clear_stale_rebuild_lock(context_dir)? {
+                    continue;
+                }
+                let holder = read_rebuild_lock(&lock_path)
+                    .map(|l| l.pid.to_string())
+                    .unwrap_or_else(|_| "?".to_string());
+                anyhow::bail!("index rebuild already in progress (pid={holder})");
+            }
+            Err(err) => {
+                return Err(err).context(format!("create rebuild lock {}", lock_path.display()));
+            }
+        }
+    }
+    anyhow::bail!("failed to acquire rebuild lock at {}", lock_path.display());
+}
+
+fn try_create_rebuild_lock(lock_path: &Path) -> std::io::Result<RebuildLockGuard> {
+    use std::io::Write;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(lock_path)?;
+    let lock = RebuildLock {
+        pid: std::process::id(),
+        started_at: chrono::Utc::now().to_rfc3339(),
+        chunks_total: 0,
+        chunks_done: 0,
+        progress_pct: 0.0,
+    };
+    let content = toml::to_string(&lock).map_err(std::io::Error::other)?;
+    file.write_all(content.as_bytes())?;
+    Ok(RebuildLockGuard {
+        path: lock_path.to_path_buf(),
+    })
+}
+
+fn read_rebuild_lock(lock_path: &Path) -> Result<RebuildLock> {
+    let content = fs::read_to_string(lock_path)?;
+    Ok(toml::from_str(&content)?)
+}
+
+fn clear_stale_rebuild_lock(context_dir: &Path) -> Result<bool> {
+    let lock_path = context_dir.join(".rebuild.lock");
+    if !lock_path.exists() {
+        return Ok(true);
+    }
+    match read_rebuild_lock(&lock_path) {
+        Ok(lock) if is_rebuild_lock_stale(&lock) => {
+            let _ = fs::remove_file(&lock_path);
+            Ok(true)
+        }
+        Ok(_) => Ok(false),
+        Err(_) => {
+            let _ = fs::remove_file(&lock_path);
+            Ok(true)
+        }
+    }
+}
+
+fn is_rebuild_lock_stale(lock: &RebuildLock) -> bool {
+    if lock_age_secs(lock).is_some_and(|age| age > REBUILD_LOCK_MAX_AGE_SECS) {
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        if !is_pid_alive(lock.pid) {
+            return true;
+        }
+        if let Some(comm) = read_proc_comm(lock.pid) {
+            let comm = comm.trim();
+            if !(comm == "llman" || comm.starts_with("llman")) {
+                return true;
+            }
+        }
+        false
+    }
+    #[cfg(not(unix))]
+    {
+        false
+    }
+}
+
+fn lock_age_secs(lock: &RebuildLock) -> Option<i64> {
+    let started = chrono::DateTime::parse_from_rfc3339(&lock.started_at).ok()?;
+    Some((chrono::Utc::now() - started.with_timezone(&chrono::Utc)).num_seconds())
+}
+
+#[cfg(unix)]
+fn read_proc_comm(pid: u32) -> Option<String> {
+    fs::read_to_string(format!("/proc/{pid}/comm")).ok()
+}
+
+/// Check if a rebuild lock file exists and if the holder is still alive.
 pub fn check_rebuild_lock(context_dir: &Path) -> Result<Option<RebuildLock>> {
     let lock_path = context_dir.join(".rebuild.lock");
     if !lock_path.exists() {
         return Ok(None);
     }
 
-    let content = fs::read_to_string(&lock_path)?;
-    let lock: RebuildLock = toml::from_str(&content)?;
+    let lock = match read_rebuild_lock(&lock_path) {
+        Ok(lock) => lock,
+        Err(_) => {
+            let _ = fs::remove_file(&lock_path);
+            return Ok(None);
+        }
+    };
 
-    // Check if PID is still alive
-    let alive = is_pid_alive(lock.pid);
-    if !alive {
-        // Stale lock file, clean it up
+    if is_rebuild_lock_stale(&lock) {
         let _ = fs::remove_file(&lock_path);
         return Ok(None);
     }
@@ -162,6 +278,7 @@ fn is_pid_alive(pid: u32) -> bool {
     }
     #[cfg(not(unix))]
     {
+        let _ = pid;
         true
     }
 }
@@ -217,13 +334,45 @@ mod tests {
     fn test_resolve_backend_default() {
         use super::super::Backend;
         use super::super::resolve_backend;
-
-        // An empty CLI flag falls through to the default (pageindex).
+        assert_eq!(resolve_backend(None).unwrap(), Backend::Pageindex);
+        assert_eq!(
+            resolve_backend(Some("pageindex".to_string())).unwrap(),
+            Backend::Pageindex
+        );
         assert_eq!(
             resolve_backend(Some(String::new())).unwrap(),
             Backend::Pageindex
         );
-        // None falls through to default.
-        assert_eq!(resolve_backend(None).unwrap(), Backend::Pageindex);
+    }
+
+    #[test]
+    fn test_acquire_rebuild_lock_is_exclusive() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let context_dir = tmp.path().join(".context");
+        std::fs::create_dir_all(&context_dir).unwrap();
+
+        let first = acquire_rebuild_lock(&context_dir).expect("first lock");
+        let second = acquire_rebuild_lock(&context_dir);
+        assert!(second.is_err(), "second acquire must fail while held");
+        drop(first);
+        acquire_rebuild_lock(&context_dir).expect("lock after release");
+    }
+
+    #[test]
+    fn test_stale_rebuild_lock_cleared_by_age() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let context_dir = tmp.path().join(".context");
+        std::fs::create_dir_all(&context_dir).unwrap();
+        let lock_path = context_dir.join(".rebuild.lock");
+        let stale = RebuildLock {
+            pid: std::process::id(),
+            started_at: (chrono::Utc::now() - chrono::Duration::hours(7)).to_rfc3339(),
+            chunks_total: 0,
+            chunks_done: 0,
+            progress_pct: 0.0,
+        };
+        std::fs::write(&lock_path, toml::to_string(&stale).unwrap()).unwrap();
+        assert!(check_rebuild_lock(&context_dir).unwrap().is_none());
+        assert!(!lock_path.exists());
     }
 }

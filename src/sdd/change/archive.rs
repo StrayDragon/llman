@@ -14,6 +14,7 @@ use chrono::Utc;
 use inquire::Text;
 use std::collections::HashMap;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
@@ -123,15 +124,21 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
         return Ok(());
     }
 
-    if archive_path.exists() {
-        return Err(anyhow!(t!(
-            "sdd.archive.archive_exists",
-            name = archive_name
-        )));
-    }
-
     fs::create_dir_all(&archive_dir)?;
-    fs::rename(&change_dir, &archive_path)?;
+    match fs::rename(&change_dir, &archive_path) {
+        Ok(()) => {}
+        Err(e)
+            if e.kind() == ErrorKind::AlreadyExists
+                || e.kind() == ErrorKind::DirectoryNotEmpty
+                || archive_path.exists() =>
+        {
+            return Err(anyhow!(t!(
+                "sdd.archive.archive_exists",
+                name = archive_name
+            )));
+        }
+        Err(e) => return Err(e.into()),
+    }
     println!(
         "{}",
         t!(
