@@ -2,7 +2,7 @@ kind: llman.sdd.spec
 name: "sdd-workflow"
 purpose: "Define the llman SDD workflow and its OpenSpec-compatible behaviors for `llmanspec/`."
 valid_scope[4]: src/sdd/,templates/sdd/,"scripts/check-sdd-templates.py","llmanspec/specs/sdd-workflow/"
-requirements[49]{req_id,title,statement}:
+requirements[55]{req_id,title,statement}:
   r1,SDD 初始化脚手架,"`llman sdd init [path]` 命令 MUST 在目标路径创建 `llmanspec/` 目录结构，包括 `llmanspec/AGENTS.md`、`llmanspec/project.md`、`llmanspec/config.yaml`、`llmanspec/specs/`、`llmanspec/changes/` 与 `llmanspec/changes/archive/`。命令 MUST 在 `llmanspec/config.yaml` 顶部写入 `yaml-language-server` schema 头注释，指向 `llmanspec-config` schema URL。命令 MUST 创建或刷新 repo 根目录下的 `AGENTS.md` 受管块以指向 `llmanspec/AGENTS.md`。当 `llmanspec/` 已存在时，命令 MUST 报错并且不修改任何文件。生成的 `llmanspec/AGENTS.md` MUST 包含 LLMANSPEC 受管提示块且包含完整 llman sdd 方法论说明。 初始化生成的 `llmansp"
   r2,SDD 指令与提示词刷新,"`llman sdd update [path]` MUST 刷新 `llmanspec/AGENTS.md` 的 LLMANSPEC 受管提示块，同时 MUST 保持 `llmanspec/specs/**` 与 `llmanspec/changes/**` 不被修改。命令 MUST 刷新 repo 根目录 `AGENTS.md` 的 LLMANSPEC 受管块并保留非受管内容。更新 `llmanspec/AGENTS.md` 时 MUST 仅替换 LLMANSPEC 受管提示块，并保留受管块以外的用户内容。更新时必须使用 `llmanspec/config.yaml` 的 locale 选择模板。"
   r3,SDD 本地化配置与模板加载,`llman sdd` MUST 使用项目级配置 `llmanspec/config.yaml` 解析 locale，并基于 `templates/sdd/<locale>/` 加载 `llmanspec/AGENTS.md`、`llmanspec/project.md` 与 sdd skills 内容。locale 仅影响模板与 skills 输出，不影响 CLI 文本。
@@ -52,7 +52,13 @@ requirements[49]{req_id,title,statement}:
   r48,"Apply-Cycle Supplementary Skill","`llman sdd update-skills` MUST generate `llman-sdd-apply-cycle` with `disable-model-invocation: true`. Skill MUST NOT appear in `available_skills`. Agent MUST NOT auto-invoke it. Users trigger via `/skill:llman-sdd-apply-cycle`. MUST NOT generate Claude Code workflow commands. Existing `llman-sdd-apply/verify/archive` remain unchanged."
   r49,"Apply-Cycle Single-Closed-Loop","`llman-sdd-apply-cycle` MUST: 1) `llman sdd status <change-id>` (TOON output) as sole input; 2) parse `tasks[]` for incomplete tasks; 3) implement code+tests per task; 4) run test command from `tasks[].test`; 5) `llman sdd validate --strict` after all tasks; 6) `llman sdd archive run` on pass; 7) git commit; 8) retry 3x before blocker; 9) NEVER ask `should I continue`; 10) NEVER switch change until current is done."
   r50,Status as Agent Grip,"`llman sdd status` output (TOON format) is the primary agent-facing grip. Apply-cycle skill MUST use status as SSOT for task state, test commands, and next action. Future skills MAY adopt this pattern."
-scenarios[121]{req_id,id,given,when,then}:
+  r51,"Feature-as-Spec 模式","当 `llmanspec/config.yaml` 含 `bdd:` 段时（BDD-on 模式），spec 行为规格 MUST 由 `llmanspec/specs/<name>/` 目录下的 `*.feature` 文件承载。`llman sdd validate` MUST 通过 glob `<spec_dir>/*.feature` 自动发现这些文件，MUST NOT 要求任何注册表、manifest 或 spec.toon 内的引用表。新增 feature 仅需将文件放入目录；删除 feature 仅需移除文件。spec.toon 在 BDD-on 模式下 MUST 仅保留 `kind`、`name`、`purpose` 元数据，MUST NOT 校验 `valid_scope`。`requirements[]` 与 `scenarios[]` 在 BDD-on 模式下为可选迁移期产物（逐条迁出为 `.feature` 后删除）。"
+  r52,Fast 与 Full 双层校验,"`llman sdd validate <spec>`（fast mode，默认）MUST 对 BDD-on spec 目录下每个 `.feature` 用 `gherkin::Feature::parse` 做语法解析（结构合法性检查），MUST NOT 执行任何测试 runner。`llman sdd validate <spec> --check`（full mode）MUST 在 fast mode 通过后，读 `bdd.run_command`（或 `BddConfig::effective_run_command()`）并对整个 spec 目录执行一次命令（非逐 feature），按退出码汇总 pass/fail。fast mode 保证规格结构合法，full mode 保证实现满足规格。"
+  r53,Locale 驱动 Gherkin 语言,"BDD-on 模式下，`gherkin::GherkinEnv::new(lang)` 的 `lang` MUST 由 `llmanspec/config.yaml` 的 `locale` 推导（`zh-Hans*` 映射为 `zh-CN`，其余透传），或由 `bdd.default_language` 显式覆盖。中文 locale 下生成的 `.feature` MUST 支持中文 Gherkin 关键字（功能/假如/当/那么/而且）。SDD skills（propose/apply/verify）在 BDD-on 模式下 MUST 指导 agent 按 locale 写对应关键字。"
+  r54,"BDD-on 门控与旧路径并存","`bdd_enabled`（`config.yaml` 含 `bdd:` 段）MUST 作为 feature-as-spec 模式的唯一开关。BDD-off 模式（无 `bdd:` 段）MUST 完全保留现有 prose 校验路径（`requirements[]` + `scenarios[]` + `valid_scope` + staleness），行为 MUST NOT 改变。系统 MUST NOT 强制数据迁移；用户开启 `bdd:` 段才进入新模式。"
+  r55,"BDD-on 模式 valid_scope 退休","BDD-on 模式下，scope integrity（staleness 校验 r15）MUST NOT 依赖 `valid_scope`，改为以「spec 目录下任意文件被 git diff 触及 = 该 spec 被触及」判定。理由：`.feature` 文件位置是结构性的 scope 真相，不漂移。BDD-off 模式下 staleness 行为 MUST 保持不变。"
+  r56,"BDD-on 归档复制 .feature 文件","`llman sdd archive run` 在 BDD-on 模式下，MUST 将 `change/specs/<capability>/*.feature` 复制到主 `specs/<capability>/` 目录（而非仅 merge spec.toon）。复制 MUST 在 spec.toon merge 之后、change 目录 rename 进 archive 之前执行。目标位置同名 `.feature` 已存在时 MUST 报错中止（MUST NOT 覆盖），与 r7 目标冲突即失败的策略一致。BDD-off 模式下 archive 行为 MUST 保持不变（无 .feature 复制）。"
+scenarios[134]{req_id,id,given,when,then}:
   r1,初始化新项目,"",用户在不存在 `llmanspec/` 的目录执行 `llman sdd init`,必要的目录结构与模板文件被创建
   r1,初始化指定路径,"",用户执行 `llman sdd init <path>`,在 `<path>` 下创建 `llmanspec/` 结构与模板文件
   r1,初始化时生成提示块,"",`llman sdd init` 生成 `llmanspec/AGENTS.md`,"文件中包含 `<!-- LLMANSPEC:START -->` 与 `<!-- LLMANSPEC:END -->` 包裹的提示块"
@@ -174,3 +180,16 @@ scenarios[121]{req_id,id,given,when,then}:
   r48,"apply-cycle-not-in-claude-commands","","user runs `llman sdd update-skills --tool claude`",".claude/commands/ lacks `llman-sdd-apply-cycle.md`"
   r49,"apply-cycle-parses-status-toon","","user triggers `/skill:llman-sdd-apply-cycle <id>`","skill runs `llman sdd status <id>` and parses TOON `tasks[]` for incomplete tasks"
   r50,"status-as-grip-pattern","",a future skill uses `llman sdd status` as input,"it follows same pattern: one status TOON replaces multiple file reads"
+  r51,"bdd-on-directory-is-spec","config.yaml 含 bdd: 段且 specs/cli/ 下有 status.feature",用户运行 `llman sdd validate cli`,validate 自动发现 status.feature 并解析，不要求任何注册表或 spec.toon 引用表
+  r51,"bdd-on-add-feature-no-registration","config.yaml 含 bdd: 段","用户将 new-behavior.feature 放入 specs/cli/ 目录",validate 自动发现该文件，无需修改 spec.toon 或任何 manifest
+  r51,"bdd-on-spec-toon-metadata-only","config.yaml 含 bdd: 段",validate 解析 specs/cli/spec.toon,仅校验 kind/name/purpose，不要求 valid_scope
+  r51,"bdd-on-requirements-migrating","config.yaml 含 bdd: 段且 specs/cli/ 有 2 个 .feature 且 requirements 剩 1 条",用户运行 `llman sdd validate cli`,校验通过（迁移中状态合法）
+  r51,"bdd-on-empty-spec-error","config.yaml 含 bdd: 段且 specs/cli/ 无 .feature 且 requirements 为空",用户运行 `llman sdd validate cli`,校验失败并报 ERROR（空 spec）
+  r52,"fast-mode-parses-gherkin","config.yaml 含 bdd: 段且 specs/cli/status.feature 语法合法",用户运行 `llman sdd validate cli`,校验通过，不执行任何 runner
+  r52,"fast-mode-syntax-error",specs/cli/broken.feature 含 Gherkin 语法错误,用户运行 `llman sdd validate cli`,校验失败并报 ERROR，附修复提示
+  r52,"full-mode-runs-command","config.yaml bdd.run_command 为 cargo test --features bdd","用户运行 `llman sdd validate cli --check`",执行一次命令并对整个 spec 目录，按退出码汇总 pass/fail
+  r53,"locale-zh-hans-gherkin","config.yaml locale 为 zh-Hans 且 specs/cli/status.feature 使用中文关键字（功能/假如/当/那么）",用户运行 `llman sdd validate cli`,"gherkin 解析使用 lang=zh-CN，校验通过"
+  r54,"bdd-off-prose-unchanged","config.yaml 无 bdd: 段",用户运行 `llman sdd validate cli`,走现有 prose 校验路径，行为与新增本功能前完全一致
+  r55,"bdd-on-staleness-no-scope-match","config.yaml 含 bdd: 段且 specs/cli/ 下某 .feature 被改动",validate 做 staleness 校验,判定该 cli spec 被触及，不依赖 valid_scope 匹配
+  r56,"archive-copies-features","config.yaml 含 bdd: 段且 change/specs/cli/ 含 status.feature",用户运行 `llman sdd archive run <change>`,status.feature 被复制到 specs/cli/，随后 change 目录被 rename 进 archive
+  r56,"archive-feature-conflict-aborts","config.yaml 含 bdd: 段且 specs/cli/status.feature 已存在，change/specs/cli/status.feature 也存在",用户运行 `llman sdd archive run <change>`,命令报错中止，MUST NOT 覆盖目标文件
