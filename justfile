@@ -37,6 +37,10 @@ clean:
 test:
     if command -v cargo-nextest >/dev/null; then cargo nextest run --profile ci; else cargo test; fi
 
+# 运行 BDD 测试（feature-as-spec 可执行验证，需 --features bdd）
+test-bdd:
+    cargo test --features bdd
+
 # =============================================================================
 # 代码质量检查
 # =============================================================================
