@@ -42,6 +42,8 @@ pub struct ValidateArgs {
     pub compact_json: bool,
     pub stage: Option<String>,
     pub no_interactive: bool,
+    /// Full mode: run the BDD check command after fast validation (single spec only).
+    pub check: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -96,6 +98,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
     let config = load_required_config(&llmanspec_dir)?;
     let archive_config = config.archive_config();
     let bdd_config = config.bdd.as_ref();
+    let locale = config.locale.clone();
 
     let interactive = is_interactive(args.no_interactive);
     let type_override = normalize_type(args.item_type.as_deref());
@@ -114,6 +117,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
             stage_override,
             &archive_config,
             bdd_config,
+            &locale,
         )?;
         return Ok(());
     }
@@ -128,6 +132,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                 stage_override,
                 &archive_config,
                 bdd_config,
+                &locale,
             )?;
             return Ok(());
         }
@@ -147,6 +152,8 @@ pub fn run(args: ValidateArgs) -> Result<()> {
         stage_override,
         &archive_config,
         bdd_config,
+        &locale,
+        args.check,
     )
 }
 
@@ -159,6 +166,7 @@ fn normalize_type(value: Option<&str>) -> Option<ItemType> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_interactive_selector(
     root: &Path,
     strict: bool,
@@ -167,6 +175,7 @@ fn run_interactive_selector(
     stage_override: Option<ChangeStage>,
     archive_config: &ArchiveConfig,
     bdd_config: Option<&BddConfig>,
+    locale: &str,
 ) -> Result<()> {
     let choice = Select::new(
         &t!("sdd.validate.select_scope"),
@@ -190,6 +199,7 @@ fn run_interactive_selector(
             stage_override,
             archive_config,
             bdd_config,
+            locale,
         )?;
         return Ok(());
     }
@@ -204,6 +214,7 @@ fn run_interactive_selector(
             stage_override,
             archive_config,
             bdd_config,
+            locale,
         )?;
         return Ok(());
     }
@@ -218,6 +229,7 @@ fn run_interactive_selector(
             stage_override,
             archive_config,
             bdd_config,
+            locale,
         )?;
         return Ok(());
     }
@@ -245,6 +257,8 @@ fn run_interactive_selector(
         has_frozen_archive(root),
         archive_config,
         bdd_config,
+        locale,
+        false,
     )
 }
 
@@ -271,6 +285,8 @@ fn validate_direct(
     stage_override: Option<ChangeStage>,
     archive_config: &ArchiveConfig,
     bdd_config: Option<&BddConfig>,
+    locale: &str,
+    check_mode: bool,
 ) -> Result<()> {
     let changes = list_changes(root)?;
     let specs = list_specs(root)?;
@@ -329,6 +345,8 @@ fn validate_direct(
         has_frozen_archive(root),
         archive_config,
         bdd_config,
+        locale,
+        check_mode,
     )
 }
 
@@ -439,30 +457,16 @@ fn validate_change_full(
     crate::sdd::spec::validation::build_report(issues, strict)
 }
 
-/// Merge feature_refs paths into the frontmatter's valid_scope for staleness checks.
-/// This ensures that changes to .feature files are treated as spec-adjacent changes.
-fn merge_feature_refs_into_scope(
-    validation: &crate::sdd::spec::validation::SpecValidation,
-    bdd_config: Option<&BddConfig>,
+/// Build a staleness scope from the spec directory (BDD-on mode, r55).
+/// Any file change under `llmanspec/specs/<id>/` counts as touching this spec —
+/// the directory structure is the SSOT for scope, retiring `valid_scope` hints.
+fn spec_dir_as_scope(
     _root: &Path,
+    spec_id: &str,
 ) -> Option<crate::sdd::spec::validation::SpecFrontmatter> {
-    let _ = bdd_config?;
-    let frontmatter = validation.frontmatter.as_ref()?;
-    let feature_refs = validation.feature_refs.as_ref()?;
-
-    if feature_refs.is_empty() {
-        return None;
-    }
-
-    let mut merged_scope = frontmatter.valid_scope.clone();
-    for path in feature_refs {
-        if !merged_scope.contains(path) {
-            merged_scope.push(path.clone());
-        }
-    }
-
+    let scope = format!("{LLMANSPEC_DIR_NAME}/specs/{spec_id}");
     Some(crate::sdd::spec::validation::SpecFrontmatter {
-        valid_scope: merged_scope,
+        valid_scope: vec![scope],
     })
 }
 
@@ -479,6 +483,8 @@ fn validate_by_type(
     has_frozen: bool,
     archive_config: &ArchiveConfig,
     bdd_config: Option<&BddConfig>,
+    locale: &str,
+    check_mode: bool,
 ) -> Result<()> {
     let start = Instant::now();
     let (report, staleness) = match item_type {
@@ -514,25 +520,28 @@ fn validate_by_type(
                 .join(SPEC_FILE);
             match fs::read_to_string(&spec_path) {
                 Ok(content) => {
+                    let bdd_enabled = bdd_config.is_some();
                     let validation = validate_spec_content_with_frontmatter_and_bdd(
                         &spec_path,
                         &content,
                         strict,
                         Some(root),
                         bdd_config,
+                        Some(locale),
+                        check_mode,
                     );
-                    // Merge feature_refs paths into staleness scope so that
-                    // changes to .feature files are treated as spec-adjacent changes.
-                    let merged_frontmatter =
-                        merge_feature_refs_into_scope(&validation, bdd_config, root);
-                    let staleness = evaluate_staleness(
-                        root,
-                        id,
-                        &spec_path,
-                        merged_frontmatter
-                            .as_ref()
-                            .or(validation.frontmatter.as_ref()),
-                    );
+                    // Staleness scope:
+                    // - BDD-on (feature-as-spec): the spec directory itself is the
+                    //   structural scope truth. Any file change under specs/<id>/
+                    //   counts as touching this spec (r55 retires valid_scope).
+                    // - BDD-off: use the spec's valid_scope (unchanged behavior).
+                    let staleness_frontmatter = if bdd_enabled {
+                        spec_dir_as_scope(root, id)
+                    } else {
+                        validation.frontmatter.clone()
+                    };
+                    let staleness =
+                        evaluate_staleness(root, id, &spec_path, staleness_frontmatter.as_ref());
                     let mut issues = validation.report.issues.clone();
                     issues.extend(apply_strict(staleness.issues, strict));
                     let valid = validation.report.valid
@@ -672,12 +681,9 @@ fn print_next_steps(item_type: ItemType, issues: &[ValidationIssue]) {
         }
     }
 
-    // BDD-specific hints when feature_refs issues are detected
+    // BDD-specific hints when feature-as-spec issues are detected
     let has_bdd_issues = issues.iter().any(|i| {
-        i.message.contains(".feature")
-            || i.message.contains("gherkin")
-            || i.message.contains("bdd")
-            || i.message.contains("feature_refs")
+        i.message.contains(".feature") || i.message.contains("gherkin") || i.message.contains("BDD")
     });
     if has_bdd_issues {
         eprintln!("{}", t!("sdd.validate.bdd_next_step_feature"));
@@ -733,6 +739,7 @@ fn run_bulk_validation(
     stage_override: Option<ChangeStage>,
     archive_config: &ArchiveConfig,
     bdd_config: Option<&BddConfig>,
+    locale: &str,
 ) -> Result<()> {
     let changes = if validate_changes {
         list_changes(root)?
@@ -794,21 +801,25 @@ fn run_bulk_validation(
             .join(SPEC_FILE);
         match fs::read_to_string(&spec_path) {
             Ok(content) => {
+                let bdd_enabled = bdd_config.is_some();
                 let validation = validate_spec_content_with_frontmatter_and_bdd(
                     &spec_path,
                     &content,
                     strict,
                     Some(root),
                     bdd_config,
+                    Some(locale),
+                    false,
                 );
-                let merged_frontmatter =
-                    merge_feature_refs_into_scope(&validation, bdd_config, root);
+                let staleness_frontmatter = if bdd_enabled {
+                    spec_dir_as_scope(root, &id)
+                } else {
+                    validation.frontmatter.clone()
+                };
                 let staleness = staleness_evaluator.evaluate(
                     &id,
                     &spec_path,
-                    merged_frontmatter
-                        .as_ref()
-                        .or(validation.frontmatter.as_ref()),
+                    staleness_frontmatter.as_ref(),
                     None,
                 );
                 let mut issues = validation.report.issues;

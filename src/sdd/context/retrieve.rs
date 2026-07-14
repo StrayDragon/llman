@@ -407,7 +407,6 @@ mod tests {
                         ),
                     ],
                     scenarios: vec![],
-                    feature_refs: None,
                 },
             ),
             (
@@ -419,7 +418,6 @@ mod tests {
                     valid_scope: vec![],
                     requirements: vec![mk_req("r1", "Commands", "MUST expose subcommands.")],
                     scenarios: vec![],
-                    feature_refs: None,
                 },
             ),
         ]);

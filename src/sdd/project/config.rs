@@ -128,7 +128,7 @@ impl ArchiveConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 #[schemars(
-    description = "BDD integration settings. When defined, enables feature_refs validation and BDD-aware verify prompts."
+    description = "BDD integration settings. When defined, enables feature-as-spec mode (directory-based .feature validation) and BDD-aware verify prompts."
 )]
 pub struct BddConfig {
     /// BDD framework identifier (pytest-bdd, rstest-bdd, cucumber-js, behave, custom)
@@ -213,7 +213,7 @@ pub struct SddConfig {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(
-        description = "BDD integration settings. When defined, enables feature_refs validation and BDD-aware verify prompts."
+        description = "BDD integration settings. When defined, enables feature-as-spec mode (directory-based .feature validation) and BDD-aware verify prompts."
     )]
     pub bdd: Option<BddConfig>,
 }

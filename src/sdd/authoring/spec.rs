@@ -57,7 +57,6 @@ pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
         valid_scope: vec!["src/".to_string(), "tests/".to_string()],
         requirements: Vec::new(),
         scenarios: Vec::new(),
-        feature_refs: None,
     };
     let payload = BACKEND.dump_main_spec(&spec)?;
 

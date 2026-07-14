@@ -1,6 +1,6 @@
 use crate::sdd::shared::constants::SPEC_FILE;
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-use crate::sdd::spec::ir::{DeltaSpecDoc, FeatureRefEntry, MainSpecDoc};
+use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use serde::Serialize;
@@ -19,31 +19,10 @@ pub struct Requirement {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct FeatureRef {
-    pub path: String,
-    pub scope: String,
-    pub required: bool,
-}
-
-impl From<&FeatureRefEntry> for FeatureRef {
-    fn from(entry: &FeatureRefEntry) -> Self {
-        Self {
-            path: entry.path.clone(),
-            scope: entry.scope.clone(),
-            required: entry.required,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
 pub struct Spec {
     pub name: String,
     pub overview: String,
     pub requirements: Vec<Requirement>,
-    /// Feature references for BDD "point-only" specs (executable behavior lives in
-    /// `.feature` files). Present only when the spec carries `feature_refs`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub feature_refs: Option<Vec<FeatureRef>>,
     pub metadata: SpecMetadata,
 }
 
@@ -189,10 +168,6 @@ fn convert_main_doc_to_spec(doc: &MainSpecDoc, fallback_name: &str) -> Spec {
         },
         overview: doc.purpose.trim().to_string(),
         requirements,
-        feature_refs: doc
-            .feature_refs
-            .as_ref()
-            .map(|refs| refs.iter().map(FeatureRef::from).collect()),
         metadata: SpecMetadata {
             format: "llman-sdd-toon".to_string(),
         },

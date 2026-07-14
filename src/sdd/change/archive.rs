@@ -113,6 +113,19 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
                 write_updates(&prepared)?;
             }
         }
+
+        // Feature-as-spec (BDD-on) mode: copy `.feature` files from
+        // change/specs/<capability>/ into the main specs/<capability>/
+        // directory (r56). Runs after spec.toon merge, before the change
+        // directory is renamed into archive. BDD-off is a no-op.
+        let feature_updates = find_feature_updates(&change_dir, root);
+        if !feature_updates.is_empty() {
+            if args.dry_run {
+                print_dry_run_features(&feature_updates);
+            } else {
+                copy_feature_files(&feature_updates)?;
+            }
+        }
     }
 
     let archive_dir = changes_dir.join("archive");
@@ -183,6 +196,87 @@ fn find_spec_updates(change_dir: &Path, root: &Path) -> Result<Vec<SpecUpdate>> 
     }
 
     Ok(updates)
+}
+
+/// A `.feature` file to copy from a change's spec delta into the main specs
+/// directory during archive (r56). BDD-on mode only.
+struct FeatureUpdate {
+    capability: String,
+    source: PathBuf,
+    target: PathBuf,
+}
+
+/// Discover `.feature` files under `change/specs/<capability>/` and map each to
+/// its destination under the main `specs/<capability>/`. The BDD-on guard is the
+/// caller's responsibility: this only lists files that exist.
+fn find_feature_updates(change_dir: &Path, root: &Path) -> Vec<FeatureUpdate> {
+    let mut updates = Vec::new();
+    let change_specs_dir = change_dir.join("specs");
+    let Ok(entries) = fs::read_dir(&change_specs_dir) else {
+        return updates;
+    };
+    for entry in entries.flatten() {
+        let Ok(ft) = entry.file_type() else {
+            continue;
+        };
+        if !ft.is_dir() {
+            continue;
+        }
+        let capability = entry.file_name().to_string_lossy().to_string();
+        let spec_delta_dir = entry.path();
+        let Ok(feature_entries) = fs::read_dir(&spec_delta_dir) else {
+            continue;
+        };
+        for fe in feature_entries.flatten() {
+            let path = fe.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("feature") {
+                let target = root
+                    .join(LLMANSPEC_DIR_NAME)
+                    .join("specs")
+                    .join(&capability)
+                    .join(fe.file_name());
+                updates.push(FeatureUpdate {
+                    capability: capability.clone(),
+                    source: path,
+                    target,
+                });
+            }
+        }
+    }
+    updates
+}
+
+/// Copy `.feature` files into the main specs directory. Aborts on conflict
+/// (same-name target already exists) without overwriting — matches the r7
+/// "target conflict = failure" policy.
+fn copy_feature_files(updates: &[FeatureUpdate]) -> Result<()> {
+    for update in updates {
+        if update.target.exists() {
+            return Err(anyhow!(t!(
+                "sdd.archive.feature_conflict",
+                path = update.target.display(),
+                capability = update.capability,
+            )));
+        }
+        if let Some(parent) = update.target.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::copy(&update.source, &update.target)?;
+    }
+    Ok(())
+}
+
+fn print_dry_run_features(updates: &[FeatureUpdate]) {
+    for update in updates {
+        println!(
+            "{}",
+            t!(
+                "sdd.archive.feature_copy_plan",
+                source = update.source.display(),
+                target = update.target.display(),
+            )
+        );
+    }
 }
 
 fn prepare_updates(
@@ -313,7 +407,6 @@ fn build_updated_spec(
             valid_scope: vec!["src/".to_string(), "tests/".to_string()],
             requirements: Vec::new(),
             scenarios: Vec::new(),
-            feature_refs: None,
         }
     };
 
@@ -875,5 +968,90 @@ mod tests {
                 || msg.contains("below minimum"),
             "got: {msg}"
         );
+    }
+
+    // --- Feature-as-spec (BDD-on) archive .feature copy tests (r56) ---
+
+    #[test]
+    fn find_feature_updates_collects_feature_files() {
+        let dir = tempdir().expect("tempdir");
+        let change_dir = dir.path().join("changes/test-change");
+        write_file(
+            &change_dir.join("specs/cli/status.feature"),
+            "Feature: Status\n",
+        );
+        write_file(
+            &change_dir.join("specs/cli/json.feature"),
+            "Feature: JSON\n",
+        );
+        // Non-feature files are ignored.
+        write_file(
+            &change_dir.join("specs/cli/spec.toon"),
+            "kind: llman.sdd.delta\n",
+        );
+
+        let updates = find_feature_updates(&change_dir, dir.path());
+        assert_eq!(updates.len(), 2);
+        assert!(updates.iter().all(|u| u.capability == "cli"));
+        let targets: Vec<_> = updates
+            .iter()
+            .map(|u| u.target.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        assert!(targets.contains(&"status.feature".to_string()));
+        assert!(targets.contains(&"json.feature".to_string()));
+    }
+
+    #[test]
+    fn find_feature_updates_no_specs_dir() {
+        let dir = tempdir().expect("tempdir");
+        let change_dir = dir.path().join("changes/test-change");
+        fs::create_dir_all(&change_dir).unwrap();
+        assert!(find_feature_updates(&change_dir, dir.path()).is_empty());
+    }
+
+    #[test]
+    fn copy_feature_files_normal() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let source = root.join("changes/t/specs/cli/a.feature");
+        let target = root.join("llmanspec/specs/cli/a.feature");
+        write_file(&source, "Feature: A\n");
+
+        let updates = vec![FeatureUpdate {
+            capability: "cli".to_string(),
+            source,
+            target: target.clone(),
+        }];
+        copy_feature_files(&updates).expect("copy ok");
+
+        assert_eq!(fs::read_to_string(&target).unwrap(), "Feature: A\n");
+    }
+
+    #[test]
+    fn copy_feature_files_conflict_aborts_without_overwrite() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let source = root.join("changes/t/specs/cli/a.feature");
+        let target = root.join("llmanspec/specs/cli/a.feature");
+        write_file(&source, "Feature: NEW\n");
+        // Pre-existing target with different content.
+        write_file(&target, "Feature: OLD\n");
+
+        let updates = vec![FeatureUpdate {
+            capability: "cli".to_string(),
+            source,
+            target: target.clone(),
+        }];
+        let result = copy_feature_files(&updates);
+        assert!(result.is_err(), "expected conflict error");
+        // Must NOT overwrite the existing target.
+        assert_eq!(fs::read_to_string(&target).unwrap(), "Feature: OLD\n");
+    }
+
+    #[test]
+    fn copy_feature_files_empty_is_noop() {
+        // BDD-off or no .feature files → no-op.
+        let updates: Vec<FeatureUpdate> = Vec::new();
+        copy_feature_files(&updates).expect("no-op ok");
     }
 }

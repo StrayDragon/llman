@@ -329,7 +329,6 @@ fn migrate_spec(
         valid_scope: vec!["src/".to_string(), "tests/".to_string()],
         requirements,
         scenarios,
-        feature_refs: None,
     };
 
     let content = match BACKEND.dump_main_spec(&doc) {

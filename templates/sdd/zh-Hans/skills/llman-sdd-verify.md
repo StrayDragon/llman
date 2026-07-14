@@ -48,16 +48,12 @@ flowchart LR
 5. 对比 artifacts 与代码：
    - 标出不一致（缺失行为、错误行为、缺测试/文档）
    - 给出最小修复建议或建议更新 artifacts
-{% if bdd_enabled %}
-6. **BDD 验证**:
-   - 读取 delta specs 中关联的 feature_refs
-   - 对每个 scope=acceptance 且 required=true 的 .feature 文件:
-     - 执行: `{{ bdd_run_command }}`（替换 {feature_name} 为实际 feature 名）
-     - 所有 scenario MUST 通过
-     - 失败的 scenario 映射到对应 requirement ID，标记为 CRITICAL
+6. **BDD-on（feature-as-spec）验证**——仅当 `config.yaml` 含 `bdd:` 段时：
+   - fast 层：`llman sdd validate <spec>`——确认 spec 目录下每个 `.feature` 都是合法 Gherkin。
+   - full 层：`llman sdd validate <spec> --check`——对整个 spec 目录跑一次 `bdd.run_command`；退出码 0 = 通过，非 0 = 失败。
+   - 将实现与 `.feature` 场景对比；失败的场景标记为 CRITICAL。
 {% if bdd_verify_prompt %}
    - 额外要求: {{ bdd_verify_prompt }}
-{% endif %}
 {% endif %}
 7. 输出简短报告：
    - **CRITICAL**（归档前必须修复）

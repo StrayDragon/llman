@@ -48,6 +48,7 @@ flowchart LR
   - default: `llman sdd archive run <id>`
   - tooling-only: `llman sdd archive run <id> --skip-specs`
   - **stop immediately on first failure**, report remaining unprocessed IDs.
+- **BDD-on (feature-as-spec)**: when `config.yaml` has a `bdd:` block, `archive run` also copies `change/specs/<capability>/*.feature` into the main `specs/<capability>/` directory (no extra command needed). A same-name `.feature` already in the target is a hard conflict — resolve it (rename/remove) before re-running.
 
 ### 3) Full validation
 - After all archives complete: `llman sdd validate --all --strict --no-interactive`.
