@@ -787,7 +787,7 @@ fn test_sdd_update_skills_writes_agents_skills() {
     assert!(archive_skill.contains("llman sdd archive thaw"));
     let explore_skill_path = output_dir.join("llman-sdd-explore").join("SKILL.md");
     assert!(explore_skill_path.exists());
-    let explore_skill = fs::read_to_string(&explore_skill_path).expect("read explore skill");
+    let _explore_skill = fs::read_to_string(&explore_skill_path).expect("read explore skill");
 
     for entry in fs::read_dir(&output_dir).expect("read skills output dir") {
         let entry = entry.expect("skills entry");

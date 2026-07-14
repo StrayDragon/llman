@@ -289,9 +289,14 @@ pub enum SddCommands {
         /// Seed change ID to center the graph on
         change: Option<String>,
     },
-    /// Show project status overview
+    /// Show project status overview (compact TOON by default, agent-oriented)
     Status {
-        /// Output as JSON
+        /// Target change name, archive date prefix, or fuzzy name
+        target: Option<String>,
+        /// Output format: toon (default) or json
+        #[arg(long)]
+        format: Option<String>,
+        /// Output as JSON (shorthand for --format json)
         #[arg(long)]
         json: bool,
     },
@@ -724,7 +729,15 @@ pub fn run(args: &SddArgs) -> Result<()> {
             depth: *depth,
             change: change.clone(),
         }),
-        SddCommands::Status { json } => status::run(status::StatusArgs { json: *json }),
+        SddCommands::Status {
+            target,
+            format,
+            json,
+        } => status::run(status::StatusArgs {
+            target: target.clone(),
+            format: format.clone(),
+            json: *json,
+        }),
         SddCommands::Context {
             task,
             paths,

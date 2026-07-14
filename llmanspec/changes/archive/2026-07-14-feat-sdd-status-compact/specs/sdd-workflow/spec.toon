@@ -1,0 +1,11 @@
+kind: llman.sdd.delta
+ops[3]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r48,Apply-Cycle Supplementary Skill,"`llman sdd update-skills` MUST generate `llman-sdd-apply-cycle` with `disable-model-invocation: true`. Skill MUST NOT appear in `available_skills`. Agent MUST NOT auto-invoke it. Users trigger via `/skill:llman-sdd-apply-cycle`. MUST NOT generate Claude Code workflow commands. Existing `llman-sdd-apply/verify/archive` remain unchanged.",null,null,null
+  add_requirement,r49,Apply-Cycle Single-Closed-Loop,"`llman-sdd-apply-cycle` MUST: 1) `llman sdd status <change-id>` (TOON output) as sole input; 2) parse `tasks[]` for incomplete tasks; 3) implement code+tests per task; 4) run test command from `tasks[].test`; 5) `llman sdd validate --strict` after all tasks; 6) `llman sdd archive run` on pass; 7) git commit; 8) retry 3x before blocker; 9) NEVER ask `should I continue`; 10) NEVER switch change until current is done.",null,null,null
+  add_requirement,r50,Status as Agent Grip,"`llman sdd status` output (TOON format) is the primary agent-facing grip. Apply-cycle skill MUST use status as SSOT for task state, test commands, and next action. Future skills MAY adopt this pattern.",null,null,null
+op_scenarios[5]{req_id,id,given,when,then}:
+  r48,apply-cycle-has-disable-invocation,"","user runs `llman sdd update-skills --all --no-interactive`","generated SKILL.md has frontmatter `disable-model-invocation: true`"
+  r48,apply-cycle-not-in-available,"","pi scans `.agents/skills/llman-sdd-apply-cycle/`","skill is NOT in `available_skills`"
+  r48,apply-cycle-not-in-claude-commands,"","user runs `llman sdd update-skills --tool claude`",".claude/commands/ lacks `llman-sdd-apply-cycle.md`"
+  r49,apply-cycle-parses-status-toon,"","user triggers `/skill:llman-sdd-apply-cycle <id>`","skill runs `llman sdd status <id>` and parses TOON `tasks[]` for incomplete tasks"
+  r50,status-as-grip-pattern,"","a future skill uses `llman sdd status` as input","it follows same pattern: one status TOON replaces multiple file reads"

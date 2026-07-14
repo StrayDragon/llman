@@ -21,6 +21,7 @@ const DEFAULT_SKILL_FILES: &[&str] = &[
     "llman-sdd-specs-compact.md",
     "llman-sdd-archive.md",
     "llman-sdd-graph.md",
+    "llman-sdd-apply-cycle.md",
 ];
 
 const OPTIONAL_SKILL_FILES: &[&str] = &[

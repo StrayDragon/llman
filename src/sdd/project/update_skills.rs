@@ -135,6 +135,7 @@ mod tests {
         "llman-sdd-specs-compact",
         "llman-sdd-archive",
         "llman-sdd-graph",
+        "llman-sdd-apply-cycle",
     ];
 
     #[test]
