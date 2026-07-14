@@ -43,3 +43,9 @@ context: |-
   - `cargo +nightly clippy --all-targets --all-features -- -D warnings` passes.
   - `cargo +nightly test --all` passes.
   - Manual smoke checks for `llman x cc`, `llman x codex`, `llman x cursor`, `llman prompt`, `llman tool`.
+
+# BDD-on (feature-as-spec): .feature 文件是可执行规格。
+# locale zh-Hans → Gherkin lang 自动推导为 zh-CN（支持中文关键字）。
+# full mode 跑 `cargo test --features bdd`（rstest-bdd 驱动）。
+bdd:
+  run_command: "cargo test --features bdd"
