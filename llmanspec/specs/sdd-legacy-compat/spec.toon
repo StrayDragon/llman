@@ -1,8 +1,10 @@
 kind: llman.sdd.spec
 name: "sdd-legacy-compat"
 purpose: "TBD - created by archiving change add-ison-first-sdd-pipeline. Update Purpose after archive."
-valid_scope[4]: src/sdd/project/templates.rs,src/sdd/command.rs,"templates/sdd/","llmanspec/specs/sdd-legacy-compat/"
-requirements[1]{req_id,title,statement}:
+valid_scope[4]: src/sdd/project/templates.rs,src/sdd/command.rs,templates/sdd/,"llmanspec/specs/sdd-legacy-compat/"
+requirements[2]{req_id,title,statement}:
   r1,Legacy Track Is Retired,"The SDD workflow MUST NOT provide a legacy track (`sdd-legacy`) for templates/skills/prompts."
-scenarios[1]{req_id,id,given,when,then}:
+  r2,feature_refs 字段已删除无迁移路径,"SDD 系统 MUST 删除 `MainSpecDoc.feature_refs` 字段、`FeatureRefEntry` 结构体、`FeatureRef` presentation wrapper 与 `validate_feature_refs` 函数（均为零用户死代码）。feature-as-spec 模式（见 sdd-workflow r51）通过目录发现取代指针引用。系统 MUST NOT 提供自动迁移命令（符合 r41 原则）：零用户基础设施的删除不产生数据迁移需求。"
+scenarios[2]{req_id,id,given,when,then}:
   r1,"user-tries-to-use-legacy-track","","a user looks for or attempts to use legacy-style SDD commands or templates",the system fails loudly
+  r2,"feature_refs-field-removed",SDD 代码库重构后,维护者检查 src/sdd/spec/ir.rs,不存在 feature_refs 字段与 FeatureRefEntry 结构体
