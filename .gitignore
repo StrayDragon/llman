@@ -32,3 +32,6 @@ pnpm-debug.log*
 # Python
 __pycache__/
 *.py[cod]
+
+# ZCode (IDE plan/session artifacts)
+.zcode/
