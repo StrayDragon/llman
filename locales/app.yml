@@ -1914,12 +1914,24 @@ sdd:
       en: "Feature %{path} has %{feature} scenarios but spec has %{spec} scenarios. The .feature file is the executable form of this spec — add missing scenarios to either the spec or the .feature file."
     feature_ref_unsupported_language:
       en: "Unsupported gherkin language '%{lang}' in %{path}. Fix: use a valid language code (e.g. 'en', 'zh-CN')."
+    feature_parse_error:
+      en: "Gherkin parse error in %{path}: %{error}. Fix: check .feature syntax (Feature/Scenario/Given/When/Then) and language directive."
+    feature_read_error:
+      en: "Cannot read .feature file %{path}: %{error}"
+    feature_unsupported_language:
+      en: "Unsupported gherkin language '%{lang}' for spec directory %{dir}. Fix: use a valid language code (e.g. 'en', 'zh-CN') in bdd.default_language or config locale."
+    full_mode_spawn_failed:
+      en: "Failed to run BDD check command `%{command}`: %{error}"
+    full_mode_failed:
+      en: "BDD check failed (`%{command}`): %{detail}"
+    full_mode_passed:
+      en: "Full mode: %{count} feature(s) parsed, BDD check passed."
     meta_field_empty:
       en: "Spec %{key} must not be empty (add it inside the .toon document)."
     bdd_empty_spec_guardrail:
-      en: "BDD is enabled but this spec declares no requirements and no feature_refs. Either add requirements/scenarios, or point to a .feature via feature_refs."
-    bdd_point_only:
-      en: "Point-only spec: behavior lives in the referenced .feature file(s)."
+      en: "BDD is enabled but this spec declares no requirements and the spec directory has no .feature files. Either add a .feature file (feature-as-spec mode) or add requirements."
+    feature_as_spec_mode:
+      en: "Feature-as-spec mode: behavior lives in the .feature file(s) in this directory."
     bdd_next_step_verify:
       en: "- Run BDD tests: %{command}"
     bdd_next_step_feature:
@@ -1949,6 +1961,10 @@ sdd:
       en: "Archive '%{name}' already exists."
     archived:
       en: "Change '%{change}' archived as '%{archive}'."
+    feature_copy_plan:
+      en: "[dry-run] copy .feature %{source} -> %{target}"
+    feature_conflict:
+      en: "Cannot copy .feature into specs/%{capability}/: target already exists at %{path}. Resolve the conflict (rename or remove one) and re-run."
     rebuilt_invalid:
       en: "Validation errors in rebuilt spec for %{spec}: %{errors}"
     no_deltas:

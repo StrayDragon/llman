@@ -130,7 +130,6 @@ mod tests {
                 valid_scope: Vec::new(),
                 requirements,
                 scenarios: Vec::new(),
-                feature_refs: None,
             },
         )
     }

@@ -15,17 +15,6 @@ pub struct MainSpecDoc {
     pub requirements: Vec<RequirementEntry>,
     #[serde(default)]
     pub scenarios: Vec<ScenarioEntry>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub feature_refs: Option<Vec<FeatureRefEntry>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct FeatureRefEntry {
-    pub path: String,
-    pub scope: String,
-    pub required: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

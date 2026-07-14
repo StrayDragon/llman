@@ -84,7 +84,7 @@ flowchart LR
 - 相关测试集：`just test` 或 `cargo test --all`
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
 {% if bdd_enabled %}
-- BDD 回归：`{{ bdd_run_command }}`
+- BDD-on（feature-as-spec）：对每个含 `.feature` 的 spec，实现 step definitions 使 `llman sdd validate <spec> --check` 通过（fast mode = Gherkin 解析；full mode = 跑 `bdd.run_command`）。
 {% endif %}
 - SDD 校验：`llman sdd validate <id> --strict --no-interactive`
 

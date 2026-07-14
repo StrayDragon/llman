@@ -75,6 +75,14 @@ flowchart LR
    ```
    此步骤必须通过后才能继续。若出现 TOON 解析错误，需修复引号：表格化行中包含逗号/冒号/方括号的值必须用双引号包裹。
 
+### 4b) BDD-on 模式（feature-as-spec）——仅当 `config.yaml` 含 `bdd:` 段时
+- 当变更触及一个 BDD-on 模式（或将进入 BDD-on）spec 的行为合约时，用 Gherkin `.feature` 文件承载行为规格（取代或配合 `modify_requirement`/`add_requirement` op）：
+  - 创建 `specs/<capability>/<behavior>.feature`（与 delta `spec.toon` 同目录）。
+  - 按项目 locale 写关键字（`en`：Feature/Scenario/Given/When/Then；`zh-Hans`：功能/场景/假如/当/那么）。
+  - 对应行为迁入 `.feature` 后，从 `requirements[]` 删除对应 prose statement。
+- BDD-on 模式下 `spec.toon` 仅保留 `kind`/`name`/`purpose` 元数据；`valid_scope` 被忽略（目录即 scope）。
+- 用 `llman sdd validate <change-id>` 做结构校验（fast mode 解析 `.feature`）；此处不跑 runner。
+
 ### 5) 总结已创建内容，并建议下一步：
    - 进入实现阶段：`llman-sdd-apply`。
    - 若需要先理清思路：`llman-sdd-explore`。

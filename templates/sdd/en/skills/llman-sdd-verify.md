@@ -48,16 +48,12 @@ flowchart LR
 5. Compare artifacts vs code:
    - Identify mismatches (missing behavior, wrong behavior, missing tests/docs)
    - Suggest minimal fixes or artifact updates
-{% if bdd_enabled %}
-6. **BDD verification**:
-   - Read feature_refs from delta specs
-   - For each scope=acceptance, required=true .feature file:
-     - Run: `{{ bdd_run_command }}` (replace {feature_name} with actual feature name)
-     - All scenarios MUST pass
-     - Map failed scenarios to requirement IDs, mark as CRITICAL
+6. **BDD-on (feature-as-spec) verification** — only when `config.yaml` has a `bdd:` block:
+   - Fast layer: `llman sdd validate <spec>` — confirms every `.feature` in the spec directory parses as valid Gherkin.
+   - Full layer: `llman sdd validate <spec> --check` — runs `bdd.run_command` once over the spec directory; exit 0 = pass, non-zero = fail.
+   - Compare the implementation against the `.feature` scenarios; failing scenarios are CRITICAL.
 {% if bdd_verify_prompt %}
    - Extra requirement: {{ bdd_verify_prompt }}
-{% endif %}
 {% endif %}
 7. Produce a short report:
    - **CRITICAL** (must fix before archive)

@@ -48,7 +48,6 @@ pub struct SpecFrontmatter {
 pub struct SpecValidation {
     pub report: ValidationReport,
     pub frontmatter: Option<SpecFrontmatter>,
-    pub feature_refs: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -62,7 +61,7 @@ pub fn validate_spec_content_with_frontmatter(
     content: &str,
     strict: bool,
 ) -> SpecValidation {
-    validate_spec_content_with_frontmatter_and_bdd(path, content, strict, None, None)
+    validate_spec_content_with_frontmatter_and_bdd(path, content, strict, None, None, None, false)
 }
 
 pub fn validate_spec_content_with_frontmatter_and_bdd(
@@ -71,6 +70,8 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
     strict: bool,
     project_root: Option<&Path>,
     bdd_config: Option<&BddConfig>,
+    locale: Option<&str>,
+    check_mode: bool,
 ) -> SpecValidation {
     let spec_name = path
         .parent()
@@ -94,8 +95,12 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
 
             // Validation scope lives inside the TOON document (valid_scope),
             // replacing the YAML frontmatter. Drives the staleness check.
-            validate_spec_meta(&doc, &spec_name, &mut issues);
-            let frontmatter = if has_meta_errors(&issues) {
+            // BDD-on (feature-as-spec) mode retires valid_scope: the `.feature`
+            // file location IS the structural scope truth, so skip the meta check.
+            if !bdd_enabled {
+                validate_spec_meta(&doc, &spec_name, &mut issues);
+            }
+            let frontmatter = if bdd_enabled || has_meta_errors(&issues) {
                 None
             } else {
                 Some(SpecFrontmatter {
@@ -115,27 +120,32 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
                 });
             }
 
-            issues.extend(validate_main_spec_doc(&doc, &spec_name, bdd_enabled));
-
-            // BDD feature_refs validation
-            let feature_ref_paths: Option<Vec<String>> = doc
-                .feature_refs
-                .as_ref()
-                .map(|refs| refs.iter().map(|r| r.path.clone()).collect());
-            if let (Some(root), Some(bdd)) = (project_root, bdd_config) {
-                issues.extend(validate_feature_refs(&doc, root, bdd));
-            } else if doc.feature_refs.is_some() && !bdd_enabled {
-                issues.push(ValidationIssue {
-                    level: ValidationLevel::Warning,
-                    path: format!("specs/{}/spec.toon", spec_name),
-                    message: t!("sdd.validate.feature_refs_no_bdd_config").to_string(),
-                });
+            // Feature-as-spec (BDD-on) mode: discover and validate `.feature`
+            // files directly from the spec directory, replacing the deleted
+            // pointer-based `feature_refs` machinery.
+            let mut has_features = false;
+            if bdd_enabled
+                && let Some(root) = project_root
+                && let Some(spec_dir) = path.parent()
+            {
+                let lang = locale_to_gherkin_lang(locale, bdd_config);
+                issues.extend(validate_features_dir(spec_dir, root, &lang));
+                has_features = !discover_features(spec_dir).is_empty();
+                if check_mode && let Some(bdd) = bdd_config {
+                    issues.extend(run_full_mode(spec_dir, bdd));
+                }
             }
+
+            issues.extend(validate_main_spec_doc(
+                &doc,
+                &spec_name,
+                bdd_enabled,
+                has_features,
+            ));
 
             SpecValidation {
                 report: build_report(issues, strict),
                 frontmatter,
-                feature_refs: feature_ref_paths,
             }
         }
         Err(err) => {
@@ -147,7 +157,6 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
             SpecValidation {
                 report: build_report(issues, strict),
                 frontmatter: None,
-                feature_refs: None,
             }
         }
     }
@@ -203,7 +212,6 @@ mod tests {
             valid_scope: Vec::new(),
             requirements: Vec::new(),
             scenarios: Vec::new(),
-            feature_refs: None,
         };
         let mut issues = Vec::new();
         validate_spec_meta(&doc, "sample", &mut issues);
@@ -220,7 +228,6 @@ mod tests {
             valid_scope: vec!["src/".to_string(), "tests/".to_string()],
             requirements: Vec::new(),
             scenarios: Vec::new(),
-            feature_refs: None,
         };
         let mut issues = Vec::new();
         validate_spec_meta(&doc, "sample", &mut issues);
@@ -541,6 +548,214 @@ mod tests {
         let issues_map = check_dag_cycles(&frontmatters);
         assert!(issues_map.is_empty());
     }
+
+    // --- Feature-as-spec (BDD-on) tests ---
+
+    fn spec_dir(tmp: &tempfile::TempDir, name: &str) -> std::path::PathBuf {
+        let dir = tmp.path().join(name);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn discover_features_finds_and_sorts() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = spec_dir(&tmp, "cli");
+        fs::write(dir.join("zeta.feature"), "Feature: z\n").unwrap();
+        fs::write(dir.join("alpha.feature"), "Feature: a\n").unwrap();
+        fs::write(dir.join("spec.toon"), "kind: llman.sdd.spec\n").unwrap();
+
+        let found = discover_features(&dir);
+        let names: Vec<_> = found
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(names, vec!["alpha.feature", "zeta.feature"]);
+    }
+
+    #[test]
+    fn discover_features_empty_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = spec_dir(&tmp, "cli");
+        assert!(discover_features(&dir).is_empty());
+    }
+
+    #[test]
+    fn validate_features_dir_valid() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = spec_dir(&tmp, "cli");
+        fs::write(
+            dir.join("status.feature"),
+            "Feature: Status\n  Scenario: ok\n    Given x\n    When y\n    Then z\n",
+        )
+        .unwrap();
+        let issues = validate_features_dir(&dir, tmp.path(), "en");
+        assert!(issues.is_empty(), "{issues:?}");
+    }
+
+    #[test]
+    fn validate_features_dir_syntax_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = spec_dir(&tmp, "cli");
+        fs::write(dir.join("broken.feature"), "this is not gherkin at all\n").unwrap();
+        let issues = validate_features_dir(&dir, tmp.path(), "en");
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Error);
+        assert!(issues[0].path.ends_with("broken.feature"));
+    }
+
+    #[test]
+    fn validate_features_dir_chinese_keywords() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = spec_dir(&tmp, "cli");
+        fs::write(
+            dir.join("status.feature"),
+            "功能: 状态\n  场景: 正常\n    假如 x\n    当 y\n    那么 z\n",
+        )
+        .unwrap();
+        let issues = validate_features_dir(&dir, tmp.path(), "zh-CN");
+        assert!(issues.is_empty(), "{issues:?}");
+    }
+
+    #[test]
+    fn validate_features_dir_empty_no_issues() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = spec_dir(&tmp, "cli");
+        // No .feature files → no issues from this function (guardrail handled
+        // by validate_main_spec_doc).
+        let issues = validate_features_dir(&dir, tmp.path(), "en");
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn validate_features_dir_uses_relative_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = spec_dir(&tmp, "cli");
+        fs::write(dir.join("broken.feature"), "not gherkin\n").unwrap();
+        let issues = validate_features_dir(&dir, tmp.path(), "en");
+        // Path should be relative to project root (tmp), not absolute.
+        assert!(issues[0].path.contains("cli/broken.feature"));
+        assert!(!issues[0].path.starts_with('/'));
+    }
+
+    #[test]
+    fn locale_to_gherkin_lang_zh_hans_maps_to_zh_cn() {
+        assert_eq!(locale_to_gherkin_lang(Some("zh-Hans"), None), "zh-CN");
+        assert_eq!(locale_to_gherkin_lang(Some("zh-Hans-CN"), None), "zh-CN");
+    }
+
+    #[test]
+    fn locale_to_gherkin_lang_passthrough() {
+        assert_eq!(locale_to_gherkin_lang(Some("en"), None), "en");
+        assert_eq!(locale_to_gherkin_lang(None, None), "en");
+    }
+
+    #[test]
+    fn locale_to_gherkin_lang_bdd_default_language_wins() {
+        let bdd = BddConfig {
+            framework: "cucumber-rs".to_string(),
+            feature_dir: None,
+            default_language: Some("ja".to_string()),
+            run_command: None,
+            verify_prompt: None,
+        };
+        assert_eq!(locale_to_gherkin_lang(Some("zh-Hans"), Some(&bdd)), "ja");
+    }
+
+    fn empty_spec_doc() -> MainSpecDoc {
+        MainSpecDoc {
+            kind: "llman.sdd.spec".to_string(),
+            name: "cli".to_string(),
+            purpose: "x".to_string(),
+            valid_scope: Vec::new(),
+            requirements: Vec::new(),
+            scenarios: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn bdd_on_features_present_requirements_empty_is_ok() {
+        // r51 bdd-on-empty-spec-error: with features, empty requirements is OK.
+        let doc = empty_spec_doc();
+        let issues = validate_main_spec_doc(&doc, "cli", true, true);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Info); // feature-as-spec mode
+    }
+
+    #[test]
+    fn bdd_on_no_features_no_requirements_is_error() {
+        let doc = empty_spec_doc();
+        let issues = validate_main_spec_doc(&doc, "cli", true, false);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Error);
+    }
+
+    #[test]
+    fn bdd_on_requirements_migrating_is_ok() {
+        // r51 bdd-on-requirements-migrating: requirements present + features ok.
+        let mut doc = empty_spec_doc();
+        doc.requirements = vec![crate::sdd::spec::ir::RequirementEntry {
+            req_id: "r1".to_string(),
+            title: "T".to_string(),
+            statement: "System MUST do x".to_string(),
+        }];
+        let issues = validate_main_spec_doc(&doc, "cli", true, true);
+        // No empty-spec error (requirements present); no info either.
+        assert!(
+            !issues.iter().any(|i| i.level == ValidationLevel::Error
+                && i.path == "cli/requirements"
+                && i.message.contains("no requirements")),
+            "{issues:?}"
+        );
+    }
+
+    #[test]
+    fn bdd_off_empty_requirements_no_bdd_guardrail() {
+        // BDD-off: the BDD empty-spec guardrail does not fire here (it is gated
+        // on bdd_enabled). Empty-spec detection in BDD-off mode is handled by
+        // valid_scope checks elsewhere in the pipeline.
+        let doc = empty_spec_doc();
+        let issues = validate_main_spec_doc(&doc, "cli", false, false);
+        assert!(
+            !issues.iter().any(|i| i.message.contains("BDD")),
+            "{issues:?}"
+        );
+    }
+
+    // --- Full-mode (r52) exit-code mapping tests ---
+
+    fn bdd_with_run_command(cmd: &str) -> BddConfig {
+        BddConfig {
+            framework: "custom".to_string(),
+            feature_dir: None,
+            default_language: None,
+            run_command: Some(cmd.to_string()),
+            verify_prompt: None,
+        }
+    }
+
+    #[test]
+    fn full_mode_exit_zero_is_pass() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = spec_dir(&tmp, "cli");
+        fs::write(dir.join("ok.feature"), "Feature: OK\n").unwrap();
+        let bdd = bdd_with_run_command("true");
+        let issues = run_full_mode(&dir, &bdd);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Info);
+    }
+
+    #[test]
+    fn full_mode_exit_nonzero_is_fail() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = spec_dir(&tmp, "cli");
+        fs::write(dir.join("bad.feature"), "Feature: Bad\n").unwrap();
+        let bdd = bdd_with_run_command("echo boom >&2; false");
+        let issues = run_full_mode(&dir, &bdd);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Error);
+        assert!(issues[0].message.contains("boom"));
+    }
 }
 
 pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> ValidationReport {
@@ -611,114 +826,106 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
     build_report(issues, strict)
 }
 
-fn validate_feature_refs(
-    doc: &MainSpecDoc,
-    project_root: &Path,
-    bdd_config: &BddConfig,
-) -> Vec<ValidationIssue> {
+/// Discover `.feature` files in a spec directory (feature-as-spec mode, r51).
+/// Returns paths sorted for deterministic output. No registration table needed:
+/// dropping a file into the directory IS the registration.
+pub fn discover_features(spec_dir: &Path) -> Vec<std::path::PathBuf> {
+    let pattern = spec_dir.join("*.feature");
+    let mut paths: Vec<_> = glob::glob(pattern.to_string_lossy().as_ref())
+        .ok()
+        .into_iter()
+        .flatten()
+        .flatten()
+        .collect();
+    paths.sort();
+    paths
+}
+
+/// Map a config locale to a Gherkin parsing language (r53).
+/// `zh-Hans*` → `zh-CN`; everything else passes through. An explicit
+/// `bdd.default_language` always wins over locale derivation.
+fn locale_to_gherkin_lang(locale: Option<&str>, bdd_config: Option<&BddConfig>) -> String {
+    if let Some(bdd) = bdd_config
+        && let Some(lang) = &bdd.default_language
+        && !lang.trim().is_empty()
+    {
+        return lang.clone();
+    }
+    match locale.map(str::trim).filter(|l| !l.is_empty()) {
+        Some(l) if l.starts_with("zh-Hans") => "zh-CN".to_string(),
+        Some(l) => l.to_string(),
+        None => "en".to_string(),
+    }
+}
+
+/// Fast-mode feature-as-spec validation (r52): parse every `.feature` in the
+/// spec directory as Gherkin. Structural legality only — no test runner.
+fn validate_features_dir(spec_dir: &Path, project_root: &Path, lang: &str) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
-    let Some(ref refs) = doc.feature_refs else {
+    let features = discover_features(spec_dir);
+    if features.is_empty() {
         return issues;
-    };
+    }
 
-    let spec_scenario_count = doc.scenarios.len();
+    let env_result = gherkin::GherkinEnv::new(lang);
+    if env_result.is_err() {
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Error,
+            path: format!("{}", spec_dir.display()),
+            message: t!(
+                "sdd.validate.feature_unsupported_language",
+                lang = lang,
+                dir = spec_dir.display()
+            )
+            .to_string(),
+        });
+        return issues;
+    }
 
-    for fr in refs {
-        // Path format check
-        if !fr.path.ends_with(".feature") {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: fr.path.clone(),
-                message: t!("sdd.validate.feature_ref_bad_extension", path = fr.path).to_string(),
-            });
-            continue;
-        }
-
-        let feature_path = project_root.join(&fr.path);
-
-        // File existence check
-        if !feature_path.exists() {
-            if fr.required {
-                issues.push(ValidationIssue {
-                    level: ValidationLevel::Error,
-                    path: fr.path.clone(),
-                    message: t!("sdd.validate.feature_ref_not_found", path = fr.path).to_string(),
-                });
-            } else {
-                issues.push(ValidationIssue {
-                    level: ValidationLevel::Warning,
-                    path: fr.path.clone(),
-                    message: t!(
-                        "sdd.validate.feature_ref_not_found_optional",
-                        path = fr.path
-                    )
-                    .to_string(),
-                });
-            }
-            continue;
-        }
-
-        // Gherkin syntax validation
-        let lang = bdd_config.default_language.as_deref().unwrap_or("en");
-        match fs::read_to_string(&feature_path) {
+    for feature_path in &features {
+        let rel = feature_path
+            .strip_prefix(project_root)
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|_| feature_path.clone());
+        let rel_str = rel.display().to_string();
+        match fs::read_to_string(feature_path) {
             Ok(content) => {
-                let env = gherkin::GherkinEnv::new(lang);
-                match env {
-                    Ok(env) => match gherkin::Feature::parse(&content, env) {
-                        Ok(feature_doc) => {
-                            // Scenario coverage check
-                            let feature_scenarios = count_feature_scenarios(&feature_doc);
-                            if feature_scenarios < spec_scenario_count {
-                                issues.push(ValidationIssue {
-                                    level: ValidationLevel::Warning,
-                                    path: fr.path.clone(),
-                                    message: t!(
-                                        "sdd.validate.feature_ref_coverage_gap",
-                                        path = fr.path,
-                                        feature = feature_scenarios,
-                                        spec = spec_scenario_count
-                                    )
-                                    .to_string(),
-                                });
-                            }
-                        }
-                        Err(e) => {
-                            issues.push(ValidationIssue {
-                                level: ValidationLevel::Error,
-                                path: fr.path.clone(),
-                                message: t!(
-                                    "sdd.validate.feature_ref_parse_error",
-                                    path = fr.path,
-                                    error = e
-                                )
-                                .to_string(),
-                            });
-                        }
-                    },
-                    Err(_e) => {
+                // GherkinEnv is not Clone; rebuild it per feature.
+                let env = match gherkin::GherkinEnv::new(lang) {
+                    Ok(env) => env,
+                    Err(_) => {
                         issues.push(ValidationIssue {
                             level: ValidationLevel::Error,
-                            path: fr.path.clone(),
+                            path: rel_str,
                             message: t!(
-                                "sdd.validate.feature_ref_unsupported_language",
+                                "sdd.validate.feature_unsupported_language",
                                 lang = lang,
-                                path = fr.path
+                                dir = spec_dir.display()
                             )
                             .to_string(),
                         });
+                        continue;
                     }
+                };
+                if let Err(e) = gherkin::Feature::parse(&content, env) {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: rel_str.clone(),
+                        message: t!(
+                            "sdd.validate.feature_parse_error",
+                            path = rel_str,
+                            error = e
+                        )
+                        .to_string(),
+                    });
                 }
             }
             Err(e) => {
                 issues.push(ValidationIssue {
                     level: ValidationLevel::Error,
-                    path: fr.path.clone(),
-                    message: t!(
-                        "sdd.validate.feature_ref_read_error",
-                        path = fr.path,
-                        error = e
-                    )
-                    .to_string(),
+                    path: rel_str.clone(),
+                    message: t!("sdd.validate.feature_read_error", path = rel_str, error = e)
+                        .to_string(),
                 });
             }
         }
@@ -727,53 +934,108 @@ fn validate_feature_refs(
     issues
 }
 
-fn count_feature_scenarios(doc: &gherkin::Feature) -> usize {
-    let mut count = 0;
-    for scenario in &doc.scenarios {
-        count += 1;
-        let _ = scenario;
-    }
-    for rule in &doc.rules {
-        for scenario in &rule.scenarios {
-            count += 1;
-            let _ = scenario;
+/// Full-mode execution (r52): shell out the BDD run command once for the entire
+/// spec directory. Exit code 0 → pass; non-zero → fail.
+fn run_full_mode(spec_dir: &Path, bdd_config: &BddConfig) -> Vec<ValidationIssue> {
+    let command = bdd_config.effective_run_command();
+    let expanded = expand_run_command_placeholders(&command, spec_dir);
+    let shell = match std::process::Command::new("sh")
+        .args(["-c", &expanded])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(e) => {
+            return vec![ValidationIssue {
+                level: ValidationLevel::Error,
+                path: spec_dir.display().to_string(),
+                message: t!(
+                    "sdd.validate.full_mode_spawn_failed",
+                    command = expanded,
+                    error = e
+                )
+                .to_string(),
+            }];
         }
+    };
+    let output = match shell.wait_with_output() {
+        Ok(output) => output,
+        Err(e) => {
+            return vec![ValidationIssue {
+                level: ValidationLevel::Error,
+                path: spec_dir.display().to_string(),
+                message: t!(
+                    "sdd.validate.full_mode_spawn_failed",
+                    command = expanded,
+                    error = e
+                )
+                .to_string(),
+            }];
+        }
+    };
+
+    if output.status.success() {
+        let n = discover_features(spec_dir).len();
+        return vec![ValidationIssue {
+            level: ValidationLevel::Info,
+            path: spec_dir.display().to_string(),
+            message: t!("sdd.validate.full_mode_passed", count = n).to_string(),
+        }];
     }
-    count
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let detail = if !stderr.is_empty() { stderr } else { stdout };
+    vec![ValidationIssue {
+        level: ValidationLevel::Error,
+        path: spec_dir.display().to_string(),
+        message: t!(
+            "sdd.validate.full_mode_failed",
+            command = expanded,
+            detail = detail
+        )
+        .to_string(),
+    }]
+}
+
+fn expand_run_command_placeholders(command: &str, spec_dir: &Path) -> String {
+    command
+        .replace("{feature_dir}", &spec_dir.display().to_string())
+        .replace("{feature_path}", &spec_dir.display().to_string())
+        .replace(
+            "{feature_name}",
+            spec_dir.file_name().and_then(|n| n.to_str()).unwrap_or(""),
+        )
 }
 
 fn validate_main_spec_doc(
     doc: &MainSpecDoc,
     spec_name: &str,
     bdd_enabled: bool,
+    has_features: bool,
 ) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
 
-    // BDD "point-only" mode: when the project enables BDD and the spec carries
-    // feature_refs, behavior lives in .feature files. The spec needs no inline
-    // requirements/scenarios; we only enforce pointer hygiene.
-    let has_feature_refs = doc
-        .feature_refs
-        .as_ref()
-        .is_some_and(|refs| !refs.is_empty());
-    let point_only = bdd_enabled && has_feature_refs;
-
-    if bdd_enabled && !has_feature_refs && doc.requirements.is_empty() {
-        // Guardrail: BDD on but the spec neither points to a feature nor declares
-        // requirements → force an explicit mode choice.
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Error,
-            path: format!("{spec_name}/requirements"),
-            message: t!("sdd.validate.bdd_empty_spec_guardrail").to_string(),
-        });
-    }
-
-    if point_only && has_feature_refs && doc.requirements.is_empty() {
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Info,
-            path: format!("{spec_name}/feature_refs"),
-            message: t!("sdd.validate.bdd_point_only").to_string(),
-        });
+    // Feature-as-spec (BDD-on) guardrail (r51):
+    // - BDD-on + directory has `.feature` files + requirements empty → OK
+    //   (feature-as-spec mode; behavior lives in `.feature` files).
+    // - BDD-on + directory has NO `.feature` files + requirements empty → ERROR
+    //   (empty spec: neither prose requirements nor executable features).
+    if bdd_enabled && doc.requirements.is_empty() {
+        if has_features {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Info,
+                path: format!("{spec_name}/features"),
+                message: t!("sdd.validate.feature_as_spec_mode").to_string(),
+            });
+        } else {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: format!("{spec_name}/requirements"),
+                message: t!("sdd.validate.bdd_empty_spec_guardrail").to_string(),
+            });
+        }
     }
 
     let mut req_id_seen = std::collections::HashSet::new();
@@ -851,9 +1113,10 @@ fn validate_main_spec_doc(
             .get(req.req_id.trim())
             .copied()
             .unwrap_or(0);
-        // In BDD point-only mode, inline scenarios are optional (behavior lives
-        // in the referenced .feature files), so skip the coverage check.
-        if count == 0 && !point_only {
+        // In feature-as-spec (BDD-on) mode, requirements are migrating into
+        // .feature files, so inline scenarios are optional — skip the coverage
+        // check for any remaining prose requirements.
+        if count == 0 && !bdd_enabled {
             issues.push(ValidationIssue {
                 level: ValidationLevel::Error,
                 path: format!("{}/requirements[{}]", spec_name, idx),

@@ -76,6 +76,14 @@ flowchart LR
    This MUST pass before proceeding. If TOON parse errors appear, fix quoting:
    values containing commas/colons/brackets must be double-quoted in tabular rows.
 
+### 4b) BDD-on mode (feature-as-spec) — only when `config.yaml` has a `bdd:` block
+- When the change touches a behavior contract for a spec that is (or will be) in BDD-on mode, author the behavior spec as a Gherkin `.feature` file instead of (or alongside) a `modify_requirement`/`add_requirement` op:
+  - Create `specs/<capability>/<behavior>.feature` (next to the delta `spec.toon`).
+  - Write keywords for the project locale (`en`: Feature/Scenario/Given/When/Then; `zh-Hans`: 功能/场景/假如/当/那么).
+  - Remove the corresponding prose `statement` from `requirements[]` once it has migrated to the `.feature`.
+- `spec.toon` in BDD-on keeps only `kind`/`name`/`purpose` metadata; `valid_scope` is ignored (the directory IS the scope).
+- Validate structure with `llman sdd validate <change-id>` (fast mode parses the `.feature`); do not run the runner here.
+
 ### 5) Summarize and suggest next step:
    - Enter implementation phase: `llman-sdd-apply`.
    - If you need to think more: `llman-sdd-explore`.

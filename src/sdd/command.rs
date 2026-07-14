@@ -262,6 +262,9 @@ pub enum SddCommands {
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
+        /// Full mode: run the BDD check command after fast validation (BDD-on spec only)
+        #[arg(long)]
+        check: bool,
     },
     /// Archive workflow commands
     Archive {
@@ -520,6 +523,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             compact_json,
             stage,
             no_interactive,
+            check,
         } => validate::run(validate::ValidateArgs {
             item: item.clone(),
             all: *all,
@@ -531,6 +535,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             compact_json: *compact_json,
             stage: stage.clone(),
             no_interactive: *no_interactive,
+            check: *check,
         }),
         SddCommands::Archive {
             no_interactive: _,

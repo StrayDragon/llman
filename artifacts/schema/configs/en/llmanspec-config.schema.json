@@ -68,7 +68,7 @@
       }
     },
     "bdd": {
-      "description": "BDD integration settings. When defined, enables feature_refs validation and BDD-aware verify prompts.",
+      "description": "BDD integration settings. When defined, enables feature-as-spec mode (directory-based .feature validation) and BDD-aware verify prompts.",
       "type": [
         "object",
         "null"
