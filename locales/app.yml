@@ -1923,7 +1923,7 @@ sdd:
     full_mode_spawn_failed:
       en: "Failed to run BDD check command `%{command}`: %{error}"
     full_mode_failed:
-      en: "BDD check failed (`%{command}`): %{detail}"
+      en: "BDD check failed (`%{command}`). Runner output:"
     full_mode_passed:
       en: "Full mode: %{count} feature(s) parsed, BDD check passed."
     meta_field_empty:

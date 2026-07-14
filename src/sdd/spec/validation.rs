@@ -752,9 +752,12 @@ mod tests {
         fs::write(dir.join("bad.feature"), "Feature: Bad\n").unwrap();
         let bdd = bdd_with_run_command("echo boom >&2; false");
         let issues = run_full_mode(&dir, &bdd);
-        assert_eq!(issues.len(), 1);
+        // 1 summary issue + 1 line of runner output ("boom").
+        assert!(issues.len() >= 2);
         assert_eq!(issues[0].level, ValidationLevel::Error);
-        assert!(issues[0].message.contains("boom"));
+        assert!(issues[0].message.contains("Runner output"));
+        // The runner's stderr line is surfaced verbatim.
+        assert!(issues.iter().any(|i| i.message.contains("boom")));
     }
 }
 
@@ -984,19 +987,27 @@ fn run_full_mode(spec_dir: &Path, bdd_config: &BddConfig) -> Vec<ValidationIssue
         }];
     }
 
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let detail = if !stderr.is_empty() { stderr } else { stdout };
-    vec![ValidationIssue {
+    // Failure: surface the runner output line-by-line so the user can see
+    // which feature/scenario failed (cucumber/pytest print this to stdout/stderr).
+    let mut issues = vec![ValidationIssue {
         level: ValidationLevel::Error,
         path: spec_dir.display().to_string(),
-        message: t!(
-            "sdd.validate.full_mode_failed",
-            command = expanded,
-            detail = detail
-        )
-        .to_string(),
-    }]
+        message: t!("sdd.validate.full_mode_failed", command = expanded).to_string(),
+    }];
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stderr.lines().chain(stdout.lines()) {
+        let trimmed = line.trim_end();
+        if trimmed.is_empty() {
+            continue;
+        }
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Error,
+            path: spec_dir.display().to_string(),
+            message: trimmed.to_string(),
+        });
+    }
+    issues
 }
 
 fn expand_run_command_placeholders(command: &str, spec_dir: &Path) -> String {

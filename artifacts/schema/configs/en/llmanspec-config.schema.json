@@ -75,8 +75,9 @@
       ],
       "properties": {
         "framework": {
-          "description": "BDD framework identifier.",
-          "type": "string"
+          "description": "BDD framework identifier (optional). Only used to derive a default run_command when run_command is unset.",
+          "type": "string",
+          "default": ""
         },
         "feature_dir": {
           "description": "Root directory for .feature files, relative to project root.",
@@ -106,10 +107,7 @@
             "null"
           ]
         }
-      },
-      "required": [
-        "framework"
-      ]
+      }
     }
   },
   "required": [

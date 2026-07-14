@@ -131,8 +131,12 @@ impl ArchiveConfig {
     description = "BDD integration settings. When defined, enables feature-as-spec mode (directory-based .feature validation) and BDD-aware verify prompts."
 )]
 pub struct BddConfig {
-    /// BDD framework identifier (pytest-bdd, rstest-bdd, cucumber-js, behave, custom)
-    #[schemars(description = "BDD framework identifier.")]
+    /// BDD framework identifier (optional, only used to derive a default run_command
+    /// when run_command is not set: pytest-bdd, rstest-bdd, cucumber-js, behave).
+    #[serde(default)]
+    #[schemars(
+        description = "BDD framework identifier (optional). Only used to derive a default run_command when run_command is unset."
+    )]
     pub framework: String,
 
     /// Root directory for .feature files, relative to project root
@@ -164,15 +168,16 @@ pub struct BddConfig {
 
 impl BddConfig {
     pub fn effective_run_command(&self) -> String {
-        self.run_command
-            .clone()
-            .unwrap_or_else(|| match self.framework.as_str() {
-                "pytest-bdd" => "pytest {feature_dir} -k {feature_name} -v".into(),
-                "rstest-bdd" => "cargo test --features bdd".into(),
-                "cucumber-js" => "npx cucumber-js {feature_path}".into(),
-                "behave" => "behave {feature_path}".into(),
-                _ => "echo 'No run_command configured. Set bdd.run_command in config.yaml'".into(),
-            })
+        if let Some(cmd) = &self.run_command {
+            return cmd.clone();
+        }
+        match self.framework.as_str() {
+            "pytest-bdd" => "pytest {feature_dir} -k {feature_name} -v".into(),
+            "rstest-bdd" => "cargo test --features bdd".into(),
+            "cucumber-js" => "npx cucumber-js {feature_path}".into(),
+            "behave" => "behave {feature_path}".into(),
+            _ => "echo 'No run_command configured. Set bdd.run_command in config.yaml'".into(),
+        }
     }
 }
 
