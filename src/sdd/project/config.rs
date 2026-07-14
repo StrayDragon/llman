@@ -5,7 +5,6 @@ use crate::sdd::shared::constants::LLMANSPEC_CONFIG_FILE;
 use anyhow::{Result, anyhow};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -22,22 +21,6 @@ pub(crate) const OPTIONAL_SKILL_NAMES: &[&str] = &[
 
 const DEFAULT_CONFIG_EN: &str = r#"schema: spec-driven
 locale: en
-
-# Project context (optional)
-# Tech stack, conventions, constraints. Shown to AI during artifact creation.
-# context: |
-#   Tech stack: TypeScript, React, Node.js
-#   We use conventional commits
-#   Domain: e-commerce platform
-
-# Per-artifact rules (optional)
-# Map of artifact_id -> string[].
-# rules:
-#   proposal:
-#     - Keep proposals under 500 words
-#     - Always include a "Non-goals" section
-#   tasks:
-#     - Break tasks into chunks of max 2 hours
 
 # Optional extra skills (disabled by default, uncomment to enable)
 # When you run `llman sdd init --update`, skills not in this list
@@ -61,22 +44,6 @@ locale: en
 
 const DEFAULT_CONFIG_ZH_HANS: &str = r#"schema: spec-driven
 locale: zh-Hans
-
-# 项目上下文（可选）
-# 技术栈、约定、约束等。在 AI 创建 artifact 时会展示。
-# context: |
-#   Tech stack: TypeScript, React, Node.js
-#   We use conventional commits
-#   Domain: e-commerce platform
-
-# 按 artifact 的规则（可选）
-# artifact_id -> string[] 的映射。
-# rules:
-#   proposal:
-#     - 提案保持在 500 字以内
-#     - 必须包含"非目标"章节
-#   tasks:
-#     - 每个任务不超过 2 小时
 
 # 可选额外技能（默认禁用，取消注释以启用）
 # 运行 `llman sdd init --update` 时，不在列表中的技能
@@ -193,18 +160,6 @@ pub struct SddConfig {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(
-        description = "Project context (tech stack, conventions, constraints). Replaces project.md."
-    )]
-    pub context: Option<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(description = "Per-artifact rules. Map of artifact_id -> string[].")]
-    pub rules: Option<BTreeMap<String, Vec<String>>>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(description = "Additional optional SDD skills to enable. \
         Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, \
         llman-sdd-sync, llman-sdd-validate.")]
@@ -228,8 +183,6 @@ impl Default for SddConfig {
         Self {
             schema: EXPECTED_SCHEMA.to_string(),
             locale: default_locale(),
-            context: None,
-            rules: None,
             extra_skills: None,
             archive: None,
             bdd: None,
@@ -306,8 +259,6 @@ pub fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
     Ok(Some(SddConfig {
         schema: EXPECTED_SCHEMA.to_string(),
         locale: normalize_locale(&config.locale),
-        context: config.context,
-        rules: config.rules,
         extra_skills: config.extra_skills,
         archive: config.archive,
         bdd: config.bdd,
@@ -472,8 +423,6 @@ mod tests {
         let config = SddConfig::default();
         assert_eq!(config.schema, "spec-driven");
         assert_eq!(config.locale, "en");
-        assert!(config.context.is_none());
-        assert!(config.rules.is_none());
         assert!(config.extra_skills.is_none());
     }
 
@@ -492,14 +441,6 @@ mod tests {
         assert!(content.contains("schema: spec-driven"));
         assert!(content.contains("locale: en"));
         assert!(
-            content.contains("# context:"),
-            "en template should have context comment"
-        );
-        assert!(
-            content.contains("# rules:"),
-            "en template should have rules comment"
-        );
-        assert!(
             content.contains("# extra_skills:"),
             "en template should have extra_skills comment"
         );
@@ -517,10 +458,6 @@ mod tests {
         assert!(content.contains("schema: spec-driven"));
         assert!(content.contains("locale: zh-Hans"));
         assert!(
-            content.contains("# context:"),
-            "zh-Hans template should have context comment"
-        );
-        assert!(
             content.contains("# extra_skills:"),
             "zh-Hans template should have extra_skills comment"
         );
@@ -536,9 +473,7 @@ mod tests {
             .expect("config should exist");
         assert_eq!(config.schema, "spec-driven");
         assert_eq!(config.locale, "en");
-        // Comments are stripped by serde; context/rules default to None
-        assert!(config.context.is_none());
-        assert!(config.rules.is_none());
+        // Comments are stripped by serde
         assert!(config.extra_skills.is_none());
     }
 
