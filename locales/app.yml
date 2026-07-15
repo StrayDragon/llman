@@ -1993,30 +1993,43 @@ sdd:
   solidify:
     bdd_off_noop:
       en: "BDD is not configured — solidify is a no-op. Add a `bdd:` block to llmanspec/config.yaml."
+      zh-Hans: "BDD 未配置——solidify 是 no-op。请在 llmanspec/config.yaml 中添加 `bdd:` 段。"
     change_not_found:
       en: "Change '%{id}' not found under llmanspec/changes/."
+      zh-Hans: "未找到变更 '%{id}'（llmanspec/changes/ 目录下不存在）。"
     no_scenarios:
       en: "No delta scenarios found to solidify."
+      zh-Hans: "未找到可固化的 delta scenario。"
     dry_run_preview:
       en: "[dry-run] would write %{path}:"
+      zh-Hans: "[dry-run] 将写入 %{path}："
     summary_dry_run:
       en: "%{capability}: would write %{written} scenario(s), skip %{skipped}."
+      zh-Hans: "%{capability}：将写入 %{written} 个 scenario，跳过 %{skipped} 个。"
     summary_written:
       en: "%{capability}: wrote %{written} scenario(s), skip %{skipped} -> %{path}"
+      zh-Hans: "%{capability}：写入 %{written} 个 scenario，跳过 %{skipped} 个 -> %{path}"
     skipped_item:
       en: "skip %{id}: %{reason}"
+      zh-Hans: "跳过 %{id}：%{reason}"
     totals:
       en: "Totals: %{written} written, %{skipped} skipped."
+      zh-Hans: "合计：%{written} 写入，%{skipped} 跳过。"
     migrate_start:
       en: "Solidify-migrate: scanning llmanspec/specs/ for BDD-on specs to upgrade…"
+      zh-Hans: "Solidify-migrate：扫描 llmanspec/specs/ 以升级 BDD-on spec…"
     migrate_no_candidates:
       en: "No BDD-on specs need migration (all specs already have full structure)."
+      zh-Hans: "没有需要迁移的 BDD-on spec（所有 spec 已为完整结构）。"
     migrate_summary:
       en: "Migrated %{count} spec(s) from .feature files into spec.toon (all scenarios feature=true)."
+      zh-Hans: "已从 .feature 文件迁移 %{count} 个 spec 到 spec.toon（所有 scenario 的 feature=true）。"
     migrate_dry_run_summary:
       en: "[dry-run] would migrate %{count} spec(s)."
+      zh-Hans: "[dry-run] 将迁移 %{count} 个 spec。"
     migrate_spec_done:
       en: "  migrated %{spec}: %{reqs} requirement(s), %{scenarios} scenario(s)"
+      zh-Hans: "  已迁移 %{spec}：%{reqs} 个 requirement，%{scenarios} 个 scenario"
 
 
 skills:
