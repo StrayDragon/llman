@@ -1,6 +1,6 @@
 kind: llman.sdd.spec
 name: "tool-rm-useless-dirs"
-purpose: "TBD - created by archiving change update-tool-rm-useless-dirs. Update Purpose after archive."
+purpose: "规范 `llman tool rm-useless-dirs` 的命令别名与无用目录清理行为。"
 valid_scope[5]: src/tool/rm_empty_dirs.rs,src/tool/command.rs,src/tool/config.rs,tests/rm_empty_dirs_tests.rs,"llmanspec/specs/tool-rm-useless-dirs/"
 requirements[7]{req_id,title,statement}:
   r1,Primary command name and alias,"The CLI MUST expose `llman tool rm-useless-dirs` as the primary cleanup subcommand. It MUST accept `rm-empty-dirs` as a deprecated alias that triggers the same behavior and emits a deprecation warning."

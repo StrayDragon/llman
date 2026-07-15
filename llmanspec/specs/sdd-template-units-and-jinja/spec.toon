@@ -1,6 +1,6 @@
 kind: llman.sdd.spec
 name: "sdd-template-units-and-jinja"
-purpose: "TBD - created by archiving change refactor-sdd-template-units-minijinja. Update Purpose after archive."
+purpose: "规范 SDD 模板单元的独立性、可发现性与 MiniJinja 注入渲染合约。"
 valid_scope[5]: src/sdd/project/templates.rs,"templates/sdd/",scripts/check-sdd-templates.py,justfile,"llmanspec/specs/sdd-template-units-and-jinja/"
 requirements[4]{req_id,title,statement}:
   r1,SDD Template Units Must Be Independent and Discoverable,"SDD prompt composition MUST split reusable prompt fragments into independent template-unit files, with explicit unit identifiers and deterministic lookup rules by locale."
