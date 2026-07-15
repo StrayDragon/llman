@@ -1,3 +1,10 @@
 kind: llman.sdd.spec
 name: "errors-exit"
-purpose: "规范 llman CLI 的错误渲染与退出行为。"
+purpose: 规范 llman CLI 的错误渲染与退出行为。
+valid_scope[1]: "llmanspec/specs/errors-exit"
+requirements[1]{req_id,title,statement}:
+  r1,"errors-exit",规范 llman CLI 的错误渲染与退出行为。 The system MUST satisfy the scenarios in this spec.
+scenarios[3]{req_id,id,given,when,then,feature}:
+  r1,子命令返回错误时打印单行错误并以退出码 1 退出,llman 二进制已构建,在非交互终端运行 llman sdd show,"退出码为 1\nstderr 包含 Error",true
+  r1,非交互终端下 sdd show 无参数时以退出码 1 退出,llman 二进制已构建,在非交互终端运行 llman sdd show,"退出码为 1\nstderr 包含 Nothing to show",true
+  r1,查看不存在的 spec 时正常报错而非 panic,llman 二进制已构建,"运行 llman sdd show nonexistent-spec --type spec","退出码非零\nstderr 包含 Error",true

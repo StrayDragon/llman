@@ -4,6 +4,7 @@ pub mod init;
 pub mod interop;
 pub mod migrate;
 pub mod regions;
+pub mod solidify_migrate;
 pub mod templates;
 pub mod update_skills;
 pub mod upgrade_guide;

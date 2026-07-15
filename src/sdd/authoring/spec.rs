@@ -112,6 +112,7 @@ pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<
         given: "".to_string(),
         when_: "TODO: describe the trigger".to_string(),
         then_: "TODO: describe the expected result".to_string(),
+        feature: true,
     });
 
     let payload = BACKEND.dump_main_spec(&spec)?;
@@ -169,6 +170,7 @@ pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs) -> Result<()> {
         given: args.given.trim().to_string(),
         when_: args.when_.trim().to_string(),
         then_: args.then_.trim().to_string(),
+        feature: true,
     });
 
     let payload = BACKEND.dump_main_spec(&spec)?;

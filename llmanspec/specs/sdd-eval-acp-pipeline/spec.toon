@@ -1,3 +1,19 @@
 kind: llman.sdd.spec
 name: "sdd-eval-acp-pipeline"
 purpose: "规范实验性 `llman x sdd-eval` 评测流水线：playbook 驱动、variant 隔离、ACP agent 沙箱与报告生成。"
+valid_scope[1]: "llmanspec/specs/sdd-eval-acp-pipeline"
+requirements[1]{req_id,title,statement}:
+  r1,"sdd-eval-acp-pipeline","规范实验性 `llman x sdd-eval` 评测流水线：playbook 驱动、variant 隔离、ACP agent 沙箱与报告生成。 The system MUST satisfy the scenarios in this spec."
+scenarios[12]{req_id,id,given,when,then,feature}:
+  r1,help 可用,"用户运行 llman x sdd-eval --help",命令执行,打印帮助文本并成功退出,true
+  r1,init 写出 YAML 模板 playbook,"用户在项目根运行 llman x sdd-eval init --name demo",命令执行,"存在 <project>/.llman/sdd-eval/playbooks/demo.yaml\n为可解析 YAML",true
+  r1,run 创建新 run 目录与基础布局,"用户运行 llman x sdd-eval run --playbook <path>",命令执行,"在 <project>/.llman/sdd-eval/runs/ 下创建新 <run_id> 目录",true
+  r1,缺失 variants 显式失败,"playbook 无 variants 且用户运行 llman x sdd-eval run",命令执行,非零退出并解释至少需要一个 variant,true
+  r1,variant workspace 用新风格模板初始化,某 variant workspace 已为某次 run 准备好,初始化执行,variant workspace 用新风格 SDD 模板初始化,true
+  r1,run 工件永不含 API key 明文,"用户用含 API key env 的 preset 运行 llman x sdd-eval run",命令执行,run 目录下无文件含原始 API key 值,true
+  r1,路径穿越被拒,agent 请求读取 ../../.ssh/id_rsa,客户端处理,"拒绝该请求\n在 variant log 记录非机密错误",true
+  r1,loop 达 max iterations 后停止,max iterations 设为 3,runner 执行,"最多执行 3 次迭代\n随后标记该 variant 为 completed-by-limit",true
+  r1,run 后生成报告,"用户运行 llman x sdd-eval report --run <run_id>",命令执行,在 run 目录下写出报告文件,true
+  r1,human 评分可导入,"用户运行 llman x sdd-eval import-human --run <run_id> --file scores.json",命令执行,该 run 的报告数据更新为含导入评分,true
+  r1,仅启用 AI judge 时缺失 OPENAI key 才失败,OPENAI_API_KEY 为空且 AI judge 已启用,"用户运行 llman x sdd-eval report",非零退出并解释 AI judge 需 OPENAI_API_KEY,true
+  r1,matrix 引用未知 variant 显式失败,"某 job 定义 strategy.matrix.variant: [\"a\"] 但 a 不存在",命令执行,非零退出,true

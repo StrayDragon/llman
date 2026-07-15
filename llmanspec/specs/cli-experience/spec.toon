@@ -1,3 +1,22 @@
 kind: llman.sdd.spec
 name: "cli-experience"
-purpose: "规范 llman CLI 的消息、本地化覆盖与 stdout/stderr 约定。"
+purpose: 规范 llman CLI 的消息、本地化覆盖与 stdout/stderr 约定。
+valid_scope[1]: "llmanspec/specs/cli-experience"
+requirements[1]{req_id,title,statement}:
+  r1,"cli-experience",规范 llman CLI 的消息、本地化覆盖与 stdout/stderr 约定。 The system MUST satisfy the scenarios in this spec.
+scenarios[15]{req_id,id,given,when,then,feature}:
+  r1,生成 bash 补全,"用户运行 llman self completion --shell bash",命令执行,"补全脚本写到 stdout\n命令成功退出",true
+  r1,install 补全片段到 rc,"用户运行 llman self completion --shell bash --install",命令执行,"bash rc/profile 文件中新增或更新标记补全块\n命令成功退出",true
+  r1,install 输出打印实际片段,安装了一个补全片段,命令执行,该片段写到 stdout,true
+  r1,拒绝确认不产生副作用,用户拒绝确认提示,命令执行,不修改任何 rc/profile 文件,true
+  r1,"非交互 install 未提供 --yes 时拒绝","命令在非交互环境运行且含 --install 但无 --yes",命令执行,"非零退出\n不修改任何 rc/profile 文件",true
+  r1,"非交互 install 提供 --yes 时直接写入","命令在非交互环境运行且含 --install --yes",命令执行,"补全块被安装/更新\n命令成功退出",true
+  r1,已存在块时原地更新不重复,shell rc/profile 已含标记 llman 补全块,执行 install,"该块被替换为最新片段\n不新增重复块",true
+  r1,不支持的 shell 值报错,"用户传 --shell {unsupported}",命令执行,"报告支持的 shell 列表\n以失败退出",true
+  r1,PowerShell 拒绝 home 外的 profile,"PROFILE={external_path} 且该路径不在用户 home 下","用户运行 llman self completion --shell powershell --yes","命令失败并拒绝写入\n文件系统中未写入补全块",true
+  r1,本地化提示含内联格式化,某命令提示用户或打印状态头,输出消息,"主要文本从 locales/app.yml 解析\n内联标记（emoji/bullet/分隔符）作为字面量嵌入",true
+  r1,生成内容可含非本地化硬编码文本,某命令输出生成内容（如导出 markdown 或文件名标签）,输出,可含未本地化的硬编码文本,true
+  r1,CLI 启动 locale 为 en,CLI 启动,运行时初始化,"locale 设为 en\n本地化键从 locales/app.yml 解析",true
+  r1,执行失败错误写到 stderr,某命令执行中失败,输出错误,面向用户的错误写到 stderr,true
+  r1,进度与结果写到 stdout,某命令报告进度或结果,输出,消息写到 stdout,true
+  r1,单行标签格式一致,打印单行状态或标签,输出,"使用一致格式\n不混用无关前缀",true

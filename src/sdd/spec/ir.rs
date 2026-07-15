@@ -35,6 +35,15 @@ pub struct ScenarioEntry {
     pub when_: String,
     #[serde(rename = "then")]
     pub then_: String,
+    /// Whether this scenario should be serialized into a `.feature` file by
+    /// `solidify` (default `true`). `feature: false` keeps the scenario in
+    /// `spec.toon` as documentation only.
+    #[serde(default = "default_feature_true")]
+    pub feature: bool,
+}
+
+fn default_feature_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

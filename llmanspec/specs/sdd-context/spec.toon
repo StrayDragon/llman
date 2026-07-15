@@ -1,3 +1,16 @@
 kind: llman.sdd.spec
 name: "sdd-context"
-purpose: "规范 `llman sdd context` 命令的后端选项、默认值与 pageindex 检索行为。"
+purpose: 规范 `llman sdd context` 命令的后端选项、默认值与 pageindex 检索行为。
+valid_scope[1]: "llmanspec/specs/sdd-context"
+requirements[1]{req_id,title,statement}:
+  r1,"sdd-context",规范 `llman sdd context` 命令的后端选项、默认值与 pageindex 检索行为。 The system MUST satisfy the scenarios in this spec.
+scenarios[9]{req_id,id,given,when,then,feature}:
+  r1,拒绝非 pageindex 后端值,"用户执行 sdd context --backend {bad_backend}","命令解析 --backend 值","报错退出\n提示 backend 仅支持 pageindex\n引导配置所需环境变量",true
+  r1,chat 模型 endpoint 回退复用 OPENAI 值,LLMAN_SDD_INDEX_CHAT_API_HOST 未设置但 LLMAN_SDD_INDEX_OPENAI_API_HOST 已设置,解析 chat 模型 endpoint,回退复用 LLMAN_SDD_INDEX_OPENAI_API_HOST 的值,true
+  r1,默认 host 为空且未配置时报错,LLMAN_SDD_INDEX_CHAT_API_HOST 未设置且 LLMAN_SDD_INDEX_OPENAI_API_HOST 也未设置,"ChatConfig::from_env() 执行","返回错误并提示用户配置 LLMAN_SDD_INDEX_CHAT_API_HOST\n不回退到任何可路由地址",true
+  r1,显式 host 正常生效,LLMAN_SDD_INDEX_CHAT_API_HOST 已设置为合法 URL,"ChatConfig::from_env() 执行","正常返回配置\n使用用户提供的值",true
+  r1,索引缺失时返回 unavailable 且不回退,pageindex 索引缺失,"执行 sdd context（未显式 --backend）","返回 quality=unavailable\nqualityNote 含 rebuild 命令\n不回退到任何其它检索方式",true
+  r1,配置缺失时给出简洁可操作提示,LLMAN_SDD_INDEX_CHAT_MODEL 未设置,执行 sdd context,"提示明确列出需设置的变量名与 rebuild 命令\n内容简洁无冗余",true
+  r1,rebuild 从 IR 构建树索引无需 LLM,存在多个已解析的 sdd spec,"执行 sdd index rebuild --backend pageindex","生成 tree.json\n构建过程不发起任何 LLM 请求",true
+  r1,agentic loop 经三工具导航,chat 模型收到 system prompt 与三工具（list_specs / get_document_structure / get_spec_content）,sdd context 检索执行,LLM 依次调用工具后输出 direct/related 分类结果,true
+  r1,后端隔离不互相降级,.context/rag/ 已有索引但 .context/pageindex/ 不存在,"执行 sdd context --backend pageindex","返回 quality 为 unavailable 且 errorKind 为 index_missing\n不降级使用 rag 索引",true

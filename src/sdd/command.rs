@@ -1,7 +1,7 @@
 use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
-use crate::sdd::project::{init, interop, migrate, upgrade_guide};
+use crate::sdd::project::{init, interop, migrate, solidify_migrate, upgrade_guide};
 use crate::sdd::shared::{graph, list, show, status, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -278,6 +278,15 @@ pub enum SddCommands {
         #[command(subcommand)]
         command: ArchiveSubcommand,
     },
+    /// Solidify a change's delta scenarios into executable `.feature` files
+    /// (BDD-on only). Applies after `apply`, before `archive`.
+    Solidify {
+        /// Change id
+        change: String,
+        /// Dry run mode: preview the generated `.feature` content without writing
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Spec authoring helpers
     Spec(SddSpecArgs),
     /// Delta authoring helpers
@@ -397,6 +406,14 @@ pub enum SddProjectCommands {
     },
     /// Output an upgrade guide prompt for the current SDD project
     UpgradeGuide,
+    /// One-shot: migrate legacy BDD-on specs (minimal spec.toon + .feature
+    /// files) to the unified full structure (valid_scope + requirements +
+    /// scenarios). Idempotent; safe to re-run.
+    SolidifyMigrate {
+        /// Scan and report without writing files
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -576,6 +593,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 dest: dest.clone(),
             }),
         },
+        SddCommands::Solidify { change, dry_run } => crate::sdd::solidify::run(change, *dry_run),
         SddCommands::Spec(args) => match &args.command {
             SddSpecCommands::Skeleton { capability, force } => authoring::spec::run_skeleton(
                 std::path::Path::new("."),
@@ -803,6 +821,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 no_interactive: *no_interactive,
             }),
             SddProjectCommands::UpgradeGuide => upgrade_guide::run(),
+            SddProjectCommands::SolidifyMigrate { dry_run } => solidify_migrate::run(*dry_run),
         },
     }
 }

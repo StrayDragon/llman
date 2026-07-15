@@ -1,72 +1,72 @@
 ---
-name: "llman-sdd-graph"
-description: "以 mermaid 图可视化 llman SDD 变更间的依赖关系（depends_on/blocks）。辅助工具，任意阶段可用，不属于主实现 pipeline。"
+name: "llman-sdd-solidify"
+description: "将变更的 delta scenarios 序列化为可执行的 .feature 文件（仅 BDD-on）。在 apply 之后、archive 之前运行。框架无关：按 scenario 的 feature 字段和自指黑名单过滤后写入 Gherkin。"
 metadata:
   version: "0.0.59"
 ---
 
-# LLMAN SDD 依赖图
+# LLMAN SDD Solidify
 
-使用此 skill 可视化变更之间的依赖关系。
+使用此 skill 为某个 change 生成（重新生成）可执行的 `.feature` 文件，来源是其 delta `spec.toon` 中的 scenarios。仅 BDD-on 项目。
 
 ## Pipeline 位置
 
 ```mermaid
 flowchart LR
-    pipeline["主 pipeline:<br/>propose → apply → verify → archive"]
-    graph["📎 llman-sdd-graph<br/>依赖可视化（辅助工具）"]
-    graph -.->|任意阶段可用| pipeline
+    apply["llman-sdd-apply<br/>实施"] --> verify["llman-sdd-verify<br/>验证"]
+    verify --> solidify
+    solidify["★ llman-sdd-solidify ★<br/>固化（你现在在这里）"]
+    solidify --> archive["llman-sdd-archive<br/>归档"]
+    archive --> commit["git commit<br/>完成闭环"]
 
-    style graph fill:#e8f4e8,stroke:#28a745,stroke-width:2px
+    style solidify fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📎 辅助工具，可在 pipeline 任意阶段使用。需要落地执行时 → `llman-sdd-apply`（实施）或 `llman-sdd-propose`（提案）。
+> 📍 你现在在 solidify 阶段：verify 通过之后、archive 之前。
+> BDD-off 项目：此命令为 no-op（无内容可生成）。
 
-## 用法
+## 心智模型
 
-**聚焦视图（seed 模式）：** 展示指定变更及其关系邻域。
+- `spec.toon` 是 SSOT。`.feature` 文件是其 scenarios 的**可执行子集**，序列化为 Gherkin。
+- 每个 scenario 有一个 `feature` 字段（默认 `true`）：
+  - `feature: true`（或省略）→ solidify 写入 `.feature`。
+  - `feature: false` → 留在 `spec.toon` 作文档，不写入 `.feature`。
+- 当 scenario 的 `when` 调用 `llman sdd validate|archive|solidify` 时为**自指递归**，会被跳过（否则 BDD runner 会递归 spawn）。
+- **框架无关**：solidify 不扫描 `tests/bdd_steps.rs` 或任何 BDD 框架的 step 绑定。scenario 是否在运行时「可执行」由 `bdd.run_command` 判定，而非 solidify。
 
-```bash
-llman sdd graph <change-id>              # 该变更 + 直接关系（depth 1）
-llman sdd graph <change-id> --depth 3    # 递归 3 层
-llman sdd graph <change-id> --depth 0    # 仅该变更自身
-```
+## 硬约束
 
-seed 模式沿 upstream（depends_on）、downstream（被谁依赖）、blocks 三个方向遍历，自动发现活跃和已归档变更。
+- **仅 BDD-on**：若 `config.yaml` 无 `bdd:` 段，solidify 直接 no-op。停下并报告。
+- **禁止手工编辑 `.feature`**：它们是生成产物。改 `spec.toon` 的 scenarios，再重新运行 solidify。
+- **不要问「要不要继续」**：一路执行到底，除非遇到无法自动解决的错误。
 
-**全局视图（scope 模式）：** 按范围展示所有变更。
+## 步骤
 
-```bash
-llman sdd graph                          # 所有活跃变更（默认）
-llman sdd graph --scope archived         # 所有已归档（已完成）变更
-llman sdd graph --scope all              # 全部
-```
+### 1) 确认目标 change
+- 确定 change id（来自用户输入或上下文）。
+- 始终说明："固化的变更：<id>"。
 
-## 输出
+### 2)（可选）Dry-run 预览
+- `llman sdd solidify <id> --dry-run` 预览哪些 scenario 写入、哪些跳过。
+- 检查跳过原因：`feature=false` 与自指 scenario 的跳过是预期的。
 
-- 输出为 mermaid flowchart 到标准输出，可管道到文件或渲染器：
-  ```
-  llman sdd graph c50 > deps.mmd
-  llman sdd graph c50 --depth 2 | mmdc -i - -o deps.png
-  ```
-- 已归档（已完成）变更以 "✓ done" 后缀和绿色高亮显示。
-- 当图中存在互不相连的分组时，每组渲染为独立的 subgraph，标注 "Active"、"Done" 或 "Mixed"。
+### 3) 执行 solidify
+- `llman sdd solidify <id>`
+- 会为每个 capability 在 `llmanspec/specs/<capability>/<capability>.feature` 写入一个文件。
 
-## 提案 frontmatter 格式
+### 4) 报告
+- 汇总：每个 capability 写入/跳过的 scenario 数量，及输出路径。
+- 跳过的 scenario 列出原因。
 
-```yaml
----
-depends_on:
-  - other-change-id
-blocks:
-  - blocked-change-id
----
+## 命令选择
 
-## Why
-...
-```
+| 场景 | 命令 |
+|------|------|
+| 为单个 change 生成 `.feature` | `llman sdd solidify <id>` |
+| 预览不写入 | `llman sdd solidify <id> --dry-run` |
+| 升级遗留 BDD-on spec（最小 spec.toon + .feature）到完整结构 | `llman sdd project solidify-migrate [--dry-run]` |
 
-> 💡 这只是辅助工具 — 需要落地执行时回到主 pipeline：`llman-sdd-propose` → `llman-sdd-apply` → `llman-sdd-verify` → `llman-sdd-archive`。
+> 💡 上一阶段 `llman-sdd-verify`（已通过）→ 本阶段生成 `.feature` → 下一步 `llman-sdd-archive`（归档）。
 
 在执行之前，请先阅读 `llmanspec/config.yaml`，若其中包含 `context` 与 `rules` 请遵循。
 

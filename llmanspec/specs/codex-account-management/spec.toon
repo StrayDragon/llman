@@ -1,3 +1,19 @@
 kind: llman.sdd.spec
 name: "codex-account-management"
-purpose: "规范 `llman x codex` 账户管理：编辑器命令参数支持与账户配置行为。"
+purpose: 规范 `llman x codex` 账户管理：编辑器命令参数支持与账户配置行为。
+valid_scope[1]: "llmanspec/specs/codex-account-management"
+requirements[1]{req_id,title,statement}:
+  r1,"codex-account-management",规范 `llman x codex` 账户管理：编辑器命令参数支持与账户配置行为。 The system MUST satisfy the scenarios in this spec.
+scenarios[12]{req_id,id,given,when,then,feature}:
+  r1,编辑器含参数时正确执行,"$EDITOR 设置为 code --wait 且用户运行 llman x codex account edit",命令执行,"执行 code --wait <codex.toml-path>\n若编辑器非零退出则返回错误",true
+  r1,首次切换写入 provider 无 override_name,用户选择 minimax 组且 codex config 无 model_providers.minimax,切换组,"写入 minimax provider 配置\n设置 model_provider = \"minimax\"",true
+  r1,存在 override_name 时按 effective_name 写入,"用户选 b 组且配置含 override_name = \"a\"\ncodex config 无 model_providers.a",切换组,"写入到 model_providers.a\n设置 model_provider = \"a\"\n写入项 name = \"a\"",true
+  r1,透传额外字段且不写入 llman_configs,选定 provider table 含额外字段且存在 override_name,切换组,"codex config 中保留该额外字段\n不包含 llman_configs 子表",true
+  r1,基于 effective_name 幂等不重复写入,"用户再次选 b 组（override_name = \"a\"）\ncodex config 已 model_provider = \"a\" 且 model_providers.a 配置一致",切换组,"检测到配置已存在且一致\n跳过写入",true
+  r1,注入 LD_PRELOAD 危险键被拒绝,"所选组 env 含 LD_PRELOAD={evil_path}",用户切换到该组并触发 codex 子进程启动,"命令失败并报告危险环境变量被拒绝\n未启动 codex",true
+  r1,交互导入创建 provider,"用户运行 llman x codex account import 并输入 minimax / https://api.minimax.com/v1 / MINIMAX_KEY / sk-xxx",命令执行,在 codex.toml 中创建 model_providers.minimax 及其 env 子表,true
+  r1,透传 codex 参数,"用户运行 llman x codex -- --help -m o3 并在交互中选任意 provider",系统执行,"执行 codex --help -m o3",true
+  r1,未提供透传参数时仅执行 codex,用户运行 llman x codex 并在交互中选任意 provider,系统执行,执行 codex,true
+  r1,非交互 run,"用户运行 llman x codex run --group openai -- --help",系统执行,"upsert openai provider 到 codex config\n注入环境变量\n执行 codex --help",true
+  r1,交互 run,"用户运行 llman x codex run -i",系统执行,"交互选组、询问参数\n然后 upsert + 注入 + 执行",true
+  r1,account 默认进入编辑,用户运行 llman x codex account,系统执行,使用编辑器打开 codex.toml,true

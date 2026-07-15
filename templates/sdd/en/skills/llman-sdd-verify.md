@@ -48,10 +48,9 @@ flowchart LR
 5. Compare artifacts vs code:
    - Identify mismatches (missing behavior, wrong behavior, missing tests/docs)
    - Suggest minimal fixes or artifact updates
-6. **BDD-on (feature-as-spec) verification** — only when `config.yaml` has a `bdd:` block:
-   - Fast layer: `llman sdd validate <spec>` — confirms every `.feature` in the spec directory parses as valid Gherkin.
-   - Full layer: `llman sdd validate <spec> --check` — runs `bdd.run_command` once over the spec directory; exit 0 = pass, non-zero = fail.
-   - Compare the implementation against the `.feature` scenarios; failing scenarios are CRITICAL.
+6. **BDD-on verification** — only when `config.yaml` has a `bdd:` block:
+   - `llman sdd validate <spec>` auto-runs `bdd.run_command` after Gherkin parse; exit 0 = pass, non-zero = fail.
+   - Confirm `llman sdd solidify <id>` was run — `.feature` files should be up to date with delta scenarios.
 {% if bdd_verify_prompt %}
    - Extra requirement: {{ bdd_verify_prompt }}
 {% endif %}

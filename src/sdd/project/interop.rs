@@ -294,6 +294,7 @@ fn migrate_spec(
                 given: String::new(),
                 when_: "TODO: describe the trigger".into(),
                 then_: "TODO: describe the expected result".into(),
+                feature: true,
             });
             written_scenarios += 1;
         } else {
@@ -312,6 +313,7 @@ fn migrate_spec(
                     } else {
                         sc.then_.clone()
                     },
+                    feature: true,
                 });
                 written_scenarios += 1;
             }

@@ -75,13 +75,12 @@ flowchart LR
    ```
    此步骤必须通过后才能继续。若出现 TOON 解析错误，需修复引号：表格化行中包含逗号/冒号/方括号的值必须用双引号包裹。
 
-### 4b) BDD-on 模式（feature-as-spec）——仅当 `config.yaml` 含 `bdd:` 段时
-- 当变更触及一个 BDD-on 模式（或将进入 BDD-on）spec 的行为合约时，用 Gherkin `.feature` 文件承载行为规格（取代或配合 `modify_requirement`/`add_requirement` op）：
-  - 创建 `specs/<capability>/<behavior>.feature`（与 delta `spec.toon` 同目录）。
-  - 按项目 locale 写关键字（`en`：Feature/Scenario/Given/When/Then；`zh-Hans`：功能/场景/假如/当/那么）。
-  - 对应行为迁入 `.feature` 后，从 `requirements[]` 删除对应 prose statement。
-- BDD-on 模式下 `spec.toon` 仅保留 `kind`/`name`/`purpose` 元数据；`valid_scope` 被忽略（目录即 scope）。
-- 用 `llman sdd validate <change-id>` 做结构校验（fast mode 解析 `.feature`）；此处不跑 runner。
+### 4b) BDD-on 模式——仅当 `config.yaml` 含 `bdd:` 段时
+- `spec.toon` 是 BDD-on spec 的唯一真源（结构与 BDD-off 相同：`kind`/`name`/`purpose`/`valid_scope`/`requirements`/`scenarios`）。
+- Scenario 含 `feature` 字段（默认 `true`）：`true` → 在 `solidify` 阶段可写入 `.feature`；`false` → 留在 TOON 内仅作文档。
+- Delta 永远是纯 TOON（`ops` + `op_scenarios`）。propose 时不要创建 `.feature` delta 文件。
+- `apply` 完成后运行 `llman sdd solidify <change-id>` 从 delta 的可执行 scenario 生成/更新 `.feature` 文件。
+- `.feature` 是衍生工件——永远不要手动编辑。TOON `scenarios` 表是唯一真源。
 
 ### 5) 总结已创建内容，并建议下一步：
    - 进入实现阶段：`llman-sdd-apply`。

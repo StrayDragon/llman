@@ -488,19 +488,6 @@ fn validate_change_full(
     crate::sdd::spec::validation::build_report(issues, strict)
 }
 
-/// Build a staleness scope from the spec directory (BDD-on mode, r55).
-/// Any file change under `llmanspec/specs/<id>/` counts as touching this spec —
-/// the directory structure is the SSOT for scope, retiring `valid_scope` hints.
-fn spec_dir_as_scope(
-    _root: &Path,
-    spec_id: &str,
-) -> Option<crate::sdd::spec::validation::SpecFrontmatter> {
-    let scope = format!("{LLMANSPEC_DIR_NAME}/specs/{spec_id}");
-    Some(crate::sdd::spec::validation::SpecFrontmatter {
-        valid_scope: vec![scope],
-    })
-}
-
 #[allow(clippy::too_many_arguments)]
 fn validate_by_type(
     root: &Path,
@@ -552,7 +539,6 @@ fn validate_by_type(
                 .join(SPEC_FILE);
             match fs::read_to_string(&spec_path) {
                 Ok(content) => {
-                    let bdd_enabled = bdd_config.is_some();
                     let validation = validate_spec_content_with_frontmatter_and_bdd(
                         &spec_path,
                         &content,
@@ -562,16 +548,9 @@ fn validate_by_type(
                         Some(locale),
                         check_mode,
                     );
-                    // Staleness scope:
-                    // - BDD-on (feature-as-spec): the spec directory itself is the
-                    //   structural scope truth. Any file change under specs/<id>/
-                    //   counts as touching this spec (r55 retires valid_scope).
-                    // - BDD-off: use the spec's valid_scope (unchanged behavior).
-                    let staleness_frontmatter = if bdd_enabled {
-                        spec_dir_as_scope(root, id)
-                    } else {
-                        validation.frontmatter.clone()
-                    };
+                    // Staleness scope: spec.toon's valid_scope is the single
+                    // source of truth (unified path, BDD-on or off).
+                    let staleness_frontmatter = validation.frontmatter.clone();
                     let staleness =
                         evaluate_staleness(root, id, &spec_path, staleness_frontmatter.as_ref());
                     let mut issues = validation.report.issues.clone();
@@ -844,7 +823,6 @@ fn run_bulk_validation(
             .join(SPEC_FILE);
         match fs::read_to_string(&spec_path) {
             Ok(content) => {
-                let bdd_enabled = bdd_config.is_some();
                 let validation = validate_spec_content_with_frontmatter_and_bdd(
                     &spec_path,
                     &content,
@@ -854,11 +832,7 @@ fn run_bulk_validation(
                     Some(locale),
                     check_mode,
                 );
-                let staleness_frontmatter = if bdd_enabled {
-                    spec_dir_as_scope(root, &id)
-                } else {
-                    validation.frontmatter.clone()
-                };
+                let staleness_frontmatter = validation.frontmatter.clone();
                 let staleness = staleness_evaluator.evaluate(
                     &id,
                     &spec_path,

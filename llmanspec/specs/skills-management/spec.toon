@@ -1,3 +1,42 @@
 kind: llman.sdd.spec
 name: "skills-management"
-purpose: "规范 llman 跨来源技能发现、托管快照、冲突处理与目标链接的整体流程和约束。"
+purpose: 规范 llman 跨来源技能发现、托管快照、冲突处理与目标链接的整体流程和约束。
+valid_scope[1]: "llmanspec/specs/skills-management"
+requirements[1]{req_id,title,statement}:
+  r1,"skills-management",规范 llman 跨来源技能发现、托管快照、冲突处理与目标链接的整体流程和约束。 The system MUST satisfy the scenarios in this spec.
+scenarios[35]{req_id,id,given,when,then,feature}:
+  r1,name 缺失或非法时用目录名,SKILL.md 缺失 name 或含非法值,计算 skill_id,使用目录名作为 skill_id,true
+  r1,name 需 slugify,SKILL.md 的 name 为 Slint GUI Expert,计算 skill_id,"skill_id 为 slint-gui-expert",true
+  r1,agents 为默认 target 之一,skills root 无 config.toml,加载默认 targets,含 agents project（.agents/skills）以及 claude user/project,true
+  r1,分组推断,"技能目录名为 {grouped_name}",推断分组,归入对应分组,true
+  r1,无分组技能归 ungrouped,技能目录名不含 .,推断分组,归入 ungrouped 分组,true
+  r1,选择分组自动展开,用户在 skills 列表选择某分组节点,管理器处理,将该分组对应技能集合加入最终选择集合,true
+  r1,树形父子联动,用户在树形列表切换分组父节点,管理器处理,该父节点下所有子技能同步选中或取消,true
+  r1,重叠技能去重,用户同时选多个分组且含同一技能,计算最终应用集合,该技能只保留一份,true
+  r1,搜索过滤保留父节点,用户输入关键字仅匹配某技能,列表过滤,"仅显示匹配技能\n其父分组保留显示",true
+  r1,展示 skill_id 与目录名,某技能 skill_id 为 brainstorming 且目录名为 superpowers.brainstorming,交互选项展示,显示为 brainstorming (superpowers.brainstorming),true
+  r1,命令行帮助不含预设参数,"用户查看 llman skills --help",检查帮助,"不含 --preset、--save-preset、--list-presets 等参数",true
+  r1,直接进入 agent 菜单,用户运行 llman skills,管理器启动,"直接展示 Select which agent tools to manage\n不出现 Select mode",true
+  r1,既有 agent→scope→skills 流程保留,用户进入交互流程,管理器执行,按 agent → scope → skills 流程执行,true
+  r1,取消不产生变更,用户在确认前退出或返回,管理器处理,"不修改任何目标链接\n不写入持久化状态文件",true
+  r1,忽略路径不被导入,skills_root 下存在被 .gitignore 排除的技能目录,管理器扫描,"不导入该技能\n不创建托管记录",true
+  r1,软链接技能目录可被发现,skills_root 下技能目录是软链接且解析后含 SKILL.md,管理器扫描,将其作为可管理技能展示,true
+  r1,扫描单一根目录,skills_root 下存在含 SKILL.md 的技能目录,管理器扫描,将其作为可管理技能展示,true
+  r1,隐藏仅 user scope 已链接技能,用户进入 project/repo 管理且某技能在同 agent 的 user scope 已链接但当前 scope 未链接,展示多选列表,该技能不出现,true
+  r1,保留当前 scope 已链接技能,用户进入 project/repo 管理且某技能在当前 scope 已链接,展示多选列表,该技能继续显示,true
+  r1,git 仓库内 project scope 优先,当前目录在 git 仓库内且非家目录,用户选择 scope,project scope 选项排在 user scope 之前,true
+  r1,家目录或非 git 时 user scope 优先,当前目录是家目录或不在 git 仓库内,用户选择 scope,user scope 选项排在 project scope 之前,true
+  r1,为单个 agent 禁用技能 link,用户禁用某技能在 mode=link 的目标下,管理器执行,"仅移除该目标下的软链接\n源目录保持不变",true
+  r1,目标路径非法,目标路径存在但不是目录,管理器执行,"记录错误\n不创建链接",true
+  r1,交互模式下 link 目标冲突,交互模式下 mode=link 目标已存在同名条目且非期望软链接,管理器执行,"提示用户选择覆盖或跳过\n覆盖时删除后重建链接",true
+  r1,非交互冲突无策略报错,"非交互模式下冲突且未传 --target-conflict",命令执行,"返回错误并提示使用 --target-conflict=overwrite|skip",true
+  r1,覆盖断链 symlink,某 target 存在名为 skill_id 的断链 symlink 且用户希望启用该 skill,冲突处理流程运行,可按选定冲突策略覆盖该断链 symlink,true
+  r1,移除断链 symlink,某 target 存在名为 skill_id 的断链 symlink 且用户希望禁用该 skill,管理器执行,该断链 symlink 被移除,true
+  r1,取消冲突提示是安全 abort,target 存在冲突条目且用户在 overwrite/skip 提示中取消,管理器处理,"整体 abort 且不应用任何变更\n以成功状态退出",true
+  r1,交互默认来自文件系统,交互模式选择某 target,计算默认勾选,基于目标目录真实链接状态计算,true
+  r1,非交互已链接优先,非交互模式下某技能在某 target 已存在正确链接,管理器执行,"保持该技能启用\n不因配置默认值覆盖",true
+  r1,运行不写持久化状态文件,管理器完成交互或非交互会话,会话结束,不创建或更新任何 registry 状态文件,true
+  r1,init 填充版本,用户运行 llman sdd init,生成 skills,metadata.version 为当前 CLI 版本,true
+  r1,"update-skills 同步版本","用户运行 llman sdd update-skills",更新完成,更新后的 skills 的 metadata.version 为当前 CLI 版本,true
+  r1,缺失 version 不阻断,现有 skill 无 metadata.version,skill 加载,"正常加载\n视为未版本化",true
+  r1,主版本不匹配警告,skill 的 metadata.version 与当前 CLI 主版本（major.minor）不一致,加载时,"输出版本不匹配警告\n不阻断 skill 加载或执行",true

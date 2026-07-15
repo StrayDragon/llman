@@ -48,7 +48,7 @@ flowchart LR
   - 默认：`llman sdd archive run <id>`
   - 仅工具类变更：`llman sdd archive run <id> --skip-specs`
   - **任一失败立即停止**，报告剩余未处理 ID。
-- **BDD-on（feature-as-spec）**：当 `config.yaml` 含 `bdd:` 段时，`archive run` 会把 `change/specs/<capability>/*.feature` 一并复制到主 `specs/<capability>/` 目录（无需额外命令）。若目标位置已有同名 `.feature`，则视为硬冲突——先解决（重命名/删除）再重跑。
+- **BDD-on**：`archive run` 仅将 delta `spec.toon` 合并到主 `spec.toon`。`.feature` 文件由 `llman sdd solidify` 管理——archive 不复制 `.feature` 文件。归档前运行 `solidify <id>`。
 
 ### 3) 全量校验
 - 全部归档完成后执行：`llman sdd validate --all --strict --no-interactive`。

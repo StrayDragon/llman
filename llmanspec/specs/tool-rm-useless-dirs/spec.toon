@@ -1,3 +1,19 @@
 kind: llman.sdd.spec
 name: "tool-rm-useless-dirs"
 purpose: "规范 `llman tool rm-useless-dirs` 的命令别名与无用目录清理行为。"
+valid_scope[1]: "llmanspec/specs/tool-rm-useless-dirs"
+requirements[1]{req_id,title,statement}:
+  r1,"tool-rm-useless-dirs","规范 `llman tool rm-useless-dirs` 的命令别名与无用目录清理行为。 The system MUST satisfy the scenarios in this spec."
+scenarios[12]{req_id,id,given,when,then,feature}:
+  r1,新命令执行清理,"用户运行 llman tool rm-useless-dirs",命令执行,以既有选项集执行清理行为,true
+  r1,废弃别名执行并告警,"用户运行 llman tool rm-empty-dirs",命令执行,"执行清理行为\n打印引用 rm-useless-dirs 的废弃告警",true
+  r1,"即使 enabled prune-ignored 也保留 protected 目录","node_modules/ 经 .gitignore 忽略且运行启用 --prune-ignored -y",清理执行,node_modules 及其内容保持完好,true
+  r1,空的 protected 目录仍被保留,存在一个空的 protected 目录,清理执行,"该目录仍被保留\n不被移除",true
+  r1,扫描遇到 protected 组件不进入子树,"扫描遇到 {protected_subpath}",清理执行,"不进入该 protected 子树\n不删除其下任何内容",true
+  r1,移除 __pycache__,"target 含 a/__pycache__/b.pyc 且运行 live（-y）",清理执行,a/__pycache__ 被移除,true
+  r1,移除 .pytest_cache,"target 含 .pytest_cache 且运行 live（-y）",清理执行,移除 .pytest_cache,true
+  r1,extend 模式合并默认与配置,"配置设置 protected.mode=extend 且 names: [\".idea\"]",解析 protected 列表,含默认项与 .idea,true
+  r1,override 模式替换默认,"配置设置 protected.mode=override 且 names: []",解析 protected 列表,不应用任何默认 protected 名称,true
+  r1,legacy 配置键存在时加载失败,"配置含 tools.rm-empty-dirs",加载配置,加载失败并报告该 legacy 键不被支持,true
+  r1,非 CWD target 使用自己的 gitignore,"用户运行 llman tool rm-useless-dirs {target} 且未传 --gitignore",解析默认 gitignore,"若 {target}/.gitignore 存在则使用它\n不隐式使用调用者 CWD 的 .gitignore",true
+  r1,扫描子目录时使用仓库根 gitignore,"用户运行 llman tool rm-useless-dirs {sub_target} 且未传 --gitignore\n{repo_root}/.git 存在",解析默认 gitignore,"若 {repo_root}/.gitignore 存在则使用它",true
