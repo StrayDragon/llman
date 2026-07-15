@@ -1,14 +1,3 @@
 kind: llman.sdd.spec
 name: "tests-ci"
-purpose: Describe CI quality gates and required checks for llman.
-valid_scope[4]: ".github/workflows/ci.yaml",justfile,"tests/","llmanspec/specs/tests-ci/"
-requirements[4]{req_id,title,statement}:
-  r1,CI runs fmt and clippy with warnings denied,"CI MUST run format checks and clippy with `-D warnings` as part of the standard check pipeline, and the checks MUST run on the same pinned nightly baseline used by the repository toolchain configuration."
-  r2,CI runs a release build check,CI MUST run a release build to ensure the project builds on the same pinned nightly baseline used for local development and quality checks.
-  r3,Clippy warnings are addressed in tests,"Test code MUST avoid clippy warnings that would fail `-D warnings` (e.g., prefer `is_empty()` over `len() > 0`)."
-  r4,"check-all 包含 schema 校验","`just check-all` MUST 包含 schema 校验步骤，确保生成的 JSON schema 与样例配置有效且可用。"
-scenarios[4]{req_id,id,given,when,then}:
-  r1,"ci-check-job-uses-pinned-nightly-baseline","",CI runs on main branch,"the check job uses the repository pinned nightly baseline and executes `just check-all` (or an equivalent nightly-based check sequence)"
-  r2,"ci-build-job-uses-pinned-nightly-baseline","",CI runs on main branch,"the build job uses the repository pinned nightly baseline and executes `just build-release`"
-  r3,"clippy-run","","`cargo +nightly clippy -- -D warnings` runs",test code does not emit len_zero or similar warnings
-  r4,"运行-check-all","","开发者运行 `just check-all`","`just check-schemas` 会被执行"
+purpose: "规范 CI 质量门与必需的校验检查。"
