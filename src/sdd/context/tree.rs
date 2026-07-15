@@ -19,6 +19,22 @@ pub struct ReqNode {
     pub statement: String,
 }
 
+/// One scenario node (behavior detail under a requirement). Only `feature: true`
+/// scenarios from `spec.toon` are kept — these are the ones `solidify` writes to
+/// `.feature` files, i.e. the executable behavior contract.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ScenarioNode {
+    pub req_id: String,
+    pub id: String,
+    pub given: String,
+    /// Serialized as `when` (matches `spec.toon` column / IR field rename).
+    #[serde(rename = "when")]
+    pub when_: String,
+    /// Serialized as `then` (matches `spec.toon` column / IR field rename).
+    #[serde(rename = "then")]
+    pub then_: String,
+}
+
 /// One spec document node (root of a subtree).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DocNode {
@@ -26,6 +42,12 @@ pub struct DocNode {
     /// Spec overview / purpose.
     pub purpose: String,
     pub reqs: Vec<ReqNode>,
+    /// `feature: true` scenarios kept from the parsed IR so the retrieval agent
+    /// can read behavior details. `#[serde(default)]` keeps old `tree.json`
+    /// (built before this field existed) loadable — they deserialize with an
+    /// empty list and gain scenarios on the next rebuild (progressive migration).
+    #[serde(default)]
+    pub scenarios: Vec<ScenarioNode>,
 }
 
 /// Serialized pageindex tree index.
@@ -61,6 +83,22 @@ pub fn build_docs(parsed: &[(String, MainSpecDoc)]) -> Vec<DocNode> {
                     req_id: r.req_id.clone(),
                     title: r.title.clone(),
                     statement: r.statement.clone(),
+                })
+                .collect(),
+            // Keep only `feature: true` scenarios: these are the executable
+            // behavior contract (the ones `solidify` serializes to `.feature`).
+            // `feature: false` scenarios stay in `spec.toon` as documentation
+            // only and are intentionally excluded from the retrieval index.
+            scenarios: doc
+                .scenarios
+                .iter()
+                .filter(|s| s.feature)
+                .map(|s| ScenarioNode {
+                    req_id: s.req_id.clone(),
+                    id: s.id.clone(),
+                    given: s.given.clone(),
+                    when_: s.when_.clone(),
+                    then_: s.then_.clone(),
                 })
                 .collect(),
         })
@@ -110,7 +148,7 @@ impl TreeIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sdd::spec::ir::{MainSpecDoc, RequirementEntry};
+    use crate::sdd::spec::ir::{MainSpecDoc, RequirementEntry, ScenarioEntry};
 
     fn sample_doc(name: &str, purpose: &str, reqs: &[(&str, &str, &str)]) -> (String, MainSpecDoc) {
         let requirements = reqs
@@ -194,5 +232,80 @@ mod tests {
         assert_eq!(loaded.docs.len(), 1);
         assert_eq!(loaded.docs[0].spec_id, "demo");
         assert_eq!(loaded.docs[0].reqs[0].req_id, "r1");
+    }
+
+    /// Build a ScenarioEntry with the given req_id/id and `feature` flag.
+    fn scenario(req_id: &str, id: &str, feature: bool) -> ScenarioEntry {
+        ScenarioEntry {
+            req_id: req_id.to_string(),
+            id: id.to_string(),
+            given: "some given".to_string(),
+            when_: "some when".to_string(),
+            then_: "some then".to_string(),
+            feature,
+        }
+    }
+
+    #[test]
+    fn test_build_docs_preserves_scenarios() {
+        // A doc with feature:true scenarios → those scenarios must survive into
+        // the built DocNode.
+        let doc = MainSpecDoc {
+            kind: "llman.sdd.spec".into(),
+            name: "demo".into(),
+            purpose: "demo purpose".into(),
+            valid_scope: vec![],
+            requirements: vec![RequirementEntry {
+                req_id: "r1".into(),
+                title: "T".into(),
+                statement: "MUST x".into(),
+            }],
+            scenarios: vec![scenario("r1", "happy", true), scenario("r1", "sad", true)],
+        };
+        let docs = build_docs(&[("demo".to_string(), doc)]);
+        assert_eq!(docs[0].scenarios.len(), 2);
+        assert_eq!(docs[0].scenarios[0].id, "happy");
+        assert_eq!(docs[0].scenarios[1].id, "sad");
+        // Fields are mapped through (when_/then_ carry the behavior text).
+        assert_eq!(docs[0].scenarios[0].given, "some given");
+    }
+
+    #[test]
+    fn test_build_docs_drops_feature_false() {
+        // feature:false scenarios are documentation-only and MUST be excluded
+        // from the index; feature:true ones are kept.
+        let doc = MainSpecDoc {
+            kind: "llman.sdd.spec".into(),
+            name: "demo".into(),
+            purpose: "demo purpose".into(),
+            valid_scope: vec![],
+            requirements: vec![RequirementEntry {
+                req_id: "r1".into(),
+                title: "T".into(),
+                statement: "MUST x".into(),
+            }],
+            scenarios: vec![
+                scenario("r1", "executable", true),
+                scenario("r1", "doc-only", false),
+            ],
+        };
+        let docs = build_docs(&[("demo".to_string(), doc)]);
+        assert_eq!(docs[0].scenarios.len(), 1);
+        assert_eq!(docs[0].scenarios[0].id, "executable");
+    }
+
+    #[test]
+    fn test_docnode_loads_without_scenarios_field() {
+        // Backward compatibility: an old tree.json whose DocNode objects predate
+        // the `scenarios` field must still deserialize (field defaults to empty).
+        let old_json = r#"{
+            "spec_id": "demo",
+            "purpose": "old index",
+            "reqs": [{"req_id": "r1", "title": "T", "statement": "MUST x"}]
+        }"#;
+        let node: DocNode = serde_json::from_str(old_json).unwrap();
+        assert_eq!(node.spec_id, "demo");
+        assert_eq!(node.reqs.len(), 1);
+        assert!(node.scenarios.is_empty(), "missing field defaults to empty");
     }
 }

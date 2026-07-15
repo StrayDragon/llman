@@ -307,8 +307,61 @@ pub async fn index_rebuild(
     let llmanspec_dir = find_llmanspec_dir(Path::new("."))?;
     let context_dir = llmanspec_dir.join(".context");
     let specs_dir = llmanspec_dir.join("specs");
+    // Load config to derive the Gherkin language for `.feature` parsing. This
+    // mirrors `context_run` (retrieval), which also requires config.
+    let config = load_required_config(&llmanspec_dir)?;
+    let lang =
+        crate::sdd::solidify::locale_to_gherkin_lang(Some(&config.locale), config.bdd.as_ref());
 
-    index_rebuild_pageindex(&context_dir, &specs_dir).await
+    index_rebuild_pageindex(&context_dir, &specs_dir, &lang).await
+}
+
+/// Merge `.feature` scenarios into a parsed spec doc (in place).
+///
+/// Discovers `*.feature` under `spec_dir`, parses each with the given Gherkin
+/// `lang`, converts scenarios to `ScenarioEntry` (req_id empty — feature
+/// scenarios are spec-level), and appends them to `doc.scenarios` skipping any
+/// whose id already exists in the doc (toon source wins on collision). A
+/// malformed `.feature` logs a warning and is skipped.
+fn merge_feature_scenarios(
+    doc: &mut crate::sdd::spec::ir::MainSpecDoc,
+    spec_dir: &Path,
+    lang: &str,
+) {
+    use crate::sdd::spec::ir::ScenarioEntry;
+    let features = crate::sdd::spec::validation::discover_features(spec_dir);
+    if features.is_empty() {
+        return;
+    }
+    let existing: std::collections::HashSet<String> =
+        doc.scenarios.iter().map(|s| s.id.clone()).collect();
+    let mut additions: Vec<ScenarioEntry> = Vec::new();
+    for fpath in &features {
+        match crate::sdd::solidify::parse_feature_file(fpath, lang) {
+            Ok(nodes) => {
+                for node in nodes {
+                    if existing.contains(&node.id) {
+                        continue; // dedup: toon source wins
+                    }
+                    additions.push(ScenarioEntry {
+                        req_id: String::new(),
+                        id: node.id,
+                        given: node.given,
+                        when_: node.when_,
+                        then_: node.then_,
+                        // Feature-sourced scenarios are executable by definition.
+                        feature: true,
+                    });
+                }
+            }
+            Err(e) => eprintln!(
+                "Warning: failed to parse feature {}: {}",
+                fpath.display(),
+                e
+            ),
+        }
+    }
+    doc.scenarios.extend(additions);
 }
 
 /// pageindex backend rebuild: build the spec tree index (no LLM).
@@ -317,7 +370,7 @@ pub async fn index_rebuild(
 /// serializes it to `.context/pageindex/tree.json`. No embedding or chat model
 /// is contacted — the spec tree is already structured, so building is a pure
 /// transform.
-async fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path) -> Result<()> {
+async fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path, lang: &str) -> Result<()> {
     use crate::sdd::spec::backend::{BACKEND, SpecBackend};
     use crate::sdd::spec::ir::MainSpecDoc;
 
@@ -342,10 +395,19 @@ async fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path) -> Result
         let content = fs::read_to_string(&spec_file)?;
         let spec_id = spec_dir.file_name().unwrap().to_string_lossy().to_string();
         let ctx = format!("spec `{}`", spec_id);
-        match BACKEND.parse_main_spec(&content, &ctx) {
-            Ok(doc) => parsed.push((spec_id, doc)),
-            Err(e) => eprintln!("Warning: failed to parse {}: {}", spec_id, e),
-        }
+        let mut doc = match BACKEND.parse_main_spec(&content, &ctx) {
+            Ok(doc) => doc,
+            Err(e) => {
+                eprintln!("Warning: failed to parse {}: {}", spec_id, e);
+                continue;
+            }
+        };
+        // Embed `.feature` scenarios (BDD-on). Parsed scenarios are spec-level
+        // (req_id empty) and merged into the doc's scenarios, deduplicated by id
+        // (toon source wins on collision since it carries req_id binding). Specs
+        // without `.feature` files are unaffected — discover_features is empty.
+        merge_feature_scenarios(&mut doc, spec_dir, lang);
+        parsed.push((spec_id, doc));
     }
 
     if parsed.is_empty() {
@@ -417,5 +479,126 @@ mod tests {
         let found = find_llmanspec_dir(Path::new(".")).unwrap();
         assert_eq!(found.canonicalize().unwrap(), root.join("llmanspec"));
         // proc restores cwd on drop
+    }
+
+    /// BDD-on mode: index rebuild embeds `.feature` scenarios alongside the
+    /// `spec.toon` scenarios, merged and deduplicated. Feature-sourced scenarios
+    /// are spec-level (req_id empty). Exercises the full rebuild → tree.json →
+    /// load cycle in a temp dir.
+    #[test]
+    fn test_index_rebuild_embeds_feature_scenarios_bdd() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let context_dir = root.join(".context");
+        let specs_dir = root.join("specs");
+        let spec_dir = specs_dir.join("demo");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+
+        // spec.toon with one requirement and one feature:true scenario.
+        std::fs::write(
+            spec_dir.join("spec.toon"),
+            concat!(
+                "kind: llman.sdd.spec\n",
+                "name: \"demo\"\n",
+                "purpose: \"demo\"\n",
+                "valid_scope[1]: \"specs/demo\"\n",
+                "requirements[1]{req_id,title,statement}:\n",
+                "  r1,T,System MUST x.\n",
+                "scenarios[1]{req_id,id,given,when,then,feature}:\n",
+                "  r1,toon-scenario,\"\",\"a trigger\",\"an outcome\",true\n",
+            ),
+        )
+        .unwrap();
+        // A .feature file with two scenarios (spec-level, no req_id).
+        std::fs::write(
+            spec_dir.join("a.feature"),
+            concat!(
+                "# language: zh-CN\n",
+                "功能: demo\n",
+                "\n",
+                "场景: feature-scenario-one\n",
+                "假如 前置一\n",
+                "当 动作一\n",
+                "那么 结果一\n",
+                "\n",
+                "场景: feature-scenario-two\n",
+                "假如 前置二\n",
+                "当 动作二\n",
+                "那么 结果二\n",
+            ),
+        )
+        .unwrap();
+
+        // Rebuild (zh-CN Gherkin language).
+        let lang = crate::sdd::solidify::locale_to_gherkin_lang(Some("zh-Hans"), None);
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        rt.block_on(index_rebuild_pageindex(&context_dir, &specs_dir, &lang))
+            .unwrap();
+
+        // Load the tree and verify merged scenarios.
+        let backend_dir = resolve_backend_dir(&context_dir, Backend::Pageindex);
+        let tree = tree::TreeIndex::load(&backend_dir).unwrap();
+        assert_eq!(tree.docs.len(), 1);
+        let scenarios = &tree.docs[0].scenarios;
+        // 1 from toon + 2 from .feature = 3 after merge.
+        assert_eq!(scenarios.len(), 3, "toon + feature scenarios merged");
+        let ids: Vec<&str> = scenarios.iter().map(|s| s.id.as_str()).collect();
+        assert!(ids.contains(&"toon-scenario"));
+        assert!(ids.contains(&"feature-scenario-one"));
+        assert!(ids.contains(&"feature-scenario-two"));
+        // Feature-sourced scenarios are spec-level (req_id empty); toon keeps r1.
+        let toon_s = scenarios.iter().find(|s| s.id == "toon-scenario").unwrap();
+        assert_eq!(toon_s.req_id, "r1");
+        let feat_s = scenarios
+            .iter()
+            .find(|s| s.id == "feature-scenario-one")
+            .unwrap();
+        assert!(feat_s.req_id.is_empty(), "feature scenario req_id empty");
+    }
+
+    /// Non-BDD mode: a spec with no `.feature` files rebuilds with only the
+    /// `spec.toon` scenarios — output is unchanged from the pre-feature-embed
+    /// behavior. Guards the progressive-compatibility guarantee.
+    #[test]
+    fn test_index_rebuild_non_bdd_no_features() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let context_dir = root.join(".context");
+        let specs_dir = root.join("specs");
+        let spec_dir = specs_dir.join("plain");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+
+        // spec.toon with scenarios, no .feature files present.
+        std::fs::write(
+            spec_dir.join("spec.toon"),
+            concat!(
+                "kind: llman.sdd.spec\n",
+                "name: \"plain\"\n",
+                "purpose: \"plain\"\n",
+                "valid_scope[1]: \"specs/plain\"\n",
+                "requirements[1]{req_id,title,statement}:\n",
+                "  r1,T,System MUST y.\n",
+                "scenarios[2]{req_id,id,given,when,then,feature}:\n",
+                "  r1,alpha,\"\",\"trigger a\",\"outcome a\",true\n",
+                "  r1,beta,\"\",\"trigger b\",\"outcome b\",true\n",
+            ),
+        )
+        .unwrap();
+        // No .feature files, no bdd config.
+        let lang = crate::sdd::solidify::locale_to_gherkin_lang(Some("en"), None);
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        rt.block_on(index_rebuild_pageindex(&context_dir, &specs_dir, &lang))
+            .unwrap();
+
+        let backend_dir = resolve_backend_dir(&context_dir, Backend::Pageindex);
+        let tree = tree::TreeIndex::load(&backend_dir).unwrap();
+        let scenarios = &tree.docs[0].scenarios;
+        // Only the two toon scenarios — no feature embedding happened.
+        assert_eq!(scenarios.len(), 2, "non-BDD: toon scenarios only");
+        assert!(scenarios.iter().all(|s| s.req_id == "r1"));
     }
 }

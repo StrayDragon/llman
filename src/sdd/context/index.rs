@@ -10,14 +10,31 @@ fn hex_encode(bytes: &[u8]) -> String {
 }
 
 /// Compute sha256 hash of all spec files (sorted by path).
+///
+/// Hashes `spec.toon` (the SSOT) and, defensively, every `*.feature` file in
+/// each spec directory. Although `.feature` files are derived from `spec.toon`
+/// by `solidify`, including them in the hash means a hand-edited `.feature`
+/// still triggers staleness — there should be no silent divergence between the
+/// index and the on-disk behavior artifacts.
 pub fn compute_spec_hash(specs_dir: &Path) -> Result<String> {
-    let mut entries: Vec<PathBuf> = fs::read_dir(specs_dir)
-        .context("Failed to read specs directory")?
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
-        .map(|e| e.path().join("spec.toon"))
-        .filter(|p| p.exists())
-        .collect();
+    let mut entries: Vec<PathBuf> = Vec::new();
+    for entry in fs::read_dir(specs_dir).context("Failed to read specs directory")? {
+        let entry = entry?;
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let spec_dir = entry.path();
+        // SSOT first (always hashed when present).
+        let spec_file = spec_dir.join("spec.toon");
+        if spec_file.exists() {
+            entries.push(spec_file);
+        }
+        // Defensively include derived `.feature` files so direct edits flip
+        // staleness. Sorted for determinism.
+        if let Ok(features) = feature_paths_in(&spec_dir) {
+            entries.extend(features);
+        }
+    }
     entries.sort();
 
     let mut hasher = Sha256::new();
@@ -26,6 +43,19 @@ pub fn compute_spec_hash(specs_dir: &Path) -> Result<String> {
         hasher.update(&content);
     }
     Ok(hex_encode(&hasher.finalize()))
+}
+
+/// Sorted `*.feature` paths directly under `spec_dir` (non-recursive).
+fn feature_paths_in(spec_dir: &Path) -> Result<Vec<PathBuf>> {
+    let pattern = spec_dir.join("*.feature");
+    let mut paths: Vec<PathBuf> = glob::glob(pattern.to_string_lossy().as_ref())
+        .ok()
+        .into_iter()
+        .flatten()
+        .flatten()
+        .collect();
+    paths.sort();
+    Ok(paths)
 }
 
 /// Freshness status of the pageindex tree index
@@ -374,5 +404,34 @@ mod tests {
         std::fs::write(&lock_path, toml::to_string(&stale).unwrap()).unwrap();
         assert!(check_rebuild_lock(&context_dir).unwrap().is_none());
         assert!(!lock_path.exists());
+    }
+
+    #[test]
+    fn test_compute_spec_hash_includes_feature_files() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let specs_dir = tmp.path().join("specs");
+        let spec_dir = specs_dir.join("demo");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        std::fs::write(spec_dir.join("spec.toon"), "kind: llman.sdd.spec\n").unwrap();
+
+        // Baseline hash with only spec.toon.
+        let hash_before = compute_spec_hash(&specs_dir).unwrap();
+
+        // Adding a .feature file MUST change the hash (defensive: derived files
+        // are part of the staleness signal).
+        std::fs::write(spec_dir.join("a.feature"), "功能: x\n").unwrap();
+        let hash_after_add = compute_spec_hash(&specs_dir).unwrap();
+        assert_ne!(
+            hash_before, hash_after_add,
+            "adding a .feature must flip staleness"
+        );
+
+        // Editing the .feature MUST also change the hash.
+        std::fs::write(spec_dir.join("a.feature"), "功能: y\n").unwrap();
+        let hash_after_edit = compute_spec_hash(&specs_dir).unwrap();
+        assert_ne!(
+            hash_after_add, hash_after_edit,
+            "editing a .feature must flip staleness"
+        );
     }
 }
