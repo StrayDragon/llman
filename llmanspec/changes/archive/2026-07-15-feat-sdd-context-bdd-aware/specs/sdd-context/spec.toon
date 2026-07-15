@@ -1,0 +1,8 @@
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r2,Scenario-Aware Retrieval,"`build_docs` MUST keep `feature: true` scenarios in each `DocNode` so the retrieval agent can read behavior details. `compute_spec_hash` MUST hash `*.feature` files alongside `spec.toon` so derived-file edits trigger staleness. The retrieval tool `get_document_structure` MUST list scenario ids under each requirement. The retrieval tool `get_spec_content` MUST return matching scenarios' given/when/then full text. Retrieval output schema changes MUST be backward compatible: old `tree.json` without a `scenarios` field MUST still load (field defaults to empty), and non-BDD specs (no scenarios) MUST produce unchanged retrieval output.",null,null,null
+op_scenarios[4]{req_id,id,given,when,then,feature}:
+  r2,rebuild-includes-scenarios,"存在一个 sdd spec，其 spec.toon 含若干 feature:true 的场景","执行 sdd index rebuild --backend pageindex","生成的 tree.json 中对应 DocNode 的 scenarios 字段非空\n场景含 req_id/id/given/when/then",true
+  r2,get-document-structure-lists-scenarios,"tree.json 中某 DocNode 含 scenarios 字段","调用 get_document_structure(spec_id)","返回的每个 req 节点下含 scenarios 列表（仅 id，省 token）",true
+  r2,get-spec-content-includes-scenarios,"tree.json 中某 DocNode 含 scenarios 字段","调用 get_spec_content(spec_id, req_ids)","返回的条目含 scenarios 数组\n每个场景含 given/when/then 全文",true
+  r2,spec-hash-includes-feature,"某 spec 目录下存在 .feature 文件","修改该 .feature 文件后执行 sdd index check","索引状态为 stale（staleness hash 变化触发）",true

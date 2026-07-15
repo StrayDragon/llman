@@ -23,9 +23,11 @@ Given a task and optional file paths, find which specs are relevant.
 NAVIGATION PROTOCOL (follow this order):
 1. Call list_specs() to see all available spec documents and their purposes.
 2. For specs whose purpose seems relevant to the task, call get_document_structure(spec_id)\
- to see their requirement titles (cheap, no full text).
+ to see their requirement titles and, when present, the scenario ids under each requirement\
+ (cheap, no full text).
 3. For requirements that look relevant, call get_spec_content(spec_id, req_ids) to read\
- the full MUST/SHALL statements.
+ the full MUST/SHALL statements and, when present, the scenarios' Given/When/Then behavior\
+ details.
 4. Finally, output ONLY a JSON object (no other text, no code fences):
    {\"direct\": [{\"id\": \"<spec_id>\", \"reason\": \"<one sentence why this MUST be read>\"}],\
  \"related\": [{\"id\": \"<spec_id>\", \"reason\": \"<one sentence>\"}]}
@@ -40,6 +42,9 @@ CLASSIFICATION RULES:
  version bump, or a file wholly outside every spec's scope).
 - Decide \"direct\" vs \"related\" vs omit based on the requirement text you read, not on the\
  spec's purpose line alone.
+- When a requirement has scenarios, read their Given/When/Then to judge precisely whether\
+ the task affects that behavior — scenarios capture the exact contract better than the\
+ high-level MUST/SHALL statement alone.
 - Be precise: prefer fewer, well-reasoned entries over many guesses.\
 ";
 
@@ -206,13 +211,50 @@ fn get_document_structure(tree: &TreeIndex, spec_id: &str) -> String {
             let reqs: Vec<serde_json::Value> = d
                 .reqs
                 .iter()
-                .map(|r| serde_json::json!({ "req_id": r.req_id, "title": r.title }))
+                .map(|r| {
+                    // Attach scenario ids (title only, no full text) when this req
+                    // has any. Req without scenarios serializes identically to the
+                    // pre-scenario shape (no `scenarios` key) — progressive.
+                    let scenario_ids: Vec<&str> = d
+                        .scenarios
+                        .iter()
+                        .filter(|s| s.req_id == r.req_id)
+                        .map(|s| s.id.as_str())
+                        .collect();
+                    if scenario_ids.is_empty() {
+                        serde_json::json!({ "req_id": r.req_id, "title": r.title })
+                    } else {
+                        serde_json::json!({
+                            "req_id": r.req_id,
+                            "title": r.title,
+                            "scenarios": scenario_ids,
+                        })
+                    }
+                })
                 .collect();
-            serde_json::json!({
-                "spec_id": d.spec_id,
-                "purpose": d.purpose,
-                "reqs": reqs,
-            })
+            // Spec-level scenarios (req_id empty, sourced from `.feature` files).
+            // Listed as ids only at the structure layer (token-saving). Omitted
+            // entirely when none exist — non-BDD specs keep the old shape.
+            let spec_level_ids: Vec<&str> = d
+                .scenarios
+                .iter()
+                .filter(|s| s.req_id.is_empty())
+                .map(|s| s.id.as_str())
+                .collect();
+            if spec_level_ids.is_empty() {
+                serde_json::json!({
+                    "spec_id": d.spec_id,
+                    "purpose": d.purpose,
+                    "reqs": reqs,
+                })
+            } else {
+                serde_json::json!({
+                    "spec_id": d.spec_id,
+                    "purpose": d.purpose,
+                    "reqs": reqs,
+                    "scenarios": spec_level_ids,
+                })
+            }
             .to_string()
         }
         None => {
@@ -226,12 +268,61 @@ fn get_spec_content(tree: &TreeIndex, spec_id: &str, req_ids: &[String]) -> Stri
         Some(d) => {
             let want: std::collections::HashSet<&str> =
                 req_ids.iter().map(|s| s.as_str()).collect();
-            let result: Vec<serde_json::Value> = d
+            let mut result: Vec<serde_json::Value> = d
                 .reqs
                 .iter()
                 .filter(|r| want.contains(r.req_id.as_str()))
-                .map(|r| serde_json::json!({ "req_id": r.req_id, "statement": r.statement }))
+                .map(|r| {
+                    // Attach matching scenarios' full Given/When/Then when present.
+                    // A req without scenarios serializes identically to the
+                    // pre-scenario shape (no `scenarios` key) — progressive.
+                    let scenarios: Vec<serde_json::Value> = d
+                        .scenarios
+                        .iter()
+                        .filter(|s| s.req_id == r.req_id)
+                        .map(|s| {
+                            serde_json::json!({
+                                "id": s.id,
+                                "given": s.given,
+                                "when": s.when_,
+                                "then": s.then_,
+                            })
+                        })
+                        .collect();
+                    if scenarios.is_empty() {
+                        serde_json::json!({ "req_id": r.req_id, "statement": r.statement })
+                    } else {
+                        serde_json::json!({
+                            "req_id": r.req_id,
+                            "statement": r.statement,
+                            "scenarios": scenarios,
+                        })
+                    }
+                })
                 .collect();
+            // Spec-level scenarios (req_id empty, sourced from `.feature` files):
+            // append one extra entry so the agent can read behavior details that
+            // live outside any requirement. Omitted when none exist — progressive.
+            let spec_level: Vec<serde_json::Value> = d
+                .scenarios
+                .iter()
+                .filter(|s| s.req_id.is_empty())
+                .map(|s| {
+                    serde_json::json!({
+                        "id": s.id,
+                        "given": s.given,
+                        "when": s.when_,
+                        "then": s.then_,
+                    })
+                })
+                .collect();
+            if !spec_level.is_empty() {
+                result.push(serde_json::json!({
+                    "req_id": "",
+                    "statement": "",
+                    "scenarios": spec_level,
+                }));
+            }
             serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
         }
         None => {
@@ -381,7 +472,7 @@ fn extract_json_object(content: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sdd::spec::ir::{MainSpecDoc, RequirementEntry};
+    use crate::sdd::spec::ir::{MainSpecDoc, RequirementEntry, ScenarioEntry};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn build_test_tree() -> TreeIndex {
@@ -484,6 +575,112 @@ mod tests {
         let fenced = "Here you go:\n```json\n{\"direct\":[],\"related\":[]}\n```\n";
         let out2 = parse_final_answer(fenced).unwrap();
         assert!(out2.direct.is_empty());
+    }
+
+    /// Build a tree where one spec carries scenarios under r1 (for scenario
+    /// exposure tests). The other spec stays scenario-free to exercise the
+    /// progressive (no-scenarios) path.
+    fn build_test_tree_with_scenarios() -> TreeIndex {
+        let mk_req = |rid: &str, title: &str, stmt: &str| RequirementEntry {
+            req_id: rid.to_string(),
+            title: title.to_string(),
+            statement: stmt.to_string(),
+        };
+        let mk_scenario =
+            |req_id: &str, id: &str, given: &str, when: &str, then: &str| ScenarioEntry {
+                req_id: req_id.to_string(),
+                id: id.to_string(),
+                given: given.to_string(),
+                when_: when.to_string(),
+                then_: then.to_string(),
+                feature: true,
+            };
+        let docs = crate::sdd::context::tree::build_docs(&[
+            (
+                "bdd-spec".to_string(),
+                MainSpecDoc {
+                    kind: "llman.sdd.spec".into(),
+                    name: "bdd-spec".into(),
+                    purpose: "A spec with scenarios.".into(),
+                    valid_scope: vec![],
+                    requirements: vec![mk_req("r1", "Behavior", "MUST do the thing.")],
+                    scenarios: vec![
+                        mk_scenario("r1", "happy", "a precondition", "an action", "an outcome"),
+                        mk_scenario("r1", "error", "an error case", "an action", "an error"),
+                    ],
+                },
+            ),
+            (
+                "plain-spec".to_string(),
+                MainSpecDoc {
+                    kind: "llman.sdd.spec".into(),
+                    name: "plain-spec".into(),
+                    purpose: "A spec without scenarios.".into(),
+                    valid_scope: vec![],
+                    requirements: vec![mk_req("r1", "Plain", "MUST exist.")],
+                    scenarios: vec![],
+                },
+            ),
+        ]);
+        TreeIndex::new(docs, "hash".into(), "ts".into(), "model".into())
+    }
+
+    #[test]
+    fn test_get_document_structure_includes_scenario_titles() {
+        let tree = build_test_tree_with_scenarios();
+        let out: serde_json::Value = serde_json::from_str(&dispatch_tool(
+            "get_document_structure",
+            r#"{"spec_id":"bdd-spec"}"#,
+            &tree,
+        ))
+        .unwrap();
+        let reqs = out["reqs"].as_array().unwrap();
+        assert_eq!(reqs.len(), 1);
+        let scenarios = reqs[0]["scenarios"].as_array().unwrap();
+        // Only ids, no full text (token-saving at the structure layer).
+        assert_eq!(scenarios.len(), 2);
+        assert!(scenarios.iter().any(|v| v == "happy"));
+        assert!(scenarios.iter().any(|v| v == "error"));
+    }
+
+    #[test]
+    fn test_get_spec_content_includes_scenario_full_text() {
+        let tree = build_test_tree_with_scenarios();
+        let out: serde_json::Value = serde_json::from_str(&dispatch_tool(
+            "get_spec_content",
+            r#"{"spec_id":"bdd-spec","req_ids":["r1"]}"#,
+            &tree,
+        ))
+        .unwrap();
+        let arr = out.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        let scenarios = arr[0]["scenarios"].as_array().unwrap();
+        assert_eq!(scenarios.len(), 2);
+        // Full Given/When/Then text is present at the content layer.
+        let happy = scenarios.iter().find(|v| v["id"] == "happy").unwrap();
+        assert_eq!(happy["given"], "a precondition");
+        assert_eq!(happy["when"], "an action");
+        assert_eq!(happy["then"], "an outcome");
+    }
+
+    #[test]
+    fn test_get_spec_content_no_scenarios_legacy() {
+        // A spec with no scenarios MUST produce output identical to the
+        // pre-scenario shape: no `scenarios` key on the entry at all.
+        let tree = build_test_tree_with_scenarios();
+        let out: serde_json::Value = serde_json::from_str(&dispatch_tool(
+            "get_spec_content",
+            r#"{"spec_id":"plain-spec","req_ids":["r1"]}"#,
+            &tree,
+        ))
+        .unwrap();
+        let arr = out.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert!(
+            arr[0].get("scenarios").is_none(),
+            "no scenarios key when empty"
+        );
+        assert_eq!(arr[0]["req_id"], "r1");
     }
 
     /// A mock invoker that returns a tool-call for every turn up to a cutoff,
