@@ -1,0 +1,6 @@
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r2,错误输出补充 scenario,"The errors-exit spec MUST document show-json-error: when sdd show is called for a nonexistent spec with --json, exit code 1 with valid JSON error output.",null,null,null
+op_scenarios[2]{req_id,id,given,when,then}:
+  r2,json-错误输出,"llman 二进制已构建","运行 llman sdd show nonexistent --type spec --json","退出码为 1 且 stdout 为合法 JSON"
+  r2,自指跳过演示,"llman 二进制已构建","运行 llman sdd validate errors-exit --no-interactive","stdout 包含 Full mode"
