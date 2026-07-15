@@ -1,5 +1,0 @@
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  add_requirement,r11,PowerShell completion 写入目标必须位于 home 下,"当 `llman self completion` 为 PowerShell 解析写入目标时，若使用环境变量 `PROFILE`，其解析后的绝对路径 MUST 位于用户 home 目录之下（或即 home 本身）。若 `PROFILE` 指向 home 之外的路径，命令 MUST 失败且 MUST NOT 写入该文件。当 `PROFILE` 未设置时，默认路径 MUST 仍为 home 下的 PowerShell profile 路径。",null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  r11,reject-external-profile,"PROFILE=/tmp/evil.ps1 且该路径不在用户 home 下","用户运行 `llman self completion --shell powershell --yes`","命令失败并拒绝写入，文件系统中 `/tmp/evil.ps1` 未被 llman 写入 completion 块"

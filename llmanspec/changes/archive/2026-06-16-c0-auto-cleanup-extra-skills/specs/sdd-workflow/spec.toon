@@ -1,9 +1,0 @@
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  modify_requirement,r47,自动清理不再需要的可选技能,"`llman sdd init --update` 在更新技能文件时 MUST 自动清理不再需要的可选技能目录。清理逻辑 MUST 在写入新技能文件前执行。清理范围 MUST 仅限于 `OPTIONAL_SKILL_FILES` 中定义的可选技能，不得删除核心技能（`DEFAULT_SKILL_FILES`）或用户自定义技能。清理时 MUST 检查技能目录是否存在，存在且不在期望技能列表中时 MUST 删除整个技能目录。清理完成后 MUST 输出 INFO 级别日志，告知用户哪些技能被清理。清理失败时 MUST 返回错误，但不得影响后续的技能写入操作。",null,null,null
-op_scenarios[5]{req_id,id,given,when,then}:
-  r47,"cleanup-after-skill-reduction","配置中 extra_skills 包含 llman-sdd-verify 和 llman-sdd-show",".agents/skills/ 目录中还存在 llman-sdd-sync 目录","用户修改配置移除 llman-sdd-sync 后执行 `llman sdd init --update`，llman-sdd-sync 目录被自动删除"
-  r47,"cleanup-all-optional-skills","配置中 extra_skills 为空或未设置",".agents/skills/ 目录中存在多个可选技能目录","用户执行 `llman sdd init --update`，所有可选技能目录被自动删除"
-  r47,"preserve-core-skills","配置中 extra_skills 为空",".agents/skills/ 目录中存在核心技能目录","用户执行 `llman sdd init --update`，核心技能目录不会被删除"
-  r47,"preserve-custom-skills","配置中 extra_skills 为空",".agents/skills/ 目录中存在用户自定义技能目录（不在 OPTIONAL_SKILL_FILES 中）","用户执行 `llman sdd init --update`，用户自定义技能目录不会被删除"
-  r47,"cleanup-logs-info","配置中 extra_skills 减少了技能",".agents/skills/ 目录中存在被移除的技能目录","用户执行 `llman sdd init --update`，输出包含 INFO 级别日志，告知哪些技能被清理"
