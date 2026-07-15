@@ -13,26 +13,6 @@
       "type": "string",
       "default": "en"
     },
-    "context": {
-      "description": "Project context (tech stack, conventions, constraints). Replaces project.md.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "rules": {
-      "description": "Per-artifact rules. Map of artifact_id -> string[].",
-      "type": [
-        "object",
-        "null"
-      ],
-      "additionalProperties": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      }
-    },
     "extra_skills": {
       "description": "Additional optional SDD skills to enable. Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, llman-sdd-sync, llman-sdd-validate.",
       "type": [

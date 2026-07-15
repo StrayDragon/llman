@@ -1,5 +1,4 @@
 use crate::fs_utils::atomic_write_with_mode;
-use crate::sdd::project::config::{load_config, write_config};
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
 use crate::sdd::spec::ir::{MainSpecDoc, RequirementEntry, ScenarioEntry};
@@ -110,17 +109,6 @@ pub fn run(root: &Path, args: ImportArgs) -> Result<()> {
     }
     println!("Source: {}", source.display());
     println!("Target: {}", target.display());
-
-    let openspec_config = source.parent().map(|p| p.join("config.yaml"));
-    if let Some(ref cfg_path) = openspec_config
-        && cfg_path.exists()
-    {
-        match migrate_config(root, cfg_path, args.dry_run) {
-            Ok(true) => println!("Config: merged context from openspec/config.yaml"),
-            Ok(false) => println!("Config: no context to merge"),
-            Err(e) => println!("Config: merge failed ({e}), skipping"),
-        }
-    }
 
     println!("Found {} specs to migrate\n", spec_dirs.len());
 
@@ -385,46 +373,6 @@ fn migrate_spec(
         errors,
         reason: String::new(),
     }
-}
-
-fn migrate_config(root: &Path, openspec_config_path: &Path, dry_run: bool) -> Result<bool> {
-    let content = fs::read_to_string(openspec_config_path)?;
-    let openspec_val: serde_yaml::Value = serde_yaml::from_str(&content)?;
-    let openspec_map = openspec_val
-        .as_mapping()
-        .ok_or_else(|| anyhow!("not a mapping"))?;
-
-    let context = openspec_map
-        .get(serde_yaml::Value::String("context".into()))
-        .and_then(|v| v.as_str())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty());
-
-    let rules: Option<std::collections::BTreeMap<String, Vec<String>>> = openspec_map
-        .get(serde_yaml::Value::String("rules".into()))
-        .and_then(|v| serde_yaml::from_value(v.clone()).ok());
-
-    if context.is_none() && rules.is_none() {
-        return Ok(false);
-    }
-
-    if dry_run {
-        return Ok(true);
-    }
-
-    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    let mut config = load_config(&llmanspec_dir)?
-        .ok_or_else(|| anyhow!("llmanspec config not found (run `llman sdd init` first)"))?;
-
-    if config.context.is_none() {
-        config.context = context;
-    }
-    if config.rules.is_none() {
-        config.rules = rules;
-    }
-
-    write_config(&llmanspec_dir, &config)?;
-    Ok(true)
 }
 
 fn parse_openspec_md(text: &str) -> ParsedSpec {

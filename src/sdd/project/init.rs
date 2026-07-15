@@ -27,6 +27,7 @@ pub fn run(target: &Path, locale: Option<&str>, update: bool) -> Result<()> {
 
     let config = load_or_create_config(&llmanspec_path)?;
     write_root_agents_file(target, &config)?;
+    write_llmanspec_agents_file(&llmanspec_path)?;
     update_skills::run_with_root(target)?;
 
     Ok(())
@@ -64,5 +65,28 @@ fn write_root_agents_file(target: &Path, config: &SddConfig) -> Result<()> {
         LLMANSPEC_MARKERS.start,
         LLMANSPEC_MARKERS.end,
     )?;
+    Ok(())
+}
+
+fn write_llmanspec_agents_file(llmanspec_path: &Path) -> Result<()> {
+    let agents_path = llmanspec_path.join("AGENTS.md");
+    let content = if agents_path.exists() {
+        // Preserve existing content; managed block will be updated if present
+        fs::read_to_string(&agents_path)?
+    } else {
+        let locale = load_or_create_config(llmanspec_path)?.locale;
+        let stub = match locale.as_str() {
+            "zh-Hans" => include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/templates/sdd/zh-Hans/llmanspec-agents-stub.md"
+            )),
+            _ => include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/templates/sdd/en/llmanspec-agents-stub.md"
+            )),
+        };
+        stub.to_string()
+    };
+    fs::write(&agents_path, content.as_bytes())?;
     Ok(())
 }
