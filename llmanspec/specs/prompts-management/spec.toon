@@ -1,3 +1,8 @@
 kind: llman.sdd.spec
 name: "prompts-management"
-purpose: "规范 `llman prompts` 作为交互式编排入口的行为合约。"
+purpose: 规范 `llman prompts` 作为交互式编排入口的行为合约。
+valid_scope[1]: "llmanspec/specs/prompts-management"
+requirements[1]{req_id,title,statement}:
+  r4,"SDD Skills 生成与更新（含 triage + context-first + async 引导）","`llman sdd update-skills` 生成的 workflow skills 集 MUST 新增 `llman-sdd-specs-compact`，并在现有 `llman-sdd-*` skills 中使用统一结构化提示协议（见 `sdd-structured-skill-prompts` capability）。当目标工具为 Claude 时，命令 MUST 同步生成 `.claude/commands/llman-sdd/*.md` workflow commands，且其命令提示内容 MUST 直接来自对应的 `templates/sdd/<locale>/skills/llman-sdd-*.md`（单一真源）。生成的 skills 集 MUST 额外包含 `llman-sdd-quick` skill（小变更快速路径）。所有 skills 模板 MUST 在步骤中嵌入 `llman sdd context` 作为获取相关 specs 的首选方式，并在 context 不可用时提供异步重建引导。模板 MUST 包含变更规模判断（triage）规则，帮助 agent 在完整 SDD 流程与快速路径之间选择。triage 规则至少区分：行为合约变更（完整流程）、实现变更（快速路径）、治理变更（轻量路径）、元规范变更（完整流程）。"
+scenarios[1]{req_id,id,given,when,then}:
+  r4,skills_include_quick_and_triage,"","agent runs llman sdd update-skills --no-interactive --all","generated skills include llman-sdd-quick and all skills reference context command with async rebuild guidance and triage rules"
