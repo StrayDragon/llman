@@ -1,13 +1,33 @@
-//! BDD step definitions for feature-as-spec (errors-exit pilot).
+//! Generic BDD step library for feature-as-spec (rstest-bdd).
 //!
 //! Gated behind `#[cfg(feature = "bdd")]` — only compiled with `cargo test --features bdd`.
-//! Uses rstest-bdd to bind `.feature` scenarios under `llmanspec/specs/errors-exit/`
-//! to executable step definitions that invoke the llman binary via subprocess.
+//! Provides a reusable "run llman → assert output" vocabulary so that CLI-testable
+//! `.feature` scenarios can be bound without writing per-scenario step functions.
+//!
+//! Step vocabulary:
+//!   Given:
+//!     - 假如 llman 二进制已构建          (reset world + assert binary exists)
+//!     - 假如 {env_var} 为 {value}        (accumulate env override for subprocess)
+//!     - 假如今目录为 {cwd}               (set working directory for subprocess)
+//!   When:
+//!     - 当 运行 llman {args}             (run llman with whitespace-split args)
+//!     - 当 在非交互终端运行 llman {args}  (same, non-interactive)
+//!   Then:
+//!     - 那么 退出码为 {code:i32}         (exact exit code)
+//!     - 那么 退出码非零                  (non-zero exit)
+//!     - 那么 退出码为零                  (zero exit)
+//!     - 那么 stdout 包含 {text}          (substring on stdout)
+//!     - 那么 stderr 包含 {text}          (substring on stderr)
+//!     - 那么 stdout 不含 {text}          (negated substring on stdout)
+//!     - 那么 stderr 不含 {text}          (negated substring on stderr)
+//!     - 那么 stdout 为合法 JSON          (stdout parses as JSON)
+//!     - 那么 stdout 含 JSON 键 {key}     (stdout JSON has top-level key)
 
 #![cfg(feature = "bdd")]
 
 use rstest_bdd_macros::{given, scenario, then, when};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -16,10 +36,13 @@ use std::process::Command;
 struct BddWorld {
     exit_code: Option<i32>,
     stderr: String,
-    #[allow(dead_code)]
     stdout: String,
     /// True when the command finished successfully (exit 0).
     success: bool,
+    /// Env overrides accumulated by Given steps; merged into the subprocess.
+    env_overrides: HashMap<String, String>,
+    /// Optional working directory override for the subprocess.
+    cwd: Option<PathBuf>,
 }
 
 // Each scenario runs in a single thread, so thread-local storage avoids the
@@ -47,8 +70,52 @@ fn llman_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_llman"))
 }
 
+fn split_args(raw: &str) -> Vec<String> {
+    // Whitespace split with quote awareness: keep quoted segments together.
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut in_single = false;
+    let mut in_double = false;
+    for ch in raw.chars() {
+        match ch {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            c if c.is_whitespace() && !in_single && !in_double => {
+                if !current.is_empty() {
+                    args.push(std::mem::take(&mut current));
+                }
+            }
+            c => current.push(c),
+        }
+    }
+    if !current.is_empty() {
+        args.push(current);
+    }
+    args
+}
+
+fn run_llman(args_raw: &str) {
+    let (env_overrides, cwd) = WORLD.with(|w| {
+        let w = w.borrow();
+        let w = w.as_ref().expect("world not initialized");
+        (w.env_overrides.clone(), w.cwd.clone())
+    });
+
+    let mut cmd = Command::new(llman_bin());
+    cmd.args(split_args(args_raw));
+    cmd.env("LLMAN_CONFIG_DIR", "./artifacts/testing_config_home");
+    for (k, v) in &env_overrides {
+        cmd.env(k, v);
+    }
+    if let Some(dir) = &cwd {
+        cmd.current_dir(dir);
+    }
+    let output = cmd.output().expect("run llman");
+    record_output(output);
+}
+
 // ---------------------------------------------------------------------------
-// Shared step: "llman 二进制已构建"
+// Given steps
 // ---------------------------------------------------------------------------
 
 #[given("llman 二进制已构建")]
@@ -61,20 +128,42 @@ fn given_binary_built() {
     );
 }
 
+#[given("{env_var} 为 {value}")]
+fn given_env_var(env_var: String, value: String) {
+    WORLD.with(|w| {
+        let mut w = w.borrow_mut();
+        let world = w.as_mut().expect("world not initialized");
+        world.env_overrides.insert(env_var, value);
+    });
+}
+
+#[given("今目录为 {cwd}")]
+fn given_cwd(cwd: PathBuf) {
+    WORLD.with(|w| {
+        let mut w = w.borrow_mut();
+        let world = w.as_mut().expect("world not initialized");
+        world.cwd = Some(cwd);
+    });
+}
+
 // ---------------------------------------------------------------------------
-// Feature: CLI 入口错误渲染 (r1)
+// When steps
 // ---------------------------------------------------------------------------
 
-/// Use `sdd show` without arguments — it fails when non-interactive (no TTY).
-#[when("我以会失败的参数运行 llman")]
-fn when_run_failing() {
-    let output = Command::new(llman_bin())
-        .args(["sdd", "show"])
-        .env("LLMAN_CONFIG_DIR", "./artifacts/testing_config_home")
-        .output()
-        .expect("run llman");
-    record_output(output);
+#[when("运行 llman {args}")]
+fn when_run_llman(args: String) {
+    run_llman(&args);
 }
+
+#[when("在非交互终端运行 llman {args}")]
+fn when_run_llman_noninteractive(args: String) {
+    // No TTY in test harness → inherently non-interactive.
+    run_llman(&args);
+}
+
+// ---------------------------------------------------------------------------
+// Then steps — exit codes
+// ---------------------------------------------------------------------------
 
 #[then("退出码为 {code:i32}")]
 fn then_exit_code(code: i32) {
@@ -82,65 +171,6 @@ fn then_exit_code(code: i32) {
         let actual = w.exit_code.unwrap_or(-1);
         assert_eq!(actual, code, "expected exit code {code}, got {actual}");
     });
-}
-
-#[then("stderr 恰好包含一行错误信息")]
-fn then_stderr_one_line() {
-    with_world(|w| {
-        let non_empty_lines: Vec<&str> =
-            w.stderr.lines().filter(|l| !l.trim().is_empty()).collect();
-        assert!(
-            !non_empty_lines.is_empty(),
-            "expected at least one error line on stderr, got empty"
-        );
-        // r1: "a single user-facing error message" — the error block may span
-        // multiple display lines (hint + suggestions) but is one logical error.
-        assert!(
-            w.stderr.to_lowercase().contains("error") || !non_empty_lines.is_empty(),
-            "expected an error message on stderr, got: {}",
-            w.stderr
-        );
-    });
-}
-
-// ---------------------------------------------------------------------------
-// Feature: 子命令错误处理 (r2)
-// ---------------------------------------------------------------------------
-
-#[when("我在非交互终端运行 llman sdd show")]
-fn when_run_show_noninteractive() {
-    // No TTY in test harness → inherently non-interactive.
-    let output = Command::new(llman_bin())
-        .args(["sdd", "show"])
-        .env("LLMAN_CONFIG_DIR", "./artifacts/testing_config_home")
-        .output()
-        .expect("run llman sdd show");
-    record_output(output);
-}
-
-#[then("stderr 包含非交互提示")]
-fn then_stderr_has_hint() {
-    with_world(|w| {
-        assert!(
-            !w.stderr.is_empty(),
-            "expected non-interactive hint on stderr, got empty"
-        );
-        assert!(
-            w.stderr.to_lowercase().contains("try") || w.stderr.contains("llman sdd"),
-            "expected a hint suggesting commands, got: {}",
-            w.stderr
-        );
-    });
-}
-
-#[when("我运行 llman sdd show 不存在的spec")]
-fn when_run_show_nonexistent() {
-    let output = Command::new(llman_bin())
-        .args(["sdd", "show", "nonexistent-spec", "--type", "spec"])
-        .env("LLMAN_CONFIG_DIR", "./artifacts/testing_config_home")
-        .output()
-        .expect("run llman sdd show nonexistent-spec");
-    record_output(output);
 }
 
 #[then("退出码非零")]
@@ -154,12 +184,93 @@ fn then_exit_nonzero() {
     });
 }
 
-#[then("stderr 包含错误信息")]
-fn then_stderr_has_error() {
+#[then("退出码为零")]
+fn then_exit_zero() {
     with_world(|w| {
         assert!(
-            !w.stderr.trim().is_empty(),
-            "expected error message on stderr, got empty"
+            w.success,
+            "expected zero exit code, got failure (exit {:?})",
+            w.exit_code
+        );
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Then steps — output substring assertions
+// ---------------------------------------------------------------------------
+
+#[then("stdout 包含 {text}")]
+fn then_stdout_contains(text: String) {
+    with_world(|w| {
+        assert!(
+            w.stdout.contains(&text),
+            "expected stdout to contain {:?}, got: {}",
+            text,
+            w.stdout
+        );
+    });
+}
+
+#[then("stderr 包含 {text}")]
+fn then_stderr_contains(text: String) {
+    with_world(|w| {
+        assert!(
+            w.stderr.contains(&text),
+            "expected stderr to contain {:?}, got: {}",
+            text,
+            w.stderr
+        );
+    });
+}
+
+#[then("stdout 不含 {text}")]
+fn then_stdout_not_contains(text: String) {
+    with_world(|w| {
+        assert!(
+            !w.stdout.contains(&text),
+            "expected stdout to NOT contain {:?}, got: {}",
+            text,
+            w.stdout
+        );
+    });
+}
+
+#[then("stderr 不含 {text}")]
+fn then_stderr_not_contains(text: String) {
+    with_world(|w| {
+        assert!(
+            !w.stderr.contains(&text),
+            "expected stderr to NOT contain {:?}, got: {}",
+            text,
+            w.stderr
+        );
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Then steps — JSON structure assertions
+// ---------------------------------------------------------------------------
+
+#[then("stdout 为合法 JSON")]
+fn then_stdout_is_json() {
+    with_world(|w| {
+        serde_json::from_str::<serde_json::Value>(&w.stdout)
+            .unwrap_or_else(|e| panic!("stdout is not valid JSON: {e}\n{}", w.stdout));
+    });
+}
+
+#[then("stdout 含 JSON 键 {key}")]
+fn then_stdout_has_json_key(key: String) {
+    with_world(|w| {
+        let value: serde_json::Value = serde_json::from_str(&w.stdout)
+            .unwrap_or_else(|e| panic!("stdout is not valid JSON: {e}\n{}", w.stdout));
+        let obj = value.as_object().unwrap_or_else(|| {
+            panic!("stdout JSON is not an object, cannot check key {key:?}");
+        });
+        assert!(
+            obj.contains_key(&key),
+            "expected stdout JSON to contain key {key:?}, got keys: {:?}",
+            obj.keys().collect::<Vec<_>>()
         );
     });
 }
@@ -174,17 +285,17 @@ fn record_output(output: std::process::Output) {
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let success = output.status.success();
     WORLD.with(|w| {
-        *w.borrow_mut() = Some(BddWorld {
-            exit_code: code,
-            stderr,
-            stdout,
-            success,
-        });
+        let mut w = w.borrow_mut();
+        let world = w.as_mut().expect("world not initialized");
+        world.exit_code = code;
+        world.stderr = stderr;
+        world.stdout = stdout;
+        world.success = success;
     });
 }
 
 // ---------------------------------------------------------------------------
-// Scenario bindings — bind each named scenario to its .feature file.
+// Scenario bindings — errors-exit pilot (rewritten with generic steps).
 // ---------------------------------------------------------------------------
 
 #[scenario(
