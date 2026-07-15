@@ -262,9 +262,13 @@ pub enum SddCommands {
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
-        /// Full mode: run the BDD check command after fast validation (BDD-on spec only)
+        /// Run the BDD check command after fast validation (BDD-on spec only).
+        /// Default: enabled when bdd.run_command is configured; use --no-check to skip.
         #[arg(long)]
         check: bool,
+        /// Skip BDD runner execution even when bdd.run_command is configured.
+        #[arg(long)]
+        no_check: bool,
     },
     /// Archive workflow commands
     Archive {
@@ -524,6 +528,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             stage,
             no_interactive,
             check,
+            no_check,
         } => validate::run(validate::ValidateArgs {
             item: item.clone(),
             all: *all,
@@ -536,6 +541,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             stage: stage.clone(),
             no_interactive: *no_interactive,
             check: *check,
+            no_check: *no_check,
         }),
         SddCommands::Archive {
             no_interactive: _,

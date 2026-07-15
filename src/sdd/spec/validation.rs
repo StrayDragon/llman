@@ -1712,7 +1712,16 @@ pub fn has_spec_files(specs_dir: &Path) -> bool {
     }
     match fs::read_dir(specs_dir) {
         Ok(entries) => entries.flatten().any(|e| {
-            e.file_type().map(|t| t.is_dir()).unwrap_or(false) && e.path().join(SPEC_FILE).exists()
+            if !e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                return false;
+            }
+            let dir = e.path();
+            // BDD-on (feature-as-spec): .feature file IS the spec delta.
+            if dir.join(SPEC_FILE).exists() {
+                return true;
+            }
+            // Check for .feature files via glob (BDD-on, r51).
+            !discover_features(&dir).is_empty()
         }),
         Err(_) => false,
     }
