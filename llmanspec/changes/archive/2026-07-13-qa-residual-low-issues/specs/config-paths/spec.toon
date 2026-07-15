@@ -1,9 +1,0 @@
-kind: llman.sdd.delta
-ops[2]{op,req_id,title,statement,from,to,name}:
-  add_requirement,r5,配置文件读取大小上限,"`fs_utils` MUST 提供 `read_with_max_size(path, max_bytes)` 函数，在读取文件时检查文件大小。当文件大小超过 `max_bytes` 时 MUST 返回错误，拒绝读取。系统所有 YAML/TOML 配置文件与数据文件的读取 MUST 通过该函数或同类限速入口进行，默认上限为 10 MiB。",null,null,null
-  add_requirement,r6,原子写入不跟随 symlink,"`atomic_write_with_mode` 与 `atomic_write_new_with_mode` MUST 在写入前检测目标路径是否为 symlink。若是 symlink，MUST 先删除 symlink 再以新文件写入（即不跟随 symlink 写入其目标）。该行为 MUST 被测试覆盖。",null,null,null
-op_scenarios[4]{req_id,id,given,when,then}:
-  r5,"normal-file-read","配置文件大小 < 10 MiB","read_with_max_size 读取",正常返回文件内容
-  r5,"oversized-file-rejected","文件大小 > 10 MiB","read_with_max_size 读取",返回错误，提示文件超过大小上限
-  r5,"caller-adapted","各 YAML/TOML 解析调用点","读取配置文件","通过 read_with_max_size 或其他限速入口，而非直接 read_to_string"
-  r6,"symlink-not-followed","目标路径是一个指向其他位置的 symlink","atomic_write_with_mode 执行","symlink 被替换为新文件（而非将内容写入链接目标）"

@@ -1,5 +1,0 @@
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  add_requirement,r11,account list 必须脱敏敏感环境变量值,"当 CLI 展示配置组环境变量值（例如 `account list`）时，系统 MUST 对键名匹配敏感模式的值进行脱敏显示。敏感模式 MUST 至少覆盖（大小写不敏感子串）：`KEY`、`TOKEN`、`SECRET`、`PASSWORD`、`PASSWD`、`CREDENTIAL`。非敏感键 MUST 显示原值。",null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  r11,mask-password,"配置组含 `DB_PASSWORD=super-secret-value`","用户运行 `llman x claude-code account list`","输出中该值被脱敏，不包含完整明文 `super-secret-value`"

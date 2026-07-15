@@ -1,6 +1,0 @@
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  add_requirement,r12,默认 chat host 为安全空值,"`ChatConfig` 回退硬编码默认 host 时 MUST 使用空字符串而非内部可路由地址。当解析后的 host 为空时，`from_env()` MUST 报错退出并提示用户配置 `LLMAN_SDD_INDEX_CHAT_API_HOST`。系统 MUST NOT 将未配置的 chat host 回退到任何可路由默认地址。",null,null,null
-op_scenarios[2]{req_id,id,given,when,then}:
-  r12,"default-host-empty","LLMAN_SDD_INDEX_CHAT_API_HOST 未设置且 LLMAN_SDD_INDEX_OPENAI_API_HOST 也未设置","ChatConfig::from_env() 执行",返回错误，提示用户配置 LLMAN_SDD_INDEX_CHAT_API_HOST，而不是回退到任何可路由地址
-  r12,"explicit-host-works","LLMAN_SDD_INDEX_CHAT_API_HOST 已设置为合法 URL","ChatConfig::from_env() 执行",正常返回配置，host 使用用户提供的值
