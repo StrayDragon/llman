@@ -1,3 +1,13 @@
 kind: llman.sdd.spec
 name: "sdd-workflow"
-purpose: "定义 llman SDD 规范驱动开发工作流及其 `llmanspec/` 行为合约。"
+purpose: 定义 llman SDD 规范驱动开发工作流及其 `llmanspec/` 行为合约。
+valid_scope[1]: "llmanspec/specs/sdd-workflow"
+requirements[3]{req_id,title,statement}:
+  r10,SDD list JSON extension with metadata,"llman sdd list --specs --json output MUST include purpose validScope health staleness fields. purpose from spec frontmatter. health and staleness may be null before quality detection is implemented."
+  r47,Context JSON semantic protocol,"llman sdd context output JSON MUST follow: direct array contains z-score greater than 0.60 specs agent MUST read full spec. related array contains z-score greater than -0.20 and at most 0.60 specs agent MAY read on demand. remaining specs are irrelevant. summary MUST include readRecommended and staleWarnings fields."
+  r48,变更规模分类与路径选择（Triage）,"SDD 工作流 MUST 在提案阶段前引入变更规模分类步骤，帮助 agent 选择合适的工作路径。分类规则 MUST 包含：- 行为合约变更：修改 MUST/SHALL 定义的外部可观测行为 → 走完整 SDD 流程（proposal + delta specs + tasks + archive）- 实现变更：不改变外部行为只改变内部实现 → 走快速路径（直接改代码，无需 change 目录）- 治理/工具变更：修改 CI/工具配置 → 仅创建 proposal.md 记录 why- 元规范变更：修改 SDD 规范/模板/流程本身 → 走完整 SDD 流程（自举）当变更性质不明确时 agent MUST 升级为完整 SDD 流程而非猜测。"
+scenarios[4]{req_id,id,given,when,then}:
+  r10,list_json_meta,"","agent runs list --specs --json",output includes purpose validScope health staleness
+  r47,context_direct_read,"context returns config-paths in direct",agent receives context output,"agent reads the full config-paths spec"
+  r48,triage_behavioral_contract,"",agent receives task that changes exit code behavior,agent chooses full SDD workflow with proposal + specs + tasks
+  r48,triage_implementation,"",agent receives task to fix a typo in README,agent chooses quick path without change directory

@@ -1,6 +1,6 @@
 kind: llman.sdd.delta
 ops[2]{op,req_id,title,statement,from,to,name}:
-  modify_requirement,r10,SDD list JSON extension with metadata,"llman sdd list --specs --json output MUST include purpose validScope health staleness fields. purpose from spec frontmatter. health and staleness may be null before quality detection is implemented.",null,null,null
+  add_requirement,r10,SDD list JSON extension with metadata,"llman sdd list --specs --json output MUST include purpose validScope health staleness fields. purpose from spec frontmatter. health and staleness may be null before quality detection is implemented.",null,null,null
   add_requirement,r47,Context JSON semantic protocol,llman sdd context output JSON MUST follow: direct array contains z-score greater than 0.60 specs agent MUST read full spec. related array contains z-score greater than -0.20 and at most 0.60 specs agent MAY read on demand. remaining specs are irrelevant. summary MUST include readRecommended and staleWarnings fields.,null,null,null
 op_scenarios[2]{req_id,id,given,when,then}:
   r10,list_json_meta,"","agent runs list --specs --json",output includes purpose validScope health staleness

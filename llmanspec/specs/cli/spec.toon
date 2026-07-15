@@ -1,3 +1,13 @@
 kind: llman.sdd.spec
-name: "cli"
+name: cli
 purpose: "规范 llman CLI 的全局配置目录守卫（仅全局配置命令需要 config-dir）。"
+valid_scope[1]: llmanspec/specs/cli
+requirements[3]{req_id,title,statement}:
+  r8,Context Command,"System MUST provide a context subcommand for agent consumption. The command MUST accept --task natural language and/or --paths comma-separated file paths. The command MUST return single JSON with status ok quality qualityNote and spec arrays direct with zScore matchReqs and related. At least one of --task or --paths MUST be required. If embedding index unavailable the command MUST return quality=unavailable with clear error."
+  r9,Index Rebuild Command,"System MUST provide an index rebuild subcommand. It MUST read all spec files extract per-requirement chunks call embedding API and write index to llmanspec/.context/. It MUST also provide --check flag for freshness check without rebuilding."
+  r10,Context Index Freshness Protocol,"The context command MUST check index freshness. Read spec_hash from metadata.toml compute current spec hash. If hash matches use semantic retrieval else use keyword with quality=keyword. If index missing return quality=unavailable with rebuild instruction. Context MUST be read-only."
+scenarios[4]{req_id,id,given,when,then}:
+  r8,context_full,"","agent calls context --task XDG_CONFIG_HOME --paths src/config.rs","command returns quality=semantic with config-paths in direct"
+  r8,context_no_index,"",agent calls context without index,command returns quality=unavailable with rebuild hint
+  r9,index_rebuild_check,"","user runs index rebuild --check",command outputs Index status without API call
+  r10,context_stale_index,"",agent calls context with stale index,command uses keyword retrieval with quality=keyword

@@ -1,3 +1,8 @@
 kind: llman.sdd.spec
 name: "config-paths"
-purpose: "规范 llman 配置目录解析方式与安全默认值。"
+purpose: 规范 llman 配置目录解析方式与安全默认值。
+valid_scope[1]: "llmanspec/specs/config-paths"
+requirements[1]{req_id,title,statement}:
+  r5,Context Index Directory,"The CLI MUST store the embedding index in `llmanspec/.context/` relative to the config root. The directory MUST contain: - `metadata.toml`: version, spec_hash, spec_count, chunk_count, build_timestamp, model, embedding_dim - `vectors.bin`: flat f32 array of shape [n_chunks, embedding_dim] - `specs.json`: spec metadata array - `chunks.json`: per-requirement text chunks (optional, for debugging) The path MAY be overridden by `LLMAN_CONTEXT_DIR` environment variable. The vectors.bin and chunks.json files SHOULD be gitignored; metadata.toml SHOULD be tracked."
+scenarios[1]{req_id,id,given,when,then}:
+  r5,index_stored_in_context,"",user runs `llman sdd index rebuild`,"index files are written to `<config-dir>/.context/`"

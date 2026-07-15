@@ -1,5 +1,0 @@
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  modify_requirement,r1,SDD 技能结构化提示协议（含 context-first + triage + async 约束）,"llman SDD 的技能模板 MUST 采用统一结构化提示协议，并通过模板单元注入方式组装协议块，以降低重复维护成本并保持内容一致性。协议至少包含以下逻辑层：- Context - Goal - Constraints - Workflow - Decision Policy - Output Contract。Constraints 层 MUST 额外包含：- 在读取 spec 全文前先使用 llman sdd context --task --paths 获取相关 specs- 判断变更规模后选择路径：行为合约变更走完整 SDD 流程，实现变更走快速路径。Workflow 层 MUST 额外包含：- 首选 llman sdd context 获取相关 specs 而非全量读取或猜测- 当 context 不可用时按决策树分流（后台重建 / 降级 / 前台等待）。",null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  r1,constraints_include_context_and_triage,"","agent reads generated skill template",Constraints section includes context-first and triage rules
