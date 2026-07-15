@@ -4,12 +4,12 @@
 功能: 子命令错误处理
   场景: 非交互终端下 sdd show 无参数时以退出码 1 退出
     假如 llman 二进制已构建
-    当 我在非交互终端运行 llman sdd show
+    当 在非交互终端运行 llman sdd show
     那么 退出码为 1
-    而且 stderr 包含非交互提示
+    那么 stderr 包含 Nothing to show
 
   场景: 查看不存在的 spec 时正常报错而非 panic
     假如 llman 二进制已构建
-    当 我运行 llman sdd show 不存在的spec
+    当 运行 llman sdd show nonexistent-spec --type spec
     那么 退出码非零
-    而且 stderr 包含错误信息
+    那么 stderr 包含 Error
