@@ -1,26 +1,3 @@
 kind: llman.sdd.spec
 name: "cursor-claude-ignore-sync"
 purpose: "规范 cursor 与 claude ignore 配置的统一解析与 union 同步行为。"
-valid_scope[5]: src/tool/sync_ignore.rs,src/tool/command.rs,src/x/cursor/command.rs,src/x/claude_code/command.rs,"llmanspec/specs/cursor-claude-ignore-sync/"
-requirements[6]{req_id,title,statement}:
-  r1,统一解析与 union 同步,"系统 MUST 提供 `llman tool sync-ignore` 命令，用于在项目内对以下 ignore 配置进行统一解析，并以 union（并集）方式同步到选定 targets： - OpenCode：`.ignore` - Cursor：`.cursorignore` - Claude Code：`.claude/settings.json`、`.claude/settings.local.json`（仅处理 `permissions.deny` 的 `Read(...)`）"
-  r2,`.ignore` / `.cursorignore` 的 include（`!pattern`）解析,"系统 MUST 支持解析 gitignore 风格的 include 规则，并写回到 gitignore-like 文件中。"
-  r3,Claude Code settings 的读写与保留策略,"系统 MUST 能解析并更新项目内 Claude Code settings，并尽量保留 JSONC 注释（best-effort）。"
-  r4,"git repo 强制检查 + `--force`",系统 MUST 强制检查 git root，避免在非项目目录误写入文件。
-  r5,交互式模式（inquire）,系统 MUST 提供交互式模式用于选择 targets、预览与确认执行。
-  r6,x 子命令快捷方式（可选但推荐）,"系统 SHOULD 通过 `llman x` 子命令提供便捷的快捷方式；若提供该快捷方式，则系统 MUST 使用目标 app 的合理默认 target（例如 cc→claude-shared，cursor→cursor）。"
-scenarios[14]{req_id,id,given,when,then}:
-  r1,"默认-dry-run-预览-不写入",当前目录位于一个 git repo 内,"用户执行 `llman tool sync-ignore`",系统自动发现项目内存在的 sources（`.ignore` / `.cursorignore` / `.claude/settings*.json`）
-  r1,"yes-应用写入并自动创建缺失-targets",当前目录位于一个 git repo 内,"用户执行 `llman tool sync-ignore --yes`",系统把 union 结果写入/创建默认 targets：`.ignore`、`.cursorignore`、`.claude/settings.json`
-  r1,"target-限制输出目标","","用户执行 `llman tool sync-ignore --target cursor`",系统仅写入/创建 `.cursorignore`
-  r2,"ignore-中的-include",`.ignore` 内容包含 `!dist/`,系统解析 `.ignore`,必须把 `dist/` 记录为 `include` 规则（而不是 ignore）
-  r2,稳定输出顺序,"",系统写回 `.ignore` 或 `.cursorignore`,必须以稳定顺序输出：先输出所有 ignore，再输出所有 include（以 `!` 前缀）
-  r3,"仅转换-permissions-deny-的-read",`.claude/settings.json` 的 `permissions.deny` 中包含 `Read(./secrets/**)`,系统解析 Claude Code settings,必须提取 `secrets/**` 作为 ignore 规则
-  r3,"include-规则无法写入-claude-code-时告警",union 结果包含至少一条 include（例如 `!dist/`）,系统写入 `.claude/settings.json`,必须跳过 include 规则
-  r3,"保留非-read-deny-规则",`.claude/settings.json` 的 `permissions.deny` 中包含非 `Read(...)` 项（例如 `WebFetch(...)`）,系统写入 Claude Code settings,必须保留这些非 Read 项（不得删除）
-  r4,"非-git-目录报错",当前目录向上遍历找不到 `.git`,"用户执行 `llman tool sync-ignore`",系统必须报错并返回非零退出码
-  r4,"force-允许在非-git-目录运行",当前目录向上遍历找不到 `.git`,"用户执行 `llman tool sync-ignore --force`","系统将当前目录视为 root 并继续执行（仍默认 dry-run）"
-  r5,"multiselect-选择-targets-反选删除提示","","用户执行 `llman tool sync-ignore --interactive`",系统显示 MultiSelect 列表（包含 `.ignore` / `.cursorignore` / `.claude/settings.json` / `.claude/settings.local.json`，并标注 exists/missing）
-  r5,交互式预览与确认,"",用户在交互模式下完成 targets 选择,系统必须显示预览（包含每个 target 的 create/update/unchanged/delete 计划与规则数量）
-  r6,"通过-cc-子命令同步到-claude-code","","用户执行 `llman x cc sync-ignore`","系统默认将 targets 限制为 `claude-shared`（`.claude/settings.json`）"
-  r6,"通过-cursor-子命令同步到-cursor","","用户执行 `llman x cursor sync-ignore`",系统默认将 targets 限制为 `cursor`（`.cursorignore`）

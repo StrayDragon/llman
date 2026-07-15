@@ -1,16 +1,3 @@
 kind: llman.sdd.spec
 name: "tool-clean-comments"
-purpose: "Define clean-comments safety behavior and the tree-sitter-only removal path."
-valid_scope[9]: src/tool/clean_comments.rs,src/tool/processor.rs,src/tool/tree_sitter_processor.rs,src/tool/command.rs,src/tool/config.rs,tests/processor_tests.rs,tests/tree_sitter_tests.rs,tests/tool_tests.rs,"llmanspec/specs/tool-clean-comments/"
-requirements[4]{req_id,title,statement}:
-  r1,"Safe failure on tree-sitter unavailability","When tree-sitter is unavailable or fails for a file, the clean-comments processor MUST skip modification for that file and record an error while continuing other files."
-  r2,Regex fallback is disabled by default,"Regex-based comment removal MUST NOT run by default; it may remain available only for explicit future opt-in."
-  r3,非文件输入必须被显式处理,"当用户通过 `files...` 显式传入路径时，clean-comments processor MUST 显式处理目录与其它非普通文件路径。它 MUST NOT 将其当作文件读取，并 MUST 输出清晰的非致命提示，同时继续处理其它输入。"
-  r4,doc comment 开关语义必须一致,"doc comment 移除开关（`docstrings`、`jsdoc`、`doc-comments`、`godoc`）MUST 与其它注释开关保持一致语义：`true` 启用移除、`false` 禁用移除、`None` 默认禁用移除（即保留 doc comments）。"
-scenarios[6]{req_id,id,given,when,then}:
-  r1,"tree-sitter-unavailable","","tree-sitter cannot be initialized",no files are modified and errors are reported
-  r1,"tree-sitter-fails-on-a-file","","tree-sitter fails while processing a specific file",that file remains unchanged and processing continues for remaining files
-  r2,"default-run","","clean-comments runs without any explicit opt-in","regex-based removal is not used"
-  r3,目录输入被跳过,"","用户运行 `llman tool clean-useless-comments path/to/dir`",工具提示该目录输入被跳过（或需要显式展开），且不会把它当成文件读取失败
-  r4,"docstrings-true-启用移除","","配置对某语言设置 `docstrings: true` 且文件包含 doc comments",doc comments 在规则判断中可被移除（满足其它条件时）
-  r4,"未配置-docstrings-默认保留","",配置未指定 doc comment 开关,doc comments 被保留
+purpose: "规范 clean-comments 的安全行为与仅 tree-sitter 的移除路径。"

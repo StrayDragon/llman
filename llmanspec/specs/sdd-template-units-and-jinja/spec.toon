@@ -1,17 +1,3 @@
 kind: llman.sdd.spec
 name: "sdd-template-units-and-jinja"
 purpose: "规范 SDD 模板单元的独立性、可发现性与 MiniJinja 注入渲染合约。"
-valid_scope[5]: src/sdd/project/templates.rs,"templates/sdd/",scripts/check-sdd-templates.py,justfile,"llmanspec/specs/sdd-template-units-and-jinja/"
-requirements[4]{req_id,title,statement}:
-  r1,SDD Template Units Must Be Independent and Discoverable,"SDD prompt composition MUST split reusable prompt fragments into independent template-unit files, with explicit unit identifiers and deterministic lookup rules by locale."
-  r2,SDD Rendering Must Use MiniJinja Injection Contracts,"SDD template rendering MUST use MiniJinja-based injection for unit composition, and rendering MUST fail fast on missing unit references or missing required variables."
-  r3,模板必须避免“影子真源”并保持单一事实来源,SDD 模板体系 MUST 避免保留不参与渲染/生成但容易被误认为“共享真源”的文件（例如历史遗留的 `templates/sdd/*/skills/shared.md`）。共享内容的真源 MUST 位于 `templates/**/units/**` 并通过 MiniJinja 的 `unit()` 注入使用。
-  r4,"Rendered Outputs Must Stay Stable and Self-Contained","Rendered SDD templates and skills MUST remain self-contained text artifacts and MUST preserve stable output ordering to reduce maintenance diff noise."
-scenarios[7]{req_id,id,given,when,then}:
-  r1,"unit-file-can-be-edited-independently","",a maintainer updates one prompt unit used by multiple SDD templates,the change is made in a single unit file without editing unrelated templates
-  r1,"locale-scoped-unit-resolution-is-deterministic","","the renderer resolves a unit for `zh-Hans` with fallback to `en`",it follows a documented deterministic fallback chain and returns exactly one resolved unit source
-  r2,"missing-unit-reference-fails-rendering","",a template references a unit identifier that does not exist,"render operation exits non-zero with a clear missing-unit error"
-  r2,"missing-required-render-variable-fails-rendering","",a template requires a render variable that is not provided,"render operation exits non-zero and identifies the missing variable"
-  r3,"共享内容仅由-units-承载","","维护者需要更新多个 SDD skills/spec-driven 模板共享的一段提示内容",该改动在单个 unit 文件中完成（位于 `templates/**/units/**`）
-  r4,"generated-skill-output-remains-self-contained","","user runs `llman sdd update-skills --no-interactive --tool codex`","generated `SKILL.md` files include fully rendered content without unresolved injection markers (for example, `{{ unit(`)"
-  r4,"stable-generation-order","",user runs the same generation command twice without source changes,generated file content order is identical across runs
