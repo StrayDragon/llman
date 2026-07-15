@@ -1,3 +1,19 @@
 kind: llman.sdd.spec
 name: "codex-agents-management"
-purpose: "规范 `llman x codex agents` 命令组对 Codex custom agents 配置的导入、同步与注入行为。"
+purpose: 规范 `llman x codex agents` 命令组对 Codex custom agents 配置的导入、同步与注入行为。
+valid_scope[1]: "llmanspec/specs/codex-agents-management"
+requirements[1]{req_id,title,statement}:
+  r1,"codex-agents-management",规范 `llman x codex agents` 命令组对 Codex custom agents 配置的导入、同步与注入行为。 The system MUST satisfy the scenarios in this spec.
+scenarios[12]{req_id,id,given,when,then,feature}:
+  r1,查看帮助含全部子命令,"用户运行 llman x codex agents --help",命令执行,帮助含 import / sync / inject / status 子命令说明,true
+  r1,status 不落盘,用户运行 llman x codex agents status,命令执行,"不写入任何文件\n退出码为 0",true
+  r1,"sync dry-run 展示计划不落盘","用户运行 llman x codex agents sync --dry-run",命令执行,"输出将执行的同步操作列表\n不修改目标目录",true
+  r1,非交互未确认则失败,"在非交互环境运行 sync 会写文件但未提供 --yes/--force",命令执行,"退出并提示需要 --yes/--force 或使用 --dry-run",true
+  r1,默认托管目录,"用户运行 sync 且未指定 --managed-dir",命令执行,从 $LLMAN_CONFIG_DIR/codex/agents/ 读取 *.toml 并同步,true
+  r1,"使用 agents-dir 指定目标","用户运行 sync --agents-dir {target_dir}",命令执行,"将输出同步到 {target_dir}",true
+  r1,导入全部文件,目标 agents 目录含 a.toml 与 b.toml，用户运行 import,命令执行,托管目录生成/更新 a.toml 与 b.toml,true
+  r1,仅导入指定文件,"目标 agents 目录含 a.toml 与 b.toml，用户运行 import --only a",命令执行,"托管目录仅生成/更新 a.toml\n不导入 b.toml",true
+  r1,创建 symlink,托管目录存在 defaults.toml 且目标无该文件，用户运行 sync,命令执行,"目标目录出现 defaults.toml\n其为指向托管文件的 symlink",true
+  r1,copy 模式同步,"用户运行 sync --mode copy",命令执行,"目标目录的 *.toml 为常规文件（非 symlink）\n内容与托管目录一致",true
+  r1,sync 覆盖产生备份,目标目录已存在普通文件 a.toml 且将被同步替换,命令执行,"目标目录产生 a.toml.llman.bak.<timestamp>\n将 a.toml 更新为同步结果",true
+  r1,inject 注入新 marker 区块,托管的 reviewer.toml 含 developer_instructions 且无 marker,"用户运行 inject --template {tpl}","developer_instructions 内含 marker 区块\n含 ## llman prompts: {tpl} 段落",true

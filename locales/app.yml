@@ -1898,22 +1898,6 @@ sdd:
       en: "Spec may be stale; scope changed without spec update."
     staleness_git_failed:
       en: "Git command failed during staleness evaluation."
-    feature_refs_no_bdd_config:
-      en: "feature_refs defined but no bdd config in config.yaml. Fix: add `bdd:` block to llmanspec/config.yaml (see `bdd.framework` and `bdd.feature_dir`)."
-    feature_ref_not_found:
-      en: "Required .feature file not found: %{path}. Fix: create the .feature file — it is the executable implementation of this spec's scenarios."
-    feature_ref_not_found_optional:
-      en: "Optional .feature file not found: %{path}."
-    feature_ref_bad_extension:
-      en: "feature_refs path must end with .feature: %{path}"
-    feature_ref_parse_error:
-      en: "Gherkin parse error in %{path}: %{error}. Fix: check .feature syntax and language directive."
-    feature_ref_read_error:
-      en: "Cannot read .feature file %{path}: %{error}"
-    feature_ref_coverage_gap:
-      en: "Feature %{path} has %{feature} scenarios but spec has %{spec} scenarios. The .feature file is the executable form of this spec — add missing scenarios to either the spec or the .feature file."
-    feature_ref_unsupported_language:
-      en: "Unsupported gherkin language '%{lang}' in %{path}. Fix: use a valid language code (e.g. 'en', 'zh-CN')."
     feature_parse_error:
       en: "Gherkin parse error in %{path}: %{error}. Fix: check .feature syntax (Feature/Scenario/Given/When/Then) and language directive."
     feature_read_error:
@@ -1928,18 +1912,14 @@ sdd:
       en: "Full mode: %{count} feature(s) parsed, BDD check passed."
     meta_field_empty:
       en: "Spec %{key} must not be empty (add it inside the .toon document)."
-    bdd_empty_spec_guardrail:
-      en: "BDD is enabled but this spec declares no requirements and the spec directory has no .feature files. Either add a .feature file (feature-as-spec mode) or add requirements."
+    empty_requirements:
+      en: "Spec declares no requirements. Add at least one requirement with a MUST/SHALL statement to spec.toon."
     check_deprecated_no_bdd:
       en: "--check has no effect without bdd configuration. Configure `bdd:` in llmanspec/config.yaml to enable BDD check."
-    feature_as_spec_mode:
-      en: "Feature-as-spec mode: behavior lives in the .feature file(s) in this directory."
     bdd_next_step_verify:
       en: "- Run BDD tests: %{command}"
     bdd_next_step_feature:
-      en: "- Create .feature file at the path shown in the ERROR above — it is the executable implementation of the spec's scenarios"
-    staleness_feature_ref_stale:
-      en: "Spec may be stale: .feature file (%{path}) changed without spec update. The .feature file is the executable implementation of this spec."
+      en: "- Regenerate the .feature via `llman sdd solidify <change-id>` after fixing the spec.toon scenarios."
     non_interactive:
       line1:
         en: "Nothing to validate. Try one of:"
@@ -1963,10 +1943,6 @@ sdd:
       en: "Archive '%{name}' already exists."
     archived:
       en: "Change '%{change}' archived as '%{archive}'."
-    feature_copy_plan:
-      en: "[dry-run] copy .feature %{source} -> %{target}"
-    feature_conflict:
-      en: "Cannot copy .feature into specs/%{capability}/: target already exists at %{path}. Resolve the conflict (rename or remove one) and re-run."
     rebuilt_invalid:
       en: "Validation errors in rebuilt spec for %{spec}: %{errors}"
     no_deltas:
@@ -2014,6 +1990,33 @@ sdd:
     task_completion_low:
       en: "Task completion ratio %{ratio}%% is below minimum %{min}%%."
 
+  solidify:
+    bdd_off_noop:
+      en: "BDD is not configured — solidify is a no-op. Add a `bdd:` block to llmanspec/config.yaml."
+    change_not_found:
+      en: "Change '%{id}' not found under llmanspec/changes/."
+    no_scenarios:
+      en: "No delta scenarios found to solidify."
+    dry_run_preview:
+      en: "[dry-run] would write %{path}:"
+    summary_dry_run:
+      en: "%{capability}: would write %{written} scenario(s), skip %{skipped}."
+    summary_written:
+      en: "%{capability}: wrote %{written} scenario(s), skip %{skipped} -> %{path}"
+    skipped_item:
+      en: "skip %{id}: %{reason}"
+    totals:
+      en: "Totals: %{written} written, %{skipped} skipped."
+    migrate_start:
+      en: "Solidify-migrate: scanning llmanspec/specs/ for BDD-on specs to upgrade…"
+    migrate_no_candidates:
+      en: "No BDD-on specs need migration (all specs already have full structure)."
+    migrate_summary:
+      en: "Migrated %{count} spec(s) from .feature files into spec.toon (all scenarios feature=true)."
+    migrate_dry_run_summary:
+      en: "[dry-run] would migrate %{count} spec(s)."
+    migrate_spec_done:
+      en: "  migrated %{spec}: %{reqs} requirement(s), %{scenarios} scenario(s)"
 
 
 skills:

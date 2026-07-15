@@ -1,3 +1,25 @@
 kind: llman.sdd.spec
 name: "sdd-eval-workflow-dsl"
 purpose: "规范 `llman x sdd-eval` playbook 的 workflow/jobs/steps DSL：依赖、matrix 展开、内置 action、插值与 run 沙箱。"
+valid_scope[1]: "llmanspec/specs/sdd-eval-workflow-dsl"
+requirements[1]{req_id,title,statement}:
+  r1,"sdd-eval-workflow-dsl","规范 `llman x sdd-eval` playbook 的 workflow/jobs/steps DSL：依赖、matrix 展开、内置 action、插值与 run 沙箱。 The system MUST satisfy the scenarios in this spec."
+scenarios[18]{req_id,id,given,when,then,feature}:
+  r1,缺失 workflow.jobs 时显式失败,"用户运行 llman x sdd-eval run --playbook <path> 且 playbook 缺失 workflow.jobs",命令执行,非零退出,true
+  r1,空 job steps 被拒,"某 job 定义 steps: []",playbook 校验,校验失败,true
+  r1,未知 job 键被拒,"某 job 定义了未知键（如 timeout:）",playbook 校验,校验失败,true
+  r1,matrix 引用未知 variant 被拒,"某 job 定义 strategy.matrix.variant: [\"a\"] 但 a 不存在",命令执行,非零退出,true
+  r1,variant id 不安全用于路径时被拒,用户定义的 variant id 含 / 或 ..,playbook 校验,校验失败,true
+  r1,matrix 展开按声明顺序串行执行,"某 job 定义 strategy.matrix.variant: [\"b\", \"a\"]",runner 执行,"执行该 job 两次\n按声明顺序串行",true
+  r1,needs 引用未知 job 被拒,"某 job 声明 needs: [\"missing\"]",playbook 校验,校验失败,true
+  r1,依赖环被拒,workflow 含依赖环（直接或间接）,playbook 校验,校验失败,true
+  r1,step 同时含 uses 与 run 被拒,某 step 同时定义 uses 与 run,playbook 校验,校验失败,true
+  r1,run step 含 with 被拒,"某 step 定义 run: \"rg foo\" 且同时含 with: {}",playbook 校验,校验失败,true
+  r1,未知内置 action 显式失败,"某 step 使用 builtin:sdd-eval/does-not-exist",命令执行,非零退出,true
+  r1,workspace.prepare 跳过疑似机密文件,项目根含 .env 或 .netrc,"执行 builtin:sdd-eval/workspace.prepare",这些文件不出现在 variant workspace,true
+  r1,"acp-loop 写出预期工件","workflow 对某 variant 运行 builtin:sdd-eval/acp.sdd-loop",执行完成,"variant 的 logs/ 下存在 acp-session.jsonl",true
+  r1,插值在 run 步骤中替换 matrix variant,"matrix 展开的 job step 使用 run: \"echo ${{ matrix.variant }}\"",runner 执行,先插值再执行,true
+  r1,未知插值路径显式失败,"某 step 字符串含 ${{ does.not.exist }}",命令执行,非零退出,true
+  r1,非允许命令被拒,run 步骤请求执行非 allowlist 命令（如 curl）,runner 执行,非零退出,true
+  r1,cwd 路径穿越被拒,"run 步骤设 cwd: \"../outside\"",runner 执行,非零退出,true
+  r1,"legacy version:1 playbook 失败并给出可操作错误","用户运行 llman x sdd-eval run 且 playbook 含 version: 1",命令执行,"非零退出\n提示 playbook 格式已被 workflow/jobs/steps DSL 取代",true

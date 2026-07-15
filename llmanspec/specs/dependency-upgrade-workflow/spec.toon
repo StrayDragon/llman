@@ -1,3 +1,11 @@
 kind: llman.sdd.spec
 name: "dependency-upgrade-workflow"
-purpose: "规范依赖升级工作流：以 lockfile 优先的顺序进行依赖升级。"
+purpose: 规范依赖升级工作流：以 lockfile 优先的顺序进行依赖升级。
+valid_scope[1]: "llmanspec/specs/dependency-upgrade-workflow"
+requirements[1]{req_id,title,statement}:
+  r1,"dependency-upgrade-workflow",规范依赖升级工作流：以 lockfile 优先的顺序进行依赖升级。 The system MUST satisfy the scenarios in this spec.
+scenarios[4]{req_id,id,given,when,then,feature}:
+  r1,升级开始时先更新 lockfile 并跑校验,维护者开始为本仓库执行依赖升级,"维护者先更新 {lockfile} 并运行校验","在改动 {manifest} 中的依赖版本约束前先完成 lockfile 更新",true
+  r1,lockfile 更新因版本约束不足时才最小化改动 manifest,某次升级需要 manifest 约束改动才能编译或通过校验,维护者应用约束改动,"仅应用所需的边界更新\n以基于 nightly 的校验验证结果",true
+  r1,manifest 约束改动最小且经质量门验证,"{manifest} 中的依赖版本约束发生改动",维护者完成改动,"改动最小且限于兼容性需要\n经项目质量门验证",true
+  r1,升级批次完成后可验证并保留回退路径,维护者完成一批依赖升级,维护者准备合并,"可展示基于 nightly 的校验已通过\n回退到上一 lock 状态仍可行",true

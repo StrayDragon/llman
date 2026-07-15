@@ -1,3 +1,34 @@
 kind: llman.sdd.spec
 name: "agent-tools-usage-stats"
-purpose: "规范 Codex/Claude Code/Cursor 的本地按项目历史用量统计（token + 时间）与一致 UX。"
+purpose: 规范 Codex/Claude Code/Cursor 的本地按项目历史用量统计（token + 时间）与一致 UX。
+valid_scope[1]: "llmanspec/specs/agent-tools-usage-stats"
+requirements[1]{req_id,title,statement}:
+  r1,"agent-tools-usage-stats",规范 Codex/Claude Code/Cursor 的本地按项目历史用量统计（token + 时间）与一致 UX。 The system MUST satisfy the scenarios in this spec.
+scenarios[27]{req_id,id,given,when,then,feature}:
+  r1,命令帮助可发现,"用户运行 llman x codex stats --help",命令执行,打印 stats 命令帮助文本并成功退出,true
+  r1,默认过滤到当前目录,"用户在目录 /p/a 运行 llman x claude-code stats",命令执行,输出排除 cwd 不精确等于 /p/a 的会话,true
+  r1,默认视图为 summary,"用户运行 llman x cursor stats 且不带 --view",命令执行,渲染 summary 视图,true
+  r1,sessions 视图 id 可用于下钻,"用户运行 llman x codex stats --view sessions 并看到含 id X 的行","用户运行 llman x codex stats --view session --id X",可查看该会话详情,true
+  r1,session 视图必须提供 id,"用户运行 llman x claude-code stats --view session 且不带 --id",命令执行,"返回错误并提示需提供 --id",true
+  r1,"group-by month 按日历月聚合","用户运行 llman x codex stats --view trend --group-by month",命令执行,输出含过滤数据集中每个日历月一个桶,true
+  r1,sessions 视图每个会话一行,"用户运行 llman x cursor stats --view sessions",命令执行,每行恰好对应一个 Cursor composer 会话,true
+  r1,RFC3339 createdAt 被接受,某 Cursor bubble 记录 createdAt 为 RFC3339 字符串,计算会话时间戳,使用解析后的时间,true
+  r1,since 过滤掉旧会话,"用户运行 llman x codex stats --since {since_time}",命令执行,结束于该时间戳之前的会话被排除,true
+  r1,仅日期 until 包含整天,"用户运行 llman x cursor stats --until {date_only}",命令执行,该日期本地时间结束的会话被包含,true
+  r1,last 与 since/until 互斥,"用户运行 llman x claude-code stats --last 7d --since {since_time}",命令执行,返回错误指明 flag 不兼容,true
+  r1,limit 仅作用于 sessions 视图,"用户运行 llman x cursor stats --view sessions --limit 10",命令执行,sessions 视图返回 10 个会话,true
+  r1,JSON 输出可机读,"用户运行 llman x codex stats --format json",命令执行,"stdout 为合法 JSON\n含所选视图结果",true
+  r1,table 输出不含制表符,"用户运行 llman x codex stats --format table",命令执行,stdout 不含制表符,true
+  r1,NO_COLOR 在 auto 模式禁用 ANSI,"用户运行 NO_COLOR=1 llman x cursor stats --format table --color auto",命令执行,stdout 不含 ANSI 转义序列,true
+  r1,非 TTY 在 auto 模式禁用 ANSI,"用户运行 llman x claude-code stats --format table --color auto 重定向到文件",命令执行,输出文件不含 ANSI 转义序列,true
+  r1,JSON 输出永不着色,"用户运行 llman x codex stats --format json --color always",命令执行,stdout 不含 ANSI 转义序列,true
+  r1,默认隐藏完整绝对路径,"用户运行 llman x cursor stats 且不带 --verbose",命令执行,sessions 列表不打印完整绝对 cwd 路径,true
+  r1,覆盖路径避免读取真实用户状态,用户用指向临时 fixture 的覆盖路径运行 stats,命令执行,从 fixture 路径读取而非默认 home 目录,true
+  r1,未知 token 不破坏聚合,过滤数据集中部分会话无 token 信息,命令执行,仍成功渲染所请求视图,true
+  r1,离线执行,机器无网络连接,用户运行 llman x codex stats,仍用本地状态运行,true
+  r1,sidechain 可见且计入总量,某 Claude Code 项目含主会话与带 token 的关联 sidechain,查看 sessions 视图,列出两个会话,true
+  r1,覆盖率可见,数据集含缺失 token 信息的会话,生成报告,"含表示 known-token 覆盖率的字段",true
+  r1,默认仅用 thread tokens_used,用户运行 llman x codex stats 且不带 breakdown 选项,命令执行,不要求解析 rollout JSONL 即可产出总量,true
+  r1,"no-sidechain 禁用 sidechain","用户运行 llman x claude-code stats --no-sidechain",命令执行,sidechain 会话被排除出所有视图,true
+  r1,codex breakdown 在 TUI 显示进度,"用户运行 llman x codex stats --tui --with-breakdown 且解析多个 rollout 文件",扫描执行,TUI 显示持续更新的进度指示器直到完成,true
+  r1,TUI 过滤更新视图,用户在 TUI 过滤表单修改时间范围并提交,重新扫描,显示的 sessions/trend 更新以反映新范围,true

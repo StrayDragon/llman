@@ -1,3 +1,20 @@
 kind: llman.sdd.spec
 name: "claude-code-account-management"
 purpose: "规范 `llman x claude-code account` 的编辑入口、env 注入输出与敏感值脱敏行为。"
+valid_scope[1]: "llmanspec/specs/claude-code-account-management"
+requirements[1]{req_id,title,statement}:
+  r1,"claude-code-account-management","规范 `llman x claude-code account` 的编辑入口、env 注入输出与敏感值脱敏行为。 The system MUST satisfy the scenarios in this spec."
+scenarios[13]{req_id,id,given,when,then,feature}:
+  r1,edit 命令尝试打开配置文件,"用户运行 llman x claude-code account edit",命令执行,尝试在编辑器中打开 Claude Code 配置文件,true
+  r1,VISUAL 优先于 EDITOR,"$VISUAL 设为 nvim 且 $EDITOR 设为 code --wait",打开配置文件,使用 nvim 打开,true
+  r1,编辑器含参数时正确执行,"$EDITOR 设为 code --wait 且用户运行 llman x claude-code account edit",命令执行,"执行 code --wait <claude-code.toml-path>\n若编辑器非零退出则返回错误",true
+  r1,LLMAN_CONFIG_DIR 覆盖配置路径,"LLMAN_CONFIG_DIR 设为 {override_dir} 且用户运行 llman x claude-code account edit",命令执行,"打开 {override_dir}/claude-code.toml",true
+  r1,首次编辑创建模板,"<config-dir>/claude-code.toml 不存在且用户运行 llman x claude-code account edit",命令执行,"创建目录并写入最小模板\n以该路径启动编辑器",true
+  r1,编辑器返回失败时报错,选定编辑器以状态码 2 退出,"llman x claude-code account edit 执行",返回错误并指明编辑器退出状态,true
+  r1,x cc 别名等价,用户运行 llman x cc account edit,命令执行,"行为与 llman x claude-code account edit 完全一致",true
+  r1,非 Windows 输出 POSIX export,"用户在非 Windows 平台运行 llman x claude-code account env {group}\n该组含 FOO=bar",命令执行,stdout 含 export FOO='bar',true
+  r1,Windows 输出 PowerShell env,"用户在 Windows 运行 llman x claude-code account env {group}\n该组含 FOO=bar",命令执行,"stdout 含 $env:FOO='bar'",true
+  r1,键名升序稳定输出,组含 B=2 与 A=1,命令执行,stdout 行按 A 然后 B 顺序输出,true
+  r1,非法键名时报错且不输出注入语句,"组含非法键名 BAD-KEY=1",命令执行,"非零退出\nstdout 不含注入语句",true
+  r1,组不存在时报错,"用户运行 llman x claude-code account env {missing_group}",命令执行,非零退出并报告该组不存在,true
+  r1,account list 对敏感值脱敏,"配置组含 DB_PASSWORD={secret}","用户运行 llman x claude-code account list","输出中该值被脱敏\n不包含完整明文",true

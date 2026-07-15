@@ -175,6 +175,7 @@ pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs) -> Result<()> {
         given: args.given.trim().to_string(),
         when_: args.when_.trim().to_string(),
         then_: args.then_.trim().to_string(),
+        feature: true,
     });
 
     let payload = BACKEND.dump_delta_spec(&delta)?;

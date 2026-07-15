@@ -1,3 +1,11 @@
 kind: llman.sdd.spec
 name: "tests-ci"
-purpose: "规范 CI 质量门与必需的校验检查。"
+purpose: 规范 CI 质量门与必需的校验检查。
+valid_scope[1]: "llmanspec/specs/tests-ci"
+requirements[1]{req_id,title,statement}:
+  r1,"tests-ci",规范 CI 质量门与必需的校验检查。 The system MUST satisfy the scenarios in this spec.
+scenarios[4]{req_id,id,given,when,then,feature}:
+  r1,"check 作业使用锁定 nightly 基线并运行 check-all",CI 在 main 分支运行,执行 check 作业,"使用仓库锁定的 nightly 基线\n执行 just check-all 或等价的基于 nightly 的检查序列",true
+  r1,build 作业在锁定 nightly 基线上运行 release 构建,CI 在 main 分支运行,执行 build 作业,"使用仓库锁定的 nightly 基线\n执行 just build-release",true
+  r1,测试代码不触发 clippy 警告,"运行 cargo +nightly clippy -- -D warnings",clippy 扫描测试代码,测试代码不发出 len_zero 或类似警告,true
+  r1,"check-all 执行 schema 校验","开发者运行 just check-all","check-all 执行其步骤序列","just check-schemas 会被执行",true

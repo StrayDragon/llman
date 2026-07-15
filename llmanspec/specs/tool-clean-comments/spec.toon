@@ -1,3 +1,13 @@
 kind: llman.sdd.spec
 name: "tool-clean-comments"
 purpose: "规范 clean-comments 的安全行为与仅 tree-sitter 的移除路径。"
+valid_scope[1]: "llmanspec/specs/tool-clean-comments"
+requirements[1]{req_id,title,statement}:
+  r1,"tool-clean-comments","规范 clean-comments 的安全行为与仅 tree-sitter 的移除路径。 The system MUST satisfy the scenarios in this spec."
+scenarios[6]{req_id,id,given,when,then,feature}:
+  r1,开关为 true 时启用 doc comment 移除,"配置对某语言设置 docstrings: true 且文件包含 doc comments",规则判断是否移除,doc comments 可被移除（满足其它条件时）,true
+  r1,未配置开关时默认保留 doc comments,配置未指定 doc comment 开关,规则判断是否移除,doc comments 被保留,true
+  r1,默认运行不使用 regex 回退,"clean-comments 在无显式 opt-in 的情况下运行",processor 选择移除路径,不使用 regex 回退移除,true
+  r1,目录输入被跳过并提示,"用户运行 llman tool clean-useless-comments {path}",输入为目录,"工具提示该目录输入被跳过\n不会把它当成文件读取失败\n继续处理其它输入",true
+  r1,"tree-sitter 无法初始化时不修改任何文件","tree-sitter 无法初始化","clean-comments processor 运行","不修改任何文件\n报告错误",true
+  r1,"某文件 tree-sitter 失败时该文件保持不变并继续其它文件","tree-sitter 在处理特定文件时失败","clean-comments processor 继续运行","该文件保持不变\n继续处理剩余文件",true

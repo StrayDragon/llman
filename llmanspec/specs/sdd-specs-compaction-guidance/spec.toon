@@ -1,3 +1,12 @@
 kind: llman.sdd.spec
 name: "sdd-specs-compaction-guidance"
-purpose: "规范 SDD specs 压缩治理技能的生成与流程要求。"
+purpose: 规范 SDD specs 压缩治理技能的生成与流程要求。
+valid_scope[1]: "llmanspec/specs/sdd-specs-compaction-guidance"
+requirements[1]{req_id,title,statement}:
+  r1,"sdd-specs-compaction-guidance",规范 SDD specs 压缩治理技能的生成与流程要求。 The system MUST satisfy the scenarios in this spec.
+scenarios[5]{req_id,id,given,when,then,feature}:
+  r1,当前版本不暴露 specs compact 子命令,"用户执行 llman sdd --help",查看帮助,帮助中不出现 specs compact 子命令,true
+  r1,压缩决策以代码与 specs 为事实源,用户按新风格遵循 specs 压缩指引,做 keep/merge/remove 决策,决策以代码与 specs 事实源为准,true
+  r1,压缩流程包含压缩前后安全回归门,已准备好一份压缩方案,执行压缩工作流,流程包含压缩前后输出的安全回归比对步骤,true
+  r1,"update-skills 为各 tool 生成该技能","用户执行 llman sdd update-skills --no-interactive --all",生成完成,"各 tool 目标路径均生成 llman-sdd-specs-compact/SKILL.md",true
+  r1,技能文本包含 freeze 建议,"用户查看生成的 llman-sdd-specs-compact/SKILL.md",阅读技能内容,"文本明确建议在 archive 历史较大时先执行 llman sdd archive freeze --dry-run",true

@@ -1,3 +1,14 @@
 kind: llman.sdd.spec
 name: "sdd-template-units-and-jinja"
-purpose: "规范 SDD 模板单元的独立性、可发现性与 MiniJinja 注入渲染合约。"
+purpose: 规范 SDD 模板单元的独立性、可发现性与 MiniJinja 注入渲染合约。
+valid_scope[1]: "llmanspec/specs/sdd-template-units-and-jinja"
+requirements[1]{req_id,title,statement}:
+  r1,"sdd-template-units-and-jinja",规范 SDD 模板单元的独立性、可发现性与 MiniJinja 注入渲染合约。 The system MUST satisfy the scenarios in this spec.
+scenarios[7]{req_id,id,given,when,then,feature}:
+  r1,共享内容仅由 units 承载,维护者需要更新多个 SDD 模板共享的一段提示内容,改动落盘,该改动在单个 unit 文件中完成（位于 templates/**/units/**）,true
+  r1,生成的 SKILL.md 自包含且无未解析注入标记,"用户运行 llman sdd update-skills --no-interactive --tool {tool}",生成完成,"生成的 SKILL.md 包含完全渲染的内容\n不存在未解析的注入标记（如 {{ unit(）",true
+  r1,同一命令多次运行产物内容顺序一致,用户在无源码改动下运行同一生成命令两次,比较产物,生成文件的内容顺序在两次运行间一致,true
+  r1,维护者只改单个 unit 文件即可影响多个模板,维护者更新一个被多个 SDD 模板复用的提示单元,改动落盘,"改动仅在单个 unit 文件中完成\n无需编辑无关模板",true
+  r1,locale 单元解析遵循确定性回退链,"渲染器为 zh-Hans 解析某单元并回退到 en",解析完成,按文档化的确定性回退链返回恰好一个解析出的单元源,true
+  r1,缺失单元引用时渲染失败,模板引用了不存在的单元标识符,执行渲染,渲染以非零退出并给出明确的缺失单元错误,true
+  r1,缺失必需渲染变量时渲染失败,模板需要一个未提供的渲染变量,执行渲染,渲染以非零退出并指明缺失的变量,true

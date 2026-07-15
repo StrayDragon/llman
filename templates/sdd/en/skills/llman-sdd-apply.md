@@ -84,7 +84,7 @@ Run project gate commands (adapt to the actual project):
 - Relevant test suite: `just test` or `cargo test --all`
 - Format/lint: `just check` or `just lint` + `just fmt`
 {% if bdd_enabled %}
-- BDD-on (feature-as-spec): for each spec with `.feature` files, implement the step definitions so that `llman sdd validate <spec> --check` passes (fast mode = Gherkin parse; full mode = runs `bdd.run_command`).
+- BDD-on: implement step definitions so that `llman sdd validate --specs` passes (auto-runs `bdd.run_command`). Use `llman sdd solidify <id>` to generate `.feature` files before validating.
 {% endif %}
 - SDD validation: `llman sdd validate <id> --strict --no-interactive`
 

@@ -16,8 +16,9 @@ Use this skill to validate change/spec format and staleness.
 4. If validation fails, summarize the errors and propose minimal, concrete fixes.
 {% if bdd_enabled %}
 5. **BDD 校验**:
-   - 检查 feature_refs 引用的 .feature 文件存在
-   - 验证 .feature 文件语法合法（gherkin 解析，语言: {{ bdd_default_language | default("en") }}）
+   - 验证 spec 目录下 .feature 文件语法合法（gherkin 解析）。
+   - `.feature` 由 `llman sdd solidify` 自动生成——不要手动编辑。
+   - `llman sdd validate --specs` 默认自动运行 `bdd.run_command`。
    - 报告 scenario 覆盖率（.feature 中 scenario 数 vs spec 中 scenario 数）
 {% endif %}
 

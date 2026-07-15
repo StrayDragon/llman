@@ -48,10 +48,9 @@ flowchart LR
 5. 对比 artifacts 与代码：
    - 标出不一致（缺失行为、错误行为、缺测试/文档）
    - 给出最小修复建议或建议更新 artifacts
-6. **BDD-on（feature-as-spec）验证**——仅当 `config.yaml` 含 `bdd:` 段时：
-   - fast 层：`llman sdd validate <spec>`——确认 spec 目录下每个 `.feature` 都是合法 Gherkin。
-   - full 层：`llman sdd validate <spec> --check`——对整个 spec 目录跑一次 `bdd.run_command`；退出码 0 = 通过，非 0 = 失败。
-   - 将实现与 `.feature` 场景对比；失败的场景标记为 CRITICAL。
+6. **BDD-on 验证**——仅当 `config.yaml` 含 `bdd:` 段时：
+   - `llman sdd validate <spec>` 在 Gherkin 解析后自动运行 `bdd.run_command`；退出码 0 = 通过，非 0 = 失败。
+   - 确认已运行 `llman sdd solidify <id>`——`.feature` 文件应与 delta scenario 保持同步。
 {% if bdd_verify_prompt %}
    - 额外要求: {{ bdd_verify_prompt }}
 {% endif %}

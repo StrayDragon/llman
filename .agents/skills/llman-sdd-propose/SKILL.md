@@ -75,6 +75,13 @@ flowchart LR
    ```
    此步骤必须通过后才能继续。若出现 TOON 解析错误，需修复引号：表格化行中包含逗号/冒号/方括号的值必须用双引号包裹。
 
+### 4b) BDD-on 模式——仅当 `config.yaml` 含 `bdd:` 段时
+- `spec.toon` 是 BDD-on spec 的唯一真源（结构与 BDD-off 相同：`kind`/`name`/`purpose`/`valid_scope`/`requirements`/`scenarios`）。
+- Scenario 含 `feature` 字段（默认 `true`）：`true` → 在 `solidify` 阶段可写入 `.feature`；`false` → 留在 TOON 内仅作文档。
+- Delta 永远是纯 TOON（`ops` + `op_scenarios`）。propose 时不要创建 `.feature` delta 文件。
+- `apply` 完成后运行 `llman sdd solidify <change-id>` 从 delta 的可执行 scenario 生成/更新 `.feature` 文件。
+- `.feature` 是衍生工件——永远不要手动编辑。TOON `scenarios` 表是唯一真源。
+
 ### 5) 总结已创建内容，并建议下一步：
    - 进入实现阶段：`llman-sdd-apply`。
    - 若需要先理清思路：`llman-sdd-explore`。
@@ -132,8 +139,8 @@ r1,happy,"",a trigger happens,the outcome is observed
 r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
-4) BDD 空 spec 护栏（`BDD is enabled but this spec declares no requirements and no feature_refs`）：
-当 `config.yaml` 含 `bdd` 块时，spec 必须要么声明 `requirements`，要么通过 `feature_refs` 指向 `.feature`（point-only 模式）。
+4) BDD spec 护栏（`BDD is enabled but this spec declares no requirements and has no .feature files`）：
+当 `config.yaml` 含 `bdd` 块时，行为规格在 `spec.toon` 的 `scenarios` 中（TOON 是唯一真源）。`.feature` 文件由 `llman sdd solidify` 衍生生成。`requirements` 和 `scenarios` 均为空的 spec 是 ERROR。
 
 备注：
 - 每个 spec 是一个独立的 `.toon` 文件；没有 Markdown 外壳，也没有 ```toon fence。

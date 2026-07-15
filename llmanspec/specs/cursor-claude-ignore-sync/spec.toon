@@ -1,3 +1,21 @@
 kind: llman.sdd.spec
 name: "cursor-claude-ignore-sync"
-purpose: "规范 cursor 与 claude ignore 配置的统一解析与 union 同步行为。"
+purpose: 规范 cursor 与 claude ignore 配置的统一解析与 union 同步行为。
+valid_scope[1]: "llmanspec/specs/cursor-claude-ignore-sync"
+requirements[1]{req_id,title,statement}:
+  r1,"cursor-claude-ignore-sync",规范 cursor 与 claude ignore 配置的统一解析与 union 同步行为。 The system MUST satisfy the scenarios in this spec.
+scenarios[14]{req_id,id,given,when,then,feature}:
+  r1,非 git 目录报错,当前目录向上遍历找不到 .git,"用户执行 llman tool sync-ignore",系统报错并返回非零退出码,true
+  r1,"--force 允许在非 git 目录运行",当前目录向上遍历找不到 .git,"用户执行 llman tool sync-ignore --force","系统将当前目录视为 root 并继续执行\n仍默认 dry-run",true
+  r1,交互式多选 targets 并反选删除提示,"用户执行 llman tool sync-ignore --interactive",系统显示界面,"显示 MultiSelect 列表（含 .ignore / .cursorignore / .claude/settings.json / .claude/settings.local.json）\n标注 exists/missing",true
+  r1,交互式预览与确认,用户在交互模式下完成 targets 选择,系统展示计划,显示每个 target 的 create/update/unchanged/delete 计划与规则数量,true
+  r1,通过 cc 子命令同步到 Claude Code,"用户执行 llman x cc sync-ignore",系统写入,"默认将 targets 限制为 claude-shared（.claude/settings.json）",true
+  r1,通过 cursor 子命令同步到 Cursor,"用户执行 llman x cursor sync-ignore",系统写入,默认将 targets 限制为 cursor（.cursorignore）,true
+  r1,include 规则被正确识别,".ignore 内容包含 !{pattern}",系统解析 .ignore,"必须把 {pattern} 记录为 include 规则\n不是 ignore 规则",true
+  r1,写回时稳定输出顺序,系统写回 .ignore 或 .cursorignore,写回完成,"先输出所有 ignore\n再输出所有 include（以 ! 前缀）",true
+  r1,仅转换 permissions.deny 的 Read,".claude/settings.json 的 permissions.deny 含 Read(./{glob})",系统解析 Claude Code settings,"必须提取 {glob} 作为 ignore 规则",true
+  r1,include 规则无法写入 Claude Code 时告警并跳过,"union 结果含至少一条 include（如 !{pattern}）",系统写入 .claude/settings.json,必须跳过 include 规则,true
+  r1,保留非 Read deny 规则,.claude/settings.json 的 permissions.deny 含非 Read 项（如 WebFetch(...)）,系统写入 Claude Code settings,"必须保留这些非 Read 项\n不得删除",true
+  r1,"默认 dry-run 预览不写入",当前目录位于一个 git repo 内,"用户执行 llman tool sync-ignore","系统自动发现项目内存在的 sources\n默认仅预览不写入",true
+  r1,"--yes 应用写入并自动创建缺失 targets",当前目录位于一个 git repo 内,"用户执行 llman tool sync-ignore --yes","系统把 union 结果写入/创建默认 targets\n默认 targets 含 .ignore、.cursorignore、.claude/settings.json",true
+  r1,"--target 限制输出目标","用户执行 llman tool sync-ignore --target {target}",系统写入,仅写入/创建该 target 对应文件,true
