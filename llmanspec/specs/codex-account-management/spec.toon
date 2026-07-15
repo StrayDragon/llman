@@ -1,6 +1,6 @@
 kind: llman.sdd.spec
 name: "codex-account-management"
-purpose: "TBD - created by archiving change fix-codex-command-editor-handling. Update Purpose after archive."
+purpose: "规范 `llman x codex` 账户管理：编辑器命令参数支持与账户配置行为。"
 valid_scope[6]: src/x/codex/command.rs,src/x/codex/config.rs,src/x/codex/interactive.rs,src/editor.rs,src/env_safety.rs,"llmanspec/specs/codex-account-management/"
 requirements[7]{req_id,title,statement}:
   r1,编辑器命令必须支持参数,"当打开配置文件进行编辑时，Codex account manager MUST 支持 `$VISUAL` 或 `$EDITOR` 包含参数（例如 `code --wait`）。实现 MUST 执行解析后的命令，并将 `codex.toml` 配置文件路径作为最后一个参数追加。"

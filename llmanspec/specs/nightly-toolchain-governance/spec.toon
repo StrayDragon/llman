@@ -1,6 +1,6 @@
 kind: llman.sdd.spec
 name: "nightly-toolchain-governance"
-purpose: "TBD - created by archiving change deps-and-toolchain-upgrade. Update Purpose after archive."
+purpose: "规范 nightly 工具链治理：锁定 nightly 作为唯一构建基线。"
 valid_scope[4]: rust-toolchain.toml,".github/workflows/ci.yaml",justfile,"llmanspec/specs/nightly-toolchain-governance/"
 requirements[3]{req_id,title,statement}:
   r1,Pinned nightly is the single build baseline,"The repository MUST define a single pinned nightly toolchain baseline in `rust-toolchain.toml`, and maintainers MUST treat it as the authoritative local build toolchain."

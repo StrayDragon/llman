@@ -1,6 +1,6 @@
 kind: llman.sdd.spec
 name: "claude-code-runner"
-purpose: "TBD - created by archiving change fix-claude-code-command-args-and-security. Update Purpose after archive."
+purpose: "规范 `llman x cc`（Claude Code runner）的交互参数解析、引号处理与执行行为合约。"
 valid_scope[8]: src/x/claude_code/command.rs,src/x/claude_code/interactive.rs,src/x/claude_code/security.rs,src/x/claude_code/env_injection.rs,src/arg_utils.rs,src/env_safety.rs,tests/claude_code_forward_args_tests.rs,"llmanspec/specs/claude-code-runner/"
 requirements[5]{req_id,title,statement}:
   r1,交互 args 解析必须支持引号,"当 `llman x claude-code run` 在交互模式下收集参数字符串时，它 MUST 支持引号解析，使单个逻辑参数可以包含空格。若参数字符串无法按该规则解析（例如未闭合引号），命令 MUST 报错且 MUST NOT 执行。"
