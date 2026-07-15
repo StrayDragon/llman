@@ -456,4 +456,50 @@ mod tests {
         );
         assert!(result.info.base_ref.is_none());
     }
+
+    /// Regression for 5909cfc: `git_ref_exists` must NOT pass `--` before the
+    /// ref, otherwise git treats the ref as a PATH and resolution always fails
+    /// even when `origin/main` clearly exists. Build a real temp git repo with
+    /// an `origin/main` ref and assert it is resolved.
+    #[test]
+    fn base_ref_resolves_when_origin_main_exists() {
+        let mut proc = crate::test_utils::TestProcess::new();
+        proc.remove_var("LLMANSPEC_BASE_REF");
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        // init repo + a commit on the default branch
+        run_test_git(root, &["init", "-q", "-b", "main"]);
+        std::fs::write(root.join("README"), "hi").unwrap();
+        run_test_git(root, &["add", "README"]);
+        run_test_git(root, &["commit", "-q", "-m", "init"]);
+        // create origin/main as a remote-tracking ref pointing at the same commit
+        run_test_git(root, &["remote", "add", "origin", root.to_str().unwrap()]);
+        run_test_git(root, &["fetch", "-q", "origin"]);
+        // resolve and assert
+        let evaluator = StalenessEvaluator::new(root);
+        assert_eq!(evaluator.base_ref.as_deref(), Some("origin/main"));
+        assert!(
+            evaluator.base_ref_invalid.is_none(),
+            "expected no base-ref error, got {:?}",
+            evaluator.base_ref_invalid
+        );
+    }
+
+    fn run_test_git(root: &Path, args: &[&str]) {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@example.com")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@example.com")
+            .output()
+            .expect("git command succeeds");
+        assert!(
+            output.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }

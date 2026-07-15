@@ -1891,7 +1891,7 @@ sdd:
     staleness_scope_missing:
       en: "Spec validation scope is missing."
     staleness_base_missing:
-      en: "Unable to resolve base ref for staleness check."
+      en: "Unable to resolve base ref for staleness check. Set LLMANSPEC_BASE_REF (e.g. 'main' or 'origin/main'), or upgrade llman if below 0.0.60."
     staleness_base_ref_invalid:
       en: "Invalid LLMANSPEC_BASE_REF %{value}: must be non-empty and must not start with '-'."
     staleness_stale:
