@@ -32,17 +32,29 @@
     当 用户运行 llman sdd validate cli
     那么校验失败并报 ERROR（空 spec）
 
-  场景: fast mode 仅解析 Gherkin 不跑 runner
-    假如 config.yaml 含 bdd: 段且 status.feature 语法合法
-    当 用户运行 llman sdd validate cli
-    那么校验通过
-    而且不执行任何 runner
+  场景: 配了 BDD 时 validate 默认跑 runner
+    假如 config.yaml 含 bdd: 段且 run_command 为 cargo test --features bdd
+    当 用户运行 llman sdd validate errors-exit
+    那么 Gherkin 解析通过后自动执行 bdd.run_command
+    而且 exit 0 时输出 Full mode: N feature(s) parsed, BDD check passed.
 
-  场景: full mode 运行命令
-    假如 bdd.run_command 为 cargo test --features bdd
+  场景: --no-check 跳过 runner
+    假如 config.yaml 含 bdd: 段
+    当 用户运行 llman sdd validate errors-exit --no-check
+    那么仅做 Gherkin 解析
+    而且不执行 bdd.run_command
+    而且输出不含 Full mode
+
+  场景: --check 在 BDD-on 时为默认行为
+    假如 config.yaml 含 bdd: 段
+    当 用户运行 llman sdd validate errors-exit --check
+    那么行为与不传任何 flag 完全一致（默认已自动执行 runner）
+
+  场景: BDD-off 时 --check 给出 INFO 提示
+    假如 config.yaml 无 bdd: 段
     当 用户运行 llman sdd validate cli --check
-    那么执行一次命令并对整个 spec 目录
-    而且按退出码汇总 pass/fail
+    那么校验通过（Gherkin/prose 路径不变）
+    而且输出 INFO：--check 无 BDD 配置时无效果
 
   场景: locale 驱动中文 Gherkin
     假如 config.yaml locale 为 zh-Hans 且 feature 使用中文关键字

@@ -42,8 +42,11 @@ pub struct ValidateArgs {
     pub compact_json: bool,
     pub stage: Option<String>,
     pub no_interactive: bool,
-    /// Full mode: run the BDD check command after fast validation (single spec only).
+    /// Run the BDD check command after fast validation (BDD-on spec only).
+    /// Default: enabled when bdd.run_command is configured.
     pub check: bool,
+    /// Skip BDD runner execution even when bdd.run_command is configured.
+    pub no_check: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -92,6 +95,22 @@ fn parse_stage_override(value: Option<&str>) -> Option<ChangeStage> {
     }
 }
 
+/// Compute effective check mode: when BDD is configured, auto-run by default;
+/// `--no-check` explicitly disables it. `--check` is accepted as a no-op alias.
+/// When BDD is off and `--check` is passed, emit an INFO later via validate.
+/// Returns `(effective_check_mode, deprecation_info_needed)`.
+/// `deprecation_info_needed` is true when `--check` was passed but BDD is off.
+fn resolve_check_mode(bdd_configured: bool, check_flag: bool, no_check: bool) -> (bool, bool) {
+    if no_check {
+        return (false, false);
+    }
+    if bdd_configured {
+        return (true, false); // auto-run; --check is a harmless no-op alias
+    }
+    // BDD-off: --check is misleading, flag for INFO message.
+    (false, check_flag)
+}
+
 pub fn run(args: ValidateArgs) -> Result<()> {
     let root = Path::new(".");
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
@@ -103,6 +122,8 @@ pub fn run(args: ValidateArgs) -> Result<()> {
     let interactive = is_interactive(args.no_interactive);
     let type_override = normalize_type(args.item_type.as_deref());
     let stage_override = parse_stage_override(args.stage.as_deref());
+    let (check_mode, check_deprecated) =
+        resolve_check_mode(bdd_config.is_some(), args.check, args.no_check);
 
     if args.all || args.changes || args.specs {
         let do_changes = args.all || args.changes;
@@ -118,6 +139,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
             &archive_config,
             bdd_config,
             &locale,
+            check_mode,
         )?;
         return Ok(());
     }
@@ -133,6 +155,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                 &archive_config,
                 bdd_config,
                 &locale,
+                check_mode,
             )?;
             return Ok(());
         }
@@ -153,7 +176,8 @@ pub fn run(args: ValidateArgs) -> Result<()> {
         &archive_config,
         bdd_config,
         &locale,
-        args.check,
+        check_mode,
+        check_deprecated,
     )
 }
 
@@ -176,6 +200,7 @@ fn run_interactive_selector(
     archive_config: &ArchiveConfig,
     bdd_config: Option<&BddConfig>,
     locale: &str,
+    check_mode: bool,
 ) -> Result<()> {
     let choice = Select::new(
         &t!("sdd.validate.select_scope"),
@@ -200,6 +225,7 @@ fn run_interactive_selector(
             archive_config,
             bdd_config,
             locale,
+            check_mode,
         )?;
         return Ok(());
     }
@@ -215,6 +241,7 @@ fn run_interactive_selector(
             archive_config,
             bdd_config,
             locale,
+            check_mode,
         )?;
         return Ok(());
     }
@@ -230,6 +257,7 @@ fn run_interactive_selector(
             archive_config,
             bdd_config,
             locale,
+            check_mode,
         )?;
         return Ok(());
     }
@@ -258,7 +286,8 @@ fn run_interactive_selector(
         archive_config,
         bdd_config,
         locale,
-        false,
+        check_mode,
+        false, // interactive user can't pass --check
     )
 }
 
@@ -287,6 +316,7 @@ fn validate_direct(
     bdd_config: Option<&BddConfig>,
     locale: &str,
     check_mode: bool,
+    check_deprecated: bool,
 ) -> Result<()> {
     let changes = list_changes(root)?;
     let specs = list_specs(root)?;
@@ -347,6 +377,7 @@ fn validate_direct(
         bdd_config,
         locale,
         check_mode,
+        check_deprecated,
     )
 }
 
@@ -485,6 +516,7 @@ fn validate_by_type(
     bdd_config: Option<&BddConfig>,
     locale: &str,
     check_mode: bool,
+    check_deprecated: bool,
 ) -> Result<()> {
     let start = Instant::now();
     let (report, staleness) = match item_type {
@@ -564,6 +596,16 @@ fn validate_by_type(
         }
     };
     let duration_ms = start.elapsed().as_millis();
+
+    let mut report = report;
+    // Emit INFO when --check is passed but BDD is not configured.
+    if check_deprecated && item_type == ItemType::Spec {
+        report.issues.push(ValidationIssue {
+            level: ValidationLevel::Info,
+            path: "--check".to_string(),
+            message: t!("sdd.validate.check_deprecated_no_bdd").to_string(),
+        });
+    }
 
     if json {
         let items = vec![ValidationItem {
@@ -740,6 +782,7 @@ fn run_bulk_validation(
     archive_config: &ArchiveConfig,
     bdd_config: Option<&BddConfig>,
     locale: &str,
+    check_mode: bool,
 ) -> Result<()> {
     let changes = if validate_changes {
         list_changes(root)?
@@ -809,7 +852,7 @@ fn run_bulk_validation(
                     Some(root),
                     bdd_config,
                     Some(locale),
-                    false,
+                    check_mode,
                 );
                 let staleness_frontmatter = if bdd_enabled {
                     spec_dir_as_scope(root, &id)
