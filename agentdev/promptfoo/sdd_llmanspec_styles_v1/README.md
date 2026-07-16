@@ -31,3 +31,4 @@ Assertions include a deterministic hard gate:
 - `__MODEL__`, `__MAX_TURNS__`
 - `__WORKDIR_{ISON|TOON|YAML}__`
 - `__CONFIGDIR_{ISON|TOON|YAML}__`
+- `__PATH_{ISON|TOON|YAML}__`

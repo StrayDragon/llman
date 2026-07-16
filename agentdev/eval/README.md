@@ -1,17 +1,15 @@
 # `sdd context` Retrieval Eval (Pi + Bun)
 
-量化对比 `llman sdd context` 两种检索后端的质量，并可选地引入一个
-**Pi agent-core 参考检索器** 作为第三变体，验证「手写最小 agentic loop」是否
-还有提升空间。
+量化对比 `llman sdd context` 的 pageindex 后端与一个 **Pi agent-core 参考检索器**
+（pi-retriever），验证「手写最小 agentic loop」是否还有提升空间。
 
 > 本 harness **不使用** promptfoo 的 `anthropic:claude-agent-sdk`（太重），
 > 改用 `@earendil-works/pi-ai` + `@earendil-works/pi-agent-core` 直驱。
 
 ## 要回答的问题
 
-1. `rag`（embedding 向量相似度）vs `pageindex`（agentic 树导航）—— 谁找得**准**？
-2. `pageindex` 是否**稳定**（LLM 非确定性，多次跑结果一致吗）？
-3. Rust 里手写的 pageindex loop，换成 **pi-agent-core** 这套成熟 runtime 会更好吗？
+1. `pageindex` 是否**稳定**（LLM 非确定性，多次跑结果一致吗）？
+2. Rust 里手写的 pageindex loop，换成 **pi-agent-core** 这套成熟 runtime 会更好吗？
 
 ## 为什么是「可量化」的
 
@@ -56,7 +54,6 @@ llman 自己的 archive（8 题）可用 `--project ../..` 评测；其他项目
 
 | 变体 | 实现 | 同一棵树? | 同一 system prompt? |
 |------|------|-----------|---------------------|
-| `rag` | `llman sdd context --backend rag`（Rust，embedding） | n/a（向量索引） | n/a |
 | `pageindex` | `llman sdd context --backend pageindex`（Rust，手写 loop） | ✅ `tree.json` | ✅ 镜像 |
 | `pi-retriever` | 本 harness 用 pi-agent-core 重写的 loop | ✅ 同一 `tree.json` | ✅ 同一 prompt |
 
@@ -76,7 +73,7 @@ bun run run.ts gen --fixture xylitol --cases cases-xylitol.json
 # 2) 跑评测（需 API）；索引会在 fixture 内自动重建
 bun run run.ts run \
   --fixture xylitol --cases cases-xylitol.json \
-  --variants rag,pageindex,pi-retriever --repeat 3
+  --variants pageindex,pi-retriever --repeat 3
 #   → results/<ts>/{results.json, summary.md}
 
 # 只看计划不调 API
@@ -92,8 +89,6 @@ bun run run.ts run --project ../.. --variants pageindex,pi-retriever
 |------|------|------|
 | `LLMAN_BIN` | llman 二进制路径 | `../../target/debug/llman` |
 | `LLMAN_CONFIG_DIR` | 隔离配置目录 | `../../artifacts/testing_config_home` |
-| `LLMAN_SDD_INDEX_OPENAI_API_HOST/KEY` | rag 的 embedding 端点 | llman 内置默认 |
-| `LLMAN_SDD_INDEX_MODEL` | rag embedding 模型 | `bge-m3-mlx-8bit` |
 | `LLMAN_SDD_INDEX_CHAT_API_HOST/KEY/MODEL` | pageindex + pi-retriever 的 chat 模型 | **必填** |
 | `JUDGE_MODEL` | （可选）pi-ai 评判 reason 文本质量，如 `openai/gpt-4.1-mini` | 不设则跳过评判 |
 
@@ -107,10 +102,11 @@ agentdev/eval/
 ├── fixtures/xylitol/          # 冻结语料（考卷+答案，随仓库提交）
 │   ├── llmanspec/{specs,changes,config.yaml}
 │   └── SNAPSHOT.md            # 来源/sha/更新方法
-├── cases/gen-from-archive.ts  # 金标用例生成（归档 → cases.json）
+├── gen-from-archive.ts        # 金标用例生成（归档 → cases.json）
 ├── lib/types.ts               # Case / Gold / Output / Metric 类型
 ├── lib/metrics.ts             # P/R/F1 等纯函数（自带自测）
 ├── lib/llman.ts               # 调用 llman 二进制 + 解析输出 JSON
 ├── lib/pi-retriever.ts        # pi-agent-core 参考检索器（第 3 变体）
+├── lib/report.ts              # 报告生成（Markdown summary + findings）
 └── run.ts                     # CLI 编排（自动建索引）
 ```
