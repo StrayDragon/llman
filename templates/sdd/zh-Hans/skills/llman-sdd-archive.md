@@ -48,7 +48,11 @@ flowchart LR
   - 默认：`llman sdd archive run <id>`
   - 仅工具类变更：`llman sdd archive run <id> --skip-specs`
   - **任一失败立即停止**，报告剩余未处理 ID。
-- **BDD-on**：`archive run` 仅将 delta `spec.toon` 合并到主 `spec.toon`。`.feature` 文件由 `llman sdd solidify` 管理——archive 不复制 `.feature` 文件。归档前运行 `solidify <id>`。
+- **BDD-on（Partitioned SSOT）**：
+  - `archive run` 合并 delta `spec.toon` → 主 `spec.toon`（约束 / 不可执行 scenarios）。
+  - 若 change 含 `*.feature.delta.toon`，archive **同时**按 scenario id apply 到主 `.feature`。
+  - 归档前运行 `llman sdd solidify <id>` 做一致性门禁（非投影生成）。
+  - 禁止整文件覆盖复制 `.feature` 作为默认归档路径。
 
 ### 3) 全量校验
 - 全部归档完成后执行：`llman sdd validate --all --strict --no-interactive`。

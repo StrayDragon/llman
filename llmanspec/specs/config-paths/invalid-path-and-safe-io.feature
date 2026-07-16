@@ -32,4 +32,4 @@
     假如 目标路径是指向其它位置的 symlink
     当 atomic_write_with_mode 执行
     那么 symlink 被替换为新文件
-    而且内容不写入链接目标
+    而且 而且内容不写入链接目标

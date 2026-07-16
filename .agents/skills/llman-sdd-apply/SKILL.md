@@ -84,7 +84,7 @@ flowchart LR
 - 相关测试集：`just test` 或 `cargo test --all`
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
 
-- BDD-on：实现 step definitions，确保 `llman sdd validate --specs` 通过（自动运行 `bdd.run_command`）。验证前用 `llman sdd solidify <id>` 生成 `.feature` 文件。
+- BDD-on（Partitioned SSOT）：可执行场景写 `.feature` / `feature_delta`（`@req`）；约束写 `spec.toon`。实现 step definitions；用 `llman sdd solidify <id>` 做一致性门禁（非投影生成）；确保 `llman sdd validate --specs` 通过（含 `bdd.run_command`）。
 
 - SDD 校验：`llman sdd validate <id> --strict --no-interactive`
 

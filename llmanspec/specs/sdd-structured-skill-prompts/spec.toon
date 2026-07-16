@@ -2,7 +2,9 @@ kind: llman.sdd.spec
 name: "sdd-structured-skill-prompts"
 purpose: 规范 SDD 技能模板的结构化提示协议（Context/Goal/Constraints/Workflow/Decision Policy/Output Contract 及治理字段）。
 valid_scope[1]: "llmanspec/specs/sdd-structured-skill-prompts"
-requirements[1]{req_id,title,statement}:
-  r1,"SDD 技能结构化提示协议（含 context-first + triage + async 约束）","llman SDD 的技能模板 MUST 采用统一结构化提示协议，并通过模板单元注入方式组装协议块，以降低重复维护成本并保持内容一致性。协议至少包含以下逻辑层：- Context - Goal - Constraints - Workflow - Decision Policy - Output Contract。Constraints 层 MUST 额外包含：- 在读取 spec 全文前先使用 llman sdd context --task --paths 获取相关 specs- 判断变更规模后选择路径：行为合约变更走完整 SDD 流程，实现变更走快速路径。Workflow 层 MUST 额外包含：- 首选 llman sdd context 获取相关 specs 而非全量读取或猜测- 当 context 不可用时按决策树分流（后台重建 / 降级 / 前台等待）。"
-scenarios[1]{req_id,id,given,when,then}:
-  r1,constraints_include_context_and_triage,"",agent reads generated skill template,"Constraints section includes context-first and triage rules"
+requirements[2]{req_id,title,statement}:
+  r1,SDD 技能结构化提示协议含 Partitioned BDD,"llman SDD 的技能模板 MUST 采用统一结构化提示协议（Context/Goal/Constraints/Workflow/Decision Policy/Output Contract），并通过模板单元注入组装。Constraints MUST 含 context-first 与 triage。当项目 BDD-on 时，propose/solidify/archive/apply/verify/explore 技能 MUST 描述 Partitioned SSOT：toon=约束层、feature=harness 层、可执行变更用 feature_delta、禁止教导 toon 投影覆盖 feature 或 feature 只读衍生为唯一模型。"
+  r2,solidify 与 propose 技能对齐新语义,"llman-sdd-solidify 与 llman-sdd-propose 技能 MUST 声明：solidify 做一致性门禁与可选 stubs；propose 在 BDD-on 可为可执行场景创作 feature_delta；禁止要求 agent 把可执行 GWT 双写进 toon scenarios 与 feature。"
+scenarios[2]{req_id,id,given,when,then,feature}:
+  r1,"skills-mention-partitioned",agent 阅读生成的 propose 或 solidify 技能模板,检查 Constraints 或 Workflow,提及 Partitioned 或 feature_delta 或 harness 且不要求 toon 投影覆盖 feature,false
+  r2,"propose-skill-no-toon-ssot-only",更新后的 propose 技能文案,搜索唯一真源表述,MUST NOT 写明 toon 为可执行 GWT 的唯一真源,false

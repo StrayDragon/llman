@@ -170,6 +170,12 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     }
 
     let mut specs = Vec::new();
+    let config = load_required_config(&root.join(LLMANSPEC_DIR_NAME)).ok();
+    let lang = config
+        .as_ref()
+        .map(|c| crate::sdd::solidify::locale_to_gherkin_lang(Some(&c.locale), c.bdd.as_ref()))
+        .unwrap_or_else(|| "en".to_string());
+
     for id in spec_ids {
         let spec_path = specs_dir.join(&id).join(SPEC_FILE);
         let content = fs::read_to_string(&spec_path)
@@ -185,7 +191,6 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
             .find_map(|line| {
                 let line = line.trim();
                 if line.starts_with("valid_scope") || line.starts_with("validScope") {
-                    // Parse: valid_scope[N]: val1,val2
                     if let Some(eq_idx) = line.find(':') {
                         let vals = line[eq_idx + 1..].trim();
                         Some(
@@ -203,7 +208,18 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
             })
             .unwrap_or_default();
 
-        specs.push((id, count, purpose, valid_scope));
+        let morphology = {
+            use crate::sdd::spec::backend::{BACKEND, SpecBackend};
+            use crate::sdd::spec::partitioned::{compute_morphology, load_spec_harness_soft};
+            let mut soft = Vec::new();
+            let harness = load_spec_harness_soft(&specs_dir.join(&id), &lang, &mut soft);
+            match BACKEND.parse_main_spec(&content, &format!("spec `{id}`")) {
+                Ok(doc) => Some(compute_morphology(&doc, &harness)),
+                Err(_) => None,
+            }
+        };
+
+        specs.push((id, count, purpose, valid_scope, morphology));
     }
 
     specs.sort_by(|a, b| natural_cmp(&a.0, &b.0));
@@ -211,7 +227,7 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     if args.json {
         let json_output: Vec<_> = specs
             .iter()
-            .map(|(id, count, purpose, scope)| {
+            .map(|(id, count, purpose, scope, morphology)| {
                 serde_json::json!({
                     "id": id,
                     "title": id,
@@ -220,6 +236,7 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
                     "requirementCount": count,
                     "health": null,
                     "staleness": null,
+                    "morphology": morphology,
                 })
             })
             .collect();
@@ -229,9 +246,16 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
 
     println!("{}", t!("sdd.list.specs_header"));
     let name_width = specs.iter().map(|s| s.0.len()).fold(0, max);
-    for (id, count, _purpose, _scope) in specs {
+    for (id, count, _purpose, _scope, morphology) in specs {
         let padded = format!("{:<width$}", id, width = name_width);
-        println!("  {}     requirements {}", padded, count);
+        if let Some(m) = morphology {
+            println!(
+                "  {}     requirements {}  harness {}  dual-write {}",
+                padded, count, m.harness_scenario_count, m.dual_write_count
+            );
+        } else {
+            println!("  {}     requirements {}", padded, count);
+        }
     }
 
     Ok(())

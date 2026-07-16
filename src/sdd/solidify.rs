@@ -46,48 +46,31 @@ pub fn locale_to_gherkin_lang(locale: Option<&str>, bdd_config: Option<&BddConfi
 }
 
 /// Parse a `.feature` file into spec-level
-/// [`ScenarioNode`](crate::sdd::context::tree::ScenarioNode)s (req_id empty).
+/// [`ScenarioNode`](crate::sdd::context::tree::ScenarioNode)s.
 ///
-/// Used by the pageindex index rebuild to embed `.feature` behavior details into
-/// the tree. Mirrors `solidify_migrate::scenario_from_gherkin` but outputs the
-/// tree node type directly and leaves `req_id` empty: Gherkin has no req concept,
-/// so feature scenarios are surfaced at the spec level. `GherkinEnv` is not
-/// `Clone`, so it is rebuilt here per file.
+/// `req_id` is taken from the first `@req:<id>` tag when present; otherwise empty
+/// (spec-level). Used by pageindex rebuild under Partitioned SSOT (feature wins).
 pub fn parse_feature_file(
     path: &Path,
     lang: &str,
 ) -> Result<Vec<crate::sdd::context::tree::ScenarioNode>> {
     use crate::sdd::context::tree::ScenarioNode;
-    let content =
-        fs::read_to_string(path).with_context(|| format!("read feature {}", path.display()))?;
-    let env = gherkin::GherkinEnv::new(lang)
-        .with_context(|| format!("build gherkin env for language `{lang}`"))?;
-    let parsed = gherkin::Feature::parse(&content, env)
-        .with_context(|| format!("parse feature {}", path.display()))?;
-    let mut out = Vec::new();
-    for sc in &parsed.scenarios {
-        let mut given = Vec::new();
-        let mut when_ = Vec::new();
-        let mut then_ = Vec::new();
-        for step in &sc.steps {
-            match step.ty {
-                gherkin::StepType::Given => given.push(step.value.clone()),
-                gherkin::StepType::When => when_.push(step.value.clone()),
-                gherkin::StepType::Then => then_.push(step.value.clone()),
-            }
-        }
-        out.push(ScenarioNode {
-            req_id: String::new(),
-            id: sc.name.clone(),
-            given: given.join("\n"),
-            when_: when_.join("\n"),
-            then_: then_.join("\n"),
-        });
-    }
-    Ok(out)
+    use crate::sdd::spec::partitioned::parse_feature_scenarios;
+    let scenarios = parse_feature_scenarios(path, lang)?;
+    Ok(scenarios
+        .into_iter()
+        .map(|sc| ScenarioNode {
+            req_id: sc.req_ids.first().cloned().unwrap_or_default(),
+            id: sc.id,
+            given: sc.given,
+            when_: sc.when_,
+            then_: sc.then_,
+        })
+        .collect())
 }
 
 /// Localized Gherkin keyword set for a single language.
+#[allow(dead_code)]
 struct GherkinKeywords {
     language_directive: String,
     feature: &'static str,
@@ -98,6 +81,7 @@ struct GherkinKeywords {
     and: &'static str,
 }
 
+#[allow(dead_code)]
 fn keywords_for(lang: &str) -> GherkinKeywords {
     let (feature, scenario, given, when_, then_, and) = match lang {
         "zh-CN" | "zh-TW" | "zh" => ("功能", "场景", "假如", "当", "那么", "而且"),
@@ -117,12 +101,14 @@ fn keywords_for(lang: &str) -> GherkinKeywords {
 
 /// Whether a scenario's `when` step is self-referencing (invokes an llman sdd
 /// subcommand that would recurse). See `SELF_REF_PREFIXES`.
+#[allow(dead_code)]
 fn is_self_referencing(scenario: &ScenarioEntry) -> bool {
     let when = scenario.when_.trim();
     SELF_REF_PREFIXES.iter().any(|p| when.contains(p))
 }
 
 /// Decision for a single scenario during solidify.
+#[allow(dead_code)]
 enum Decision {
     /// Write this scenario into the `.feature` file.
     Write,
@@ -130,6 +116,7 @@ enum Decision {
     Skip { reason: &'static str },
 }
 
+#[allow(dead_code)]
 fn decide(scenario: &ScenarioEntry) -> Decision {
     if !scenario.feature {
         Decision::Skip {
@@ -146,6 +133,7 @@ fn decide(scenario: &ScenarioEntry) -> Decision {
 
 /// A capability's delta scenarios read from a change, plus the target feature
 /// path they would solidify into.
+#[allow(dead_code)]
 struct CapabilityDelta {
     capability: String,
     scenarios: Vec<ScenarioEntry>,
@@ -155,6 +143,7 @@ struct CapabilityDelta {
 /// Discover delta spec.toon files under `<change_dir>/specs/<capability>/` and
 /// load their `op_scenarios`. Capabilities with no delta file or no scenarios
 /// are skipped.
+#[allow(dead_code)]
 fn load_change_deltas(change_dir: &Path, root: &Path) -> Result<Vec<CapabilityDelta>> {
     let mut deltas = Vec::new();
     let change_specs_dir = change_dir.join("specs");
@@ -198,6 +187,7 @@ fn load_change_deltas(change_dir: &Path, root: &Path) -> Result<Vec<CapabilityDe
 /// Render a single scenario into Gherkin text (without leading/trailing blank
 /// lines). Multi-line `given`/`when`/`then` fields split into `And` steps after
 /// the first keyword line.
+#[allow(dead_code)]
 fn render_scenario(scenario: &ScenarioEntry, kw: &GherkinKeywords) -> String {
     let mut lines = Vec::new();
     lines.push(format!("  {}: {}", kw.scenario, scenario.id.trim()));
@@ -215,6 +205,7 @@ fn render_scenario(scenario: &ScenarioEntry, kw: &GherkinKeywords) -> String {
 /// Push step lines for a field split on newlines. The first line uses `first_kw`
 /// (e.g. 那么), subsequent lines use `rest_kw` (e.g. 而且). Empty fields emit
 /// nothing. `indent` is the number of leading spaces.
+#[allow(dead_code)]
 fn append_steps(
     lines: &mut Vec<String>,
     first_kw: &str,
@@ -236,6 +227,7 @@ fn append_steps(
 
 /// Render a full `.feature` file body for a capability from the given scenarios.
 /// `purpose` is used as the Feature name fallback when no better title exists.
+#[allow(dead_code)]
 fn render_feature(scenarios: &[ScenarioEntry], capability: &str, kw: &GherkinKeywords) -> String {
     let mut out = String::new();
     out.push_str(&kw.language_directive);
@@ -262,72 +254,152 @@ pub struct SolidifyReport {
     pub feature_path: PathBuf,
     pub written: usize,
     pub skipped: Vec<(String, &'static str)>, // (scenario id, reason)
+    pub consistency_ok: bool,
+    pub consistency_issues: usize,
 }
 
-/// Core solidify entry point. Reads the change's delta scenarios, filters by
-/// `feature` field + self-reference check, and writes (or previews) one
-/// `.feature` per capability.
-///
-/// Returns one [`SolidifyReport`] per capability that had any scenarios.
+/// Partitioned solidify: consistency gate (+ optional `--write-stubs` from
+/// `feature_delta`). Does **not** project toon `op_scenarios` GWT over `.feature`.
 pub fn solidify_change(
     change_dir: &Path,
     root: &Path,
     dry_run: bool,
+    write_stubs: bool,
 ) -> Result<Vec<SolidifyReport>> {
+    use crate::sdd::spec::backend::{BACKEND, SpecBackend};
+    use crate::sdd::spec::partitioned::{
+        apply_feature_delta, find_feature_delta_path, load_feature_delta_file,
+        load_spec_harness_soft, validate_partitioned,
+    };
+    use crate::sdd::spec::validation::ValidationLevel;
+
     let config = load_required_config(&root.join(LLMANSPEC_DIR_NAME))?;
     let locale = config.locale.as_str();
     let lang = locale_to_gherkin_lang(Some(locale), config.bdd.as_ref());
-    let kw = keywords_for(&lang);
 
-    let deltas = load_change_deltas(change_dir, root)?;
+    let change_specs = change_dir.join("specs");
     let mut reports = Vec::new();
-    for delta in deltas {
-        let mut to_write = Vec::new();
+    if !change_specs.exists() {
+        return Ok(reports);
+    }
+
+    for entry in fs::read_dir(&change_specs)
+        .with_context(|| format!("read change specs {}", change_specs.display()))?
+    {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let capability = entry.file_name().to_string_lossy().to_string();
+        let main_spec = root
+            .join(LLMANSPEC_DIR_NAME)
+            .join("specs")
+            .join(&capability)
+            .join(SPEC_FILE);
+        let feature_path = root
+            .join(LLMANSPEC_DIR_NAME)
+            .join("specs")
+            .join(&capability)
+            .join(format!("{capability}.feature"));
+        let spec_dir = feature_path.parent().unwrap().to_path_buf();
+
+        let mut written = 0usize;
         let mut skipped = Vec::new();
-        for sc in &delta.scenarios {
-            match decide(sc) {
-                Decision::Write => to_write.push(sc.clone()),
-                Decision::Skip { reason } => skipped.push((sc.id.clone(), reason)),
+
+        // Optional stubs from feature_delta only (never from toon op_scenarios).
+        if write_stubs && let Some(delta_path) = find_feature_delta_path(&entry.path(), &capability)
+        {
+            let delta = load_feature_delta_file(&delta_path)?;
+            let existing = if feature_path.exists() {
+                Some(fs::read_to_string(&feature_path)?)
+            } else {
+                None
+            };
+            let existing_ids: std::collections::HashSet<String> = if let Some(ref body) = existing {
+                crate::sdd::spec::partitioned::parse_feature_scenarios_content(body, &lang)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|s| s.id)
+                    .collect()
+            } else {
+                std::collections::HashSet::new()
+            };
+            let stub_ops: Vec<_> = delta
+                .ops
+                .iter()
+                .filter(|op| op.op == "add" && !existing_ids.contains(&op.id))
+                .cloned()
+                .collect();
+            if !stub_ops.is_empty() {
+                let stub_delta = crate::sdd::spec::ir::FeatureDeltaDoc {
+                    kind: delta.kind.clone(),
+                    target: delta.target.clone(),
+                    ops: stub_ops,
+                };
+                match apply_feature_delta(existing.as_deref(), &capability, &stub_delta, &lang) {
+                    Ok(body) if !body.is_empty() => {
+                        written = stub_delta.ops.len();
+                        if dry_run {
+                            println!(
+                                "{}",
+                                t!(
+                                    "sdd.solidify.dry_run_preview",
+                                    path = feature_path.display()
+                                )
+                            );
+                            println!("{body}");
+                        } else {
+                            if let Some(parent) = feature_path.parent() {
+                                fs::create_dir_all(parent)?;
+                            }
+                            atomic_write_with_mode(&feature_path, body.as_bytes(), None)?;
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        skipped.push(("stubs".into(), "stub write failed"));
+                        eprintln!("solidify --write-stubs: {e}");
+                    }
+                }
             }
         }
 
-        if to_write.is_empty() && skipped.is_empty() {
-            continue;
-        }
-
-        if !to_write.is_empty() {
-            let body = render_feature(&to_write, &delta.capability, &kw);
-            if dry_run {
-                println!(
-                    "{}",
-                    t!(
-                        "sdd.solidify.dry_run_preview",
-                        path = delta.feature_path.display()
-                    )
-                );
-                println!("{body}");
-            } else {
-                if let Some(parent) = delta.feature_path.parent() {
-                    fs::create_dir_all(parent)
-                        .with_context(|| format!("create feature dir {}", parent.display()))?;
-                }
-                atomic_write_with_mode(&delta.feature_path, body.as_bytes(), None)
-                    .with_context(|| format!("write feature {}", delta.feature_path.display()))?;
+        // Consistency against main spec (if present).
+        let mut consistency_issues = 0usize;
+        let mut consistency_ok = true;
+        if main_spec.exists() {
+            let content = fs::read_to_string(&main_spec)?;
+            let doc = BACKEND.parse_main_spec(&content, &format!("spec `{capability}`"))?;
+            let mut soft = Vec::new();
+            let harness = load_spec_harness_soft(&spec_dir, &lang, &mut soft);
+            let issues = validate_partitioned(&capability, &doc, &harness, true);
+            consistency_issues = issues.len() + soft.len();
+            consistency_ok = issues.iter().all(|i| i.level != ValidationLevel::Error)
+                && soft.iter().all(|i| i.level != ValidationLevel::Error);
+            for issue in soft.iter().chain(issues.iter()) {
+                let level = match issue.level {
+                    ValidationLevel::Error => "ERROR",
+                    ValidationLevel::Warning => "WARNING",
+                    ValidationLevel::Info => "INFO",
+                };
+                println!("  [{level}] {}: {}", issue.path, issue.message);
             }
         }
 
         reports.push(SolidifyReport {
-            capability: delta.capability,
-            feature_path: delta.feature_path,
-            written: to_write.len(),
+            capability,
+            feature_path,
+            written,
             skipped,
+            consistency_ok,
+            consistency_issues,
         });
     }
     Ok(reports)
 }
 
-/// CLI entry: `llman sdd solidify <change-id> [--dry-run]`.
-pub fn run(change_id: &str, dry_run: bool) -> Result<()> {
+/// CLI entry: `llman sdd solidify <change-id> [--dry-run] [--write-stubs]`.
+pub fn run(change_id: &str, dry_run: bool, write_stubs: bool) -> Result<()> {
     let root = Path::new(".");
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     if !llmanspec_dir.exists() {
@@ -338,7 +410,6 @@ pub fn run(change_id: &str, dry_run: bool) -> Result<()> {
     }
     let config = load_required_config(&llmanspec_dir)?;
     if config.bdd.is_none() {
-        // BDD-off: solidify is a no-op (nothing to generate).
         println!("{}", t!("sdd.solidify.bdd_off_noop"));
         return Ok(());
     }
@@ -348,55 +419,47 @@ pub fn run(change_id: &str, dry_run: bool) -> Result<()> {
         bail!("{}", t!("sdd.solidify.change_not_found", id = change_id));
     }
 
-    let reports = solidify_change(&change_dir, root, dry_run)?;
+    let reports = solidify_change(&change_dir, root, dry_run, write_stubs)?;
     if reports.is_empty() {
-        println!("{}", t!("sdd.solidify.no_scenarios"));
+        println!("{}", t!("sdd.solidify.consistency_ok"));
         return Ok(());
     }
 
-    let mut total_written = 0usize;
-    let mut total_skipped = 0usize;
+    let mut all_ok = true;
     for report in &reports {
-        if dry_run {
+        if report.consistency_ok {
             println!(
                 "{}",
                 t!(
-                    "sdd.solidify.summary_dry_run",
-                    capability = report.capability,
-                    written = report.written,
-                    skipped = report.skipped.len(),
+                    "sdd.solidify.consistency_cap_ok",
+                    capability = report.capability
                 )
             );
         } else {
+            all_ok = false;
             println!(
                 "{}",
                 t!(
-                    "sdd.solidify.summary_written",
+                    "sdd.solidify.consistency_cap_fail",
                     capability = report.capability,
-                    path = report.feature_path.display(),
-                    written = report.written,
-                    skipped = report.skipped.len(),
+                    count = report.consistency_issues
                 )
             );
         }
-        total_written += report.written;
-        total_skipped += report.skipped.len();
-        for (id, reason) in &report.skipped {
+        if report.written > 0 {
             println!(
-                "  {}",
-                t!("sdd.solidify.skipped_item", id = id, reason = reason)
+                "  stubs: {} -> {}",
+                report.written,
+                report.feature_path.display()
             );
         }
     }
-    println!(
-        "{}",
-        t!(
-            "sdd.solidify.totals",
-            written = total_written,
-            skipped = total_skipped,
-        )
-    );
-    Ok(())
+    if all_ok {
+        println!("{}", t!("sdd.solidify.consistency_ok"));
+        Ok(())
+    } else {
+        bail!("{}", t!("sdd.solidify.consistency_failed"));
+    }
 }
 
 #[cfg(test)]

@@ -6,46 +6,46 @@
   场景: 默认 target 为 prompts
     假如 用户运行 llman x codex prompts gen --template {tpl}
     当 命令执行
-    那么按 --target prompts 处理
+    而且 那么按 --target prompts 处理
 
   场景: override 仅对 project-doc 生效
     假如 用户运行 llman x codex prompts gen --target prompts --override --template {tpl}
     当 命令执行
-    那么返回错误
+    而且 那么返回错误
 
   场景: 生成 codex 全局 custom prompt
     假如 用户运行 llman x codex prompts gen --target prompts --scope global --template {tpl}
     当 命令执行
-    那么创建或更新 $CODEX_HOME/prompts/{tpl}.md
+    而且 那么创建或更新 $CODEX_HOME/prompts/{tpl}.md
 
   场景: 生成 codex 项目 custom prompt
     假如 用户运行 llman x codex prompts gen --target prompts --scope project --template {tpl}
     当 命令执行
-    那么创建或更新 <repo_root>/.codex/prompts/{tpl}.md
+    而且 那么创建或更新 <repo_root>/.codex/prompts/{tpl}.md
 
   场景: 生成 codex 全局 project-doc
     假如 用户运行 llman x codex prompts gen --target project-doc --scope global --template {tpl}
     当 命令执行
-    那么创建或更新 $CODEX_HOME/AGENTS.md
+    而且 那么创建或更新 $CODEX_HOME/AGENTS.md
 
   场景: 生成 codex override project-doc
     假如 用户运行 llman x codex prompts gen --target project-doc --scope global --override --template {tpl}
     当 命令执行
-    那么创建或更新 $CODEX_HOME/AGENTS.override.md
+    而且 那么创建或更新 $CODEX_HOME/AGENTS.override.md
 
   场景: 生成 claude-code 全局 memory
     假如 用户运行 llman x claude-code prompts gen --scope global --template {tpl}
     当 命令执行
-    那么创建或更新 ~/.claude/CLAUDE.md
+    而且 那么创建或更新 ~/.claude/CLAUDE.md
 
   场景: 生成并保留用户自定义内容
     假如 项目 CLAUDE.md 已含用户手写内容
     当 用户运行 llman x claude-code prompts gen --scope project --template {tpl}
-    那么仅更新托管块内容
-    而且不删除或改写用户手写内容
+    而且 那么仅更新托管块内容
+    而且 而且不删除或改写用户手写内容
 
   场景: 既有 CLAUDE.md 不可读时不静默覆盖
     假如 <repo_root>/CLAUDE.md 存在但无法作为 UTF-8 读取
     当 用户运行 llman x claude-code prompts gen --scope project
-    那么返回错误
-    而且文件未被修改
+    而且 那么返回错误
+    而且 而且文件未被修改

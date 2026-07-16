@@ -19,26 +19,41 @@ scenarios[1]{req_id,id,given,when,then}:
 - `name` 应与 spec 目录名一致。
 - `valid_scope` 是校验作用域（驱动 staleness 检查）。必须存在且非空，为扁平单列表格化数组（例如 `valid_scope[2]: src/,tests/`）。（`valid_commands` 与 `evidence` 已移除——仅有 `valid_scope` 被实际消费。）
 
-### Main spec BDD-on（solidify 工作流）
+### Main spec BDD-on（Partitioned SSOT）
 
-当 `config.yaml` 定义了 `bdd` 块时，行为规格在 `spec.toon` 中——结构与 BDD-off 相同。`.feature` 文件是 `llman sdd solidify` 从 `scenarios` 表生成的**衍生工件**：
+当 `config.yaml` 定义了 `bdd` 块时采用 **Partitioned SSOT**：
+
+| 层 | 权威 | 内容 |
+|---|---|---|
+| 约束 | `spec.toon` | `requirements` + **不可执行** scenarios（`feature: false`） |
+| Harness | `*.feature` | 可执行 GWT 唯一正文；场景带 `@req:<req_id>` |
 
 ```toon
 kind: llman.sdd.spec
 name: sample
-purpose: "所有行为定义在下面的 requirements + scenarios 中。"
+purpose: "约束在 toon；可执行例子在 .feature。"
 valid_scope[1]: llmanspec/specs/sample
 requirements[1]{req_id,title,statement}:
   r1,新增需求,系统 MUST 完成新功能。
 scenarios[1]{req_id,id,given,when,then,feature}:
-  r1,happy,"llman 二进制已构建","运行 llman sample --flag","退出码为 0 且 stdout 包含预期内容",true
+  r1,internal-only,"管理器扫描","内部检查","通过",false
 ```
 
-- `feature: true`（默认）：`solidify` 将该 scenario 写入 `.feature` 文件。
-- `feature: false`：留在 TOON 内仅作文档（如内部行为描述、自指 validate 场景）。
-- propose 时不要创建 `.feature` delta 文件——仅 TOON `spec.toon`。
-- apply 完成后运行 `llman sdd solidify <change-id>` 重新生成 `.feature` 文件。
-- BDD 已启用、`requirements` 和 `scenarios` 均为空的 spec 是 ERROR。
+```gherkin
+# sample.feature
+功能: sample
+  @req:r1
+  场景: happy
+    假如 llman 二进制已构建
+    当 运行 llman sample --flag
+    那么 退出码为 0
+```
+
+- 可执行场景变更：编辑 `.feature` 或 change 内 `*.feature.delta.toon`（按 id add/modify/remove）。
+- 约束变更：TOON `ops` / 不可执行 `op_scenarios`。
+- `solidify`：一致性门禁（可选 `--write-stubs`），**不**从 toon 投影覆盖 feature。
+- 下游升级：`llman sdd project partition-migrate`。
+- BDD 已启用且 `requirements` 为空、又无 `.feature` 是 ERROR。
 
 ### Delta spec（`llmanspec/changes/<change-id>/specs/<feature-id>/spec.toon`）
 

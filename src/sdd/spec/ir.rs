@@ -65,3 +65,31 @@ pub struct DeltaOpEntry {
     pub to: Option<String>,
     pub name: Option<String>,
 }
+
+/// Scenario-level patch for Partitioned SSOT harness files (`.feature`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct FeatureDeltaDoc {
+    pub kind: String,
+    /// Target feature filename (informational), e.g. `agent-runtime.feature`.
+    #[serde(default)]
+    pub target: String,
+    #[serde(default)]
+    pub ops: Vec<FeatureDeltaOp>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct FeatureDeltaOp {
+    /// `add` | `modify` | `remove`
+    pub op: String,
+    pub id: String,
+    #[serde(default)]
+    pub req_id: String,
+    #[serde(default)]
+    pub given: String,
+    #[serde(rename = "when", default)]
+    pub when_: String,
+    #[serde(rename = "then", default)]
+    pub then_: String,
+}

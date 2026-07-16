@@ -191,8 +191,7 @@ fn given_cwd(cwd: PathBuf) {
 /// The project gets a `sample` spec (r1 + scenario) and an `add-scen` change whose
 /// delta adds r2 + a scenario, so `solidify`/`validate`/`index` have something to
 /// act on. This mirrors `tests/sdd_bdd_compat_tests.rs::seed_spec_and_change`.
-#[given("已初始化 sdd 项目且 bdd 配置为 {mode}")]
-fn given_seeded_sdd_project(mode: String) {
+fn seed_bdd_project(mode: &str) {
     // reset first (same convention as `llman 二进制已构建`) so the scenario starts
     // clean; then install the fixture.
     reset_world();
@@ -290,6 +289,60 @@ fn given_seeded_sdd_project(mode: String) {
         world.fixture_dir = Some(temp);
         world.cwd = Some(dir);
     });
+}
+
+fn fixture_cwd() -> PathBuf {
+    WORLD.with(|w| {
+        w.borrow()
+            .as_ref()
+            .expect("world not initialized")
+            .cwd
+            .clone()
+            .expect("fixture cwd missing")
+    })
+}
+
+#[given("已初始化 sdd 项目且 bdd 配置为 {mode}")]
+fn given_seeded_sdd_project(mode: String) {
+    seed_bdd_project(&mode);
+}
+
+/// BDD-on fixture where sample still has executable GWT in toon *and* a matching
+/// `.feature` scenario — triggers Partitioned dual-write validate ERROR.
+#[given("已初始化含可执行双写的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_dual_write(mode: String) {
+    seed_bdd_project(&mode);
+    let feature = fixture_cwd().join("llmanspec/specs/sample/sample.feature");
+    std::fs::write(
+        &feature,
+        "# language: en\nFeature: sample\n  @req:r1\n  Scenario: happy\n    Given a\n    When b\n    Then c\n",
+    )
+    .expect("write dual-write feature");
+}
+
+/// BDD-on fixture whose harness `@req` points at a missing requirement id.
+#[given("已初始化含无效 @req 的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_bad_req(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    // Constraints-only toon so validate fails on @req link, not dual-write.
+    std::fs::write(
+        dir.join("llmanspec/specs/sample/spec.toon"),
+        r#"kind: llman.sdd.spec
+name: "sample"
+purpose: "sample"
+valid_scope[1]: "llmanspec/specs/sample"
+requirements[1]{req_id,title,statement}:
+  r1,R1,"System MUST do X."
+scenarios[0]:
+"#,
+    )
+    .expect("rewrite sample toon");
+    std::fs::write(
+        dir.join("llmanspec/specs/sample/sample.feature"),
+        "# language: en\nFeature: sample\n  @req:r999\n  Scenario: bad link\n    Given a\n    When b\n    Then c\n",
+    )
+    .expect("write bad @req feature");
 }
 
 // ---------------------------------------------------------------------------
@@ -524,3 +577,24 @@ fn test_compat_index_off_rebuild() {}
 )]
 #[test]
 fn test_compat_validate_off_ignores_feature() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/sdd-bdd-mode-compat.feature",
+    name = "双写可执行 GWT 时 validate --strict 失败"
+)]
+#[test]
+fn test_compat_partitioned_dual_write_forbidden() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/sdd-bdd-mode-compat.feature",
+    name = "@req 指向缺失 requirement 时 validate --strict 失败"
+)]
+#[test]
+fn test_compat_validate_req_link() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/sdd-bdd-mode-compat.feature",
+    name = "partition-migrate --dry-run 只打印计划"
+)]
+#[test]
+fn test_compat_partition_migrate_dry_run() {}

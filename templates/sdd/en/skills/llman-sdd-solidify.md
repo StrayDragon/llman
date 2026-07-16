@@ -1,64 +1,38 @@
 ---
 name: "llman-sdd-solidify"
-description: "Serialize a change's delta scenarios into executable .feature files (BDD-on only). Applies after apply, before archive. Framework-agnostic: filters by the scenario feature field and a self-reference guard, then writes Gherkin."
+description: "Partitioned SSOT: consistency gate for harness vs constraints (optional --write-stubs). After apply, before archive."
 metadata:
   version: "{{ llman_version }}"
 ---
 
-# LLMAN SDD Solidify
+# LLMAN SDD Solidify (Partitioned)
 
-Use this skill to generate (regenerate) the executable `.feature` files for a change, from its delta `spec.toon` scenarios. BDD-on projects only.
+Under BDD-on, `.feature` is the executable harness authority; `spec.toon` is the constraints authority. Solidify does **not** project toon `op_scenarios` GWT over `.feature`.
 
-## Pipeline Position
+## Pipeline
 
-```mermaid
-flowchart LR
-    apply["llman-sdd-apply<br/>Implement"] --> verify["llman-sdd-verify<br/>Verify"]
-    verify --> solidify
-    solidify["★ llman-sdd-solidify ★<br/>Solidify (you are here)"]
-    solidify --> archive["llman-sdd-archive<br/>Archive"]
-    archive --> commit["git commit<br/>Done"]
+`apply → verify → solidify → archive`
 
-    style solidify fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+## Hard constraints
+
+- BDD-off: no-op with not-configured message.
+- BDD-on: check `@req` links, dual-write, non-executable id intrusion; non-zero on failure.
+- `--write-stubs`: only `feature_delta` **add** ops for missing scenario ids; **must not** overwrite existing GWT.
+- Executable scenario changes belong in `*.feature.delta.toon`, not dual-written into toon scenarios.
+
+## Commands
+
+```bash
+llman sdd solidify <change-id> [--dry-run] [--write-stubs]
 ```
 
-> 📍 You are in the solidify phase: after verify passes, before archive.
-> BDD-off projects: this is a no-op (nothing to generate).
+Success stdout includes `consistency ok`.
 
-## Hard Constraints
+## Downstream migration
 
-- **BDD mode awareness** — check `llmanspec/config.yaml` for a `bdd:` block first, then branch:
-  - **BDD-on** (`bdd:` present): proceed with solidify normally (steps below).
-  - **BDD-off, no `.feature` files anywhere under `llmanspec/specs/`**: no-op. Report "nothing to solidify (BDD is off)".
-  - **BDD-off, but `.feature` files exist**: report a **residual warning** — list each file and state: "Found N `.feature` file(s) but BDD is off (no `bdd:` block in `config.yaml`). They are ignored by `validate`/`index`. To make them executable again, add a `bdd:` block (e.g. `bdd:\n  run_command: \"cargo test --features bdd\"`). Re-enable intentionally, or remove them if no longer needed." **Do NOT delete the files** — surface them and let the user decide.
-- **Framework-agnostic**: solidify does NOT scan `tests/bdd_steps.rs` or any BDD framework's step bindings. Whether a scenario is *executable* at runtime is decided by `bdd.run_command`.
-- **Don't edit `.feature` by hand**: they are generated artifacts. Edit `spec.toon` scenarios, then re-run solidify.
-- **Don't ask "should I continue?"**: run to completion unless you hit an unresolvable error.
-
-## Steps
-
-### 1) Confirm target change
-- Determine the change id (from user input or context).
-- Always announce: "Solidifying change: <id>".
-- `spec.toon` is the SSOT. `.feature` files are the **executable subset** of its scenarios, serialized as Gherkin.
-- Scenarios whose `when` invokes `llman sdd validate|archive|solidify` are **self-referencing** and are skipped (would recurse the BDD runner).
-
-### 2) (Optional) Dry-run preview
-- `llman sdd solidify <id> --dry-run` to preview which scenarios write vs skip.
-- Review the skip reasons: `feature=false` and self-referencing scenarios are expected.
-
-### 3) Execute solidify
-- `llman sdd solidify <id>`
-- This writes one `.feature` per capability under `llmanspec/specs/<capability>/<capability>.feature`.
-
-### 4) Report
-- Summarize: per capability, how many scenarios written vs skipped, and the output path.
-- Skipped scenarios list their reason.
-
-> 💡 Previous phase `llman-sdd-verify` (passed) → this phase generates `.feature` → next phase `llman-sdd-archive` (archive).
+```bash
+llman sdd project partition-migrate [--dry-run]
+```
 
 {{ unit("skills/sdd-commands") }}
-
-{{ unit("skills/validation-hints-toon") }}
-
 {{ unit("skills/structured-protocol") }}

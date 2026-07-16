@@ -85,11 +85,11 @@ flowchart LR
 - **Do NOT silently add the `bdd:` block** — always ask first. Adding it changes how `validate`/`index` behave project-wide.
 
 ### 4b) BDD-on mode — only when `config.yaml` has a `bdd:` block
-- `spec.toon` is the single source of truth for BDD-on specs (same structure as BDD-off: `kind`/`name`/`purpose`/`valid_scope`/`requirements`/`scenarios`).
-- Scenarios have a `feature` field (default `true`): `true` → eligible for `.feature` generation during `solidify`; `false` → stays in TOON as documentation only.
-- Delta is always TOON only (`ops` + `op_scenarios`). Do NOT create `.feature` delta files during propose.
-- After `apply` completes, run `llman sdd solidify <change-id>` to generate/update `.feature` files from the delta's executable scenarios.
-- The `.feature` file is a derived artifact — never edit it by hand. The TOON `scenarios` table is the SSOT.
+- **Partitioned SSOT**: `spec.toon` = constraints (requirements + non-executable scenarios); `*.feature` = executable harness GWT only.
+- Tag executable scenarios with `@req:<req_id>`; never dual-write the same scenario id GWT.
+- Deltas: constraints/non-executable → TOON `ops`/`op_scenarios`; executable → `*.feature.delta.toon` (add/modify/remove by id).
+- After `apply`, run `llman sdd solidify <change-id>` as a consistency gate (optional `--write-stubs`).
+- Do not teach “toon projects feature” or “feature is read-only derived only”.
 
 ### 5) Summarize and suggest next step:
    - Enter implementation phase: `llman-sdd-apply`.

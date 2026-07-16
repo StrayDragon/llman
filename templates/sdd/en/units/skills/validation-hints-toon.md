@@ -34,8 +34,8 @@ r1,happy,"",a trigger happens,the outcome is observed
 r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
-4) BDD spec guardrail (`BDD is enabled but this spec declares no requirements and has no .feature files`):
-When `config.yaml` has a `bdd` block, behavior specs live in `spec.toon` `scenarios` (TOON is the SSOT). `.feature` files are derived by `llman sdd solidify`. A spec with empty `requirements` and empty `scenarios` is an ERROR.
+4) BDD spec guardrail (Partitioned SSOT):
+When `config.yaml` has a `bdd` block: `spec.toon` = constraints (requirements + non-executable scenarios); `*.feature` = executable harness GWT only (`@req:<req_id>`). Empty `requirements` with no `.feature` is an ERROR. `solidify` is a consistency gate (does not project toon over feature). Upgrade with `llman sdd project partition-migrate`.
 
 Notes:
 - Each spec is a single standalone `.toon` file; there is no Markdown shell or ```toon fence.

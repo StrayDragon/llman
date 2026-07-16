@@ -84,11 +84,11 @@ flowchart LR
 - **禁止静默添加 `bdd:` 段**——必须先询问。添加它会改变 `validate`/`index` 在整个项目的行为。
 
 ### 4b) BDD-on 模式——仅当 `config.yaml` 含 `bdd:` 段时
-- `spec.toon` 是 BDD-on spec 的唯一真源（结构与 BDD-off 相同：`kind`/`name`/`purpose`/`valid_scope`/`requirements`/`scenarios`）。
-- Scenario 含 `feature` 字段（默认 `true`）：`true` → 在 `solidify` 阶段可写入 `.feature`；`false` → 留在 TOON 内仅作文档。
-- Delta 永远是纯 TOON（`ops` + `op_scenarios`）。propose 时不要创建 `.feature` delta 文件。
-- `apply` 完成后运行 `llman sdd solidify <change-id>` 从 delta 的可执行 scenario 生成/更新 `.feature` 文件。
-- `.feature` 是衍生工件——永远不要手动编辑。TOON `scenarios` 表是唯一真源。
+- **Partitioned SSOT**：`spec.toon` = 约束（requirements + 不可执行 scenarios）；`*.feature` = 可执行 harness 唯一 GWT。
+- 可执行场景用 `@req:<req_id>` 挂回 requirement；禁止同一 scenario id 的 GWT 双写。
+- Delta：约束/不可执行 → TOON `ops`/`op_scenarios`；可执行 → `*.feature.delta.toon`（按 id add/modify/remove）。
+- `apply` 后运行 `llman sdd solidify <change-id>` 做一致性门禁（可选 `--write-stubs`）。
+- 勿再教导「toon 投影生成 feature / feature 只读衍生为唯一模型」。
 
 ### 5) 总结已创建内容，并建议下一步：
    - 进入实现阶段：`llman-sdd-apply`。
@@ -147,8 +147,8 @@ r1,happy,"",a trigger happens,the outcome is observed
 r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
-4) BDD spec 护栏（`BDD is enabled but this spec declares no requirements and has no .feature files`）：
-当 `config.yaml` 含 `bdd` 块时，行为规格在 `spec.toon` 的 `scenarios` 中（TOON 是唯一真源）。`.feature` 文件由 `llman sdd solidify` 衍生生成。`requirements` 和 `scenarios` 均为空的 spec 是 ERROR。
+4) BDD spec 护栏（Partitioned SSOT）：
+当 `config.yaml` 含 `bdd` 块时：`spec.toon` = 约束层（requirements + 不可执行 scenarios）；`*.feature` = 可执行 harness 唯一 GWT（`@req:<req_id>` 挂回 requirement）。`requirements` 为空且无 `.feature` 是 ERROR。solidify 做一致性门禁，不把 toon 投影覆盖 feature。下游升级用 `llman sdd project partition-migrate`。
 
 备注：
 - 每个 spec 是一个独立的 `.toon` 文件；没有 Markdown 外壳，也没有 ```toon fence。

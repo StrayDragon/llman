@@ -15,11 +15,11 @@ metadata:
 3. 在 CI 或自动化场景中使用 `--strict` 与 `--no-interactive`。
 4. 若校验失败，汇总错误并给出最小、可执行的修复建议。
 {% if bdd_enabled %}
-5. **BDD 校验**:
-   - 验证 spec 目录下 .feature 文件语法合法（gherkin 解析）。
-   - `.feature` 由 `llman sdd solidify` 自动生成——不要手动编辑。
+5. **BDD 校验 (Partitioned SSOT)**:
+   - 验证 `.feature` Gherkin 合法，并检查 `@req` / 双写门禁。
+   - `.feature` 是 harness 权威——可执行 GWT 在此维护；`solidify` 做一致性门禁（非投影覆盖）。
    - `llman sdd validate --specs` 默认自动运行 `bdd.run_command`。
-   - 报告 scenario 覆盖率（.feature 中 scenario 数 vs spec 中 scenario 数）
+   - 可用 `list --specs --json` 查看 `morphology`（含 `dualWriteCount`）。
 {% endif %}
 
 {{ unit("skills/sdd-commands") }}

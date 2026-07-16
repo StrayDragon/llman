@@ -23,15 +23,17 @@ metadata:
    - 若 `stage` 为 `draft`（仅 proposal.md），明确告知用户："这是一个 draft 提案。需要把它长大到 `full`（specs → design → tasks）后才能实现；draft 不能直接被 apply 或 verify。"
 3. 找出下一个需要创建的 artifact（按顺序）：
    1) `proposal.md`
-   2) `specs/<capability>/spec.toon`（每个 capability 一个文件夹）
-   3) `design.md`（仅当需要讨论设计权衡时）
-   4) `tasks.md`
+   2) `specs/<capability>/spec.toon`（约束层；每个 capability 一个文件夹）
+   3) BDD-on 可执行场景：`specs/<capability>/*.feature.delta.toon`（可选，与 toon 并列）
+   4) `design.md`（仅当需要讨论设计权衡时）
+   5) `tasks.md`
 4. 在 `llmanspec/changes/<id>/` 下创建且只创建 ONE 个缺失 artifact。
    - continue 模式不要实现应用代码。
 5. 如果所有 artifacts 都已存在，建议下一步：
    - 实施：`llman-sdd-apply`
    - 校验：`llman sdd validate <id> --strict --no-interactive`
-   - 归档（准备好后）：`llman sdd archive <id>`
+   - 一致性：`llman sdd solidify <id>`（Partitioned：不投影写 feature）
+   - 归档（准备好后）：`llman sdd archive run <id>`
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}

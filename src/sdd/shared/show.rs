@@ -251,22 +251,48 @@ fn list_change_artifacts(change_dir: &Path) -> Vec<&'static str> {
 fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
     validate_sdd_id(spec_id, "spec")?;
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    let _config = load_required_config(&llmanspec_dir)?;
+    let config = load_required_config(&llmanspec_dir)?;
 
-    let spec_path = root
-        .join(LLMANSPEC_DIR_NAME)
-        .join("specs")
-        .join(spec_id)
-        .join(SPEC_FILE);
+    let spec_dir = root.join(LLMANSPEC_DIR_NAME).join("specs").join(spec_id);
+    let spec_path = spec_dir.join(SPEC_FILE);
     if !spec_path.exists() {
         return Err(anyhow!(t!("sdd.show.spec_not_found", id = spec_id)));
     }
+
+    let lang =
+        crate::sdd::solidify::locale_to_gherkin_lang(Some(&config.locale), config.bdd.as_ref());
+    let content = fs::read_to_string(&spec_path)?;
+    let morphology = {
+        use crate::sdd::spec::backend::{BACKEND, SpecBackend};
+        use crate::sdd::spec::partitioned::{compute_morphology, load_spec_harness_soft};
+        let mut soft = Vec::new();
+        let harness = load_spec_harness_soft(&spec_dir, &lang, &mut soft);
+        BACKEND
+            .parse_main_spec(&content, &format!("spec `{spec_id}`"))
+            .ok()
+            .map(|doc| compute_morphology(&doc, &harness))
+    };
+    let harness_summaries = {
+        use crate::sdd::spec::partitioned::load_spec_harness_soft;
+        let mut soft = Vec::new();
+        load_spec_harness_soft(&spec_dir, &lang, &mut soft)
+            .into_iter()
+            .map(|sc| {
+                serde_json::json!({
+                    "id": sc.id,
+                    "reqIds": sc.req_ids,
+                    "given": sc.given,
+                    "when": sc.when_,
+                    "then": sc.then_,
+                })
+            })
+            .collect::<Vec<_>>()
+    };
 
     if args.json {
         if args.requirements && args.requirement.is_some() {
             return Err(anyhow!(t!("sdd.show.requirements_conflict")));
         }
-        let content = fs::read_to_string(&spec_path)?;
         let spec = parse_spec(&content, spec_id)?;
         if args.meta_only {
             let output = serde_json::json!({
@@ -275,7 +301,8 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
                 "title": spec.name,
                 "overview": spec.overview,
                 "requirementCount": spec.requirements.len(),
-                "metadata": spec.metadata
+                "metadata": spec.metadata,
+                "morphology": morphology,
             });
             print_json(&output, args.compact_json)?;
             return Ok(());
@@ -288,14 +315,38 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
             "overview": spec.overview,
             "requirementCount": requirements.len(),
             "requirements": requirements,
-            "metadata": spec.metadata
+            "metadata": spec.metadata,
+            "morphology": morphology,
+            "constraints": requirements,
+            "harness": harness_summaries,
         });
         print_json(&output, args.compact_json)?;
         return Ok(());
     }
 
-    let content = fs::read_to_string(&spec_path)?;
-    print!("{content}");
+    println!("## Constraints");
+    println!("{content}");
+    println!("\n## Harness");
+    if harness_summaries.is_empty() {
+        println!("(no .feature scenarios)");
+    } else {
+        for h in &harness_summaries {
+            println!(
+                "- {} @req={:?}",
+                h.get("id").and_then(|v| v.as_str()).unwrap_or("?"),
+                h.get("reqIds")
+            );
+        }
+    }
+    if let Some(m) = morphology {
+        println!(
+            "\n## Morphology\nconstraintsReqCount={} harnessScenarioCount={} dualWriteCount={} reqLinkCoverage={:.2}",
+            m.constraints_req_count,
+            m.harness_scenario_count,
+            m.dual_write_count,
+            m.req_link_coverage
+        );
+    }
     Ok(())
 }
 

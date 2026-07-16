@@ -48,9 +48,10 @@ flowchart LR
 5. Compare artifacts vs code:
    - Identify mismatches (missing behavior, wrong behavior, missing tests/docs)
    - Suggest minimal fixes or artifact updates
-6. **BDD-on verification** — only when `config.yaml` has a `bdd:` block:
-   - `llman sdd validate <spec>` auto-runs `bdd.run_command` after Gherkin parse; exit 0 = pass, non-zero = fail.
-   - Confirm `llman sdd solidify <id>` was run — `.feature` files should be up to date with delta scenarios.
+6. **BDD-on verification (Partitioned SSOT)** — only when `config.yaml` has a `bdd:` block:
+   - `llman sdd validate <spec>`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
+   - Confirm `llman sdd solidify <id>` was run and stdout contains `consistency ok`.
+   - Check: executable GWT only in `.feature`; `morphology.dualWriteCount` should be 0.
 {% if bdd_verify_prompt %}
    - Extra requirement: {{ bdd_verify_prompt }}
 {% endif %}

@@ -14,10 +14,10 @@ metadata:
 ## 步骤
 1. 确定 change id（不明确时让用户选择）。
    - 始终说明："使用变更：<id>"。
-2. 对每个 delta spec：`llmanspec/changes/<id>/specs/<capability>/spec.toon`
-   - 阅读 delta
-   - 阅读（或创建）主 spec：`llmanspec/specs/<capability>/spec.toon`
-   - 按 delta 语义手动应用（add/modify/remove/rename + scenarios），保持主 spec 为独立的 TOON 文档
+2. 对每个 delta capability：
+   - 约束层：`changes/<id>/specs/<capability>/spec.toon` → 主 `specs/<capability>/spec.toon`
+   - 编排层（若有）：`*.feature.delta.toon` → 主 `*.feature`（或等 `archive run` 自动 apply）
+   - 按 delta 语义手动应用；**不要**把可执行 GWT 双写进 toon
 3. 校验 specs：
    ```bash
    llman sdd validate --specs --strict --no-interactive

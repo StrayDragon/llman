@@ -1,0 +1,13 @@
+kind: llman.sdd.delta
+ops[5]{op,req_id,title,statement,from,to,name}:
+  modify_requirement,r2,solidify 的一致性门禁,"solidify MUST 随 BDD 模式切换：BDD-on 时对 change 作用域执行 Partitioned 一致性检查（@req 链接、双写、不可执行 id 入侵），可选 --write-stubs 仅为缺失 scenario id 写入骨架与 @req 且 MUST NOT 覆盖已有 GWT 正文；MUST NOT 再把 toon op_scenarios 全文投影覆盖 .feature。BDD-off 时为 no-op 并明确提示未配置。",null,null,null
+  add_requirement,r5,Partitioned SSOT 分区权威,"BDD-on 时 MUST 采用 Partitioned SSOT：spec.toon 权威承载 requirements 与不可执行 scenarios；*.feature 权威承载可执行场景 GWT；同一 scenario id 的完整 GWT MUST NOT 同时存在于 toon 与 feature。可执行场景 MUST 使用 @req:<req_id> 标签挂回 requirement。",null,null,null
+  add_requirement,r6,validate 链接与双写门禁,"BDD-on 时 validate MUST 校验：feature 中每个 @req:X 对应 toon requirement X 存在；同一 scenario id 可执行 GWT 双写在 --strict 下 MUST 为失败；不可执行 toon scenario id MUST NOT 出现在 .feature。--check 仍按 bdd.run_command 执行 harness。",null,null,null
+  add_requirement,r7,feature_delta 与 archive 双管道,"BDD-on 时 change MUST 能携带 feature_delta（按 scenario id 的 add/modify/remove 整块操作）。archive MUST merge toon ops 到 spec.toon 且 apply feature_delta 到主 .feature；找不到目标 id 的 modify/remove MUST 失败。MUST NOT 再以整文件覆盖复制 .feature 作为默认归档路径。",null,null,null
+  add_requirement,r8,partition-migrate,"llman sdd project partition-migrate MUST 将 BDD-on 项目中 feature:true（或缺省可执行）双写拆为：toon 移除可执行 GWT、.feature 保留或补齐场景并写入 @req；--dry-run MUST 只打印计划。BDD-off 时 MUST no-op 并提示。",null,null,null
+op_scenarios[5]{req_id,id,given,when,then,feature}:
+  r2,"solidify-consistency-note",约束层说明,BDD-on solidify,一致性门禁而非投影,false
+  r5,"dual-write-forbidden-note",约束层说明,可执行 GWT 双写,harness 场景见 .feature,false
+  r6,"req-link-note",约束层说明,@req 缺失 requirement,harness 场景见 .feature,false
+  r7,"archive-applies-feature-delta",llman 二进制已构建,"运行 llman sdd archive run 含 feature_delta 的 change","主 .feature 含 delta 场景且 toon 已 merge",false
+  r8,"partition-migrate-note",约束层说明,partition-migrate --dry-run,harness 场景见 .feature,false

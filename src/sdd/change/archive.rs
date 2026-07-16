@@ -7,7 +7,7 @@ use crate::sdd::shared::tasks;
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
 use crate::sdd::spec::staleness::evaluate_staleness_with_override;
 use crate::sdd::spec::validation::{
-    ValidationIssue, ValidationLevel, validate_spec_content_with_frontmatter,
+    ValidationIssue, ValidationLevel, validate_spec_content_with_frontmatter_and_bdd,
 };
 use anyhow::{Result, anyhow};
 use chrono::Utc;
@@ -113,6 +113,8 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
                 write_updates(&prepared)?;
             }
         }
+        // Partitioned: apply feature_delta files alongside toon merge.
+        apply_change_feature_deltas(&change_dir, root, args.dry_run)?;
     }
 
     let archive_dir = changes_dir.join("archive");
@@ -204,7 +206,21 @@ fn prepare_updates(
 }
 
 fn validate_rebuilt_spec(update: &SpecUpdate, content: &str, root: &Path) -> Result<()> {
-    let validation = validate_spec_content_with_frontmatter(&update.target, content, true);
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir).ok();
+    let (bdd, locale) = config
+        .as_ref()
+        .map(|c| (c.bdd.as_ref(), Some(c.locale.as_str())))
+        .unwrap_or((None, None));
+    let validation = validate_spec_content_with_frontmatter_and_bdd(
+        &update.target,
+        content,
+        true,
+        Some(root),
+        bdd,
+        locale,
+        false,
+    );
     let mut issues = validation.report.issues;
 
     if let Some(frontmatter) = validation.frontmatter.as_ref() {
@@ -556,6 +572,66 @@ fn build_updated_spec(
     let rebuilt = backend.dump_main_spec(&spec_doc)?;
 
     Ok((rebuilt, counts))
+}
+
+fn apply_change_feature_deltas(change_dir: &Path, root: &Path, dry_run: bool) -> Result<()> {
+    use crate::sdd::project::config::load_required_config as load_cfg;
+    use crate::sdd::solidify::locale_to_gherkin_lang;
+    use crate::sdd::spec::partitioned::{
+        apply_feature_delta, find_feature_delta_path, load_feature_delta_file,
+    };
+
+    let change_specs = change_dir.join("specs");
+    if !change_specs.exists() {
+        return Ok(());
+    }
+    let config = load_cfg(&root.join(LLMANSPEC_DIR_NAME))?;
+    if config.bdd.is_none() {
+        return Ok(());
+    }
+    let lang = locale_to_gherkin_lang(Some(&config.locale), config.bdd.as_ref());
+
+    for entry in fs::read_dir(&change_specs)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let capability = entry.file_name().to_string_lossy().to_string();
+        let Some(delta_path) = find_feature_delta_path(&entry.path(), &capability) else {
+            continue;
+        };
+        let delta = load_feature_delta_file(&delta_path)?;
+        let feature_path = root
+            .join(LLMANSPEC_DIR_NAME)
+            .join("specs")
+            .join(&capability)
+            .join(format!("{capability}.feature"));
+        let existing = if feature_path.exists() {
+            Some(fs::read_to_string(&feature_path)?)
+        } else {
+            None
+        };
+        let body = apply_feature_delta(existing.as_deref(), &capability, &delta, &lang)?;
+        if dry_run {
+            println!(
+                "[dry-run] would apply feature_delta → {}",
+                feature_path.display()
+            );
+            continue;
+        }
+        if body.is_empty() {
+            if feature_path.exists() {
+                fs::remove_file(&feature_path)?;
+            }
+        } else {
+            if let Some(parent) = feature_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            atomic_write_with_mode(&feature_path, body.as_bytes(), None)?;
+        }
+        println!("applied feature_delta → {}", feature_path.display());
+    }
+    Ok(())
 }
 
 fn write_updates(prepared: &[(SpecUpdate, String, ApplyCounts)]) -> Result<()> {
