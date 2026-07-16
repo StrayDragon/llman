@@ -8,8 +8,3 @@
 > [!warning]
 >
 > 🏗 施工中
-
-## Docs
-
-- Configuration directory: `docs/config.md`
-- Skills 分组推断说明（实时计算）：`docs/skills-registry-presets.md`

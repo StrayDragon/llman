@@ -4,7 +4,6 @@
 **Pi agent-core 参考检索器** 作为第三变体，验证「手写最小 agentic loop」是否
 还有提升空间。
 
-> 设计动机见仓库根 `docs/sdd-context-index.md` 与本目录上游 review。
 > 本 harness **不使用** promptfoo 的 `anthropic:claude-agent-sdk`（太重），
 > 改用 `@earendil-works/pi-ai` + `@earendil-works/pi-agent-core` 直驱。
 
