@@ -65,6 +65,18 @@ Cargo equivalents use `cargo +nightly ...`.
 本项目已启用 BDD-on 模式（`llmanspec/config.yaml` 含 `bdd:` 段）。spec 行为规格由
 `llmanspec/specs/<name>/*.feature` 承载；每个 `spec.toon` 仅保留 `kind`/`name`/`purpose`。
 
+### 如何启用/关闭 BDD-on 模式
+**启用**：在 `llmanspec/config.yaml` 加 `bdd:` 段，`run_command` 按测试框架选：
+```yaml
+bdd:
+  run_command: "cargo test --features bdd"                      # rstest-bdd
+  # run_command: "pytest {feature_dir} -k {feature_name} -v"    # pytest-bdd
+```
+agent 在 propose 阶段遇到可执行行为场景时会主动询问是否启用（见 `llman-sdd-propose` 4a）。
+**关闭**：删除 `bdd:` 段。注意：已有的 `.feature` 文件**不会被自动删除**——`validate`/`index`
+会忽略它们。若确定不再需要，手动删除或保留作文档；solidify 在 BDD-off 时会提示残留 `.feature`
+但不删除（见 `llman-sdd-solidify` 硬约束）。
+
 - **fast mode（默认）**：`llman sdd validate <spec> --strict` 只做 Gherkin 语法解析（结构合法性），
   不执行任何 runner。所有 spec 的 feature 在 fast mode 下都应通过。
 - **full mode（执行验证，可选）**：`llman sdd validate <spec> --check` 或 `cargo test --features bdd`

@@ -27,7 +27,10 @@ flowchart LR
 
 ## Hard Constraints
 
-- **BDD-on only**: if `config.yaml` has no `bdd:` block, solidify is a no-op. Stop and report.
+- **BDD mode awareness** — check `llmanspec/config.yaml` for a `bdd:` block first, then branch:
+  - **BDD-on** (`bdd:` present): proceed with solidify normally (steps below).
+  - **BDD-off, no `.feature` files anywhere under `llmanspec/specs/`**: no-op. Report "nothing to solidify (BDD is off)".
+  - **BDD-off, but `.feature` files exist**: report a **residual warning** — list each file and state: "Found N `.feature` file(s) but BDD is off (no `bdd:` block in `config.yaml`). They are ignored by `validate`/`index`. To make them executable again, add a `bdd:` block (e.g. `bdd:\n  run_command: \"cargo test --features bdd\"`). Re-enable intentionally, or remove them if no longer needed." **Do NOT delete the files** — surface them and let the user decide.
 - **Framework-agnostic**: solidify does NOT scan `tests/bdd_steps.rs` or any BDD framework's step bindings. Whether a scenario is *executable* at runtime is decided by `bdd.run_command`.
 - **Don't edit `.feature` by hand**: they are generated artifacts. Edit `spec.toon` scenarios, then re-run solidify.
 - **Don't ask "should I continue?"**: run to completion unless you hit an unresolvable error.

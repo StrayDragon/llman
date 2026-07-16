@@ -76,6 +76,14 @@ flowchart LR
    This MUST pass before proceeding. If TOON parse errors appear, fix quoting:
    values containing commas/colons/brackets must be double-quoted in tabular rows.
 
+### 4a) BDD mode check — before deciding scenario authoring style
+- Read `llmanspec/config.yaml`. Is there a `bdd:` block?
+  - **Yes (BDD-on)**: follow section 4b below for BDD-on authoring rules.
+  - **No (BDD-off)**: if this change involves executable behavior scenarios (Given/When/Then the user will want to run), ask **once, up front**: "This change looks like it has executable behavior. Enable BDD-on mode so scenarios can be validated as `.feature` files? (adds a `bdd:` block to `config.yaml`.)"
+    - If **yes**: show the exact `bdd:` block to add (pick a `run_command` matching the project's test framework — `cargo test --features bdd` for rstest-bdd, `pytest {feature_dir} -k {feature_name} -v` for pytest-bdd). Let the user confirm or edit it, write it to `config.yaml`, then proceed with 4b rules.
+    - If **no**: proceed with BDD-off authoring (scenarios stay in TOON as documentation; the `feature` field is ignored).
+- **Do NOT silently add the `bdd:` block** — always ask first. Adding it changes how `validate`/`index` behave project-wide.
+
 ### 4b) BDD-on mode — only when `config.yaml` has a `bdd:` block
 - `spec.toon` is the single source of truth for BDD-on specs (same structure as BDD-off: `kind`/`name`/`purpose`/`valid_scope`/`requirements`/`scenarios`).
 - Scenarios have a `feature` field (default `true`): `true` → eligible for `.feature` generation during `solidify`; `false` → stays in TOON as documentation only.
