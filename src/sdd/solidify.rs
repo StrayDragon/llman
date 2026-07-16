@@ -45,7 +45,8 @@ pub fn locale_to_gherkin_lang(locale: Option<&str>, bdd_config: Option<&BddConfi
     }
 }
 
-/// Parse a `.feature` file into spec-level [`ScenarioNode`]s (req_id empty).
+/// Parse a `.feature` file into spec-level
+/// [`ScenarioNode`](crate::sdd::context::tree::ScenarioNode)s (req_id empty).
 ///
 /// Used by the pageindex index rebuild to embed `.feature` behavior details into
 /// the tree. Mirrors `solidify_migrate::scenario_from_gherkin` but outputs the
