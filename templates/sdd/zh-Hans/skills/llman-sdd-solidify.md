@@ -27,7 +27,10 @@ flowchart LR
 
 ## 硬约束
 
-- **仅 BDD-on**：若 `config.yaml` 无 `bdd:` 段，solidify 直接 no-op。停下并报告。
+- **BDD 模式感知**——先检查 `llmanspec/config.yaml` 是否含 `bdd:` 段，再分支：
+  - **BDD-on**（有 `bdd:` 段）：正常执行 solidify（见下方步骤）。
+  - **BDD-off，且 `llmanspec/specs/` 下无任何 `.feature` 文件**：no-op。报告「无需固化（BDD 未启用）」。
+  - **BDD-off，但存在 `.feature` 文件**：报告**残留警告**——列出每个文件并说明：「发现 N 个 `.feature` 文件，但 BDD 未启用（`config.yaml` 无 `bdd:` 段）。它们会被 `validate`/`index` 忽略。若要重新启用可执行性，请添加 `bdd:` 段（如 `bdd:\n  run_command: \"cargo test --features bdd\"`）。有意重新启用，还是不再需要则删除？」**禁止删除这些文件**——只展示，由用户决定。
 - **框架无关**：solidify 不扫描 `tests/bdd_steps.rs` 或任何 BDD 框架的 step 绑定。scenario 是否在运行时「可执行」由 `bdd.run_command` 判定。
 - **禁止手工编辑 `.feature`**：它们是生成产物。改 `spec.toon` 的 scenarios，再重新运行 solidify。
 - **不要问「要不要继续」**：一路执行到底，除非遇到无法自动解决的错误。
