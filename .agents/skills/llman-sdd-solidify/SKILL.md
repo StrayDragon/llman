@@ -2,7 +2,7 @@
 name: "llman-sdd-solidify"
 description: "将变更的 delta scenarios 序列化为可执行的 .feature 文件（仅 BDD-on）。在 apply 之后、archive 之前运行。框架无关：按 scenario 的 feature 字段和自指黑名单过滤后写入 Gherkin。"
 metadata:
-  version: "0.0.60"
+  version: "0.0.61"
 ---
 
 # LLMAN SDD Solidify

@@ -2,7 +2,7 @@
 members = [".", "tools/fake-acp-agent"]
 
 [workspace.package]
-version = "0.0.60"
+version = "0.0.61"
 edition = "2024"
 
 [package]
