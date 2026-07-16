@@ -6,22 +6,25 @@
 //!
 //! Step vocabulary:
 //!   Given:
-//!     - 假如 llman 二进制已构建          (reset world + assert binary exists)
-//!     - 假如 {env_var} 为 {value}        (accumulate env override for subprocess)
-//!     - 假如今目录为 {cwd}               (set working directory for subprocess)
+//!     - 假如 llman 二进制已构建            (reset world + assert binary exists)
+//!     - 假如 已初始化 sdd 项目且 bdd 配置为 {mode}  (create a seeded TempDir project:
+//!          mode="on" writes a bdd: block, "off" omits it; author a sample spec +
+//!          an add-scen change delta; git init+commit; sets cwd to the project)
+//!     - 假如 {env_var} 为 {value}          (accumulate env override for subprocess)
+//!     - 假如今目录为 {cwd}                 (set working directory for subprocess)
 //!   When:
-//!     - 当 运行 llman {args}             (run llman with whitespace-split args)
-//!     - 当 在非交互终端运行 llman {args}  (same, non-interactive)
+//!     - 当 运行 llman {args}               (run llman with whitespace-split args)
+//!     - 当 在非交互终端运行 llman {args}    (same, non-interactive)
 //!   Then:
-//!     - 那么 退出码为 {code:i32}         (exact exit code)
-//!     - 那么 退出码非零                  (non-zero exit)
-//!     - 那么 退出码为零                  (zero exit)
-//!     - 那么 stdout 包含 {text}          (substring on stdout)
-//!     - 那么 stderr 包含 {text}          (substring on stderr)
-//!     - 那么 stdout 不含 {text}          (negated substring on stdout)
-//!     - 那么 stderr 不含 {text}          (negated substring on stderr)
-//!     - 那么 stdout 为合法 JSON          (stdout parses as JSON)
-//!     - 那么 stdout 含 JSON 键 {key}     (stdout JSON has top-level key)
+//!     - 那么 退出码为 {code:i32}           (exact exit code)
+//!     - 那么 退出码非零                    (non-zero exit)
+//!     - 那么 退出码为零                    (zero exit)
+//!     - 那么 stdout 包含 {text}            (substring on stdout)
+//!     - 那么 stderr 包含 {text}            (substring on stderr)
+//!     - 那么 stdout 不含 {text}            (negated substring on stdout)
+//!     - 那么 stderr 不含 {text}            (negated substring on stderr)
+//!     - 那么 stdout 为合法 JSON            (stdout parses as JSON)
+//!     - 那么 stdout 含 JSON 键 {key}       (stdout JSON has top-level key)
 
 #![cfg(feature = "bdd")]
 
@@ -30,9 +33,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
+use tempfile::TempDir;
 
 /// Holds the last llman subprocess output so steps can chain Given→When→Then.
-#[derive(Default)]
 struct BddWorld {
     exit_code: Option<i32>,
     stderr: String,
@@ -43,6 +46,23 @@ struct BddWorld {
     env_overrides: HashMap<String, String>,
     /// Optional working directory override for the subprocess.
     cwd: Option<PathBuf>,
+    /// Owned temp project created by `已初始化 sdd 项目…` Given step. Kept here so
+    /// it is not dropped (and deleted) before the scenario's When/Then run.
+    fixture_dir: Option<TempDir>,
+}
+
+impl Default for BddWorld {
+    fn default() -> Self {
+        Self {
+            exit_code: None,
+            stderr: String::new(),
+            stdout: String::new(),
+            success: false,
+            env_overrides: HashMap::new(),
+            cwd: None,
+            fixture_dir: None,
+        }
+    }
 }
 
 // Each scenario runs in a single thread, so thread-local storage avoids the
@@ -114,6 +134,26 @@ fn run_llman(args_raw: &str) {
     record_output(output);
 }
 
+/// Run llman in a specific directory (for fixture setup); asserts success but
+/// does NOT record output into the world (setup steps are not assertion targets).
+fn run_llman_in(dir: &std::path::Path, args_raw: &str, extra_env: &[(&str, &str)]) {
+    let mut cmd = Command::new(llman_bin());
+    cmd.args(split_args(args_raw));
+    cmd.env("LLMAN_CONFIG_DIR", "./artifacts/testing_config_home");
+    for (k, v) in extra_env {
+        cmd.env(k, v);
+    }
+    cmd.current_dir(dir);
+    let output = cmd.output().expect("run llman in fixture");
+    assert!(
+        output.status.success(),
+        "fixture setup command failed: `{args_raw}` in {}\nstdout:\n{}\nstderr:\n{}",
+        dir.display(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Given steps
 // ---------------------------------------------------------------------------
@@ -143,6 +183,112 @@ fn given_cwd(cwd: PathBuf) {
         let mut w = w.borrow_mut();
         let world = w.as_mut().expect("world not initialized");
         world.cwd = Some(cwd);
+    });
+}
+
+/// Create a seeded sdd project in a fresh TempDir and point the world's cwd at it.
+/// `mode` = "on" writes a `bdd:` block (enables feature-as-spec); "off" omits it.
+/// The project gets a `sample` spec (r1 + scenario) and an `add-scen` change whose
+/// delta adds r2 + a scenario, so `solidify`/`validate`/`index` have something to
+/// act on. This mirrors `tests/sdd_bdd_compat_tests.rs::seed_spec_and_change`.
+#[given("已初始化 sdd 项目且 bdd 配置为 {mode}")]
+fn given_seeded_sdd_project(mode: String) {
+    // reset first (same convention as `llman 二进制已构建`) so the scenario starts
+    // clean; then install the fixture.
+    reset_world();
+    let temp = TempDir::new().expect("create fixture tempdir");
+    let dir = temp.path().to_path_buf();
+
+    // init first (generates default BDD-off config); we overwrite config.yaml to
+    // the requested bdd mode AFTER all authoring commands, because some sdd
+    // subcommands rewrite config.yaml on write paths.
+    run_llman_in(&dir, "sdd init --lang en", &[]);
+
+    // author sample spec: r1 + a scenario.
+    run_llman_in(&dir, "sdd spec skeleton sample", &[]);
+    run_llman_in(
+        &dir,
+        "sdd spec add-requirement sample r1 --title R1 --statement \"System MUST do X.\"",
+        &[],
+    );
+    run_llman_in(
+        &dir,
+        "sdd spec add-scenario sample r1 happy --when trigger --then outcome",
+        &[],
+    );
+
+    // author add-scen change: delta adds r2 + a scenario (solidify target).
+    let change_dir = dir.join("llmanspec/changes/add-scen");
+    std::fs::create_dir_all(&change_dir).expect("mkdir fixture change");
+    std::fs::write(
+        change_dir.join("proposal.md"),
+        "## Why\nAdd r2 to sample.\n\n## What Changes\n- Add requirement r2.\n",
+    )
+    .expect("write fixture proposal");
+    run_llman_in(&dir, "sdd delta skeleton add-scen sample", &[]);
+    run_llman_in(
+        &dir,
+        "sdd delta add-req add-scen sample r2 --title R2 --statement \"System MUST support r2.\"",
+        &[],
+    );
+    run_llman_in(
+        &dir,
+        "sdd delta add-scenario add-scen sample r2 \"new r2 behavior\" --when \"r2 triggered\" --then \"r2 works\"",
+        &[],
+    );
+
+    // Overwrite config.yaml to the requested bdd mode AFTER authoring (authoring
+    // commands rewrite config.yaml, so this must be the last config write).
+    // rstest-bdd captures quoted placeholders verbatim, so `bdd 配置为 "on"` yields
+    // mode = "\"on\"" — strip quotes before comparing.
+    let mode_norm = mode.trim().trim_matches('"');
+    let mut config = "schema: spec-driven\nlocale: en\n".to_string();
+    if mode_norm == "on" {
+        config.push_str("\nbdd:\n  run_command: \"cargo test --features bdd\"\n");
+    }
+    std::fs::write(dir.join("llmanspec/config.yaml"), config).expect("write fixture config");
+
+    // BDD-off: drop a deliberately malformed .feature next to the spec to prove
+    // validate ignores it (r4 contract). BDD-on gets a real .feature via solidify
+    // in the scenario's When step, so nothing to seed here for "on".
+    if mode_norm == "off" {
+        std::fs::write(
+            dir.join("llmanspec/specs/sample/sample.feature"),
+            "# language: en\nTHIS IS NOT VALID GHERKIN {{{",
+        )
+        .expect("write bogus feature");
+    }
+
+    // git init+commit: staleness checks need a base ref.
+    Command::new("git")
+        .args(["init", "--quiet"])
+        .current_dir(&dir)
+        .output()
+        .expect("git init fixture");
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(&dir)
+        .output()
+        .expect("git add fixture");
+    Command::new("git")
+        .args([
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@x",
+            "commit",
+            "-qm",
+            "fixture",
+        ])
+        .current_dir(&dir)
+        .output()
+        .expect("git commit fixture");
+
+    WORLD.with(|w| {
+        let mut w = w.borrow_mut();
+        let world = w.as_mut().expect("world not initialized");
+        world.fixture_dir = Some(temp);
+        world.cwd = Some(dir);
     });
 }
 
@@ -318,3 +464,63 @@ fn test_show_noninteractive_exit() {}
 )]
 #[test]
 fn test_show_nonexistent_spec() {}
+
+// ---------------------------------------------------------------------------
+// Scenario bindings — sdd-bdd-mode-compat (BDD on/off behavior contracts).
+// ---------------------------------------------------------------------------
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/validate-check.feature",
+    name = "BDD-on 时 validate 默认执行 BDD runner"
+)]
+#[test]
+fn test_compat_validate_on_runs_runner() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/validate-check.feature",
+    name = "BDD-on 时 validate --no-check 跳过 runner"
+)]
+#[test]
+fn test_compat_validate_on_no_check_skips() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/validate-check.feature",
+    name = "BDD-off 时 validate --check 不执行 runner"
+)]
+#[test]
+fn test_compat_validate_off_check_noop() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/solidify-mode.feature",
+    name = "BDD-on 时 solidify 产出 .feature 文件"
+)]
+#[test]
+fn test_compat_solidify_on_generates() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/solidify-mode.feature",
+    name = "BDD-off 时 solidify 为 no-op 并提示未配置"
+)]
+#[test]
+fn test_compat_solidify_off_noop() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/index-embed.feature",
+    name = "BDD-on 时 index rebuild 成功"
+)]
+#[test]
+fn test_compat_index_on_rebuild() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/index-embed.feature",
+    name = "BDD-off 时 index rebuild 成功且无 feature embed"
+)]
+#[test]
+fn test_compat_index_off_rebuild() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/feature-ignoring.feature",
+    name = "BDD-off 时 validate 忽略格式错误的 feature 文件"
+)]
+#[test]
+fn test_compat_validate_off_ignores_feature() {}

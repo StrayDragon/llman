@@ -1,0 +1,14 @@
+kind: llman.sdd.spec
+name: "sdd-bdd-mode-compat"
+purpose: 规范 sdd 工具链在 BDD-on（feature-as-spec 启用）与 BDD-off（未启用）两种项目配置下的行为合约与兼容性。当 config.yaml 的 bdd 段存在与否时，validate / solidify / index 等子命令 MUST 表现出符合预期的差异，且 BDD-off 项目不得因 .feature 文件而失败。
+valid_scope[1]: "llmanspec/specs/sdd-bdd-mode-compat"
+requirements[4]{req_id,title,statement}:
+  r1,validate 的 check 语义,"validate 的 --check/--no-check 行为 MUST 随 BDD 模式切换：BDD-on 时默认执行 BDD runner，--no-check 跳过；BDD-off 时 --check 不执行 runner 且不视为错误。"
+  r2,solidify 的模式开关,"solidify MUST 随 BDD 模式切换：BDD-on 时把 delta scenario 序列化为 .feature 文件；BDD-off 时为 no-op 并明确提示未配置。"
+  r3,index rebuild 的 feature embed,"index rebuild MUST 在 BDD-on 项目中把 .feature 派生的 spec-level scenario（req_id 为空）编入 tree.json；BDD-off 项目（无 .feature）不得产生 spec-level scenario。"
+  r4,BDD-off 忽略 feature 文件,"validate 在 BDD-off 项目中 MUST 静默忽略 .feature 文件，既不解析 Gherkin 也不因格式问题报错。"
+scenarios[4]{req_id,id,given,when,then,feature}:
+  r1,BDD-on 时 validate 默认执行 BDD runner,llman 二进制已构建,"运行 llman sdd validate sample --strict","stderr 包含 BDD check failed",true
+  r2,BDD-on 时 solidify 产出 .feature 文件,llman 二进制已构建,"运行 llman sdd solidify add-scen","stdout 包含 wrote",true
+  r3,BDD-on 时 index rebuild 编入 feature 派生的 scenario,llman 二进制已构建,"运行 llman sdd index rebuild","stdout 包含 rebuilt",true
+  r4,BDD-off 时 validate 静默忽略 .feature 文件,llman 二进制已构建,"运行 llman sdd validate sample --strict","退出码为零",true

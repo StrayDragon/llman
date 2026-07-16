@@ -80,6 +80,30 @@ Cargo equivalents use `cargo +nightly ...`.
   绑定；`name` 必须与 `.feature` 中 `场景:` 标题**精确匹配**（字节级，含中文）。
 - rstest-bdd **不支持正则**（字面文本经 `regex::escape` 全锚定 `^...$`）；泛化靠 `{name}`
   /`{name:type}` 占位符实现，「包含」语义在 step 函数体内用 Rust 子串断言表达。
+- **占位符引号陷阱**：`.feature` 里写 `bdd 配置为 "on"` 时，rstest-bdd 会把引号也捕获进
+  `{mode}`（值为 `"on"` 而非 `on`）。step 函数体内比较前必须 `trim_matches('"')`。
+
+## BDD 模式兼容性测试维护规则
+
+`llmanspec/specs/sdd-bdd-mode-compat/` 承载 BDD on/off 切换的行为合约（合约层，
+`*.feature` + `tests/bdd_steps.rs` 的 `#[scenario]` 绑定）；`tests/sdd_bdd_compat_tests.rs`
+承载实现细节层（init 结构、serde 向后兼容、13 子命令 smoke）。当 llman sdd 流程变动时，
+以下变更**必须**同步适配这些测试：
+
+- **改 validate 的 `--check`/`--no-check` 语义** → 同步 `validate-check.feature`（runner
+  触发条件、降级行为）。
+- **改 solidify 行为**（no-op 条件、`.feature` 输出位置/措辞）→ 同步 `solidify-mode.feature`
+  的断言文本。
+- **改 index rebuild 的 `.feature` embed 逻辑** → 同步 `index-embed.feature` +
+  `tests/sdd_bdd_compat_tests.rs::test_index_rebuild_backward_compat_old_tree_loads`。
+- **新增/移除 sdd 子命令** → 更新 `tests/sdd_bdd_compat_tests.rs::test_all_subcommands_smoke_bdd_on_and_off`
+  的 `read_only` 命令列表。
+- **改 step 库** → 确保 `已初始化 sdd 项目且 bdd 配置为 {mode}` step 仍能驱动所有场景
+  （注意引号陷阱：`{mode}` 含引号，需 `trim_matches('"')`）。
+
+判定新增断言的归属：
+- 描述「MUST/SHALL 用户可见行为」（合约）→ 写 `.feature` + `#[scenario]` 绑定。
+- 描述内部实现（serde、字段结构、smoke 兜底）→ 写 `tests/sdd_bdd_compat_tests.rs`。
 
 ## Commit and Pull Request Guidelines
 - Commit messages use a short type prefix such as `feat:`, `fix:`, `refactor:`, `doc:`, or `bump:` with an optional scope, for example `fix(security): ...`.
