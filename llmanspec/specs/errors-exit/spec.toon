@@ -4,5 +4,5 @@ purpose: 规范 llman CLI 的错误渲染与退出行为。
 valid_scope[1]: "llmanspec/specs/errors-exit"
 requirements[2]{req_id,title,statement}:
   r1,"errors-exit",规范 llman CLI 的错误渲染与退出行为。 The system MUST satisfy the scenarios in this spec.
-  r2,错误输出补充 scenario,"The errors-exit spec MUST document show-json-error: when sdd show is called for a nonexistent spec with --json, exit code 1 with valid JSON error output."
+  r2,错误输出补充 scenario,"The errors-exit spec MUST document show-json-error: when sdd show is called for a nonexistent spec with --json, the process MUST exit with code 1 and emit an Error on stderr (JSON-shaped error on stdout is not currently guaranteed)."
 scenarios[0]:

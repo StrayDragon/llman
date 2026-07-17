@@ -110,7 +110,7 @@ r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
 4) BDD spec 护栏（Partitioned SSOT）：
-当 `config.yaml` 含 `bdd` 块时：`spec.toon` = 约束层（requirements + 不可执行 scenarios）；`*.feature` = 可执行 harness 唯一 GWT（`@req:<req_id>` 挂回 requirement）。`requirements` 为空且无 `.feature` 是 ERROR。solidify 做一致性门禁，不把 toon 投影覆盖 feature。下游升级用 `llman sdd project partition-migrate`。压缩时勿把 harness GWT 再写回 toon `feature:true` 行。
+当 `config.yaml` 含 `bdd` 块时：`spec.toon` = 约束层（requirements + 不可执行 scenarios）；`*.feature` = 可执行 harness 唯一 GWT（`@req:<req_id>` 挂回 requirement）。`requirements` 为空且无 `.feature` 是 ERROR。solidify 做一致性门禁，不把 toon 投影覆盖 feature。下游升级用 `llman sdd project partition-migrate`。
 
 备注：
 - 每个 spec 是一个独立的 `.toon` 文件；没有 Markdown 外壳，也没有 ```toon fence。

@@ -2051,6 +2051,9 @@ sdd:
     partition_migrate_none:
       en: "No specs directory to migrate."
       zh-Hans: "没有可迁移的 specs 目录。"
+    partition_migrate_already_done:
+      en: "No remaining Partitioned work (already migrated or constraints-only)."
+      zh-Hans: "没有剩余 Partitioned 工作（已迁移或仅约束层）。"
     partition_migrate_summary:
       en: "Partition-migrated %{count} spec(s)."
       zh-Hans: "已 partition-migrate %{count} 个 spec。"

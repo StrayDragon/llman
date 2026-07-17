@@ -518,6 +518,13 @@ fn test_show_noninteractive_exit() {}
 #[test]
 fn test_show_nonexistent_spec() {}
 
+#[scenario(
+    path = "llmanspec/specs/errors-exit/errors-exit.feature",
+    name = "json-错误输出"
+)]
+#[test]
+fn test_show_json_error_output() {}
+
 // ---------------------------------------------------------------------------
 // Scenario bindings — sdd-bdd-mode-compat (BDD on/off behavior contracts).
 // ---------------------------------------------------------------------------

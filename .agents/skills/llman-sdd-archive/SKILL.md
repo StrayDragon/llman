@@ -50,7 +50,7 @@ flowchart LR
   - **任一失败立即停止**，报告剩余未处理 ID。
 - **BDD-on（Partitioned SSOT）**：
   - `archive run` 合并 delta `spec.toon` → 主 `spec.toon`（约束 / 不可执行 scenarios）。
-  - 若 change 含 `*.feature.delta.toon`，archive **同时**按 scenario id apply 到主 `.feature`（harness）。
+  - 若 change 含 `*.feature.delta.toon`，archive **同时**按 scenario id apply 到主 `.feature`。
   - 归档前运行 `llman sdd solidify <id>` 做一致性门禁（非投影生成）。
   - 禁止整文件覆盖复制 `.feature` 作为默认归档路径。
 
