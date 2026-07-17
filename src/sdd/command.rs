@@ -525,6 +525,9 @@ pub enum ArchiveSubcommand {
     },
     /// Freeze archived change directories into a single cold-backup archive
     Freeze {
+        /// List archived change directories already in the cold-backup archive
+        #[arg(long)]
+        list: bool,
         /// Freeze entries older than this date (YYYY-MM-DD)
         #[arg(long)]
         before: Option<String>,
@@ -671,11 +674,13 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 })
             }
             ArchiveSubcommand::Freeze {
+                list,
                 before,
                 keep_recent,
                 dry_run,
                 no_interactive,
             } => freeze::run_freeze(freeze::FreezeArgs {
+                list: *list,
                 before: before.clone(),
                 keep_recent: *keep_recent,
                 dry_run: *dry_run,

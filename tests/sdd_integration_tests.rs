@@ -1109,6 +1109,96 @@ fn test_sdd_archive_freeze_second_run_preserves_first_run_content() {
 }
 
 #[test]
+fn test_sdd_archive_freeze_list_enumerates_frozen_changes() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let archive_root = work_dir.join("llmanspec").join("changes").join("archive");
+    let archived_a = archive_root.join("2026-01-09-alpha");
+    let archived_b = archive_root.join("2026-01-10-beta");
+    fs::create_dir_all(&archived_a).expect("create archived a");
+    fs::create_dir_all(&archived_b).expect("create archived b");
+    fs::write(archived_a.join("a.txt"), "alpha").expect("write a");
+    fs::write(archived_b.join("b.txt"), "beta").expect("write b");
+
+    assert_success(&run_llman(
+        &["sdd", "archive", "freeze"],
+        work_dir,
+        work_dir,
+    ));
+
+    let list_output = run_llman(&["sdd", "archive", "freeze", "--list"], work_dir, work_dir);
+    assert_success(&list_output);
+    let stdout = String::from_utf8_lossy(&list_output.stdout);
+    assert!(stdout.contains("2026-01-09-alpha"), "stdout was: {stdout}");
+    assert!(stdout.contains("2026-01-10-beta"), "stdout was: {stdout}");
+}
+
+#[test]
+fn test_sdd_archive_freeze_list_reports_missing_archive() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let archive_root = work_dir.join("llmanspec").join("changes").join("archive");
+    assert!(!archive_root.join("freezed_changes.7z.archived").exists());
+
+    let list_output = run_llman(&["sdd", "archive", "freeze", "--list"], work_dir, work_dir);
+    assert_success(&list_output);
+    let stdout = String::from_utf8_lossy(&list_output.stdout);
+    assert!(
+        stdout.contains("No freeze archive found"),
+        "stdout was: {stdout}"
+    );
+}
+
+#[test]
+fn test_sdd_archive_freeze_list_does_not_mutate_source() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let archive_root = work_dir.join("llmanspec").join("changes").join("archive");
+    let archived = archive_root.join("2026-01-11-alpha");
+    fs::create_dir_all(&archived).expect("create archived dir");
+    fs::write(archived.join("a.txt"), "alpha").expect("write file");
+
+    assert_success(&run_llman(
+        &["sdd", "archive", "freeze"],
+        work_dir,
+        work_dir,
+    ));
+
+    assert_success(&run_llman(
+        &["sdd", "archive", "freeze", "--list"],
+        work_dir,
+        work_dir,
+    ));
+
+    // No leftover thaw staging under archive dir
+    assert!(!archive_root.join(".thawed").exists());
+}
+
+#[test]
 fn test_sdd_validate_tasks_without_design_is_error() {
     let env = TestEnvironment::new();
     let work_dir = env.path();

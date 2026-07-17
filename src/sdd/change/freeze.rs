@@ -10,6 +10,7 @@ pub const FREEZE_ARCHIVE_NAME: &str = "freezed_changes.7z.archived";
 
 #[derive(Debug, Clone)]
 pub struct FreezeArgs {
+    pub list: bool,
     pub before: Option<String>,
     pub keep_recent: usize,
     pub dry_run: bool,
@@ -45,6 +46,11 @@ fn run_freeze_with_root(root: &Path, args: FreezeArgs) -> Result<()> {
             archive_dir.display()
         ));
     }
+
+    if args.list {
+        return list_frozen(&archive_dir);
+    }
+
     let before_date = parse_before_date(args.before.as_deref())?;
     let candidates = select_freeze_candidates(&archive_dir, before_date, args.keep_recent)?;
     let freeze_file = archive_dir.join(FREEZE_ARCHIVE_NAME);
@@ -165,6 +171,43 @@ fn run_thaw_with_root(root: &Path, args: ThawArgs) -> Result<()> {
         args.change.len(),
         dest.display()
     );
+    Ok(())
+}
+
+fn list_frozen(archive_dir: &Path) -> Result<()> {
+    let freeze_file = archive_dir.join(FREEZE_ARCHIVE_NAME);
+    if !freeze_file.exists() {
+        println!("No freeze archive found at {}", freeze_file.display());
+        return Ok(());
+    }
+
+    let tempdir = tempfile::tempdir().context("create tempdir for listing frozen archive")?;
+    sevenz_rust2::decompress_file(&freeze_file, tempdir.path())
+        .map_err(|e| anyhow!("read freeze archive failed: {e}"))?;
+
+    let mut names: Vec<String> = fs::read_dir(tempdir.path())?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+
+    if names.is_empty() {
+        println!(
+            "Freeze archive {} contains no archived changes",
+            freeze_file.display()
+        );
+        return Ok(());
+    }
+
+    println!(
+        "Frozen archived changes in {} ({}):",
+        freeze_file.display(),
+        names.len()
+    );
+    for name in &names {
+        println!("  - {name}");
+    }
     Ok(())
 }
 
