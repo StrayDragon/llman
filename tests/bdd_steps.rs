@@ -10,6 +10,8 @@
 //!     - 假如 已初始化 sdd 项目且 bdd 配置为 {mode}  (create a seeded TempDir project:
 //!          mode="on" writes a bdd: block, "off" omits it; author a sample spec +
 //!          an add-scen change delta; git init+commit; sets cwd to the project)
+//!     - 假如 项目中存在技能目录 {name}     (plant `.agents/skills/<name>/SKILL.md`)
+//!     - 假如 项目 extra_skills 包含 {name} (rewrite config.yaml `extra_skills`)
 //!     - 假如 {env_var} 为 {value}          (accumulate env override for subprocess)
 //!     - 假如今目录为 {cwd}                 (set working directory for subprocess)
 //!   When:
@@ -25,6 +27,8 @@
 //!     - 那么 stderr 不含 {text}            (negated substring on stderr)
 //!     - 那么 stdout 为合法 JSON            (stdout parses as JSON)
 //!     - 那么 stdout 含 JSON 键 {key}       (stdout JSON has top-level key)
+//!     - 那么 相对路径 {rel} 存在           (path under fixture cwd)
+//!     - 那么 相对路径 {rel} 不存在         (path under fixture cwd absent)
 
 #![cfg(feature = "bdd")]
 
@@ -412,6 +416,24 @@ scenarios[0]:
     .expect("write bad @req feature");
 }
 
+#[given("项目中存在技能目录 {name}")]
+fn given_skill_dir(name: String) {
+    let dir = fixture_cwd();
+    let skill_dir = dir
+        .join(".agents/skills")
+        .join(name.trim().trim_matches('"'));
+    std::fs::create_dir_all(&skill_dir).expect("mkdir planted skill");
+    std::fs::write(skill_dir.join("SKILL.md"), "planted\n").expect("write planted skill");
+}
+
+#[given("项目 extra_skills 包含 {name}")]
+fn given_extra_skills(name: String) {
+    let dir = fixture_cwd();
+    let skill = name.trim().trim_matches('"');
+    let config = format!("schema: spec-driven\nlocale: en\nextra_skills:\n  - {skill}\n");
+    std::fs::write(dir.join("llmanspec/config.yaml"), config).expect("write extra_skills config");
+}
+
 // ---------------------------------------------------------------------------
 // When steps
 // ---------------------------------------------------------------------------
@@ -560,6 +582,22 @@ fn then_stdout_has_json_key(key: String) {
             obj.keys().collect::<Vec<_>>()
         );
     });
+}
+
+#[then("相对路径 {rel} 存在")]
+fn then_rel_path_exists(rel: String) {
+    let path = fixture_cwd().join(rel.trim().trim_matches('"'));
+    assert!(path.exists(), "expected path to exist: {}", path.display());
+}
+
+#[then("相对路径 {rel} 不存在")]
+fn then_rel_path_absent(rel: String) {
+    let path = fixture_cwd().join(rel.trim().trim_matches('"'));
+    assert!(
+        !path.exists(),
+        "expected path to be absent: {}",
+        path.display()
+    );
 }
 
 // ---------------------------------------------------------------------------
