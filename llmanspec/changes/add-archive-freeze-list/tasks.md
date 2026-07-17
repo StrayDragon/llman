@@ -12,6 +12,6 @@
 - [x] `just fmt` + `just lint`（clippy `-D warnings`）通过
 - [x] `just check` 全量测试通过（505/505）
 - [x] `llman sdd validate add-archive-freeze-list --strict --no-interactive` 通过
-- [ ] `llman sdd change checkpoint add-archive-freeze-list` 通过（干净工作区 + 门禁）
-- [ ] `llman sdd verify add-archive-freeze-list` 全绿
+- [x] `llman sdd change checkpoint add-archive-freeze-list` 通过（干净工作区 + 门禁）
+- [x] `llman-sdd-verify add-archive-freeze-list` 全绿（validate --strict + BDD full mode + 505 集成测试 + dualWriteCount=0；无 CRITICAL）
 - [ ] `llman sdd change archive add-archive-freeze-list`（docs-only，BDD-on）
