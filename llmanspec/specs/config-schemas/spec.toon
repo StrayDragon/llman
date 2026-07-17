@@ -2,6 +2,8 @@ kind: llman.sdd.spec
 name: "config-schemas"
 purpose: 规范 llman 配置 JSON schema 的生成与校验行为。
 valid_scope[1]: "llmanspec/specs/config-schemas"
-requirements[1]{req_id,title,statement}:
-  r1,"config-schemas",规范 llman 配置 JSON schema 的生成与校验行为。 The system MUST satisfy the scenarios in this spec.
+requirements[3]{req_id,title,statement}:
+  r1,"schema header 经 root discovery 应用且最小侵入","对应 spec: config-schemas — llman self schema apply MUST 通过 root discovery 定位 project/ llmanspec 配置（而非假设 cwd 为根）；应用 schema header MUST 最小侵入，确保顶部仅一条有效"
+  r2,"配置 schema 生成与 YAML LSP 头注释","对应 spec: config-schemas — 系统 MUST 生成配置 JSON schema 并写入指定路径；MUST 支持 MUST 为全局子集。"
+  r3,"首次运行样例生成与 schema 校验","对应 spec: config-schemas — 首次运行且全局配置不存在时 MUST 生成样例并写头注释，已存在则不改； llman self schema check MUST 校验 schema 与样例实例，无效或样例不匹配则非零； 运行时读取配置 MUST 按 schema 校验，不符合则非零并报告本地化错误。"
 scenarios[0]:

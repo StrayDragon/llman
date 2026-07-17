@@ -2,6 +2,8 @@ kind: llman.sdd.spec
 name: "cursor-export"
 purpose: 规范 Cursor 导出的选择与输出行为（交互式与非交互式）。
 valid_scope[1]: "llmanspec/specs/cursor-export"
-requirements[1]{req_id,title,statement}:
-  r1,"cursor-export",规范 Cursor 导出的选择与输出行为（交互式与非交互式）。 The system MUST satisfy the scenarios in this spec.
+requirements[3]{req_id,title,statement}:
+  r1,"交互式稳定标识符与按需加载","对应 spec: cursor-export — 交互式 export MUST 映射到稳定对话标识符（composer_id / tab_id）， 导出与被选标识符集合一致；搜索结果 MUST 共享同一标识符空间；MUST 避免为未选中对话加载完整内容。"
+  r2,"非交互数据库选择顺序与输出模式校验","The system MUST satisfy the harness scenarios for `非交互数据库选择顺序与输出模式校验`: 对应 spec: cursor-export — 非交互 cursor export 选择顺序：db_path > workspace_dir 解析 > 自动发现（选最新 workspace 库，优先含 chat/composer 数据）；composer_id 提供时仅导出该会话， 否则导出全部；output_mode 仅允许 console/file/single-file（默认 console），非法值报错。"
+  r3,"文件输出位置规则与 SQLite 线程安全","对应 spec: cursor-export — 文件输出模式遵循确定性位置与命名；SQLite 连接 MUST 使用 FULL_MUTEX（或线程安全等价标志），MUST NOT 使用 NO_MUTEX 除非经安全分析确认单线程并加注释。"
 scenarios[0]:

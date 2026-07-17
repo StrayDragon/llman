@@ -2,6 +2,7 @@ kind: llman.sdd.spec
 name: "upgrade-guide"
 purpose: 检测并报告可用但未启用的 SDD feature，引导项目升级。
 valid_scope[1]: "llmanspec/specs/upgrade-guide"
-requirements[1]{req_id,title,statement}:
-  r1,"upgrade-guide",检测并报告可用但未启用的 SDD feature，引导项目升级。 The system MUST satisfy the scenarios in this spec.
+requirements[2]{req_id,title,statement}:
+  r1,"suggestion 含 YAML 片段、只读执行与全启用输出","对应 spec: upgrade-guide — 每个 feature 条目 MUST 含 suggestion 字段（agent 可直接展示的 精确 YAML 片段）；命令 MUST 只读不写；全部 feature 已启用且模板最新时 MUST 省略 suggestions 表"
+  r2,"upgrade-guide 输出格式与 feature 注册表单一真源","对应 spec: upgrade-guide — upgrade-guide 命令 MUST 输出 kind 为 llman.sdd.upgrade_guide 的 TOON 文档（含 features 表与 suggestions 表）；所有可升级 SDD feature MUST 登记在 FEATURES 常量中。"
 scenarios[0]:

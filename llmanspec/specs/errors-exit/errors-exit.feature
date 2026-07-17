@@ -1,8 +1,7 @@
 # language: zh-CN
-# Partitioned harness for errors-exit — unique scenarios only.
+# 对应 spec: errors-exit r2 — show --json 对不存在 spec 的错误输出。
 # Bound CLI scenarios live in error-rendering.feature / subcommand-error-handling.feature.
-功能: errors-exit
-
+功能: show --json 错误输出
   @req:r2
   场景: json-错误输出
     假如 llman 二进制已构建

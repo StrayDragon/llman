@@ -1,7 +1,10 @@
 kind: llman.sdd.spec
 name: "config-paths"
-purpose: 规范 llman 配置目录解析方式与安全默认值。
+purpose: 规范配置目录解析、安全 IO 与 context 索引路径。
 valid_scope[1]: "llmanspec/specs/config-paths"
-requirements[1]{req_id,title,statement}:
-  r5,Context Index Directory,"The CLI MUST store the embedding index in `llmanspec/.context/` relative to the config root. The directory MUST contain: - `metadata.toml`: version, spec_hash, spec_count, chunk_count, build_timestamp, model, embedding_dim - `vectors.bin`: flat f32 array of shape [n_chunks, embedding_dim] - `specs.json`: spec metadata array - `chunks.json`: per-requirement text chunks (optional, for debugging) The path MAY be overridden by `LLMAN_CONTEXT_DIR` environment variable. The vectors.bin and chunks.json files SHOULD be gitignored; metadata.toml SHOULD be tracked."
+requirements[4]{req_id,title,statement}:
+  r1,"配置目录按优先级解析","CLI MUST resolve the config directory by priority: CLI `--config-dir` > `LLMAN_CONFIG_DIR` > default `~/.config/llman`. The resolved value MUST be assigned to `LLMAN_CONFIG_DIR`. Resolution MUST NOT create directories."
+  r2,"context 索引写入 .context 目录","The CLI MUST store the embedding index under `<config-dir>/.context/` (overridable by `LLMAN_CONTEXT_DIR`), containing metadata.toml, vectors.bin, specs.json, and optional chunks.json as specified for context indexing."
+  r3,"非法路径报错与安全 IO 边界","The resolver MUST error on empty/whitespace CLI/env paths without creating directories. `read_with_max_size` MUST reject oversized files (default 10 MiB). Atomic writes MUST delete a symlink target first rather than following it."
+  r4,"tilde 展开与开发仓库守卫","When `--config-dir` or `LLMAN_CONFIG_DIR` starts with `~`, it MUST expand to the user home directory. Running inside the llman development repository without an explicit override MUST error and require an explicit config dir."
 scenarios[0]:
