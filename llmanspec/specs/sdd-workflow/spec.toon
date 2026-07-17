@@ -13,7 +13,7 @@ requirements[10]{req_id,title,statement}:
   r89,"spec resolve-req 解析归属","llman sdd spec resolve-req <req_id> MUST 在主库中解析该短别名的归属并打印 capability、title、statement；--json 时 MUST 含 reqId 与 capability 字段。找不到时 MUST 非零退出。该命令 MUST 作为 agent 获取 req 关联数据的一等入口，替代把 capability 编码进 req_id。"
   r90,"update-skills 清理废弃 llman-sdd-*","`llman sdd init --update`（及等价 skills 刷新）MUST 以默认 workflow skills + `config.yaml` 的 `extra_skills` 为候选集；先删除 `.agents/skills/` 下不在候选集中的 `llman-sdd-*` 目录，再写入/更新候选。MUST NOT 删除无 `llman-sdd-` 前缀的自定义 skill。清理时 stderr MUST 含 `Cleaned up stale skill`。"
   r92,"archive freeze --list 枚举冻结条目","`llman sdd archive freeze --list` MUST 枚举冷备份归档 freezed_changes.7z.archived 内已冻结的 change 目录（顶层 YYYY-MM-DD-id 命名）。MUST 为只读：不执行任何冻结、删除或写入。当归档文件不存在时 MUST 打印明确提示并以退出码 0 结束。可执行行为见 archive-freeze-and-gates feature。"
-scenarios[7]{req_id,id,given,when,then,feature}:
+scenarios[8]{req_id,id,given,when,then,feature}:
   r39,"list-json-morphology",llman 二进制已构建,"运行 llman sdd list --specs --json",输出含 morphology 且含 constraintsReqCount,false
   r60,"show-spec-sections",llman 二进制已构建,"运行 llman sdd show errors-exit --type spec",输出含 Constraints 与 Harness 分段或等价标题,false
   r61,"pipeline-git-native-aware",变更已 attach 到 feature 分支,"运行 validate 该 change --strict",校验通过或明确报告 Git binding / legacy feature_delta 错误,false

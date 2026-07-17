@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: fix/archive-freeze-list-flag
+base_sha: 4e9e7fbb38caeccf4fe42b54e99fb67ac13f25cb
+checkpointed: false
 ---
 
 ## Why
