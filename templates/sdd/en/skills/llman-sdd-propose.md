@@ -84,11 +84,10 @@ flowchart LR
 
 ### 4b) BDD-on mode — only when `config.yaml` has a `bdd:` block (Git-native)
 - Work on a **non-default Git feature branch** (never propose/implement BDD-on changes on main/master).
-- **Partitioned SSOT**: edit live `llmanspec/specs/<capability>/spec.toon` (constraints + non-executable scenarios) and `*.feature` (executable GWT only, tagged `@req:<req_id>`). Never dual-write the same scenario id GWT into toon.
-- Change docs stay under `llmanspec/changes/<change-id>/` (`proposal.md`, `tasks.md`, optional `design.md`). Prefer `llman sdd change new <change-id>` for the draft shell. Do **not** author `*.feature.delta.toon` — legacy active feature_delta is a migration blocker.
-- Bind the change: `llman sdd change attach <change-id>` (records feature branch + merge-base SHA).
-- There is **no** `solidify` command — do not tell agents to repair harness bindings after the loop.
-- **BDD-off** (no `bdd:` block): use `llman sdd change delta …` for change-scoped TOON deltas under `changes/<id>/specs/`; no feature branch / attach / checkpoint / harness requirements.
+- **Partitioned SSOT**: edit live `spec.toon` (constraints) and `*.feature` (executable GWT + `@req`); never dual-write the same scenario id.
+- Change shell: `llman sdd change new <change-id>` → fill proposal/tasks → `llman sdd change attach <change-id>`.
+- Do **not** run solidify / use `change delta` / create feature_delta; if an active `*.feature.delta.toon` already exists, migrate first.
+- **BDD-off** (no `bdd:`): use `change delta …`; no feature branch / attach / checkpoint.
 
 ### 4c) BDD-off delta authoring (no `bdd:` block)
 - Create the change shell: `llman sdd change new <change-id>`.

@@ -53,8 +53,7 @@ flowchart LR
    - `llman sdd validate --specs`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
    - Optional read-only review: `llman sdd change diff <id>` (or `--export-patch <path>`). Diff is review/export only — never treat it as an apply step.
    - Before archive: clean tree, then `llman sdd change checkpoint <id>`.
-   - Check: executable GWT only in live `.feature`; no active `*.feature.delta.toon`; `morphology.dualWriteCount` should be 0.
-   - There is **no** solidify step — do not ask agents to repair bindings after the loop.
+   - Check: executable GWT only in live `.feature`; `morphology.dualWriteCount` should be 0; if an active `*.feature.delta.toon` already exists, migrate first (do not invent a solidify / repair hunt).
 {% if bdd_verify_prompt %}
    - Extra requirement: {{ bdd_verify_prompt }}
 {% endif %}

@@ -34,8 +34,8 @@ r1,happy,"",a trigger happens,the outcome is observed
 r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
-4) BDD spec guardrail (Git-native Partitioned SSOT):
-When `config.yaml` has a `bdd` block: `spec.toon` = constraints (requirements + non-executable scenarios); `*.feature` = executable harness GWT only (`@req:<req_id>`). Edit live specs/features on a non-default feature branch; bind with `llman sdd change attach`, gate with `checkpoint`, review with `diff` (read-only). Pre-merge `change archive` moves change docs only — never applies `feature_delta` / never merges TOON as SSOT. Legacy active `*.feature.delta.toon` is a migration blocker. Empty `requirements` with no `.feature` is an ERROR. There is no solidify command. Upgrade with `llman sdd project migrate --kind partitioned`.
+4) BDD-on guardrail (Git-native Partitioned SSOT):
+When `config.yaml` has `bdd:`: `spec.toon` = constraints / non-executable scenarios; `*.feature` = executable GWT (`@req`). Edit live files on a non-default branch → `change attach` / `checkpoint` → docs-only `change archive` → Git merge. Do not hunt for solidify, and do not create `*.feature.delta.toon` (if one already exists it is a migration blocker — run `project migrate --kind partitioned`). Empty requirements with no `.feature` = ERROR.
 
 Notes:
 - Each spec is a single standalone `.toon` file; there is no Markdown shell or ```toon fence.

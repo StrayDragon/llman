@@ -92,7 +92,7 @@ Run project gate commands (adapt to the actual project):
 - Relevant test suite: `just test` or `cargo test --all`
 - Format/lint: `just check` or `just lint` + `just fmt`
 {% if bdd_enabled %}
-- BDD-on (Git-native Partitioned SSOT): stay on the attached feature branch; edit live `llmanspec/specs/**/spec.toon` (constraints) and `*.feature` (executable GWT with `@req`). Implement step definitions. Ensure `llman sdd validate --specs` passes (includes `bdd.run_command`). When ready for archive gates: clean tree, then `llman sdd change checkpoint <id>`. Do **not** run solidify or write `*.feature.delta.toon`.
+- BDD-on (Git-native Partitioned SSOT): stay on the attached feature branch; edit live `spec.toon` (constraints) and `*.feature` (`@req`); implement steps; after `llman sdd validate --specs` passes, clean tree then `change checkpoint <id>`. Do not run solidify or create feature_delta.
 {% endif %}
 - SDD validation: `llman sdd validate <id> --strict --no-interactive`
 

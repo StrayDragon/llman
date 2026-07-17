@@ -53,8 +53,7 @@ flowchart LR
    - `llman sdd validate --specs`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
    - 可选只读审查：`llman sdd change diff <id>`（或 `--export-patch <path>`）。diff 仅作审查/导出——绝不当作 apply 步骤。
    - 归档前：工作区干净后运行 `llman sdd change checkpoint <id>`。
-   - 检查：可执行 GWT 只在 live `.feature`；无活跃 `*.feature.delta.toon`；`morphology.dualWriteCount` 应为 0。
-   - **没有** solidify 步骤——不要让 agent 在闭环后再去「修复」绑定。
+   - 检查：可执行 GWT 只在 live `.feature`；`morphology.dualWriteCount` 应为 0；若已有活跃 `*.feature.delta.toon` 则先迁移（不要自创 solidify/找补步骤）。
 {% if bdd_verify_prompt %}
    - 额外要求: {{ bdd_verify_prompt }}
 {% endif %}
