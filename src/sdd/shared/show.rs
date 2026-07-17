@@ -259,8 +259,10 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
         return Err(anyhow!(t!("sdd.show.spec_not_found", id = spec_id)));
     }
 
-    let lang =
-        crate::sdd::solidify::locale_to_gherkin_lang(Some(&config.locale), config.bdd.as_ref());
+    let lang = crate::sdd::spec::validation::locale_to_gherkin_lang(
+        Some(&config.locale),
+        config.bdd.as_ref(),
+    );
     let content = fs::read_to_string(&spec_path)?;
     let morphology = {
         use crate::sdd::spec::backend::{BACKEND, SpecBackend};

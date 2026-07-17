@@ -1,9 +1,10 @@
 //! BDD on/off 兼容性测试 —— **实现细节层**。
 //!
-//! 行为合约（validate --check 语义、solidify 模式开关、index embed、feature 忽略）
+//! 行为合约（validate --check 语义、Git-native attach/checkpoint、index embed、feature 忽略）
 //! 已固化在 `llmanspec/specs/sdd-bdd-mode-compat/*.feature` + `tests/bdd_steps.rs`
 //! （`cargo test --features bdd`）。本文件只保留不依赖 LLM、且属于内部实现/兼容性
-//! 的断言：init 结构等价、旧 tree.json 向后兼容（serde default）、13 子命令 smoke。
+//! 的断言：init 结构等价、旧 tree.json 向后兼容（serde default）、子命令 smoke、
+//! feature-branch attach/checkpoint/archive docs-only。
 //!
 //! 维护规则见 AGENTS.md「BDD 模式兼容性测试维护规则」。
 
@@ -67,12 +68,13 @@ fn seed_spec_and_change(env: &TestEnvironment) {
     )
     .expect("write proposal");
     assert_success(&run(
-        &["sdd", "delta", "skeleton", "add-scen", "sample"],
+        &["sdd", "change", "delta", "skeleton", "add-scen", "sample"],
         env,
     ));
     assert_success(&run(
         &[
             "sdd",
+            "change",
             "delta",
             "add-req",
             "add-scen",
@@ -88,6 +90,7 @@ fn seed_spec_and_change(env: &TestEnvironment) {
     assert_success(&run(
         &[
             "sdd",
+            "change",
             "delta",
             "add-scenario",
             "add-scen",
@@ -115,29 +118,58 @@ fn write_config(env: &TestEnvironment, bdd: Option<&str>) {
 
 fn init_project(env: &TestEnvironment, bdd: Option<&str>) {
     assert_success(&run(&["sdd", "init", "--lang", "en"], env));
+    // Author TOON deltas while still BDD-off (delta is rejected under BDD-on).
+    write_config(env, None);
+    seed_spec_and_change(env);
     write_config(env, bdd);
 }
 
+fn git(env: &TestEnvironment, args: &[&str]) -> std::process::Output {
+    Command::new("git")
+        .args(args)
+        .current_dir(&env.work_dir)
+        .output()
+        .unwrap_or_else(|e| panic!("git {args:?}: {e}"))
+}
+
 fn commit(env: &TestEnvironment, msg: &str) {
-    let ok = |o: std::process::Output| assert_success(&o);
-    ok(Command::new("git")
-        .args(["add", "."])
-        .current_dir(&env.work_dir)
-        .output()
-        .expect("git add"));
-    ok(Command::new("git")
-        .args([
-            "-c",
-            "user.name=t",
-            "-c",
-            "user.email=t@x",
-            "commit",
-            "-qm",
-            msg,
-        ])
-        .current_dir(&env.work_dir)
-        .output()
-        .expect("git commit"));
+    assert_success(&git(env, &["add", "."]));
+    assert_success(
+        &Command::new("git")
+            .args([
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@x",
+                "commit",
+                "-qm",
+                msg,
+            ])
+            .current_dir(&env.work_dir)
+            .output()
+            .expect("git commit"),
+    );
+}
+
+fn seed_live_feature(env: &TestEnvironment) {
+    fs::write(
+        env.work_dir.join("llmanspec/specs/sample/sample.feature"),
+        "# language: en\nFeature: sample\n  @req:r1\n  Scenario: harness-happy\n    Given a\n    When b\n    Then c\n",
+    )
+    .expect("write feature");
+    fs::write(
+        env.work_dir.join("llmanspec/specs/sample/spec.toon"),
+        r#"kind: llman.sdd.spec
+name: "sample"
+purpose: "sample"
+valid_scope[1]: "llmanspec/specs/sample"
+requirements[1]{req_id,title,statement}:
+  r1,R1,"System MUST do X."
+scenarios[1]{req_id,id,given,when,then,feature}:
+  r1,happy,"","trigger","outcome",false
+"#,
+    )
+    .expect("rewrite toon");
 }
 
 // ── 实现细节：init 在两种 config 下结构等价 ──────────────────────────────────
@@ -146,7 +178,8 @@ fn commit(env: &TestEnvironment, msg: &str) {
 fn test_init_structure_identical_bdd_on_and_off() {
     for bdd in [Some(BDD_ON_BLOCK), None] {
         let env = TestEnvironment::new();
-        init_project(&env, bdd);
+        assert_success(&run(&["sdd", "init", "--lang", "en"], &env));
+        write_config(&env, bdd);
         assert!(env.work_dir.join("llmanspec/config.yaml").exists());
         assert!(env.work_dir.join("llmanspec/AGENTS.md").exists());
         assert!(env.work_dir.join("llmanspec/specs/.gitkeep").exists());
@@ -161,7 +194,6 @@ fn test_index_rebuild_backward_compat_old_tree_loads() {
     // 仍必须能反序列化——scenarios 默认为空。这是内部 serde 兼容性，非用户合约。
     let env = TestEnvironment::new();
     init_project(&env, None);
-    seed_spec_and_change(&env);
 
     let ctx_dir = env.work_dir.join("llmanspec/.context/pageindex");
     fs::create_dir_all(&ctx_dir).expect("mkdir context");
@@ -181,7 +213,7 @@ fn test_index_rebuild_backward_compat_old_tree_loads() {
     assert!(tree.docs[0].scenarios.is_empty());
 }
 
-// ── 实现细节：13 子命令 smoke 兜底（两种 config 都不崩）──────────────────────
+// ── 实现细节：子命令 smoke 兜底（两种 config 都不崩）──────────────────────
 
 #[test]
 fn test_all_subcommands_smoke_bdd_on_and_off() {
@@ -217,9 +249,15 @@ fn test_all_subcommands_smoke_bdd_on_and_off() {
         &["sdd", "index", "check"],
         &["sdd", "graph"],
         &["sdd", "status"],
-        &["sdd", "archive", "run", "--dry-run", "add-scen"],
         &["sdd", "project", "migrate", "--dry-run"],
-        &["sdd", "project", "partition-migrate", "--dry-run"],
+        &[
+            "sdd",
+            "project",
+            "migrate",
+            "--kind",
+            "partitioned",
+            "--dry-run",
+        ],
         &["sdd", "project", "dedupe-req-ids", "--dry-run"],
         &["sdd", "project", "upgrade-guide"],
         &["sdd", "spec", "next-req-id", "--json"],
@@ -228,9 +266,8 @@ fn test_all_subcommands_smoke_bdd_on_and_off() {
     for bdd in [Some(BDD_ON_BLOCK), None] {
         let env = TestEnvironment::new();
         init_project(&env, bdd);
-        seed_spec_and_change(&env);
         if bdd.is_some() {
-            assert_success(&run(&["sdd", "solidify", "add-scen"], &env));
+            seed_live_feature(&env);
         }
         commit(&env, "seed");
         for args in read_only {
@@ -245,5 +282,145 @@ fn test_all_subcommands_smoke_bdd_on_and_off() {
                 );
             }
         }
+        // solidify must not exist
+        let solidify = run(&["sdd", "solidify", "add-scen"], &env);
+        assert!(!solidify.status.success(), "sdd solidify must be removed");
+
+        // BDD-on rejects change delta
+        if bdd.is_some() {
+            let delta = run(
+                &["sdd", "change", "delta", "skeleton", "add-scen", "sample"],
+                &env,
+            );
+            assert!(!delta.status.success(), "change delta must reject BDD-on");
+        }
+
+        // archive dry-run: BDD-off works without git binding; BDD-on needs attach/checkpoint
+        if bdd.is_none() {
+            assert_success(&run(
+                &["sdd", "change", "archive", "--dry-run", "add-scen"],
+                &env,
+            ));
+        }
     }
+}
+
+#[test]
+fn test_bdd_on_attach_checkpoint_archive_docs_only() {
+    let env = TestEnvironment::new();
+    init_project(&env, Some(BDD_ON_BLOCK));
+    seed_live_feature(&env);
+    commit(&env, "seed");
+
+    // Default branch attach must fail.
+    let attach_main = run(&["sdd", "change", "attach", "add-scen"], &env);
+    assert!(!attach_main.status.success());
+    let err = format!(
+        "{}{}",
+        String::from_utf8_lossy(&attach_main.stdout),
+        String::from_utf8_lossy(&attach_main.stderr)
+    );
+    assert!(
+        err.to_ascii_lowercase().contains("default branch"),
+        "expected default-branch rejection, got: {err}"
+    );
+
+    assert_success(&git(&env, &["checkout", "-b", "feat/add-scen"]));
+    assert_success(&run(&["sdd", "change", "attach", "add-scen"], &env));
+    commit(&env, "attach binding");
+
+    // Dirty tree blocks checkpoint.
+    fs::write(env.work_dir.join("dirty.txt"), "x").unwrap();
+    let dirty = run(
+        &["sdd", "change", "checkpoint", "add-scen", "--no-check"],
+        &env,
+    );
+    assert!(!dirty.status.success());
+    fs::remove_file(env.work_dir.join("dirty.txt")).unwrap();
+
+    assert_success(&run(
+        &["sdd", "change", "checkpoint", "add-scen", "--no-check"],
+        &env,
+    ));
+    // Checkpoint updates proposal frontmatter — commit so archive sees a clean tree.
+    commit(&env, "checkpoint");
+
+    // Diff is read-only and non-empty after attach (may be empty if no commits since base).
+    let _ = run(&["sdd", "change", "diff", "add-scen"], &env);
+
+    // Archive moves docs only; live feature remains.
+    assert_success(&run(&["sdd", "change", "archive", "add-scen"], &env));
+    assert!(
+        env.work_dir
+            .join("llmanspec/specs/sample/sample.feature")
+            .exists(),
+        "live feature must remain after docs-only archive"
+    );
+    assert!(
+        !env.work_dir.join("llmanspec/changes/add-scen").exists(),
+        "active change dir must be moved"
+    );
+    let archived = fs::read_dir(env.work_dir.join("llmanspec/changes/archive"))
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .any(|e| e.file_name().to_string_lossy().contains("add-scen"));
+    assert!(archived, "change docs must land in archive/");
+}
+
+#[test]
+fn test_bdd_on_rejects_legacy_feature_delta_on_validate() {
+    let env = TestEnvironment::new();
+    init_project(&env, Some(BDD_ON_BLOCK));
+    seed_live_feature(&env);
+    let delta_dir = env.work_dir.join("llmanspec/changes/add-scen/specs/sample");
+    fs::create_dir_all(&delta_dir).unwrap();
+    fs::write(
+        delta_dir.join("sample.feature.delta.toon"),
+        "kind: llman.sdd.feature_delta\nops[0]:\n",
+    )
+    .unwrap();
+    commit(&env, "seed with legacy delta");
+    assert_success(&git(&env, &["checkout", "-b", "feat/legacy"]));
+    assert_success(&run(&["sdd", "change", "attach", "add-scen"], &env));
+    let out = run(
+        &[
+            "sdd",
+            "validate",
+            "add-scen",
+            "--type",
+            "change",
+            "--strict",
+            "--no-check",
+            "--no-interactive",
+        ],
+        &env,
+    );
+    assert!(!out.status.success());
+    let err = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        err.contains("feature_delta") || err.contains("migration blocker"),
+        "expected legacy feature_delta error, got: {err}"
+    );
+}
+
+#[test]
+fn test_bdd_off_attach_unavailable() {
+    let env = TestEnvironment::new();
+    init_project(&env, None);
+    commit(&env, "seed");
+    let out = run(&["sdd", "change", "attach", "add-scen"], &env);
+    assert!(!out.status.success());
+    let err = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        err.contains("BDD-on") || err.contains("bdd:"),
+        "expected BDD-on requirement, got: {err}"
+    );
 }

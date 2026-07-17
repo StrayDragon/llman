@@ -23,17 +23,18 @@ Use this skill to continue an existing change and create the next missing artifa
    - If `stage` is `draft` (proposal.md only), explicitly tell the user: "This is a draft proposal. Grow it to `full` (specs → design → tasks) before it can be implemented; a draft cannot be applied or verified directly."
 3. Determine the next artifact to create (in order):
    1) `proposal.md`
-   2) `specs/<capability>/spec.toon` (constraints layer; one folder per capability)
-   3) BDD-on executable scenarios: `specs/<capability>/*.feature.delta.toon` (optional, alongside toon)
-   4) `design.md` (only if design tradeoffs matter)
-   5) `tasks.md`
-4. Create exactly ONE missing artifact under `llmanspec/changes/<id>/`.
+   2) BDD-off: `specs/<capability>/spec.toon` deltas under the change; BDD-on: live edits to `llmanspec/specs/<capability>/spec.toon` + `*.feature` on the feature branch (then `llman sdd change attach <id>` if unbound)
+   3) `design.md` (only if design tradeoffs matter)
+   4) `tasks.md`
+4. Create exactly ONE missing artifact under `llmanspec/changes/<id>/` (or one live BDD-on spec/feature edit on the branch).
    - Do NOT implement application code in continue mode.
+   - Do NOT create `*.feature.delta.toon` (legacy migration blocker under BDD-on).
 5. If all artifacts already exist, suggest next actions:
    - Implement: `llman-sdd-apply`
    - Validate: `llman sdd validate <id> --strict --no-interactive`
-   - Consistency: `llman sdd solidify <id>` (Partitioned: does not project-write features)
-   - Archive (when ready): `llman sdd archive run <id>`
+   - BDD-on review: `llman sdd change diff <id>` (read-only)
+   - BDD-on gate: `llman sdd change checkpoint <id>` (clean tree required)
+   - Archive (when ready): `llman sdd change archive <id>`
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}

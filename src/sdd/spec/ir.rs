@@ -35,9 +35,9 @@ pub struct ScenarioEntry {
     pub when_: String,
     #[serde(rename = "then")]
     pub then_: String,
-    /// Whether this scenario should be serialized into a `.feature` file by
-    /// `solidify` (default `true`). `feature: false` keeps the scenario in
-    /// `spec.toon` as documentation only.
+    /// When `true` (default), the scenario is treated as executable for Partitioned
+    /// morphology / dual-write checks. `feature: false` keeps the scenario in
+    /// the constraints layer only (non-executable documentation in toon).
     #[serde(default = "default_feature_true")]
     pub feature: bool,
 }
@@ -64,34 +64,4 @@ pub struct DeltaOpEntry {
     pub from: Option<String>,
     pub to: Option<String>,
     pub name: Option<String>,
-}
-
-/// Scenario-level patch for Partitioned SSOT harness files (`.feature`).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct FeatureDeltaDoc {
-    pub kind: String,
-    /// Target harness filename under the capability dir (e.g. `global-req-id.feature`).
-    /// Empty → default `{capability}.feature`. Must be a bare `*.feature` basename
-    /// (no directories / `..`).
-    #[serde(default)]
-    pub target: String,
-    #[serde(default)]
-    pub ops: Vec<FeatureDeltaOp>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct FeatureDeltaOp {
-    /// `add` | `modify` | `remove`
-    pub op: String,
-    pub id: String,
-    #[serde(default)]
-    pub req_id: String,
-    #[serde(default)]
-    pub given: String,
-    #[serde(rename = "when", default)]
-    pub when_: String,
-    #[serde(rename = "then", default)]
-    pub then_: String,
 }

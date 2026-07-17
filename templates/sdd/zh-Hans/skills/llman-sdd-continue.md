@@ -23,17 +23,18 @@ metadata:
    - 若 `stage` 为 `draft`（仅 proposal.md），明确告知用户："这是一个 draft 提案。需要把它长大到 `full`（specs → design → tasks）后才能实现；draft 不能直接被 apply 或 verify。"
 3. 找出下一个需要创建的 artifact（按顺序）：
    1) `proposal.md`
-   2) `specs/<capability>/spec.toon`（约束层；每个 capability 一个文件夹）
-   3) BDD-on 可执行场景：`specs/<capability>/*.feature.delta.toon`（可选，与 toon 并列）
-   4) `design.md`（仅当需要讨论设计权衡时）
-   5) `tasks.md`
-4. 在 `llmanspec/changes/<id>/` 下创建且只创建 ONE 个缺失 artifact。
+   2) BDD-off：change 下 `specs/<capability>/spec.toon` delta；BDD-on：在 feature 分支上编辑 live `llmanspec/specs/<capability>/spec.toon` + `*.feature`（未绑定时再 `llman sdd change attach <id>`）
+   3) `design.md`（仅当需要讨论设计权衡时）
+   4) `tasks.md`
+4. 在 `llmanspec/changes/<id>/` 下创建且只创建 ONE 个缺失 artifact（或完成一次 BDD-on live spec/feature 编辑）。
    - continue 模式不要实现应用代码。
+   - **禁止**创建 `*.feature.delta.toon`（BDD-on 下为遗留迁移阻断项）。
 5. 如果所有 artifacts 都已存在，建议下一步：
    - 实施：`llman-sdd-apply`
    - 校验：`llman sdd validate <id> --strict --no-interactive`
-   - 一致性：`llman sdd solidify <id>`（Partitioned：不投影写 feature）
-   - 归档（准备好后）：`llman sdd archive run <id>`
+   - BDD-on 审查：`llman sdd change diff <id>`（只读）
+   - BDD-on 门禁：`llman sdd change checkpoint <id>`（要求干净工作区）
+   - 归档（准备好后）：`llman sdd change archive <id>`
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}

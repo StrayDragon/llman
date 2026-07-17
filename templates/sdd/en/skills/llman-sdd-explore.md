@@ -47,12 +47,13 @@ flowchart LR
 5. Assess change scale (triage) to determine if full SDD is needed.
 6. When something crystallizes, offer to capture it (don't auto-write):
    - Scope changes → `proposal.md`
-   - Constraints / non-executable scenarios → `llmanspec/changes/<id>/specs/<capability>/spec.toon`
-   - Executable harness (BDD-on) → `.feature` or `*.feature.delta.toon` (`@req`)
+   - BDD-off constraints/scenarios → `llmanspec/changes/<id>/specs/<capability>/spec.toon` (TOON deltas)
+   - BDD-on constraints → live `llmanspec/specs/<capability>/spec.toon` on a feature branch
+   - BDD-on executable harness → live `llmanspec/specs/<capability>/*.feature` (`@req`); never `*.feature.delta.toon`
    - Design decisions → `design.md`
    - Work items → `tasks.md`
 
-> BDD-on (Partitioned): `.feature` = harness authority; `spec.toon` = constraints; do not suggest toon projection over feature.
+> BDD-on (Git-native Partitioned): feature branch + live `.feature`/`spec.toon` are SSOT; bind with `change attach`; no solidify / feature_delta.
 
 ## Exiting explore mode
 When the user is ready to implement, choose based on change scale:

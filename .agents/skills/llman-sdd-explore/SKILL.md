@@ -47,12 +47,13 @@ flowchart LR
 5. 判断变更规模（triage），确定是否需要走完整 SDD 流程。
 6. 当结论逐渐清晰时，建议用户把它记录下来（不要自动写入）：
    - 范围变化 → `proposal.md`
-   - 约束 / 不可执行场景 → `llmanspec/changes/<id>/specs/<capability>/spec.toon`
-   - 可执行 harness（BDD-on）→ `.feature` 或 `*.feature.delta.toon`（`@req`）
+   - BDD-off 约束/场景 → `llmanspec/changes/<id>/specs/<capability>/spec.toon`（TOON delta）
+   - BDD-on 约束 → feature 分支上的 live `llmanspec/specs/<capability>/spec.toon`
+   - BDD-on 可执行 harness → live `llmanspec/specs/<capability>/*.feature`（`@req`）；禁止 `*.feature.delta.toon`
    - 设计决策 → `design.md`
    - 新工作项 → `tasks.md`
 
-> BDD-on（Partitioned）：`.feature` = harness 权威；`spec.toon` = 约束权威；勿建议 toon 投影覆盖 feature。
+> BDD-on（Git-native Partitioned）：feature 分支 + live `.feature`/`spec.toon` 为 SSOT；用 `change attach` 绑定；无 solidify / feature_delta。
 
 ## 退出探索模式
 当用户准备开始实现时，根据变更规模选择路径：
@@ -63,21 +64,27 @@ flowchart LR
 
 > 💡 探索完成 → 下一步 `llman-sdd-propose`（保单）或 `llman-sdd-quick`（快速路径）
 
-在执行之前，请先阅读 `llmanspec/config.yaml`，若其中包含 `context` 与 `rules` 请遵循。
+行动前先阅读 `llmanspec/config.yaml`，并遵循其中的 `context` 与 `rules`（若有）。
 
 常用命令：
-- `llman sdd context --task "<description>" --paths "<files>"`（获取相关 specs）。使用 pageindex agentic 树检索后端（需配置 `LLMAN_SDD_INDEX_CHAT_MODEL`）。可用 `LLMAN_SDD_INDEX_BACKEND` 预设。
+- `llman sdd context --task "<描述>" --paths "<文件>"`（找相关 specs）。使用 pageindex agentic tree 后端（需 `LLMAN_SDD_INDEX_CHAT_MODEL`）。可用 `LLMAN_SDD_INDEX_BACKEND` 预设。
 - `llman sdd list`（列出变更）
-- `llman sdd list --specs`（列出 specs，含 purpose/scope 元数据）
-- `llman sdd show <id>`（查看 change/spec）
-- `llman sdd validate <id>`（校验变更或 spec）
+- `llman sdd list --specs`（列出 specs 及 purpose/scope 元数据）
+- `llman sdd show <id>`（展示 change/spec）
+- `llman sdd validate <id>`（校验 change 或 spec）
 - `llman sdd validate --all`（批量校验）
-- `llman sdd index rebuild`（重建 pageindex 树索引——无需模型）
+- `llman sdd index rebuild`（重建 pageindex 树索引——不需要模型）
 - `llman sdd index check`（检查索引新鲜度）
-- `llman sdd archive run <id>`（归档变更）
-- `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（冻结归档目录）
-- `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（解冻归档）
+- `llman sdd change new <id>`（创建草稿 `changes/<id>/proposal.md`）
+- `llman sdd change attach <id> [--force]`（BDD-on：绑定 feature 分支 + base SHA）
+- `llman sdd change checkpoint <id> [--no-check]`（BDD-on：干净工作区 + 归档前门禁）
+- `llman sdd change diff <id> [--export-patch <path>]`（BDD-on：只读 `base...HEAD` 审查/导出）
+- `llman sdd change delta …`（仅 BDD-off：TOON delta 作者工具；BDD-on 会拒绝）
+- `llman sdd change archive <id>`（封存变更；BDD-on：checkpoint 后仅文档；BDD-off：合并 TOON delta）
+- `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（冻结已归档目录）
+- `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备份恢复）
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图）
+- `llman sdd project migrate [--kind format|partitioned|legacy-bdd|auto]`（一次性迁移）
 
 
 ## Context

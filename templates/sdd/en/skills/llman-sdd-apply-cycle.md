@@ -35,7 +35,7 @@ If validation fails, fix issues and retry (up to 3 times).
 
 ### 3) Archive
 ```bash
-llman sdd archive run <change-id>
+llman sdd change archive <change-id>
 ```
 
 ### 4) Commit
@@ -53,6 +53,6 @@ Use conventional commit prefix (feat:/fix:/refactor:).
 ## Ethics Governance
 - `ethics.risk_level`: medium
 - `ethics.prohibited_actions`: switching to other changes before current is done, modifying proposal.md/spec files directly, committing without validation
-- `ethics.required_evidence`: llman sdd validate --strict pass, llman sdd archive run success, all tasks checked as done in tasks.md
+- `ethics.required_evidence`: llman sdd validate --strict pass, llman sdd change archive success, all tasks checked as done in tasks.md
 - `ethics.refusal_contract`: if validation fails 3 times, report blocker instead of force-archiving
 - `ethics.escalation_policy`: if the change modifies SDD workflow specs or templates, pause and ask user to confirm before archive

@@ -39,9 +39,21 @@ pub struct DeltaAddScenarioArgs {
     pub then_: String,
 }
 
+/// BDD-on rejects TOON delta authoring — live branch specs/.feature are SSOT.
+fn reject_when_bdd_on(root: &Path) -> Result<()> {
+    let config = load_required_config(&root.join(LLMANSPEC_DIR_NAME))?;
+    if config.bdd.is_some() {
+        anyhow::bail!(
+            "`sdd change delta` is BDD-off only; under BDD-on edit live `llmanspec/specs/**/spec.toon` and `*.feature` on the feature branch, then `llman sdd change attach` / `checkpoint`"
+        );
+    }
+    Ok(())
+}
+
 pub fn run_skeleton(root: &Path, args: DeltaSkeletonArgs) -> Result<()> {
     validate_sdd_id(&args.change_id, "change")?;
     validate_sdd_id(&args.capability, "spec")?;
+    reject_when_bdd_on(root)?;
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let _config = load_required_config(&llmanspec_dir)?;
 
@@ -71,6 +83,7 @@ pub fn run_add_op(root: &Path, args: DeltaAddOpArgs) -> Result<()> {
     validate_sdd_id(&args.change_id, "change")?;
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
+    reject_when_bdd_on(root)?;
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let _config = load_required_config(&llmanspec_dir)?;
 
@@ -114,6 +127,7 @@ pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
     validate_sdd_id(&args.scenario_id, "scenario")?;
+    reject_when_bdd_on(root)?;
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let _config = load_required_config(&llmanspec_dir)?;
     if args.when_.trim().is_empty() {

@@ -49,6 +49,9 @@ flowchart LR
 - 若已提供 change id，直接使用。
 - 否则从上下文推断；若不明确，运行 `llman sdd list --json` 并让用户选择。
 - 始终说明："使用变更：<id>"，并告知如何覆盖。
+{% if bdd_enabled %}
+- BDD-on：确认已在经 `llman sdd change attach <id>` 绑定的非默认 feature 分支上（仅在需要重绑时用 `--force`）。分支上的 specs/features 即 SSOT——不要编造 change 内 `feature_delta`。
+{% endif %}
 - 检查阶段守卫：
   ```bash
   llman sdd show <id> --json --type change
@@ -63,7 +66,12 @@ flowchart LR
 - `llmanspec/changes/<id>/proposal.md`
 - `llmanspec/changes/<id>/design.md`（如存在）
 - `llmanspec/changes/<id>/tasks.md`
+{% if bdd_enabled %}
+- feature 分支上的 live specs：`llmanspec/specs/**`（`spec.toon` + `*.feature`）——BDD-on 下这是 SSOT
+- change 内 `llmanspec/changes/<id>/specs/**` 仅当残留文档存在时（BDD-on archive 会忽略；优先读 live specs）
+{% else %}
 - `llmanspec/changes/<id>/specs/**`
+{% endif %}
 
 将 `proposal.md` 和 `design.md` 中的决策整理为不可违反的硬约束清单。把 `tasks.md` 转成可执行的最小步骤序列（保持原顺序）。
 
@@ -84,7 +92,7 @@ flowchart LR
 - 相关测试集：`just test` 或 `cargo test --all`
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
 {% if bdd_enabled %}
-- BDD-on（Partitioned SSOT）：可执行场景写 `.feature` / `feature_delta`（`@req`）；约束写 `spec.toon`。实现 step definitions；用 `llman sdd solidify <id>` 做一致性门禁（非投影生成）；确保 `llman sdd validate --specs` 通过（含 `bdd.run_command`）。
+- BDD-on（Git-native Partitioned SSOT）：留在已 attach 的 feature 分支；编辑 live `llmanspec/specs/**/spec.toon`（约束）与 `*.feature`（可执行 GWT，带 `@req`）。实现 step definitions。确保 `llman sdd validate --specs` 通过（含 `bdd.run_command`）。准备归档门禁时：工作区干净后运行 `llman sdd change checkpoint <id>`。**禁止**运行 solidify 或编写 `*.feature.delta.toon`。
 {% endif %}
 - SDD 校验：`llman sdd validate <id> --strict --no-interactive`
 

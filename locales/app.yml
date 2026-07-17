@@ -1919,7 +1919,8 @@ sdd:
     bdd_next_step_verify:
       en: "- Run BDD tests: %{command}"
     bdd_next_step_feature:
-      en: "- Regenerate the .feature via `llman sdd solidify <change-id>` after fixing the spec.toon scenarios."
+      en: "- Edit the live `.feature` on your feature branch (Git-native BDD-on); run `llman sdd change checkpoint <change-id>` after fixing Partitioned links."
+      zh-Hans: "- 在 feature 分支上编辑 live `.feature`（Git-native BDD-on）；修好 Partitioned 链接后运行 `llman sdd change checkpoint <change-id>`。"
     non_interactive:
       line1:
         en: "Nothing to validate. Try one of:"

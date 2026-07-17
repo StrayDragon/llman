@@ -100,7 +100,22 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
         }
     }
 
-    if !args.skip_specs {
+    let bdd_on = config.bdd.is_some();
+    if bdd_on {
+        // Git-native BDD-on: specs/features already live on the feature branch.
+        // Archive only seals change documentation after checkpoint gates.
+        crate::sdd::change::git_native::enforce_bdd_archive_gates(root, change_name)?;
+        if !args.skip_specs {
+            // Ignore leftover change TOON deltas — they are not the SSOT under BDD-on.
+            let leftover = find_spec_updates(&change_dir, root)?;
+            if !leftover.is_empty() {
+                eprintln!(
+                    "warning: BDD-on archive ignores change TOON deltas under specs/ (Git-native branch is SSOT); found {} capability delta(s)",
+                    leftover.len()
+                );
+            }
+        }
+    } else if !args.skip_specs {
         let validate_specs = !args.force;
         let interactive = is_interactive(args.no_interactive);
         let updates = find_spec_updates(&change_dir, root)?;
@@ -113,8 +128,6 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
                 write_updates(&prepared)?;
             }
         }
-        // Partitioned: apply feature_delta files alongside toon merge.
-        apply_change_feature_deltas(&change_dir, root, args.dry_run)?;
     }
 
     let archive_dir = changes_dir.join("archive");
@@ -572,77 +585,6 @@ fn build_updated_spec(
     let rebuilt = backend.dump_main_spec(&spec_doc)?;
 
     Ok((rebuilt, counts))
-}
-
-fn apply_change_feature_deltas(change_dir: &Path, root: &Path, dry_run: bool) -> Result<()> {
-    use crate::sdd::project::config::load_required_config as load_cfg;
-    use crate::sdd::solidify::locale_to_gherkin_lang;
-    use crate::sdd::spec::partitioned::{
-        apply_feature_delta, find_feature_delta_path, load_feature_delta_file,
-    };
-
-    let change_specs = change_dir.join("specs");
-    if !change_specs.exists() {
-        return Ok(());
-    }
-    let config = load_cfg(&root.join(LLMANSPEC_DIR_NAME))?;
-    if config.bdd.is_none() {
-        return Ok(());
-    }
-    let lang = locale_to_gherkin_lang(Some(&config.locale), config.bdd.as_ref());
-
-    for entry in fs::read_dir(&change_specs)? {
-        let entry = entry?;
-        if !entry.file_type()?.is_dir() {
-            continue;
-        }
-        let capability = entry.file_name().to_string_lossy().to_string();
-        let Some(delta_path) = find_feature_delta_path(&entry.path(), &capability) else {
-            continue;
-        };
-        let delta = load_feature_delta_file(&delta_path)?;
-        let spec_dir = root
-            .join(LLMANSPEC_DIR_NAME)
-            .join("specs")
-            .join(&capability);
-        let feature_path = crate::sdd::spec::partitioned::resolve_feature_delta_target_path(
-            &spec_dir,
-            &capability,
-            &delta,
-        )?;
-        let feature_title = crate::sdd::spec::partitioned::feature_title_for_target(
-            feature_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or(""),
-            &capability,
-        );
-        let existing = if feature_path.exists() {
-            Some(fs::read_to_string(&feature_path)?)
-        } else {
-            None
-        };
-        let body = apply_feature_delta(existing.as_deref(), &feature_title, &delta, &lang)?;
-        if dry_run {
-            println!(
-                "[dry-run] would apply feature_delta → {}",
-                feature_path.display()
-            );
-            continue;
-        }
-        if body.is_empty() {
-            if feature_path.exists() {
-                fs::remove_file(&feature_path)?;
-            }
-        } else {
-            if let Some(parent) = feature_path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            atomic_write_with_mode(&feature_path, body.as_bytes(), None)?;
-        }
-        println!("applied feature_delta → {}", feature_path.display());
-    }
-    Ok(())
 }
 
 fn write_updates(prepared: &[(SpecUpdate, String, ApplyCounts)]) -> Result<()> {

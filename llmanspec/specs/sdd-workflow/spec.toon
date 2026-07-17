@@ -7,14 +7,14 @@ requirements[8]{req_id,title,statement}:
   r47,Context JSON semantic protocol,"llman sdd context output JSON MUST follow: direct array contains z-score greater than 0.60 specs agent MUST read full spec. related array contains z-score greater than -0.20 and at most 0.60 specs agent MAY read on demand. remaining specs are irrelevant. summary MUST include readRecommended and staleWarnings fields."
   r48,变更规模分类与路径选择（Triage）,"SDD 工作流 MUST 在提案阶段前引入变更规模分类步骤，帮助 agent 选择合适的工作路径。分类规则 MUST 包含：- 行为合约变更：修改 MUST/SHALL 定义的外部可观测行为 → 走完整 SDD 流程（proposal + delta specs + tasks + archive）- 实现变更：不改变外部行为只改变内部实现 → 走快速路径（直接改代码，无需 change 目录）- 治理/工具变更：修改 CI/工具配置 → 仅创建 proposal.md 记录 why- 元规范变更：修改 SDD 规范/模板/流程本身 → 走完整 SDD 流程（自举）当变更性质不明确时 agent MUST 升级为完整 SDD 流程而非猜测。"
   r60,show 分段展示 Constraints 与 Harness,"llman sdd show <spec-id> --type spec MUST 分段展示 Constraints（来自 spec.toon 的 requirements 与不可执行 scenarios）与 Harness（来自 *.feature 的场景摘要）。--json MUST 提供同构字段。MUST NOT 将可执行 GWT 从 toon scenarios 再完整打印一份。"
-  r61,"BDD-on 流水线承认 feature_delta","BDD-on 流水线 propose/apply/solidify/archive MUST 将 feature_delta 与 toon delta 一并纳入变更工件：可执行场景变更走 feature_delta；约束与不可执行场景走 toon ops。Skills 与 validate 阶段感知 MUST 与 Partitioned SSOT 一致。"
+  r61,"BDD-on 流水线承认 Git-native 绑定","BDD-on 流水线 propose/apply/verify/archive MUST 将 Git feature 分支上的 live specs/features 作为 SSOT：可执行场景变更直接编辑 *.feature；约束与不可执行场景编辑 spec.toon。change 通过 attach/checkpoint 绑定分支；archive 仅密封文档。Skills 与 validate 阶段感知 MUST 与 Partitioned SSOT + Git-native 一致。MUST NOT 要求 feature_delta 或 solidify。"
   r87,"spec next-req-id 分配器","llman sdd spec next-req-id MUST 扫描 llmanspec/specs 主库已占用的全部 req_id，并向 stdout 打印一个当前未使用的短候选 id。默认形态 MUST 为 rN（N 为正整数且未占用）；--json 时 MUST 输出可解析 JSON 且含 reqId 字段。MUST NOT 要求把 capability 编入候选 id。"
   r88,"add-req 拒绝全局已占用 req_id","llman sdd spec add-req 在调用方提供的 req_id 已在 llmanspec/specs 主库任一 capability 中占用时，MUST 以非零退出码失败并在 stderr 说明冲突 capability，MUST NOT 写入会破坏全局唯一性的 requirement 行。自定义短 tag 与 rN 形态 MUST 适用同一守卫。"
   r89,"spec resolve-req 解析归属","llman sdd spec resolve-req <req_id> MUST 在主库中解析该短别名的归属并打印 capability、title、statement；--json 时 MUST 含 reqId 与 capability 字段。找不到时 MUST 非零退出。该命令 MUST 作为 agent 获取 req 关联数据的一等入口，替代把 capability 编码进 req_id。"
 scenarios[6]{req_id,id,given,when,then,feature}:
   r39,"list-json-morphology",llman 二进制已构建,"运行 llman sdd list --specs --json",输出含 morphology 且含 constraintsReqCount,false
   r60,"show-spec-sections",llman 二进制已构建,"运行 llman sdd show errors-exit --type spec",输出含 Constraints 与 Harness 分段或等价标题,false
-  r61,"pipeline-feature-delta-aware",变更目录含 feature_delta 文件,"运行 validate 该 change --strict",校验通过或明确报告 feature_delta 错误而非忽略文件,false
-  r87,"next-req-id-note",约束层说明,"运行 llman sdd spec next-req-id",stdout 为未占用短 id（如 rN）；可执行见 feature_delta,false
+  r61,"pipeline-git-native-aware",变更已 attach 到 feature 分支,"运行 validate 该 change --strict",校验通过或明确报告 Git binding / legacy feature_delta 错误,false
+  r87,"next-req-id-note",约束层说明,"运行 llman sdd spec next-req-id",stdout 为未占用短 id（如 rN）；可执行见 .feature,false
   r88,"add-req-global-guard-note",约束层说明,"add-req 使用已全局占用的 req_id 或自定义 tag",非零退出且不写入该 id,false
   r89,"resolve-req-note",约束层说明,"运行 llman sdd spec resolve-req <已存在短 id> --json",stdout JSON 含 capability 与 reqId,false

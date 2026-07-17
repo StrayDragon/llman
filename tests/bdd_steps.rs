@@ -28,7 +28,7 @@
 
 #![cfg(feature = "bdd")]
 
-use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd_macros::{given, scenarios, then, when};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -175,9 +175,10 @@ fn given_cwd(cwd: PathBuf) {
 
 /// Create a seeded sdd project in a fresh TempDir and point the world's cwd at it.
 /// `mode` = "on" writes a `bdd:` block (enables feature-as-spec); "off" omits it.
-/// The project gets a `sample` spec (r1 + scenario) and an `add-scen` change whose
-/// delta adds r2 + a scenario, so `solidify`/`validate`/`index` have something to
-/// act on. This mirrors `tests/sdd_bdd_compat_tests.rs::seed_spec_and_change`.
+/// The project gets a `sample` spec (r1 + non-executable scenario note) and an
+/// `add-scen` change whose delta adds r2, plus a live `.feature` when BDD-on so
+/// index/validate have harness content. This mirrors
+/// `tests/sdd_bdd_compat_tests.rs::seed_spec_and_change`.
 fn seed_bdd_project(mode: &str) {
     // reset first (same convention as `llman 二进制已构建`) so the scenario starts
     // clean; then install the fixture.
@@ -203,7 +204,7 @@ fn seed_bdd_project(mode: &str) {
         &[],
     );
 
-    // author add-scen change: delta adds r2 + a scenario (solidify target).
+    // author add-scen change: delta adds r2 + a scenario (BDD-off archive target).
     let change_dir = dir.join("llmanspec/changes/add-scen");
     std::fs::create_dir_all(&change_dir).expect("mkdir fixture change");
     std::fs::write(
@@ -211,15 +212,15 @@ fn seed_bdd_project(mode: &str) {
         "## Why\nAdd r2 to sample.\n\n## What Changes\n- Add requirement r2.\n",
     )
     .expect("write fixture proposal");
-    run_llman_in(&dir, "sdd delta skeleton add-scen sample", &[]);
+    run_llman_in(&dir, "sdd change delta skeleton add-scen sample", &[]);
     run_llman_in(
         &dir,
-        "sdd delta add-req add-scen sample r2 --title R2 --statement \"System MUST support r2.\"",
+        "sdd change delta add-req add-scen sample r2 --title R2 --statement \"System MUST support r2.\"",
         &[],
     );
     run_llman_in(
         &dir,
-        "sdd delta add-scenario add-scen sample r2 \"new r2 behavior\" --when \"r2 triggered\" --then \"r2 works\"",
+        "sdd change delta add-scenario add-scen sample r2 \"new r2 behavior\" --when \"r2 triggered\" --then \"r2 works\"",
         &[],
     );
 
@@ -234,15 +235,36 @@ fn seed_bdd_project(mode: &str) {
     }
     std::fs::write(dir.join("llmanspec/config.yaml"), config).expect("write fixture config");
 
-    // BDD-off: drop a deliberately malformed .feature next to the spec to prove
-    // validate ignores it (r4 contract). BDD-on gets a real .feature via solidify
-    // in the scenario's When step, so nothing to seed here for "on".
     if mode_norm == "off" {
+        // BDD-off: drop a deliberately malformed .feature next to the spec to prove
+        // validate ignores it (r83 contract).
         std::fs::write(
             dir.join("llmanspec/specs/sample/sample.feature"),
             "# language: en\nTHIS IS NOT VALID GHERKIN {{{",
         )
         .expect("write bogus feature");
+    } else {
+        // BDD-on: live harness SSOT on the branch (distinct scenario id avoids dual-write
+        // with the seeded toon `happy` row until partition-migrate).
+        std::fs::write(
+            dir.join("llmanspec/specs/sample/sample.feature"),
+            "# language: en\nFeature: sample\n  @req:r1\n  Scenario: harness-happy\n    Given a precondition\n    When an action\n    Then an outcome\n",
+        )
+        .expect("write live feature");
+        // Keep toon scenario as non-executable documentation to match Partitioned SSOT.
+        std::fs::write(
+            dir.join("llmanspec/specs/sample/spec.toon"),
+            r#"kind: llman.sdd.spec
+name: "sample"
+purpose: "sample"
+valid_scope[1]: "llmanspec/specs/sample"
+requirements[1]{req_id,title,statement}:
+  r1,R1,"System MUST do X."
+scenarios[1]{req_id,id,given,when,then,feature}:
+  r1,happy,"","trigger","outcome",false
+"#,
+        )
+        .expect("rewrite sample toon partitioned");
     }
 
     // git init+commit: staleness checks need a base ref.
@@ -299,9 +321,22 @@ fn given_seeded_sdd_project(mode: String) {
 #[given("已初始化含可执行双写的 sdd 项目且 bdd 配置为 {mode}")]
 fn given_sdd_project_dual_write(mode: String) {
     seed_bdd_project(&mode);
-    let feature = fixture_cwd().join("llmanspec/specs/sample/sample.feature");
+    let dir = fixture_cwd();
     std::fs::write(
-        &feature,
+        dir.join("llmanspec/specs/sample/spec.toon"),
+        r#"kind: llman.sdd.spec
+name: "sample"
+purpose: "sample"
+valid_scope[1]: "llmanspec/specs/sample"
+requirements[1]{req_id,title,statement}:
+  r1,R1,"System MUST do X."
+scenarios[1]{req_id,id,given,when,then,feature}:
+  r1,happy,"a","b","c",true
+"#,
+    )
+    .expect("write dual-write toon");
+    std::fs::write(
+        dir.join("llmanspec/specs/sample/sample.feature"),
         "# language: en\nFeature: sample\n  @req:r1\n  Scenario: happy\n    Given a\n    When b\n    Then c\n",
     )
     .expect("write dual-write feature");
@@ -547,149 +582,9 @@ fn record_output(output: std::process::Output) {
 }
 
 // ---------------------------------------------------------------------------
-// Scenario bindings — errors-exit pilot (rewritten with generic steps).
+// Scenario discovery — compile-time directory binding (Git-native BDD-on).
+// Tag full-mode / CLI-drivable scenarios with `@executable`. Documentation-only
+// features under llmanspec/specs remain untagged and are not expanded into tests.
 // ---------------------------------------------------------------------------
 
-#[scenario(
-    path = "llmanspec/specs/errors-exit/error-rendering.feature",
-    name = "子命令返回错误时打印单行错误并以退出码 1 退出"
-)]
-#[test]
-fn test_error_rendering() {}
-
-#[scenario(
-    path = "llmanspec/specs/errors-exit/subcommand-error-handling.feature",
-    name = "非交互终端下 sdd show 无参数时以退出码 1 退出"
-)]
-#[test]
-fn test_show_noninteractive_exit() {}
-
-#[scenario(
-    path = "llmanspec/specs/errors-exit/subcommand-error-handling.feature",
-    name = "查看不存在的 spec 时正常报错而非 panic"
-)]
-#[test]
-fn test_show_nonexistent_spec() {}
-
-#[scenario(
-    path = "llmanspec/specs/errors-exit/errors-exit.feature",
-    name = "json-错误输出"
-)]
-#[test]
-fn test_show_json_error_output() {}
-
-// ---------------------------------------------------------------------------
-// Scenario bindings — sdd-bdd-mode-compat (BDD on/off behavior contracts).
-// ---------------------------------------------------------------------------
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/validate-check.feature",
-    name = "BDD-on 时 validate 默认执行 BDD runner"
-)]
-#[test]
-fn test_compat_validate_on_runs_runner() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/validate-check.feature",
-    name = "BDD-on 时 validate --no-check 跳过 runner"
-)]
-#[test]
-fn test_compat_validate_on_no_check_skips() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/validate-check.feature",
-    name = "BDD-off 时 validate --check 不执行 runner"
-)]
-#[test]
-fn test_compat_validate_off_check_noop() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/solidify-mode.feature",
-    name = "BDD-on 时 solidify 产出 .feature 文件"
-)]
-#[test]
-fn test_compat_solidify_on_generates() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/solidify-mode.feature",
-    name = "BDD-off 时 solidify 为 no-op 并提示未配置"
-)]
-#[test]
-fn test_compat_solidify_off_noop() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/index-embed.feature",
-    name = "BDD-on 时 index rebuild 成功"
-)]
-#[test]
-fn test_compat_index_on_rebuild() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/index-embed.feature",
-    name = "BDD-off 时 index rebuild 成功且无 feature embed"
-)]
-#[test]
-fn test_compat_index_off_rebuild() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/feature-ignoring.feature",
-    name = "BDD-off 时 validate 忽略格式错误的 feature 文件"
-)]
-#[test]
-fn test_compat_validate_off_ignores_feature() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/sdd-bdd-mode-compat.feature",
-    name = "双写可执行 GWT 时 validate --strict 失败"
-)]
-#[test]
-fn test_compat_partitioned_dual_write_forbidden() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/sdd-bdd-mode-compat.feature",
-    name = "@req 指向缺失 requirement 时 validate --strict 失败"
-)]
-#[test]
-fn test_compat_validate_req_link() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/sdd-bdd-mode-compat.feature",
-    name = "partition-migrate --dry-run 只打印计划"
-)]
-#[test]
-fn test_compat_partition_migrate_dry_run() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/global-req-id.feature",
-    name = "global-req-collision-strict"
-)]
-#[test]
-fn test_global_req_collision_strict() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/global-req-id.feature",
-    name = "global-req-collision-default"
-)]
-#[test]
-fn test_global_req_collision_default() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-workflow/global-req-id-authoring.feature",
-    name = "next-req-id-json"
-)]
-#[test]
-fn test_next_req_id_json() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-workflow/global-req-id-authoring.feature",
-    name = "add-req-rejects-global-collision"
-)]
-#[test]
-fn test_add_req_rejects_global_collision() {}
-
-#[scenario(
-    path = "llmanspec/specs/sdd-workflow/global-req-id-authoring.feature",
-    name = "resolve-req-json"
-)]
-#[test]
-fn test_resolve_req_json() {}
+scenarios!("llmanspec/specs", tags = "@executable");

@@ -310,8 +310,10 @@ pub async fn index_rebuild(
     // Load config to derive the Gherkin language for `.feature` parsing. This
     // mirrors `context_run` (retrieval), which also requires config.
     let config = load_required_config(&llmanspec_dir)?;
-    let lang =
-        crate::sdd::solidify::locale_to_gherkin_lang(Some(&config.locale), config.bdd.as_ref());
+    let lang = crate::sdd::spec::validation::locale_to_gherkin_lang(
+        Some(&config.locale),
+        config.bdd.as_ref(),
+    );
 
     index_rebuild_pageindex(&context_dir, &specs_dir, &lang).await
 }
@@ -336,7 +338,7 @@ fn merge_feature_scenarios(
 
     let mut feature_by_id: HashMap<String, ScenarioEntry> = HashMap::new();
     for fpath in &features {
-        match crate::sdd::solidify::parse_feature_file(fpath, lang) {
+        match crate::sdd::spec::partitioned::parse_feature_file(fpath, lang) {
             Ok(nodes) => {
                 for node in nodes {
                     feature_by_id.insert(
@@ -543,7 +545,7 @@ mod tests {
         .unwrap();
 
         // Rebuild (zh-CN Gherkin language).
-        let lang = crate::sdd::solidify::locale_to_gherkin_lang(Some("zh-Hans"), None);
+        let lang = crate::sdd::spec::validation::locale_to_gherkin_lang(Some("zh-Hans"), None);
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
             .unwrap();
@@ -600,7 +602,7 @@ mod tests {
         )
         .unwrap();
         // No .feature files, no bdd config.
-        let lang = crate::sdd::solidify::locale_to_gherkin_lang(Some("en"), None);
+        let lang = crate::sdd::spec::validation::locale_to_gherkin_lang(Some("en"), None);
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
             .unwrap();

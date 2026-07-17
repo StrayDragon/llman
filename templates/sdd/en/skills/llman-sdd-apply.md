@@ -49,6 +49,9 @@ flowchart LR
 - If a change id is provided, use it directly.
 - Otherwise infer from context; if ambiguous, run `llman sdd list --json` and let user pick.
 - Always announce: "Using change: <id>" and how to override.
+{% if bdd_enabled %}
+- BDD-on: confirm you are on the non-default feature branch bound via `llman sdd change attach <id>` (attach with `--force` only to rebind). Specs/features on the branch are SSOT — do not invent change-scoped `feature_delta`.
+{% endif %}
 - Check the stage gate:
   ```bash
   llman sdd show <id> --json --type change
@@ -63,7 +66,12 @@ You must read through:
 - `llmanspec/changes/<id>/proposal.md`
 - `llmanspec/changes/<id>/design.md` (if present)
 - `llmanspec/changes/<id>/tasks.md`
+{% if bdd_enabled %}
+- Live specs on the feature branch: `llmanspec/specs/**` (`spec.toon` + `*.feature`) — these are SSOT under BDD-on
+- Change-scoped `llmanspec/changes/<id>/specs/**` only if leftover docs exist (ignored by BDD-on archive; prefer live specs)
+{% else %}
 - `llmanspec/changes/<id>/specs/**`
+{% endif %}
 
 Extract hard constraints from proposal.md and design.md decisions. Convert tasks.md into a minimal executable step sequence (preserving original order).
 
@@ -84,7 +92,7 @@ Run project gate commands (adapt to the actual project):
 - Relevant test suite: `just test` or `cargo test --all`
 - Format/lint: `just check` or `just lint` + `just fmt`
 {% if bdd_enabled %}
-- BDD-on (Partitioned SSOT): executable scenarios go in `.feature` / `feature_delta` (`@req`); constraints in `spec.toon`. Implement step definitions; run `llman sdd solidify <id>` as a consistency gate (not projection); ensure `llman sdd validate --specs` passes (includes `bdd.run_command`).
+- BDD-on (Git-native Partitioned SSOT): stay on the attached feature branch; edit live `llmanspec/specs/**/spec.toon` (constraints) and `*.feature` (executable GWT with `@req`). Implement step definitions. Ensure `llman sdd validate --specs` passes (includes `bdd.run_command`). When ready for archive gates: clean tree, then `llman sdd change checkpoint <id>`. Do **not** run solidify or write `*.feature.delta.toon`.
 {% endif %}
 - SDD validation: `llman sdd validate <id> --strict --no-interactive`
 

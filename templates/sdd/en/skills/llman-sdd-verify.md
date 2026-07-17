@@ -48,10 +48,13 @@ flowchart LR
 5. Compare artifacts vs code:
    - Identify mismatches (missing behavior, wrong behavior, missing tests/docs)
    - Suggest minimal fixes or artifact updates
-6. **BDD-on verification (Partitioned SSOT)** — only when `config.yaml` has a `bdd:` block:
-   - `llman sdd validate <spec>`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
-   - Confirm `llman sdd solidify <id>` was run and stdout contains `consistency ok`.
-   - Check: executable GWT only in `.feature`; `morphology.dualWriteCount` should be 0.
+6. **BDD-on verification (Git-native Partitioned SSOT)** — only when `config.yaml` has a `bdd:` block:
+   - Confirm the change is attached and you are on that feature branch.
+   - `llman sdd validate --specs`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
+   - Optional read-only review: `llman sdd change diff <id>` (or `--export-patch <path>`). Diff is review/export only — never treat it as an apply step.
+   - Before archive: clean tree, then `llman sdd change checkpoint <id>`.
+   - Check: executable GWT only in live `.feature`; no active `*.feature.delta.toon`; `morphology.dualWriteCount` should be 0.
+   - There is **no** solidify step — do not ask agents to repair bindings after the loop.
 {% if bdd_verify_prompt %}
    - Extra requirement: {{ bdd_verify_prompt }}
 {% endif %}
@@ -59,7 +62,7 @@ flowchart LR
    - **CRITICAL** (must fix before archive)
    - **WARNING** (should fix)
    - **SUGGESTION** (nice to have)
-8. If CRITICAL exists, suggest `llman-sdd-apply` for fixes. If clean, suggest archive: `llman sdd archive run <id>`.
+8. If CRITICAL exists, suggest `llman-sdd-apply` for fixes. If clean (BDD-on: also checkpointed), suggest archive: `llman sdd change archive <id>`.
 
 > 💡 Verify pass → next: `llman-sdd-archive` (archive); CRITICAL issues → go back to `llman-sdd-apply` (fix)
 

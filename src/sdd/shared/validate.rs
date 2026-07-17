@@ -419,6 +419,7 @@ fn validate_change_full(
     stage_override: Option<ChangeStage>,
     dag_issues: &[ValidationIssue],
     archive_config: &ArchiveConfig,
+    bdd_on: bool,
 ) -> ValidationReport {
     let stage = stage_override.unwrap_or_else(|| determine_stage(change_dir));
     let mut issues = Vec::new();
@@ -460,14 +461,29 @@ fn validate_change_full(
 
     // Stage-agnostic: always validate proposal existence and frontmatter
     issues.extend(check_proposal_exists(change_dir));
-    issues.extend(
-        check_proposal_frontmatter(change_dir, all_change_ids, archived_change_ids, has_frozen).0,
-    );
+    let (fm_issues, frontmatter) =
+        check_proposal_frontmatter(change_dir, all_change_ids, archived_change_ids, has_frozen);
+    issues.extend(fm_issues);
 
-    // Non-draft stages must have valid delta specs
+    if bdd_on {
+        issues.extend(check_bdd_on_change_gates(change_dir, Some(&frontmatter)));
+    }
+
+    // Non-draft stages: BDD-off still validates TOON deltas. BDD-on live specs are
+    // on the feature branch; leftover change TOON deltas are warned, not merged.
     if stage != ChangeStage::Draft {
-        let delta_report = validate_change_delta_specs(change_dir, strict);
-        issues.extend(delta_report.issues);
+        if bdd_on {
+            if has_spec_files(&change_dir.join("specs")) {
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Info,
+                    path: "specs".to_string(),
+                    message: "BDD-on ignores change TOON deltas (Git-native branch is SSOT); migrate leftover deltas into live llmanspec/specs before archive".to_string(),
+                });
+            }
+        } else {
+            let delta_report = validate_change_delta_specs(change_dir, strict);
+            issues.extend(delta_report.issues);
+        }
     }
 
     // tasks.md without design.md is inconsistent at any stage
@@ -486,6 +502,65 @@ fn validate_change_full(
     issues.extend(dag_issues.to_vec());
 
     crate::sdd::spec::validation::build_report(issues, strict)
+}
+
+/// BDD-on change gates: reject legacy feature_delta; require Git binding for full stage.
+fn check_bdd_on_change_gates(
+    change_dir: &Path,
+    frontmatter: Option<&crate::sdd::spec::validation::ProposalFrontmatter>,
+) -> Vec<ValidationIssue> {
+    let mut issues = Vec::new();
+    let specs_dir = change_dir.join("specs");
+    if specs_dir.is_dir() {
+        for delta in walk_legacy_feature_deltas(&specs_dir) {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Error,
+                path: delta,
+                message: "legacy feature_delta is a migration blocker under Git-native BDD-on; edit live llmanspec/specs/**/*.feature on the feature branch instead".to_string(),
+            });
+        }
+    }
+
+    let has_binding = frontmatter
+        .map(|fm| {
+            fm.branch
+                .as_ref()
+                .map(|b| !b.trim().is_empty())
+                .unwrap_or(false)
+                && fm
+                    .base_sha
+                    .as_ref()
+                    .map(|s| !s.trim().is_empty())
+                    .unwrap_or(false)
+        })
+        .unwrap_or(false);
+    if !has_binding {
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Info,
+            path: "proposal.md".to_string(),
+            message: "BDD-on change has no Git binding; run `llman sdd change attach <id>` on a non-default feature branch before checkpoint/archive".to_string(),
+        });
+    }
+    issues
+}
+
+fn walk_legacy_feature_deltas(dir: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    let Ok(entries) = fs::read_dir(dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            out.extend(walk_legacy_feature_deltas(&path));
+            continue;
+        }
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if name.ends_with(".feature.delta.toon") || name == "feature.delta.toon" {
+            out.push(path.display().to_string());
+        }
+    }
+    out
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -527,6 +602,7 @@ fn validate_by_type(
                 stage_override,
                 &dag_issues,
                 archive_config,
+                bdd_config.is_some(),
             );
             // Common validate path: fail closed on main-library req_id collisions.
             report
@@ -818,6 +894,7 @@ fn run_bulk_validation(
             stage_override,
             &dag_issues,
             archive_config,
+            bdd_config.is_some(),
         );
         items.push(ValidationItem {
             id,

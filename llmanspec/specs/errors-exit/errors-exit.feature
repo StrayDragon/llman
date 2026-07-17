@@ -3,6 +3,7 @@
 # Bound CLI scenarios live in error-rendering.feature / subcommand-error-handling.feature.
 功能: show --json 错误输出
   @req:r53
+  @executable
   场景: json-错误输出
     假如 llman 二进制已构建
     当 运行 llman sdd show nonexistent --type spec --json
