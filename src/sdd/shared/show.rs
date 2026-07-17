@@ -299,6 +299,7 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
                 "id": spec_id,
                 "featureId": spec.name,
                 "title": spec.name,
+                "purpose": spec.overview,
                 "overview": spec.overview,
                 "requirementCount": spec.requirements.len(),
                 "metadata": spec.metadata,
@@ -309,15 +310,21 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
         }
 
         let requirements = filter_requirements(&spec.requirements, args)?;
+        // Partitioned isomorphic JSON: constraints carry toon rows; harness is
+        // first-class; also project @req-linked harness ids onto requirements
+        // so agents don't see empty scenarios when GWT lives only in .feature.
+        let requirements_json =
+            enrich_requirements_json(&content, spec_id, &requirements, &harness_summaries, args)?;
         let output = serde_json::json!({
             "id": spec_id,
             "title": spec.name,
+            "purpose": spec.overview,
             "overview": spec.overview,
             "requirementCount": requirements.len(),
-            "requirements": requirements,
+            "requirements": requirements_json,
             "metadata": spec.metadata,
             "morphology": morphology,
-            "constraints": requirements,
+            "constraints": requirements_json,
             "harness": harness_summaries,
         });
         print_json(&output, args.compact_json)?;
@@ -383,6 +390,75 @@ fn filter_requirements(requirements: &[Requirement], args: &ShowArgs) -> Result<
             },
         })
         .collect())
+}
+
+/// Build requirements JSON with `reqId`/`title` and harness scenarios linked via `@req`.
+fn enrich_requirements_json(
+    content: &str,
+    spec_id: &str,
+    filtered: &[Requirement],
+    harness: &[serde_json::Value],
+    args: &ShowArgs,
+) -> Result<Vec<serde_json::Value>> {
+    use crate::sdd::spec::backend::{BACKEND, SpecBackend};
+    let doc = BACKEND.parse_main_spec(content, &format!("spec `{spec_id}`"))?;
+    let include_scenarios = !args.requirements && !args.no_scenarios;
+
+    // Map statement text → req entry for filtered subset matching.
+    let wanted: std::collections::HashSet<&str> =
+        filtered.iter().map(|r| r.text.as_str()).collect();
+
+    let mut out = Vec::new();
+    for req in &doc.requirements {
+        let text = req.statement.trim();
+        if !wanted.contains(text) {
+            continue;
+        }
+        let mut scenarios = Vec::new();
+        if include_scenarios {
+            for sc in filtered
+                .iter()
+                .find(|r| r.text == text)
+                .map(|r| r.scenarios.as_slice())
+                .unwrap_or(&[])
+            {
+                scenarios.push(serde_json::json!({
+                    "rawText": sc.raw_text,
+                    "source": "constraints",
+                }));
+            }
+            for h in harness {
+                let req_ids = h
+                    .get("reqIds")
+                    .and_then(|v| v.as_array())
+                    .cloned()
+                    .unwrap_or_default();
+                let linked = req_ids
+                    .iter()
+                    .any(|v| v.as_str() == Some(req.req_id.as_str()));
+                if linked {
+                    scenarios.push(serde_json::json!({
+                        "id": h.get("id"),
+                        "rawText": format!(
+                            "GIVEN: {}\nWHEN: {}\nTHEN: {}",
+                            h.get("given").and_then(|v| v.as_str()).unwrap_or(""),
+                            h.get("when").and_then(|v| v.as_str()).unwrap_or(""),
+                            h.get("then").and_then(|v| v.as_str()).unwrap_or(""),
+                        ),
+                        "source": "harness",
+                        "reqIds": req_ids,
+                    }));
+                }
+            }
+        }
+        out.push(serde_json::json!({
+            "reqId": req.req_id,
+            "title": req.title,
+            "text": text,
+            "scenarios": scenarios,
+        }));
+    }
+    Ok(out)
 }
 
 fn warn_irrelevant_flags(item_type: ItemType, args: &ShowArgs) {

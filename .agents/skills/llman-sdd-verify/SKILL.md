@@ -50,8 +50,8 @@ flowchart LR
    - 给出最小修复建议或建议更新 artifacts
 6. **BDD-on 验证（Partitioned SSOT）**——仅当 `config.yaml` 含 `bdd:` 段时：
    - `llman sdd validate <spec>`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
-   - 确认已运行 `llman sdd solidify <id>` 且 stdout 含 `consistency ok`（一致性门禁，非 toon→feature 投影）。
-   - 检查：可执行 GWT 只在 `.feature`；toon 无同 id 可执行双写；`list --specs --json` 的 `morphology.dualWriteCount` 应为 0。
+   - 确认已运行 `llman sdd solidify <id>` 且 stdout 含 `consistency ok`。
+   - 检查：可执行 GWT 只在 `.feature`；`morphology.dualWriteCount` 应为 0。
 
 7. 输出简短报告：
    - **CRITICAL**（归档前必须修复）

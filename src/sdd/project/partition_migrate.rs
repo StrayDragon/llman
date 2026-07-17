@@ -84,18 +84,39 @@ pub fn run(dry_run: bool) -> Result<()> {
             .retain(|s| s.feature || !harness_ids.contains(&s.id));
         let dropped_nonexec = before - doc.scenarios.len();
 
-        if removed.is_empty() && features.is_empty() && dropped_nonexec == 0 {
-            continue;
-        }
-
         let feature_path = spec_dir.join(format!("{name}.feature"));
         let plan = plan_feature_update(&name, &removed, &feature_path, &lang)?;
 
+        let mut other_tag_changes = false;
+        if !removed.is_empty() {
+            for path in &features {
+                if path == &feature_path {
+                    continue;
+                }
+                if let Ok(body) = fs::read_to_string(path) {
+                    let (_, changed) = insert_req_tags(&body, &removed);
+                    if changed {
+                        other_tag_changes = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Only count / write when there is real Partitioned work left.
+        let needs_work =
+            !removed.is_empty() || dropped_nonexec > 0 || plan.changed || other_tag_changes;
+        if !needs_work {
+            continue;
+        }
+
         if dry_run {
             println!(
-                "  [dry-run] {name}: strip {} executable; feature touches={}",
+                "  [dry-run] {name}: strip {} executable; drop_nonexec={}; feature touches={}; other_tags={}",
                 removed.len(),
-                plan.changed
+                dropped_nonexec,
+                plan.changed,
+                other_tag_changes
             );
             migrated += 1;
             continue;
@@ -130,7 +151,9 @@ pub fn run(dry_run: bool) -> Result<()> {
         migrated += 1;
     }
 
-    if dry_run {
+    if migrated == 0 {
+        println!("{}", t!("sdd.solidify.partition_migrate_already_done"));
+    } else if dry_run {
         println!(
             "{}",
             t!("sdd.solidify.partition_migrate_dry_run", count = migrated)
