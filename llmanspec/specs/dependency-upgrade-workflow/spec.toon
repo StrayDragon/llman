@@ -2,6 +2,7 @@ kind: llman.sdd.spec
 name: "dependency-upgrade-workflow"
 purpose: 规范依赖升级工作流：以 lockfile 优先的顺序进行依赖升级。
 valid_scope[1]: "llmanspec/specs/dependency-upgrade-workflow"
-requirements[1]{req_id,title,statement}:
-  r1,"dependency-upgrade-workflow",规范依赖升级工作流：以 lockfile 优先的顺序进行依赖升级。 The system MUST satisfy the scenarios in this spec.
+requirements[2]{req_id,title,statement}:
+  r1,lockfile-first dependency upgrade,"Maintainers MUST upgrade dependencies in lockfile-first order on the locked nightly baseline: update the lockfile and run validation before changing dependency version constraints in the manifest; ONLY when a lockfile-only update is insufficient to build or pass checks MAY they apply the minimal required manifest constraint boundary change and re-validate on nightly."
+  r2,upgrade outcome verifiable and reversible,"When manifest dependency constraints change, the change MUST be minimal and limited to compatibility needs and MUST pass project quality gates. After an upgrade batch, maintainers MUST be able to show nightly-based validation passed and MUST retain a rollback path to the previous known-good lock state."
 scenarios[0]:

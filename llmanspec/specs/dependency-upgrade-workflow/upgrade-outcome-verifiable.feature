@@ -1,15 +1,15 @@
 # language: zh-CN
-# 对应 spec: dependency-upgrade-workflow — 约束改动 MUST 最小且限于兼容性需要；
+# 对应 spec: dependency-upgrade-workflow r2 — 约束改动 MUST 最小且限于兼容性需要；
 # 升级产物 MUST 可验证、可审计，含最终校验结果与回退到上一已知良好 lock 状态的路径。
 功能: 依赖升级约束改动最小化且结果可验证可回退
-  @req:r1
+  @req:r2
   场景: manifest 约束改动最小且经质量门验证
     假如 {manifest} 中的依赖版本约束发生改动
     当 维护者完成改动
     那么 改动最小且限于兼容性需要
     而且 经项目质量门验证
 
-  @req:r1
+  @req:r2
   场景: 升级批次完成后可验证并保留回退路径
     假如 维护者完成一批依赖升级
     当 维护者准备合并

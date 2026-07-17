@@ -1,5 +1,5 @@
 # language: zh-CN
-# 对应 spec: dependency-upgrade-workflow — 维护者 MUST 以 lockfile 优先的顺序
+# 对应 spec: dependency-upgrade-workflow r1 — 维护者 MUST 以 lockfile 优先的顺序
 # 在锁定的 nightly 基线下升级依赖；仅在 lockfile 更新不足时才改 Cargo.toml 约束。
 功能: 依赖升级采用 lockfile 优先顺序
   @req:r1
