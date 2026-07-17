@@ -103,7 +103,13 @@ fn write_tool_skills(base: &Path, templates: &[super::templates::SkillTemplate])
         let skill_dir = base.join(dir_name);
         fs::create_dir_all(&skill_dir)?;
         let skill_path = skill_dir.join("SKILL.md");
-        atomic_write_with_mode(&skill_path, template.content.as_bytes(), None)?;
+        // Ensure trailing newline so repeated `init --update` does not thrash
+        // against end-of-file-fixer / editor norms.
+        let mut bytes = template.content.as_bytes().to_vec();
+        if !bytes.ends_with(b"\n") {
+            bytes.push(b'\n');
+        }
+        atomic_write_with_mode(&skill_path, &bytes, None)?;
     }
     Ok(())
 }
