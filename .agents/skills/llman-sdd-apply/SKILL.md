@@ -90,7 +90,7 @@ flowchart LR
 - 相关测试集：`just test` 或 `cargo test --all`
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
 
-- BDD-on（Git-native Partitioned SSOT）：留在已 attach 的 feature 分支；编辑 live `llmanspec/specs/**/spec.toon`（约束）与 `*.feature`（可执行 GWT，带 `@req`）。实现 step definitions。确保 `llman sdd validate --specs` 通过（含 `bdd.run_command`）。准备归档门禁时：工作区干净后运行 `llman sdd change checkpoint <id>`。**禁止**运行 solidify 或编写 `*.feature.delta.toon`。
+- BDD-on（Git-native Partitioned SSOT）：留在已 attach 的 feature 分支；编辑 live `spec.toon`（约束）与 `*.feature`（`@req`）；实现 steps；`llman sdd validate --specs` 通过后，干净工作区再 `change checkpoint <id>`。不要跑 solidify / 新建 feature_delta。
 
 - SDD 校验：`llman sdd validate <id> --strict --no-interactive`
 

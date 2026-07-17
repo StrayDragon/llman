@@ -83,11 +83,10 @@ flowchart LR
 
 ### 4b) BDD-on 模式——仅当 `config.yaml` 含 `bdd:` 段时（Git-native）
 - 在**非默认 Git feature 分支**上工作（禁止在 main/master 上 propose/实现 BDD-on 变更）。
-- **Partitioned SSOT**：编辑 live `llmanspec/specs/<capability>/spec.toon`（约束 + 不可执行 scenarios）与 `*.feature`（可执行 GWT，带 `@req:<req_id>`）。禁止同一 scenario id 的 GWT 双写进 toon。
-- Change 文档仍在 `llmanspec/changes/<change-id>/`（`proposal.md`、`tasks.md`、可选 `design.md`）。建议先用 `llman sdd change new <change-id>` 建草稿壳。**禁止**编写 `*.feature.delta.toon`——遗留活跃 feature_delta 是迁移阻断项。
-- 绑定变更：`llman sdd change attach <change-id>`（记录 feature 分支 + merge-base SHA）。
-- **没有** `solidify` 命令——不要让 agent 在闭环后再去「修复」harness 绑定。
-- **BDD-off**（无 `bdd:` 段）：用 `llman sdd change delta …` 写 `changes/<id>/specs/` 下的 TOON delta；不要求 feature 分支 / attach / checkpoint / harness。
+- **Partitioned SSOT**：编辑 live `spec.toon`（约束）与 `*.feature`（可执行 GWT + `@req`）；禁止同一 scenario id 双写。
+- Change 壳：`llman sdd change new <change-id>` → 充实 proposal/tasks → `llman sdd change attach <change-id>`。
+- **不要**跑 solidify / 写 `change delta` / 新建 feature_delta；若仓库里已有活跃 `*.feature.delta.toon`，先迁移再继续。
+- **BDD-off**（无 `bdd:`）：用 `change delta …`；不要求 feature 分支 / attach / checkpoint。
 
 ### 4c) BDD-off delta 写作（无 `bdd:` 段）
 - 创建变更壳：`llman sdd change new <change-id>`。
@@ -157,8 +156,8 @@ r1,happy,"",a trigger happens,the outcome is observed
 r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
-4) BDD spec 护栏（Git-native Partitioned SSOT）：
-当 `config.yaml` 含 `bdd` 块时：`spec.toon` = 约束层（requirements + 不可执行 scenarios）；`*.feature` = 可执行 harness 唯一 GWT（`@req:<req_id>` 挂回 requirement）。在非默认 feature 分支上编辑 live specs/features；用 `llman sdd change attach` 绑定，`checkpoint` 做门禁，`diff` 只读审查。合并前 `change archive` 仅移动 change 文档——永不 apply `feature_delta` / 永不把 TOON 当 SSOT 合并。遗留活跃 `*.feature.delta.toon` 是迁移阻断项。`requirements` 为空且无 `.feature` 是 ERROR。没有 solidify 命令。下游升级用 `llman sdd project migrate --kind partitioned`。
+4) BDD-on 护栏（Git-native Partitioned SSOT）：
+`config.yaml` 有 `bdd:` 时：`spec.toon`=约束/不可执行场景；`*.feature`=可执行 GWT（`@req`）。在非默认分支编辑 live 文件 → `change attach` / `checkpoint` → docs-only `change archive` → Git merge。不要找 solidify，也不要新建 `*.feature.delta.toon`（若已存在则是迁移阻断，跑 `project migrate --kind partitioned`）。空 requirements 且无 `.feature` = ERROR。
 
 备注：
 - 每个 spec 是一个独立的 `.toon` 文件；没有 Markdown 外壳，也没有 ```toon fence。
