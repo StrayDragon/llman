@@ -660,35 +660,35 @@ fn test_compat_validate_req_link() {}
 fn test_compat_partition_migrate_dry_run() {}
 
 #[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/global-req-id.feature",
+    path = "llmanspec/specs/sdd-bdd-mode-compat/sdd-bdd-mode-compat.feature",
     name = "global-req-collision-strict"
 )]
 #[test]
 fn test_global_req_collision_strict() {}
 
 #[scenario(
-    path = "llmanspec/specs/sdd-bdd-mode-compat/global-req-id.feature",
+    path = "llmanspec/specs/sdd-bdd-mode-compat/sdd-bdd-mode-compat.feature",
     name = "global-req-collision-default"
 )]
 #[test]
 fn test_global_req_collision_default() {}
 
 #[scenario(
-    path = "llmanspec/specs/sdd-workflow/global-req-id-authoring.feature",
+    path = "llmanspec/specs/sdd-workflow/sdd-workflow.feature",
     name = "next-req-id-json"
 )]
 #[test]
 fn test_next_req_id_json() {}
 
 #[scenario(
-    path = "llmanspec/specs/sdd-workflow/global-req-id-authoring.feature",
+    path = "llmanspec/specs/sdd-workflow/sdd-workflow.feature",
     name = "add-req-rejects-global-collision"
 )]
 #[test]
 fn test_add_req_rejects_global_collision() {}
 
 #[scenario(
-    path = "llmanspec/specs/sdd-workflow/global-req-id-authoring.feature",
+    path = "llmanspec/specs/sdd-workflow/sdd-workflow.feature",
     name = "resolve-req-json"
 )]
 #[test]
