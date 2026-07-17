@@ -518,7 +518,7 @@ fn validate_by_type(
                 archived_change_ids,
                 has_frozen,
             );
-            let report = validate_change_full(
+            let mut report = validate_change_full(
                 &change_dir,
                 &change_ids,
                 archived_change_ids,
@@ -528,6 +528,14 @@ fn validate_by_type(
                 &dag_issues,
                 archive_config,
             );
+            // Common validate path: fail closed on main-library req_id collisions.
+            report
+                .issues
+                .extend(crate::sdd::spec::req_registry::global_req_id_uniqueness_issues(root));
+            report.valid = !report
+                .issues
+                .iter()
+                .any(|issue| issue.level == ValidationLevel::Error);
             (report, StalenessInfo::not_applicable())
         }
         ItemType::Spec => {
@@ -554,11 +562,13 @@ fn validate_by_type(
                     let staleness =
                         evaluate_staleness(root, id, &spec_path, staleness_frontmatter.as_ref());
                     let mut issues = validation.report.issues.clone();
+                    issues.extend(crate::sdd::spec::req_registry::global_req_id_uniqueness_issues_for_capability(
+                        root, id,
+                    ));
                     issues.extend(apply_strict(staleness.issues, strict));
-                    let valid = validation.report.valid
-                        && !issues
-                            .iter()
-                            .any(|issue| issue.level == ValidationLevel::Error);
+                    let valid = !issues
+                        .iter()
+                        .any(|issue| issue.level == ValidationLevel::Error);
                     let report = ValidationReport {
                         valid,
                         issues,
@@ -788,6 +798,12 @@ fn run_bulk_validation(
 
     let all_change_ids: Vec<String> = changes.clone();
 
+    let global_req_issues = if validate_specs || validate_changes {
+        crate::sdd::spec::req_registry::global_req_id_uniqueness_issues(root)
+    } else {
+        Vec::new()
+    };
+
     for id in changes {
         let start = Instant::now();
         validate_sdd_id(&id, "change")?;
@@ -809,6 +825,17 @@ fn run_bulk_validation(
             valid: report.valid,
             issues: report.issues,
             duration_ms: start.elapsed().as_millis(),
+            staleness: StalenessInfo::not_applicable(),
+        });
+    }
+    // When validating changes without specs, still surface main-library req_id debt once.
+    if validate_changes && !validate_specs && !global_req_issues.is_empty() {
+        items.push(ValidationItem {
+            id: "_global_req_id".to_string(),
+            item_type: "spec".to_string(),
+            valid: false,
+            issues: global_req_issues.clone(),
+            duration_ms: 0,
             staleness: StalenessInfo::not_applicable(),
         });
     }
@@ -840,11 +867,16 @@ fn run_bulk_validation(
                     None,
                 );
                 let mut issues = validation.report.issues;
-                issues.extend(apply_strict(staleness.issues, strict));
-                let valid = validation.report.valid
-                    && !issues
+                issues.extend(
+                    global_req_issues
                         .iter()
-                        .any(|issue| issue.level == ValidationLevel::Error);
+                        .filter(|issue| issue.message.contains(&id))
+                        .cloned(),
+                );
+                issues.extend(apply_strict(staleness.issues, strict));
+                let valid = !issues
+                    .iter()
+                    .any(|issue| issue.level == ValidationLevel::Error);
                 let report = ValidationReport {
                     valid,
                     issues,

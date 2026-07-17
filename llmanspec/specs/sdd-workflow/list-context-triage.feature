@@ -1,7 +1,7 @@
 # language: zh-CN
 # 对应 spec: sdd-workflow r10/r47/r48 — list/context/triage 冒烟场景。
 功能: list、context 与 triage 冒烟
-  @req:r10
+  @req:r39
   场景: list --specs --json 含元数据字段
     假如 agent 运行 llman sdd list --specs --json
     当 命令执行完成

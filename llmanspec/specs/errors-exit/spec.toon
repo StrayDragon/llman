@@ -3,7 +3,7 @@ name: "errors-exit"
 purpose: 规范 llman CLI 的错误渲染与退出行为。
 valid_scope[1]: "llmanspec/specs/errors-exit"
 requirements[3]{req_id,title,statement}:
-  r1,CLI 入口错误渲染,"When a subcommand returns an error, the CLI MUST print a single user-visible error line to stderr and exit with code 1."
-  r2,show --json 错误输出,"When `sdd show` is called for a nonexistent spec with `--json`, the process MUST exit with code 1 and emit an Error on stderr (JSON-shaped error on stdout is not currently guaranteed)."
-  r3,子命令错误处理,"Command handlers MUST return Err on fatal errors. Interactive flows MAY print errors and exit themselves; recoverable issues MAY log to stderr without failing the command."
+  r22,CLI 入口错误渲染,"When a subcommand returns an error, the CLI MUST print a single user-visible error line to stderr and exit with code 1."
+  r53,"show --json 错误输出","When `sdd show` is called for a nonexistent spec with `--json`, the process MUST exit with code 1 and emit an Error on stderr (JSON-shaped error on stdout is not currently guaranteed)."
+  r76,子命令错误处理,Command handlers MUST return Err on fatal errors. Interactive flows MAY print errors and exit themselves; recoverable issues MAY log to stderr without failing the command.
 scenarios[0]:

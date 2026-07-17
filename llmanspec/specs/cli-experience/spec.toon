@@ -3,6 +3,6 @@ name: "cli-experience"
 purpose: 规范 llman CLI 的消息、本地化覆盖与 stdout/stderr 约定。
 valid_scope[1]: "llmanspec/specs/cli-experience"
 requirements[2]{req_id,title,statement}:
-  r1,"shell 补全生成与 install 安全写入","PowerShell 写入目标 MUST 位于 home 下。"
-  r2,"本地化消息与 stdout/stderr 约定","对应 spec: cli-experience — 运行时提示/状态/错误 MUST 优先用 t! 本地化键；locale 固定英文；"
+  r14,shell 补全生成与 install 安全写入,PowerShell 写入目标 MUST 位于 home 下。
+  r43,本地化消息与 stdout/stderr 约定,"对应 spec: cli-experience — 运行时提示/状态/错误 MUST 优先用 t! 本地化键；locale 固定英文；"
 scenarios[0]:

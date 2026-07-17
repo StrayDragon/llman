@@ -1,0 +1,7 @@
+kind: llman.sdd.delta
+ops[2]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r86,全局 req_id 唯一性,"在 llmanspec/specs 主库中，每个 requirement 的 req_id MUST 在全部 capability 间全局唯一。通用 validate 路径（validate --all、validate <spec>、validate <change> 且会加载主库约束时）MUST 立即检测跨 capability 重复 req_id：默认与 --strict 下 MUST 判为失败并拦截；错误信息 MUST 指出冲突的 req_id 与涉及 capability，并给出可操作修复建议（例如改用 llman sdd spec next-req-id 分配新短 id，或 llman sdd spec resolve-req 查看归属）。非交互场景 MUST NOT 静默放过重复以免积累债务。",null,null,null
+  modify_requirement,r6,validate 链接与双写及全局唯一门禁,"BDD-on 时 validate MUST 校验：feature 中每个 @req:X 对应 toon requirement X 存在；同一 scenario id 可执行 GWT 双写在 --strict 下 MUST 为失败；不可执行 toon scenario id MUST NOT 出现在 .feature；跨不同 main spec 的重复 req_id MUST 立即失败并附修复建议（见全局唯一合约）。--check 仍按 bdd.run_command 执行 harness。",null,null,null
+op_scenarios[2]{req_id,id,given,when,then,feature}:
+  r86,"global-req-id-unique-note",约束层说明,两个 main spec 使用相同 req_id,validate 立即失败并含修复建议；可执行场景见 feature_delta,false
+  r6,"req-link-global-note",约束层说明,validate 检查 @req 与全局唯一,链接与跨 spec 撞车均按合约失败,false

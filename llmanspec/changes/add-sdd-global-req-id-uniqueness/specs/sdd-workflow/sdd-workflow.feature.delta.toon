@@ -1,0 +1,6 @@
+kind: llman.sdd.feature_delta
+target: global-req-id-authoring.feature
+ops[3]{op,id,req_id,given,when,then}:
+  add,next-req-id-json,r87,"已初始化 sdd 项目且 bdd 配置为 \"on\"","在非交互终端运行 llman sdd spec next-req-id --json","退出码为零且 stdout 为合法 JSON 且含 JSON 键 reqId"
+  add,add-req-rejects-global-collision,r88,"已初始化含已占用全局 req_id 的 sdd 项目且 bdd 配置为 \"on\"","在非交互终端运行 llman sdd spec add-req sample occupied-id --title t --statement \"MUST keep unique\"","退出码非零且 stderr 包含 occupied-id"
+  add,resolve-req-json,r89,"已初始化 sdd 项目且 bdd 配置为 \"on\"","在非交互终端运行 llman sdd spec resolve-req r1 --json","退出码为零且 stdout 为合法 JSON 且含 JSON 键 reqId 且含 JSON 键 capability"

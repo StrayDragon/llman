@@ -58,6 +58,10 @@ Cargo equivalents use `cargo +nightly ...`.
 | 约束 | `llmanspec/specs/<name>/spec.toon` | `requirements` + **不可执行** scenarios |
 | Harness | `llmanspec/specs/<name>/*.feature` | 可执行 GWT 唯一正文；场景带 `@req:<req_id>` |
 
+`req_id` 是**全库唯一的短别名**（`r12` 或自定义 tag）。归属用
+`llman sdd spec resolve-req <id>` / `next-req-id` 查询与分配；`validate` 对跨
+capability 重复立即 ERROR 并给出修复建议。
+
 禁止同一 scenario id 的可执行 GWT 双写在 toon 与 feature。`llman sdd solidify` 做一致性门禁（可选 `--write-stubs`），**不**再从 toon 投影覆盖 `.feature`。下游升级：`llman sdd project partition-migrate`（自循环 agent prompt 见 `docs/release/partitioned-ssot/UPGRADE_AGENT_PROMPT.md`）。
 
 ### 如何启用/关闭 BDD-on 模式

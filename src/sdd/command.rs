@@ -63,6 +63,20 @@ pub enum SddSpecCommands {
         #[arg(long = "then")]
         then_: String,
     },
+    /// Allocate next free short global req_id (`rN`)
+    NextReqId {
+        /// Emit JSON `{ "reqId": "r12" }`
+        #[arg(long)]
+        json: bool,
+    },
+    /// Resolve a short req_id to capability + statement (+ harness refs)
+    ResolveReq {
+        /// Requirement id
+        req_id: String,
+        /// Emit JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Args)]
@@ -427,6 +441,12 @@ pub enum SddProjectCommands {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Remap colliding main-library req_ids to fresh short `rN` aliases
+    DedupeReqIds {
+        /// Scan and report without writing files
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -651,6 +671,24 @@ pub fn run(args: &SddArgs) -> Result<()> {
                     then_: then_.clone(),
                 },
             ),
+            SddSpecCommands::NextReqId { json } => {
+                crate::sdd::spec::req_registry::run_next_req_id(std::path::Path::new("."), *json)
+            }
+            SddSpecCommands::ResolveReq { req_id, json } => {
+                let config = crate::sdd::project::config::load_required_config(
+                    &std::path::Path::new(".").join("llmanspec"),
+                )?;
+                let lang = crate::sdd::solidify::locale_to_gherkin_lang(
+                    Some(&config.locale),
+                    config.bdd.as_ref(),
+                );
+                crate::sdd::spec::req_registry::run_resolve_req(
+                    std::path::Path::new("."),
+                    req_id,
+                    *json,
+                    &lang,
+                )
+            }
         },
         SddCommands::Delta(args) => match &args.command {
             SddDeltaCommands::Skeleton {
@@ -840,6 +878,12 @@ pub fn run(args: &SddArgs) -> Result<()> {
             SddProjectCommands::UpgradeGuide => upgrade_guide::run(),
             SddProjectCommands::SolidifyMigrate { dry_run } => solidify_migrate::run(*dry_run),
             SddProjectCommands::PartitionMigrate { dry_run } => partition_migrate::run(*dry_run),
+            SddProjectCommands::DedupeReqIds { dry_run } => {
+                crate::sdd::spec::req_registry::run_dedupe_req_ids(
+                    std::path::Path::new("."),
+                    *dry_run,
+                )
+            }
         },
     }
 }

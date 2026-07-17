@@ -1,0 +1,9 @@
+kind: llman.sdd.delta
+ops[3]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r87,"spec next-req-id 分配器","llman sdd spec next-req-id MUST 扫描 llmanspec/specs 主库已占用的全部 req_id，并向 stdout 打印一个当前未使用的短候选 id。默认形态 MUST 为 rN（N 为正整数且未占用）；--json 时 MUST 输出可解析 JSON 且含 reqId 字段。MUST NOT 要求把 capability 编入候选 id。",null,null,null
+  add_requirement,r88,"add-req 拒绝全局已占用 req_id","llman sdd spec add-req 在调用方提供的 req_id 已在 llmanspec/specs 主库任一 capability 中占用时，MUST 以非零退出码失败并在 stderr 说明冲突 capability，MUST NOT 写入会破坏全局唯一性的 requirement 行。自定义短 tag 与 rN 形态 MUST 适用同一守卫。",null,null,null
+  add_requirement,r89,"spec resolve-req 解析归属","llman sdd spec resolve-req <req_id> MUST 在主库中解析该短别名的归属并打印 capability、title、statement；--json 时 MUST 含 reqId 与 capability 字段。找不到时 MUST 非零退出。该命令 MUST 作为 agent 获取 req 关联数据的一等入口，替代把 capability 编码进 req_id。",null,null,null
+op_scenarios[3]{req_id,id,given,when,then,feature}:
+  r87,"next-req-id-note",约束层说明,"运行 llman sdd spec next-req-id","stdout 为未占用短 id（如 rN）；可执行见 feature_delta",false
+  r88,"add-req-global-guard-note",约束层说明,"add-req 使用已全局占用的 req_id 或自定义 tag",非零退出且不写入该 id,false
+  r89,"resolve-req-note",约束层说明,"运行 llman sdd spec resolve-req <已存在短 id> --json","stdout JSON 含 capability 与 reqId",false
