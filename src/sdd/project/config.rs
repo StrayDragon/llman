@@ -22,9 +22,13 @@ pub(crate) const OPTIONAL_SKILL_NAMES: &[&str] = &[
 const DEFAULT_CONFIG_EN: &str = r#"schema: spec-driven
 locale: en
 
-# Optional extra skills (disabled by default, uncomment to enable)
-# When you run `llman sdd init --update`, skills not in this list
-# will be automatically cleaned up from .agents/skills/ directory.
+# Optional extra skills (disabled by default, uncomment to enable).
+# On `llman sdd init --update` / `update-skills`, managed candidates are:
+#   default workflow skills + entries listed here (extra_skills extend).
+# Then `.agents/skills/llman-sdd-*` is scanned: anything not in that candidate
+# set is removed first, then candidates are written/updated. Only the
+# `llman-sdd-` prefix is touched (custom skills without that prefix are kept).
+# Deprecated shipped skills (e.g. removed from defaults) are cleaned this way.
 # extra_skills:
 #   - llman-sdd-new-change
 #   - llman-sdd-continue
@@ -45,9 +49,12 @@ locale: en
 const DEFAULT_CONFIG_ZH_HANS: &str = r#"schema: spec-driven
 locale: zh-Hans
 
-# 可选额外技能（默认禁用，取消注释以启用）
-# 运行 `llman sdd init --update` 时，不在列表中的技能
-# 会自动从 .agents/skills/ 目录中清理。
+# 可选额外技能（默认禁用，取消注释以启用）。
+# 运行 `llman sdd init --update` / `update-skills` 时，管理候选集为：
+#   默认 workflow 技能 + 本列表（extra_skills 扩展）。
+# 然后扫描 `.agents/skills/llman-sdd-*`：不在候选集中的先删除，再写入/更新候选。
+# 仅处理 `llman-sdd-` 前缀（无此前缀的自定义技能不会被删）。
+# 已废弃的内置技能（从默认集移除后）会因此被正确清理。
 # extra_skills:
 #   - llman-sdd-new-change
 #   - llman-sdd-continue
@@ -160,9 +167,13 @@ pub struct SddConfig {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(description = "Additional optional SDD skills to enable. \
+    #[schemars(
+        description = "Additional optional SDD skills to enable (extend candidates). \
+        On init --update / update-skills, candidates = default workflow skills + this list; \
+        then `.agents/skills/llman-sdd-*` not in candidates are removed before rewrite. \
         Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, \
-        llman-sdd-sync, llman-sdd-validate.")]
+        llman-sdd-sync, llman-sdd-validate."
+    )]
     pub extra_skills: Option<Vec<String>>,
 
     #[serde(default)]
@@ -444,6 +455,10 @@ mod tests {
             content.contains("# extra_skills:"),
             "en template should have extra_skills comment"
         );
+        assert!(
+            content.contains("llman-sdd-*"),
+            "en template should document managed prefix cleanup"
+        );
     }
 
     #[test]
@@ -460,6 +475,10 @@ mod tests {
         assert!(
             content.contains("# extra_skills:"),
             "zh-Hans template should have extra_skills comment"
+        );
+        assert!(
+            content.contains("llman-sdd-*"),
+            "zh-Hans template should document managed prefix cleanup"
         );
     }
 
