@@ -6,7 +6,7 @@
     假如 用户运行 llman --config-dir "~/.config/llman" {subcommand}
     当 解析配置目录
     那么 解析结果为 {home}/.config/llman
-    而且不是 ./{}/.config/llman
+    而且 而且不是 ./{}/.config/llman
 
   场景: 环境变量 tilde 路径正确展开
     假如 LLMAN_CONFIG_DIR 设置为 "~/.config/llman" 且无 CLI 覆盖
@@ -15,6 +15,6 @@
 
   场景: 开发仓库内无覆盖时报错
     假如 当前目录含包名为 llman 的 Cargo.toml
-    而且未提供任何覆盖
+    而且 而且未提供任何覆盖
     当 运行命令
     那么 命令以 config-dir-required 错误失败

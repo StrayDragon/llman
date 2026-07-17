@@ -1,7 +1,9 @@
 use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
-use crate::sdd::project::{init, interop, migrate, solidify_migrate, upgrade_guide};
+use crate::sdd::project::{
+    init, interop, migrate, partition_migrate, solidify_migrate, upgrade_guide,
+};
 use crate::sdd::shared::{graph, list, show, status, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -278,14 +280,17 @@ pub enum SddCommands {
         #[command(subcommand)]
         command: ArchiveSubcommand,
     },
-    /// Solidify a change's delta scenarios into executable `.feature` files
-    /// (BDD-on only). Applies after `apply`, before `archive`.
+    /// Solidify a change: Partitioned consistency gate (BDD-on). Optional
+    /// `--write-stubs` applies `feature_delta` adds without overwriting GWT.
     Solidify {
         /// Change id
         change: String,
-        /// Dry run mode: preview the generated `.feature` content without writing
+        /// Dry run mode: preview stub writes without writing
         #[arg(long)]
         dry_run: bool,
+        /// Write missing harness scenario stubs from feature_delta (add ops only)
+        #[arg(long)]
+        write_stubs: bool,
     },
     /// Spec authoring helpers
     Spec(SddSpecArgs),
@@ -410,6 +415,14 @@ pub enum SddProjectCommands {
     /// files) to the unified full structure (valid_scope + requirements +
     /// scenarios). Idempotent; safe to re-run.
     SolidifyMigrate {
+        /// Scan and report without writing files
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Partitioned SSOT migrate: strip executable GWT from spec.toon into
+    /// `.feature` (with `@req`), leaving only constraints + non-executable
+    /// scenarios in toon. Idempotent.
+    PartitionMigrate {
         /// Scan and report without writing files
         #[arg(long)]
         dry_run: bool,
@@ -593,7 +606,11 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 dest: dest.clone(),
             }),
         },
-        SddCommands::Solidify { change, dry_run } => crate::sdd::solidify::run(change, *dry_run),
+        SddCommands::Solidify {
+            change,
+            dry_run,
+            write_stubs,
+        } => crate::sdd::solidify::run(change, *dry_run, *write_stubs),
         SddCommands::Spec(args) => match &args.command {
             SddSpecCommands::Skeleton { capability, force } => authoring::spec::run_skeleton(
                 std::path::Path::new("."),
@@ -822,6 +839,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
             }),
             SddProjectCommands::UpgradeGuide => upgrade_guide::run(),
             SddProjectCommands::SolidifyMigrate { dry_run } => solidify_migrate::run(*dry_run),
+            SddProjectCommands::PartitionMigrate { dry_run } => partition_migrate::run(*dry_run),
         },
     }
 }

@@ -4,7 +4,4 @@ purpose: 规范 nightly 工具链治理：锁定 nightly 作为唯一构建基�
 valid_scope[1]: "llmanspec/specs/nightly-toolchain-governance"
 requirements[1]{req_id,title,statement}:
   r1,"nightly-toolchain-governance",规范 nightly 工具链治理：锁定 nightly 作为唯一构建基线。 The system MUST satisfy the scenarios in this spec.
-scenarios[3]{req_id,id,given,when,then,feature}:
-  r1,升级 nightly 日期须通过质量门,"{toolchain_file} 被改为更新的 nightly 日期",维护者评估该 bump,改动通过基于 nightly 的格式、lint、测试与 release 构建检查,true
-  r1,新 nightly 引入阻断性回归时可回退,nightly 升级后出现阻断合并或发布的回归,维护者回退,"可恢复先前的锁定 nightly 基线\n无需重写无关代码即可恢复绿色构建",true
-  r1,开发者运行构建或检查命令时工具链解析为锁定基线,开发者在仓库中运行构建或检查命令,工具链被解析,"生效的 Rust 工具链为 {toolchain_file} 定义的锁定 nightly 基线",true
+scenarios[0]:

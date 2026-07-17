@@ -48,9 +48,10 @@ flowchart LR
 5. 对比 artifacts 与代码：
    - 标出不一致（缺失行为、错误行为、缺测试/文档）
    - 给出最小修复建议或建议更新 artifacts
-6. **BDD-on 验证**——仅当 `config.yaml` 含 `bdd:` 段时：
-   - `llman sdd validate <spec>` 在 Gherkin 解析后自动运行 `bdd.run_command`；退出码 0 = 通过，非 0 = 失败。
-   - 确认已运行 `llman sdd solidify <id>`——`.feature` 文件应与 delta scenario 保持同步。
+6. **BDD-on 验证（Partitioned SSOT）**——仅当 `config.yaml` 含 `bdd:` 段时：
+   - `llman sdd validate <spec>`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
+   - 确认已运行 `llman sdd solidify <id>` 且 stdout 含 `consistency ok`。
+   - 检查：可执行 GWT 只在 `.feature`；`morphology.dualWriteCount` 应为 0。
 {% if bdd_verify_prompt %}
    - 额外要求: {{ bdd_verify_prompt }}
 {% endif %}

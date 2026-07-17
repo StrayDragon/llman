@@ -4,17 +4,4 @@ purpose: 规范 Cursor 导出的选择与输出行为（交互式与非交互式
 valid_scope[1]: "llmanspec/specs/cursor-export"
 requirements[1]{req_id,title,statement}:
   r1,"cursor-export",规范 Cursor 导出的选择与输出行为（交互式与非交互式）。 The system MUST satisfy the scenarios in this spec.
-scenarios[13]{req_id,id,given,when,then,feature}:
-  r1,排序展示不影响导出正确性,交互 UI 展示的是排序后的对话列表,用户选择了 A 与 B,即使底层存储顺序不同，导出也只包含 A 与 B,true
-  r1,搜索选择导出正确,用户通过 search more 流程选择了若干对话,执行导出,导出结果与搜索选择完全一致,true
-  r1,大库仅选少量对话时只加载选中项,workspace 中存在大量对话但用户只选择少量导出,执行导出,仅为被选中对话加载完整内容,true
-  r1,db_path 优先,非交互模式下设置了 db_path,执行导出,直接使用该数据库路径,true
-  r1,workspace_dir 次之,设置了 workspace_dir 且未提供 db_path,执行导出,解析 workspace 到其数据库路径并使用,true
-  r1,无覆盖时自动发现,既未提供 db_path 也未提供 workspace_dir,执行导出,"经自动发现选择数据库路径\n优先选含 chat/composer 数据的最新库",true
-  r1,composer_id 提供时仅导出该会话,非交互模式下设置了 composer_id,执行导出,"仅写出匹配的 composer 会话\n找不到时返回错误",true
-  r1,无 composer_id 时导出全部,非交互模式下未提供 composer_id,执行导出,写出所有可用会话,true
-  r1,不支持的输出模式报错,output_mode 不在支持的取值中,命令运行,返回错误并由 CLI 入口呈现,true
-  r1,"single-file 模式输出位置","output_mode 为 single-file",执行导出,写入 output_file（若提供），否则默认 cursor_conversations.md,true
-  r1,file 模式输出位置,output_mode 为 file,执行导出,写入 output_file 目录（若提供），否则默认 ./cursor_exports,true
-  r1,SQLite 连接使用 FULL_MUTEX,cursor export 打开数据库,SQLite 连接创建,"使用 FULL_MUTEX\n或在注释中明确说明 NO_MUTEX 为单线程安全",true
-  r1,数据库可正常打开时导出无退化,数据库可正常打开,cursor export 执行导出,"功能正常\n无退化",true
+scenarios[0]:

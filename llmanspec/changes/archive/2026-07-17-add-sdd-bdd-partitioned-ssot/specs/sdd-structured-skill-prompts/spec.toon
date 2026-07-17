@@ -1,0 +1,7 @@
+kind: llman.sdd.delta
+ops[2]{op,req_id,title,statement,from,to,name}:
+  modify_requirement,r1,SDD 技能结构化提示协议含 Partitioned BDD,"llman SDD 的技能模板 MUST 采用统一结构化提示协议（Context/Goal/Constraints/Workflow/Decision Policy/Output Contract），并通过模板单元注入组装。Constraints MUST 含 context-first 与 triage。当项目 BDD-on 时，propose/solidify/archive/apply/verify/explore 技能 MUST 描述 Partitioned SSOT：toon=约束层、feature=harness 层、可执行变更用 feature_delta、禁止教导 toon 投影覆盖 feature 或 feature 只读衍生为唯一模型。",null,null,null
+  add_requirement,r2,solidify 与 propose 技能对齐新语义,"llman-sdd-solidify 与 llman-sdd-propose 技能 MUST 声明：solidify 做一致性门禁与可选 stubs；propose 在 BDD-on 可为可执行场景创作 feature_delta；禁止要求 agent 把可执行 GWT 双写进 toon scenarios 与 feature。",null,null,null
+op_scenarios[2]{req_id,id,given,when,then,feature}:
+  r1,"skills-mention-partitioned",agent 阅读生成的 propose 或 solidify 技能模板,检查 Constraints 或 Workflow,提及 Partitioned 或 feature_delta 或 harness 且不要求 toon 投影覆盖 feature,false
+  r2,"propose-skill-no-toon-ssot-only",更新后的 propose 技能文案,搜索唯一真源表述,MUST NOT 写明 toon 为可执行 GWT 的唯一真源,false

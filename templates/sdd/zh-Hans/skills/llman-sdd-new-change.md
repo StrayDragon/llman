@@ -18,12 +18,13 @@ metadata:
    - 若变更已存在，STOP 并建议使用 `llman-sdd-continue`。
 4. 在 `llmanspec/changes/<change-id>/` 下创建工件：
    - `proposal.md`（Why / What Changes / Capabilities / Impact）
-   - 为每个 capability 创建 `specs/<capability>/spec.toon`（每个文件一份独立的 TOON 文档）：
+   - 为每个 capability 创建 `specs/<capability>/spec.toon`（约束层；每个文件一份独立的 TOON 文档）：
      - 建议优先通过 authoring helpers 生成，确保 TOON payload 规范：
        - `llman sdd delta skeleton <change-id> <capability>`
        - `llman sdd delta add-op ...`
-       - `llman sdd delta add-scenario ...`
+       - `llman sdd delta add-scenario ...`（仅约束层 / `feature:false`）
      - 至少包含一个 `add_requirement`/`modify_requirement` op（statement 必须含 MUST/SHALL），并且至少包含一行匹配的 op scenario
+   - **BDD-on Partitioned**：可执行 GWT 写入 `specs/<capability>/*.feature.delta.toon`（或直接编辑主 `*.feature`），**不要**把完整 Given/When/Then 写进 toon 再靠 solidify 投影
    - 仅在涉及权衡/迁移时创建 `design.md`
    - `tasks.md`：按顺序拆分为可勾选清单（包含校验命令）
 5. 校验：`llman sdd validate <change-id> --strict --no-interactive`。

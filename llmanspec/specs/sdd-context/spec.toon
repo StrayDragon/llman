@@ -4,22 +4,9 @@ purpose: 规范 `llman sdd context` 命令的后端选项、默认值与 pageind
 valid_scope[1]: "llmanspec/specs/sdd-context"
 requirements[3]{req_id,title,statement}:
   r1,"sdd-context",规范 `llman sdd context` 命令的后端选项、默认值与 pageindex 检索行为。 The system MUST satisfy the scenarios in this spec.
-  r2,"Scenario-Aware Retrieval","`build_docs` MUST keep `feature: true` scenarios in each `DocNode` so the retrieval agent can read behavior details. `compute_spec_hash` MUST hash `*.feature` files alongside `spec.toon` so derived-file edits trigger staleness. The retrieval tool `get_document_structure` MUST list scenario ids under each requirement. The retrieval tool `get_spec_content` MUST return matching scenarios' given/when/then full text. Retrieval output schema changes MUST be backward compatible: old `tree.json` without a `scenarios` field MUST still load (field defaults to empty), and non-BDD specs (no scenarios) MUST produce unchanged retrieval output."
-  r3,Feature Embedding in Index,"`index_rebuild` MUST parse `*.feature` files in each spec directory using the Gherkin language derived from `config.yaml` locale and bdd settings. Parsed feature scenarios MUST be merged into the spec's scenarios (deduplicated by id, toon source wins on collision) with `req_id` set to empty (spec-level). The retrieval tool `get_document_structure` MUST list spec-level scenario ids in a top-level `scenarios` array. The retrieval tool `get_spec_content` MUST return an extra entry with `req_id` empty containing all spec-level scenarios' given/when/then. Specs without `.feature` files MUST produce unchanged index and retrieval output. A malformed `.feature` file MUST be skipped with a warning rather than aborting the rebuild."
-scenarios[16]{req_id,id,given,when,then,feature}:
-  r1,拒绝非 pageindex 后端值,"用户执行 sdd context --backend {bad_backend}","命令解析 --backend 值","报错退出\n提示 backend 仅支持 pageindex\n引导配置所需环境变量",true
-  r1,chat 模型 endpoint 回退复用 OPENAI 值,LLMAN_SDD_INDEX_CHAT_API_HOST 未设置但 LLMAN_SDD_INDEX_OPENAI_API_HOST 已设置,解析 chat 模型 endpoint,回退复用 LLMAN_SDD_INDEX_OPENAI_API_HOST 的值,true
-  r1,默认 host 为空且未配置时报错,LLMAN_SDD_INDEX_CHAT_API_HOST 未设置且 LLMAN_SDD_INDEX_OPENAI_API_HOST 也未设置,"ChatConfig::from_env() 执行","返回错误并提示用户配置 LLMAN_SDD_INDEX_CHAT_API_HOST\n不回退到任何可路由地址",true
-  r1,显式 host 正常生效,LLMAN_SDD_INDEX_CHAT_API_HOST 已设置为合法 URL,"ChatConfig::from_env() 执行","正常返回配置\n使用用户提供的值",true
-  r1,索引缺失时返回 unavailable 且不回退,pageindex 索引缺失,"执行 sdd context（未显式 --backend）","返回 quality=unavailable\nqualityNote 含 rebuild 命令\n不回退到任何其它检索方式",true
-  r1,配置缺失时给出简洁可操作提示,LLMAN_SDD_INDEX_CHAT_MODEL 未设置,执行 sdd context,"提示明确列出需设置的变量名与 rebuild 命令\n内容简洁无冗余",true
-  r1,rebuild 从 IR 构建树索引无需 LLM,存在多个已解析的 sdd spec,"执行 sdd index rebuild --backend pageindex","生成 tree.json\n构建过程不发起任何 LLM 请求",true
-  r1,agentic loop 经三工具导航,chat 模型收到 system prompt 与三工具（list_specs / get_document_structure / get_spec_content）,sdd context 检索执行,LLM 依次调用工具后输出 direct/related 分类结果,true
-  r1,后端隔离不互相降级,.context/rag/ 已有索引但 .context/pageindex/ 不存在,"执行 sdd context --backend pageindex","返回 quality 为 unavailable 且 errorKind 为 index_missing\n不降级使用 rag 索引",true
-  r2,"rebuild-includes-scenarios","存在一个 sdd spec，其 spec.toon 含若干 feature:true 的场景","执行 sdd index rebuild --backend pageindex","生成的 tree.json 中对应 DocNode 的 scenarios 字段非空\n场景含 req_id/id/given/when/then",true
-  r2,"get-document-structure-lists-scenarios",tree.json 中某 DocNode 含 scenarios 字段,调用 get_document_structure(spec_id),返回的每个 req 节点下含 scenarios 列表（仅 id，省 token）,true
-  r2,"get-spec-content-includes-scenarios",tree.json 中某 DocNode 含 scenarios 字段,"调用 get_spec_content(spec_id, req_ids)","返回的条目含 scenarios 数组\n每个场景含 given/when/then 全文",true
-  r2,"spec-hash-includes-feature",某 spec 目录下存在 .feature 文件,修改该 .feature 文件后执行 sdd index check,索引状态为 stale（staleness hash 变化触发）,true
-  r3,"rebuild-embeds-feature-scenarios","某 spec 目录同时含 spec.toon（含 1 个 feature:true 场景）与 1 个 .feature 文件（含 2 个场景）",执行 sdd index rebuild,"tree.json 中该 spec 的 scenarios 含 3 个场景（toon 与 feature 合并去重）\nfeature 来源场景的 req_id 为空",true
-  r3,"get-spec-content-returns-spec-level-scenarios",tree.json 中某 spec 含 req_id 为空的 spec 级别场景,"调用 get_spec_content(spec_id, req_ids)","返回结果含一个 req_id 为空的额外条目\n该条目含全部 spec 级别场景的 given/when/then 全文",true
-  r3,"non-bdd-spec-unchanged",某 spec 目录无 .feature 文件,执行 sdd index rebuild 后调用检索工具,"scenarios 仅来自 spec.toon\n检索输出与无 feature 嵌入前完全一致",true
+  r2,"Scenario-Aware Retrieval Partitioned",build_docs 与检索工具 MUST 按 Partitioned SSOT 暴露场景：可执行 GWT 以 *.feature 为权威；spec.toon 仅提供 requirements 与不可执行 scenarios。compute_spec_hash MUST 仍哈希 *.feature 与 spec.toon。get_document_structure MUST 能列出 requirement 下经由 @req 关联的 harness 场景 id。get_spec_content MUST 返回对应 given/when/then 全文且同一 scenario id MUST NOT 出现两份正文。旧 tree.json 无 scenarios 字段 MUST 仍可加载；无 .feature 的 spec MUST 行为与仅 toon 一致。
+  r3,Feature Embedding 单次且 feature 优先,"index_rebuild 在 BDD-on 时 MUST 解析 *.feature 并编入索引；与 toon 可执行行同 id 碰撞时 MUST 以 feature 为准且 MUST NOT 再 embed toon 副本。toon 中不可执行 scenarios MUST 仍编入。req_id 优先取自 @req 标签；无标签时可为 spec-level 空 req_id 并在 validate 中按门禁告警。畸形 .feature MUST 跳过并警告而非中止 rebuild。BDD-off 或无 .feature 时输出 MUST 与仅 toon 一致。"
+scenarios[3]{req_id,id,given,when,then,feature}:
+  r2,"get-spec-content-no-dual-gwt",tree.json 中同 id 不应双份,调用 get_spec_content,返回的 given/when/then 每个 scenario id 至多一份,false
+  r3,"rebuild-feature-wins-collision",spec 目录曾双写同 id GWT,执行 sdd index rebuild,索引中该 id 仅一份且正文来自 feature,false
+  r3,"rebuild-embeds-feature-once",某 spec 含 .feature 与仅约束 toon,执行 sdd index rebuild,harness 场景来自 feature 且无 toon 可执行副本,false

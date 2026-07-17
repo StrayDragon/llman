@@ -84,7 +84,7 @@ Run project gate commands (adapt to the actual project):
 - Relevant test suite: `just test` or `cargo test --all`
 - Format/lint: `just check` or `just lint` + `just fmt`
 {% if bdd_enabled %}
-- BDD-on: implement step definitions so that `llman sdd validate --specs` passes (auto-runs `bdd.run_command`). Use `llman sdd solidify <id>` to generate `.feature` files before validating.
+- BDD-on (Partitioned SSOT): executable scenarios go in `.feature` / `feature_delta` (`@req`); constraints in `spec.toon`. Implement step definitions; run `llman sdd solidify <id>` as a consistency gate (not projection); ensure `llman sdd validate --specs` passes (includes `bdd.run_command`).
 {% endif %}
 - SDD validation: `llman sdd validate <id> --strict --no-interactive`
 

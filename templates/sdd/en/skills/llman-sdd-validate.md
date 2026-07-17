@@ -15,11 +15,11 @@ Use this skill to validate change/spec format and staleness.
 3. Use `--strict` and `--no-interactive` for CI-like checks.
 4. If validation fails, summarize the errors and propose minimal, concrete fixes.
 {% if bdd_enabled %}
-5. **BDD 校验**:
-   - 验证 spec 目录下 .feature 文件语法合法（gherkin 解析）。
-   - `.feature` 由 `llman sdd solidify` 自动生成——不要手动编辑。
-   - `llman sdd validate --specs` 默认自动运行 `bdd.run_command`。
-   - 报告 scenario 覆盖率（.feature 中 scenario 数 vs spec 中 scenario 数）
+5. **BDD checks (Partitioned SSOT)**:
+   - Validate `.feature` Gherkin and `@req` / dual-write gates.
+   - `.feature` is the harness authority — maintain executable GWT there; `solidify` is a consistency gate (not projection overwrite).
+   - `llman sdd validate --specs` runs `bdd.run_command` by default.
+   - Use `list --specs --json` for `morphology` (includes `dualWriteCount`).
 {% endif %}
 
 {{ unit("skills/sdd-commands") }}

@@ -316,42 +316,40 @@ pub async fn index_rebuild(
     index_rebuild_pageindex(&context_dir, &specs_dir, &lang).await
 }
 
-/// Merge `.feature` scenarios into a parsed spec doc (in place).
+/// Merge `.feature` scenarios into a parsed spec doc (in place) — Partitioned SSOT.
 ///
-/// Discovers `*.feature` under `spec_dir`, parses each with the given Gherkin
-/// `lang`, converts scenarios to `ScenarioEntry` (req_id empty — feature
-/// scenarios are spec-level), and appends them to `doc.scenarios` skipping any
-/// whose id already exists in the doc (toon source wins on collision). A
-/// malformed `.feature` logs a warning and is skipped.
+/// Feature harness is authoritative for executable GWT. On id collision, **feature
+/// wins** (replaces toon executable row). Toon `feature:false` rows are kept.
+/// `@req` tags populate `req_id` when present.
 fn merge_feature_scenarios(
     doc: &mut crate::sdd::spec::ir::MainSpecDoc,
     spec_dir: &Path,
     lang: &str,
 ) {
     use crate::sdd::spec::ir::ScenarioEntry;
+    use std::collections::HashMap;
+
     let features = crate::sdd::spec::validation::discover_features(spec_dir);
     if features.is_empty() {
         return;
     }
-    let existing: std::collections::HashSet<String> =
-        doc.scenarios.iter().map(|s| s.id.clone()).collect();
-    let mut additions: Vec<ScenarioEntry> = Vec::new();
+
+    let mut feature_by_id: HashMap<String, ScenarioEntry> = HashMap::new();
     for fpath in &features {
         match crate::sdd::solidify::parse_feature_file(fpath, lang) {
             Ok(nodes) => {
                 for node in nodes {
-                    if existing.contains(&node.id) {
-                        continue; // dedup: toon source wins
-                    }
-                    additions.push(ScenarioEntry {
-                        req_id: String::new(),
-                        id: node.id,
-                        given: node.given,
-                        when_: node.when_,
-                        then_: node.then_,
-                        // Feature-sourced scenarios are executable by definition.
-                        feature: true,
-                    });
+                    feature_by_id.insert(
+                        node.id.clone(),
+                        ScenarioEntry {
+                            req_id: node.req_id,
+                            id: node.id,
+                            given: node.given,
+                            when_: node.when_,
+                            then_: node.then_,
+                            feature: true,
+                        },
+                    );
                 }
             }
             Err(e) => eprintln!(
@@ -361,7 +359,22 @@ fn merge_feature_scenarios(
             ),
         }
     }
-    doc.scenarios.extend(additions);
+
+    // Drop executable toon rows that collide with feature ids (feature wins).
+    doc.scenarios.retain(|s| {
+        if s.feature && feature_by_id.contains_key(&s.id) {
+            return false;
+        }
+        true
+    });
+    // Append feature scenarios not already present as non-executable? already dropped.
+    let existing: std::collections::HashSet<String> =
+        doc.scenarios.iter().map(|s| s.id.clone()).collect();
+    for (id, entry) in feature_by_id {
+        if !existing.contains(&id) {
+            doc.scenarios.push(entry);
+        }
+    }
 }
 
 /// pageindex backend rebuild: build the spec tree index (no LLM).

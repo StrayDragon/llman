@@ -219,6 +219,7 @@ fn test_all_subcommands_smoke_bdd_on_and_off() {
         &["sdd", "status"],
         &["sdd", "archive", "run", "--dry-run", "add-scen"],
         &["sdd", "project", "migrate", "--dry-run"],
+        &["sdd", "project", "partition-migrate", "--dry-run"],
         &["sdd", "project", "upgrade-guide"],
     ];
     for bdd in [Some(BDD_ON_BLOCK), None] {

@@ -48,7 +48,11 @@ flowchart LR
   - default: `llman sdd archive run <id>`
   - tooling-only: `llman sdd archive run <id> --skip-specs`
   - **stop immediately on first failure**, report remaining unprocessed IDs.
-- **BDD-on**: `archive run` merges the delta `spec.toon` into the main `spec.toon` only. `.feature` files are managed by `llman sdd solidify` — archive does NOT copy `.feature` files. Run `solidify <id>` before archive.
+- **BDD-on (Partitioned SSOT)**:
+  - `archive run` merges delta `spec.toon` into main `spec.toon` (constraints / non-executable scenarios).
+  - If the change has `*.feature.delta.toon`, archive **also** applies it by scenario id to the main `.feature`.
+  - Run `llman sdd solidify <id>` before archive as a consistency gate (not projection).
+  - Do not whole-file overwrite-copy `.feature` as the default archive path.
 
 ### 3) Full validation
 - After all archives complete: `llman sdd validate --all --strict --no-interactive`.

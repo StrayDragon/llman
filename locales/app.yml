@@ -2030,6 +2030,33 @@ sdd:
     migrate_spec_done:
       en: "  migrated %{spec}: %{reqs} requirement(s), %{scenarios} scenario(s)"
       zh-Hans: "  已迁移 %{spec}：%{reqs} 个 requirement，%{scenarios} 个 scenario"
+    consistency_ok:
+      en: "solidify: consistency ok"
+      zh-Hans: "solidify：consistency ok"
+    consistency_cap_ok:
+      en: "%{capability}: consistency ok"
+      zh-Hans: "%{capability}：consistency ok"
+    consistency_cap_fail:
+      en: "%{capability}: consistency failed (%{count} issue(s))"
+      zh-Hans: "%{capability}：consistency 失败（%{count} 个问题）"
+    consistency_failed:
+      en: "solidify consistency failed"
+      zh-Hans: "solidify consistency 失败"
+    partition_migrate_start:
+      en: "Partition-migrate: scanning llmanspec/specs/ for Partitioned SSOT…"
+      zh-Hans: "Partition-migrate：扫描 llmanspec/specs/ 以应用 Partitioned SSOT…"
+    partition_migrate_bdd_off:
+      en: "BDD is not configured — partition-migrate is a no-op."
+      zh-Hans: "BDD 未配置——partition-migrate 是 no-op。"
+    partition_migrate_none:
+      en: "No specs directory to migrate."
+      zh-Hans: "没有可迁移的 specs 目录。"
+    partition_migrate_summary:
+      en: "Partition-migrated %{count} spec(s)."
+      zh-Hans: "已 partition-migrate %{count} 个 spec。"
+    partition_migrate_dry_run:
+      en: "[dry-run] would partition-migrate %{count} spec(s)."
+      zh-Hans: "[dry-run] 将 partition-migrate %{count} 个 spec。"
 
 
 skills:

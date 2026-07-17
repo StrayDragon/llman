@@ -2,12 +2,13 @@ kind: llman.sdd.spec
 name: "sdd-workflow"
 purpose: 定义 llman SDD 规范驱动开发工作流及其 `llmanspec/` 行为合约。
 valid_scope[1]: "llmanspec/specs/sdd-workflow"
-requirements[3]{req_id,title,statement}:
-  r10,SDD list JSON extension with metadata,"llman sdd list --specs --json output MUST include purpose validScope health staleness fields. purpose from spec frontmatter. health and staleness may be null before quality detection is implemented."
+requirements[5]{req_id,title,statement}:
+  r10,SDD list JSON 含 morphology,"llman sdd list --specs --json output MUST include purpose validScope health staleness 以及 morphology 对象。morphology MUST 含 constraintsReqCount harnessScenarioCount reqLinkCoverage dualWriteCount（数值；BDD-off 时 harness 相关可为 0）。purpose 仍来自 spec；health 与 staleness 在质量检测未实现前可为 null。"
   r47,Context JSON semantic protocol,"llman sdd context output JSON MUST follow: direct array contains z-score greater than 0.60 specs agent MUST read full spec. related array contains z-score greater than -0.20 and at most 0.60 specs agent MAY read on demand. remaining specs are irrelevant. summary MUST include readRecommended and staleWarnings fields."
   r48,变更规模分类与路径选择（Triage）,"SDD 工作流 MUST 在提案阶段前引入变更规模分类步骤，帮助 agent 选择合适的工作路径。分类规则 MUST 包含：- 行为合约变更：修改 MUST/SHALL 定义的外部可观测行为 → 走完整 SDD 流程（proposal + delta specs + tasks + archive）- 实现变更：不改变外部行为只改变内部实现 → 走快速路径（直接改代码，无需 change 目录）- 治理/工具变更：修改 CI/工具配置 → 仅创建 proposal.md 记录 why- 元规范变更：修改 SDD 规范/模板/流程本身 → 走完整 SDD 流程（自举）当变更性质不明确时 agent MUST 升级为完整 SDD 流程而非猜测。"
-scenarios[4]{req_id,id,given,when,then}:
-  r10,list_json_meta,"","agent runs list --specs --json",output includes purpose validScope health staleness
-  r47,context_direct_read,"context returns config-paths in direct",agent receives context output,"agent reads the full config-paths spec"
-  r48,triage_behavioral_contract,"",agent receives task that changes exit code behavior,agent chooses full SDD workflow with proposal + specs + tasks
-  r48,triage_implementation,"",agent receives task to fix a typo in README,agent chooses quick path without change directory
+  r60,show 分段展示 Constraints 与 Harness,"llman sdd show <spec-id> --type spec MUST 分段展示 Constraints（来自 spec.toon 的 requirements 与不可执行 scenarios）与 Harness（来自 *.feature 的场景摘要）。--json MUST 提供同构字段。MUST NOT 将可执行 GWT 从 toon scenarios 再完整打印一份。"
+  r61,"BDD-on 流水线承认 feature_delta","BDD-on 流水线 propose/apply/solidify/archive MUST 将 feature_delta 与 toon delta 一并纳入变更工件：可执行场景变更走 feature_delta；约束与不可执行场景走 toon ops。Skills 与 validate 阶段感知 MUST 与 Partitioned SSOT 一致。"
+scenarios[3]{req_id,id,given,when,then,feature}:
+  r10,"list-json-morphology",llman 二进制已构建,"运行 llman sdd list --specs --json",输出含 morphology 且含 constraintsReqCount,true
+  r60,"show-spec-sections",llman 二进制已构建,"运行 llman sdd show errors-exit --type spec",输出含 Constraints 与 Harness 分段或等价标题,true
+  r61,"pipeline-feature-delta-aware",变更目录含 feature_delta 文件,"运行 validate 该 change --strict",校验通过或明确报告 feature_delta 错误而非忽略文件,false
