@@ -2,7 +2,8 @@
 depends_on: []
 branch: fix/validate-all-check-batch-once
 base_sha: 3aef37d7ba873fc476be79e81380a4a34c84d7b4
-checkpointed: false
+checkpointed: true
+checkpoint_sha: a454d5697c1a035c83d32090e3aa355c613005e4
 ---
 
 ## Why
