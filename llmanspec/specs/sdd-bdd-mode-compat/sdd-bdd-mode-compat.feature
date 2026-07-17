@@ -1,12 +1,6 @@
 # language: zh-CN
-# managed by llman sdd (Partitioned SSOT harness)
+# Partitioned: unique harness only (duplicates removed)
 功能: sdd-bdd-mode-compat
-
-  @req:r1
-  场景: BDD-on 时 validate 默认执行 BDD runner
-    假如 llman 二进制已构建
-    当 运行 llman sdd validate sample --strict
-    那么 stderr 包含 BDD check failed
 
   @req:r3
   场景: BDD-on 时 index rebuild 编入 feature 派生的 scenario
