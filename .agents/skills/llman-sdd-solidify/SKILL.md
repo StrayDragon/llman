@@ -2,7 +2,7 @@
 name: "llman-sdd-solidify"
 description: "Partitioned SSOT：对 change 做 harness/约束一致性门禁（可选 --write-stubs）。在 apply 之后、archive 之前运行。"
 metadata:
-  version: "0.0.61"
+  version: "0.0.62"
 ---
 
 # LLMAN SDD Solidify（Partitioned）

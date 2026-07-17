@@ -2,6 +2,7 @@ kind: llman.sdd.spec
 name: "tests-ci"
 purpose: 规范 CI 质量门与必需的校验检查。
 valid_scope[1]: "llmanspec/specs/tests-ci"
-requirements[1]{req_id,title,statement}:
-  r1,"tests-ci",规范 CI 质量门与必需的校验检查。 The system MUST satisfy the scenarios in this spec.
+requirements[2]{req_id,title,statement}:
+  r1,CI quality gates on locked nightly,"CI on main MUST run the check job on the repository-locked nightly baseline executing `just check-all` (or an equivalent nightly-based sequence), MUST run the build job release build on that same baseline, and MUST keep test code free of clippy warnings such as `len_zero` under `cargo +nightly clippy -- -D warnings`."
+  r2,check-all schema gate,"`just check-all` MUST execute `just check-schemas` so generated JSON schemas and sample configs remain valid and usable."
 scenarios[0]:

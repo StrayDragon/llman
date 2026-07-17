@@ -2,7 +2,7 @@
 name: "llman-sdd-propose"
 description: "创建 llman SDD 变更提案，一次性生成 proposal + delta specs + tasks 等规划工件。用于正式定义变更——尤其是涉及 MUST/SHALL 行为合约的变更。"
 metadata:
-  version: "0.0.61"
+  version: "0.0.62"
 ---
 
 # LLMAN SDD 提案（Propose）

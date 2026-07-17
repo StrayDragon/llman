@@ -1,5 +1,5 @@
 # language: zh-CN
-# 对应 spec: tests-ci — CI MUST 在锁定的 nightly 基线上运行格式检查与
+# 对应 spec: tests-ci r1 — CI MUST 在锁定的 nightly 基线上运行格式检查与
 # clippy(-D warnings)，并运行 release 构建检查。
 功能: CI 质量门在锁定 nightly 基线上运行
   @req:r1
