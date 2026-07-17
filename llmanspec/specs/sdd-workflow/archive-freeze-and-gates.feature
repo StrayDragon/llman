@@ -64,3 +64,10 @@
     当 查看输出
     而且 那么仅提示修复校验问题
     而且 而且不提示 --force
+
+  @executable @req:r92
+  场景: freeze-list-无归档文件时提示并退出零
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd archive freeze --list
+    那么 退出码为零
+    而且 stdout 包含 No freeze archive found
