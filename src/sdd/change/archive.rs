@@ -601,17 +601,28 @@ fn apply_change_feature_deltas(change_dir: &Path, root: &Path, dry_run: bool) ->
             continue;
         };
         let delta = load_feature_delta_file(&delta_path)?;
-        let feature_path = root
+        let spec_dir = root
             .join(LLMANSPEC_DIR_NAME)
             .join("specs")
-            .join(&capability)
-            .join(format!("{capability}.feature"));
+            .join(&capability);
+        let feature_path = crate::sdd::spec::partitioned::resolve_feature_delta_target_path(
+            &spec_dir,
+            &capability,
+            &delta,
+        )?;
+        let feature_title = crate::sdd::spec::partitioned::feature_title_for_target(
+            feature_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(""),
+            &capability,
+        );
         let existing = if feature_path.exists() {
             Some(fs::read_to_string(&feature_path)?)
         } else {
             None
         };
-        let body = apply_feature_delta(existing.as_deref(), &capability, &delta, &lang)?;
+        let body = apply_feature_delta(existing.as_deref(), &feature_title, &delta, &lang)?;
         if dry_run {
             println!(
                 "[dry-run] would apply feature_delta → {}",

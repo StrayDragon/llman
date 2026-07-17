@@ -35,6 +35,7 @@ ops[2]{op,id,req_id,given,when,then}:
   remove,ports-exist,ar5,,,
 ```
 
+- `target`: bare `*.feature` filename under the capability dir (e.g. `global-req-id.feature`). Empty → `{capability}.feature`. Archive / solidify `--write-stubs` MUST write that path (no path separators / `..`).
 - `op`: add | modify | remove
 - merge 键：scenario `id`（稳定）；`req_id` 用于写入/校验 `@req`
 - remove 只删场景块，不删整个 feature 文件（若删空则保留 feature 头或删文件——实现选「无场景则删除文件」）

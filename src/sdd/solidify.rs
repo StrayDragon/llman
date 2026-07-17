@@ -268,8 +268,9 @@ pub fn solidify_change(
 ) -> Result<Vec<SolidifyReport>> {
     use crate::sdd::spec::backend::{BACKEND, SpecBackend};
     use crate::sdd::spec::partitioned::{
-        apply_feature_delta, find_feature_delta_path, load_feature_delta_file,
-        load_spec_harness_soft, validate_partitioned,
+        apply_feature_delta, feature_title_for_target, find_feature_delta_path,
+        load_feature_delta_file, load_spec_harness_soft, resolve_feature_delta_target_path,
+        validate_partitioned,
     };
     use crate::sdd::spec::validation::ValidationLevel;
 
@@ -296,12 +297,8 @@ pub fn solidify_change(
             .join("specs")
             .join(&capability)
             .join(SPEC_FILE);
-        let feature_path = root
-            .join(LLMANSPEC_DIR_NAME)
-            .join("specs")
-            .join(&capability)
-            .join(format!("{capability}.feature"));
-        let spec_dir = feature_path.parent().unwrap().to_path_buf();
+        let spec_dir = main_spec.parent().unwrap().to_path_buf();
+        let mut feature_path = spec_dir.join(format!("{capability}.feature"));
 
         let mut written = 0usize;
         let mut skipped = Vec::new();
@@ -310,6 +307,14 @@ pub fn solidify_change(
         if write_stubs && let Some(delta_path) = find_feature_delta_path(&entry.path(), &capability)
         {
             let delta = load_feature_delta_file(&delta_path)?;
+            feature_path = resolve_feature_delta_target_path(&spec_dir, &capability, &delta)?;
+            let feature_title = feature_title_for_target(
+                feature_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or(""),
+                &capability,
+            );
             let existing = if feature_path.exists() {
                 Some(fs::read_to_string(&feature_path)?)
             } else {
@@ -336,7 +341,7 @@ pub fn solidify_change(
                     target: delta.target.clone(),
                     ops: stub_ops,
                 };
-                match apply_feature_delta(existing.as_deref(), &capability, &stub_delta, &lang) {
+                match apply_feature_delta(existing.as_deref(), &feature_title, &stub_delta, &lang) {
                     Ok(body) if !body.is_empty() => {
                         written = stub_delta.ops.len();
                         if dry_run {

@@ -71,7 +71,9 @@ pub struct DeltaOpEntry {
 #[serde(deny_unknown_fields)]
 pub struct FeatureDeltaDoc {
     pub kind: String,
-    /// Target feature filename (informational), e.g. `agent-runtime.feature`.
+    /// Target harness filename under the capability dir (e.g. `global-req-id.feature`).
+    /// Empty → default `{capability}.feature`. Must be a bare `*.feature` basename
+    /// (no directories / `..`).
     #[serde(default)]
     pub target: String,
     #[serde(default)]
