@@ -631,6 +631,7 @@ fn validate_by_type(
                         bdd_config,
                         Some(locale),
                         check_mode,
+                        None,
                     );
                     // Staleness scope: spec.toon's valid_scope is the single
                     // source of truth (unified path, BDD-on or off).
@@ -917,6 +918,7 @@ fn run_bulk_validation(
         });
     }
     let staleness_evaluator = StalenessEvaluator::new(root);
+    let mut full_mode_cache = crate::sdd::spec::validation::FullModeCache::new();
     for id in specs {
         let start = Instant::now();
         validate_sdd_id(&id, "spec")?;
@@ -935,6 +937,11 @@ fn run_bulk_validation(
                     bdd_config,
                     Some(locale),
                     check_mode,
+                    if check_mode {
+                        Some(&mut full_mode_cache)
+                    } else {
+                        None
+                    },
                 );
                 let staleness_frontmatter = validation.frontmatter.clone();
                 let staleness = staleness_evaluator.evaluate(

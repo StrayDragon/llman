@@ -74,7 +74,7 @@
           ]
         },
         "run_command": {
-          "description": "Custom test run command. Placeholders: {feature_dir}, {feature_name}, {feature_path}.",
+          "description": "Custom test run command. Placeholders: {feature_dir}, {feature_name}, {feature_path}. Without placeholders, validate --all/--specs runs the command at most once per batch (batch-once).",
           "type": [
             "string",
             "null"

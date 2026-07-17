@@ -41,7 +41,10 @@ locale: en
 #   framework: pytest-bdd
 #   feature_dir: tests/features/
 #   # default_language: en
+#   # Filtered runners: include {feature_*} so validate --all/--specs runs per capability.
 #   # run_command: "pytest {feature_dir} -k {feature_name} -v"
+#   # Project-wide runners (no placeholders): validate --all/--specs runs the suite once (batch-once).
+#   # run_command: "cargo test --features bdd"
 #   # verify_prompt: |
 #   #   Map test failures to requirement IDs.
 "#;
@@ -67,7 +70,10 @@ locale: zh-Hans
 #   framework: pytest-bdd
 #   feature_dir: tests/features/
 #   # default_language: zh-CN
+#   # 过滤型 runner：写 {feature_*}，validate --all/--specs 按 capability 分别执行。
 #   # run_command: "pytest {feature_dir} -k {feature_name} -v"
+#   # 项目级 runner（无占位符）：validate --all/--specs 整批只跑一次（batch-once）。
+#   # run_command: "cargo test --features bdd"
 #   # verify_prompt: |
 #   #   将测试失败映射到对应的 requirement ID。
 "#;
@@ -129,7 +135,7 @@ pub struct BddConfig {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(
-        description = "Custom test run command. Placeholders: {feature_dir}, {feature_name}, {feature_path}."
+        description = "Custom test run command. Placeholders: {feature_dir}, {feature_name}, {feature_path}. Without placeholders, validate --all/--specs runs the command at most once per batch (batch-once)."
     )]
     pub run_command: Option<String>,
 
