@@ -220,7 +220,10 @@ fn test_all_subcommands_smoke_bdd_on_and_off() {
         &["sdd", "archive", "run", "--dry-run", "add-scen"],
         &["sdd", "project", "migrate", "--dry-run"],
         &["sdd", "project", "partition-migrate", "--dry-run"],
+        &["sdd", "project", "dedupe-req-ids", "--dry-run"],
         &["sdd", "project", "upgrade-guide"],
+        &["sdd", "spec", "next-req-id", "--json"],
+        &["sdd", "spec", "resolve-req", "r1", "--json"],
     ];
     for bdd in [Some(BDD_ON_BLOCK), None] {
         let env = TestEnvironment::new();

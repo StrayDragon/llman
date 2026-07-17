@@ -3,6 +3,6 @@ name: "sdd-ab-evaluation"
 purpose: 规范可复现的 SDD prompts 与 agentic 工作流评测套件，含多风格对比与硬门禁校验。
 valid_scope[1]: "llmanspec/specs/sdd-ab-evaluation"
 requirements[2]{req_id,title,statement}:
-  r1,"multi-style 对比、快照、聚合与可选软评分","The system MUST satisfy the harness scenarios for `multi-style 对比、快照、聚合与可选软评分`: 对应 spec: sdd-ab-evaluation — 评测输出优先安全与质量信号；评测套件含需读编辑格式相关 spec 文件的 agentic 任务；支持 multi-style 对比；baseline 预置语义等价；每次 run 产可观测快照； --runs N 产聚合报告；可选软评分层；docker runner 支持阿里云镜像。"
-  r2,"可复现的 SDD prompts 评测套件与 Claude Code agentic 评测","对应 spec: sdd-ab-evaluation — SDD workflow MUST 提供可复现的 Promptfoo 评测套件对比不同风格/"
+  r25,"multi-style 对比、快照、聚合与可选软评分","The system MUST satisfy the harness scenarios for `multi-style 对比、快照、聚合与可选软评分`: 对应 spec: sdd-ab-evaluation — 评测输出优先安全与质量信号；评测套件含需读编辑格式相关 spec 文件的 agentic 任务；支持 multi-style 对比；baseline 预置语义等价；每次 run 产可观测快照； --runs N 产聚合报告；可选软评分层；docker runner 支持阿里云镜像。"
+  r56,可复现的 SDD prompts 评测套件与 Claude Code agentic 评测,"对应 spec: sdd-ab-evaluation — SDD workflow MUST 提供可复现的 Promptfoo 评测套件对比不同风格/"
 scenarios[0]:

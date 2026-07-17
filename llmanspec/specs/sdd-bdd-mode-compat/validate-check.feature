@@ -6,7 +6,7 @@
   背景:
     假如 llman 二进制已构建
 
-  @req:r1
+  @req:r26
   场景: BDD-on 时 validate 默认执行 BDD runner
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
     当 在非交互终端运行 llman sdd validate sample --strict

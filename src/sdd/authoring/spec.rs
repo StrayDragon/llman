@@ -80,6 +80,8 @@ pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<
         return Err(anyhow!("statement must contain MUST or SHALL"));
     }
 
+    crate::sdd::spec::req_registry::ensure_req_id_globally_free(root, &args.req_id)?;
+
     let spec_path = spec_path(root, &args.capability);
     let content = fs::read_to_string(&spec_path)
         .map_err(|err| anyhow!("failed to read spec: {} ({})", spec_path.display(), err))?;

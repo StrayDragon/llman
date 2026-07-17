@@ -36,6 +36,7 @@ use std::process::Command;
 use tempfile::TempDir;
 
 /// Holds the last llman subprocess output so steps can chain Given→When→Then.
+#[derive(Default)]
 struct BddWorld {
     exit_code: Option<i32>,
     stderr: String,
@@ -49,20 +50,6 @@ struct BddWorld {
     /// Owned temp project created by `已初始化 sdd 项目…` Given step. Kept here so
     /// it is not dropped (and deleted) before the scenario's When/Then run.
     fixture_dir: Option<TempDir>,
-}
-
-impl Default for BddWorld {
-    fn default() -> Self {
-        Self {
-            exit_code: None,
-            stderr: String::new(),
-            stdout: String::new(),
-            success: false,
-            env_overrides: HashMap::new(),
-            cwd: None,
-            fixture_dir: None,
-        }
-    }
 }
 
 // Each scenario runs in a single thread, so thread-local storage avoids the
@@ -320,6 +307,51 @@ fn given_sdd_project_dual_write(mode: String) {
     .expect("write dual-write feature");
 }
 
+/// Two capabilities share the same req_id — triggers global uniqueness ERROR.
+#[given("已初始化含跨 spec 重复 req_id 的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_global_req_collision(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    // Second capability reuses r1 (sample already has r1).
+    run_llman_in(&dir, "sdd spec skeleton other", &[]);
+    // Bypass add-req global guard by writing toon directly.
+    std::fs::write(
+        dir.join("llmanspec/specs/other/spec.toon"),
+        r#"kind: llman.sdd.spec
+name: "other"
+purpose: "other"
+valid_scope[1]: "llmanspec/specs/other"
+requirements[1]{req_id,title,statement}:
+  r1,Other,"System MUST collide."
+scenarios[1]{req_id,id,given,when,then,feature}:
+  r1,baseline,"","trigger","outcome",false
+"#,
+    )
+    .expect("write colliding other spec");
+}
+
+/// Seed a project then plant an occupied custom tag for add-req guard tests.
+#[given("已初始化含已占用全局 req_id 的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_occupied_req(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    std::fs::write(
+        dir.join("llmanspec/specs/sample/spec.toon"),
+        r#"kind: llman.sdd.spec
+name: "sample"
+purpose: "sample"
+valid_scope[1]: "llmanspec/specs/sample"
+requirements[2]{req_id,title,statement}:
+  r1,R1,"System MUST do X."
+  occupied-id,Occupied,"System MUST be unique."
+scenarios[2]{req_id,id,given,when,then,feature}:
+  r1,happy,"","trigger","outcome",false
+  occupied-id,baseline,"","trigger","outcome",false
+"#,
+    )
+    .expect("write occupied sample");
+}
+
 /// BDD-on fixture whose harness `@req` points at a missing requirement id.
 #[given("已初始化含无效 @req 的 sdd 项目且 bdd 配置为 {mode}")]
 fn given_sdd_project_bad_req(mode: String) {
@@ -392,6 +424,27 @@ fn then_exit_zero() {
             w.exit_code
         );
     });
+}
+
+#[then("退出码非零且 stderr 包含 {text}")]
+fn then_exit_nonzero_and_stderr_contains(text: String) {
+    then_exit_nonzero();
+    then_stderr_contains(text);
+}
+
+#[then("退出码为零且 stdout 为合法 JSON 且含 JSON 键 {key}")]
+fn then_exit_zero_json_key(key: String) {
+    then_exit_zero();
+    then_stdout_is_json();
+    then_stdout_has_json_key(key);
+}
+
+#[then("退出码为零且 stdout 为合法 JSON 且含 JSON 键 reqId 且含 JSON 键 capability")]
+fn then_exit_zero_json_reqid_and_capability() {
+    then_exit_zero();
+    then_stdout_is_json();
+    then_stdout_has_json_key("reqId".into());
+    then_stdout_has_json_key("capability".into());
 }
 
 // ---------------------------------------------------------------------------
@@ -605,3 +658,38 @@ fn test_compat_validate_req_link() {}
 )]
 #[test]
 fn test_compat_partition_migrate_dry_run() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/global-req-id.feature",
+    name = "global-req-collision-strict"
+)]
+#[test]
+fn test_global_req_collision_strict() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-bdd-mode-compat/global-req-id.feature",
+    name = "global-req-collision-default"
+)]
+#[test]
+fn test_global_req_collision_default() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-workflow/global-req-id-authoring.feature",
+    name = "next-req-id-json"
+)]
+#[test]
+fn test_next_req_id_json() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-workflow/global-req-id-authoring.feature",
+    name = "add-req-rejects-global-collision"
+)]
+#[test]
+fn test_add_req_rejects_global_collision() {}
+
+#[scenario(
+    path = "llmanspec/specs/sdd-workflow/global-req-id-authoring.feature",
+    name = "resolve-req-json"
+)]
+#[test]
+fn test_resolve_req_json() {}

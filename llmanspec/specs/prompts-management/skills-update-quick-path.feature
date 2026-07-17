@@ -1,7 +1,7 @@
 # language: zh-CN
 # 对应 spec: prompts-management r4 — update-skills 生成 quick/triage/context 引导。
 功能: update-skills 含 quick 路径与 triage 引导
-  @req:r4
+  @req:r82
   场景: update-skills 产出含 quick 与 context/triage 指引
     假如 agent 运行 llman sdd update-skills --no-interactive --all
     当 生成完成
