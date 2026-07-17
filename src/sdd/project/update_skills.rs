@@ -15,15 +15,9 @@ const REQUIRED_ETHICS_KEYS: &[&str] = &[
     "ethics.escalation_policy",
 ];
 
-/// Optional skill files that can be enabled via `extra_skills` config.
-/// These are the only skills that will be cleaned up when removed from config.
-const OPTIONAL_SKILL_FILES: &[&str] = &[
-    "llman-sdd-new-change.md",
-    "llman-sdd-continue.md",
-    "llman-sdd-ff.md",
-    "llman-sdd-sync.md",
-    "llman-sdd-validate.md",
-];
+/// Prefix for managed SDD skills. Only directories under this prefix are
+/// candidates for remove-then-refresh during `update-skills` / `init --update`.
+const MANAGED_SKILL_PREFIX: &str = "llman-sdd-";
 
 pub fn run() -> Result<()> {
     run_with_root(Path::new("."))
@@ -42,7 +36,8 @@ pub(crate) fn run_with_root(root: &Path) -> Result<()> {
     enforce_ethics_governance(&templates)?;
     let skills_base = root.join(".agents").join("skills");
 
-    // Cleanup stale skills before writing new ones
+    // Remove stale managed skills before writing current candidates
+    // (defaults + config.extra_skills).
     cleanup_stale_skills(&skills_base, &templates)?;
 
     write_tool_skills(&skills_base, &templates)?;
@@ -65,20 +60,15 @@ fn enforce_ethics_governance(templates: &[super::templates::SkillTemplate]) -> R
     Ok(())
 }
 
+/// Remove directories under `.agents/skills/` that look managed (`llman-sdd-*`)
+/// but are not in the current candidate set (defaults + `extra_skills`).
+/// Non-prefixed custom skills are left untouched.
 fn cleanup_stale_skills(base: &Path, templates: &[super::templates::SkillTemplate]) -> Result<()> {
-    // Get expected skill directory names from templates
-    let expected_skills: HashSet<String> = templates
+    let candidates: HashSet<String> = templates
         .iter()
         .map(|t| t.name.trim_end_matches(".md").to_string())
         .collect();
 
-    // Get optional skills list (for safe filtering)
-    let optional_skills: HashSet<&str> = OPTIONAL_SKILL_FILES
-        .iter()
-        .map(|name| name.trim_end_matches(".md"))
-        .collect();
-
-    // Scan existing skill directories
     if !base.exists() {
         return Ok(());
     }
@@ -91,16 +81,14 @@ fn cleanup_stale_skills(base: &Path, templates: &[super::templates::SkillTemplat
 
         let dir_name = entry.file_name().to_string_lossy().to_string();
 
-        // Only cleanup optional skills, don't touch core skills or user custom skills
-        if !optional_skills.contains(dir_name.as_str()) {
+        // Only manage the llman-sdd-* namespace; never delete unrelated skills.
+        if !dir_name.starts_with(MANAGED_SKILL_PREFIX) {
             continue;
         }
 
-        // If skill is not in expected list, delete it
-        if !expected_skills.contains(&dir_name) {
+        if !candidates.contains(&dir_name) {
             let skill_path = entry.path();
             fs::remove_dir_all(&skill_path)?;
-            // Output log message
             eprintln!("Cleaned up stale skill: {}", dir_name);
         }
     }
@@ -420,7 +408,7 @@ description: "override for test"
         let config_path = llmanspec_dir.join("config.yaml");
         fs::write(&config_path, "schema: spec-driven\nlocale: en\n").expect("write config");
 
-        // Create a custom skill directory (not in OPTIONAL_SKILL_FILES)
+        // Create a custom skill directory (not llman-sdd-* managed namespace)
         let custom_skill_dir = root.join(".agents/skills/my-custom-skill");
         fs::create_dir_all(&custom_skill_dir).expect("create custom skill dir");
         fs::write(custom_skill_dir.join("SKILL.md"), "custom content").expect("write custom skill");
@@ -432,6 +420,63 @@ description: "override for test"
         assert!(
             custom_skill_dir.join("SKILL.md").exists(),
             "custom skill should not be removed"
+        );
+    }
+
+    #[test]
+    fn cleanup_stale_skills_removes_deprecated_managed_core_skill() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+        fs::create_dir_all(&llmanspec_dir).expect("create llmanspec");
+
+        let config_path = llmanspec_dir.join("config.yaml");
+        fs::write(&config_path, "schema: spec-driven\nlocale: en\n").expect("write config");
+
+        super::run_with_root(root).expect("update-skills");
+
+        // Simulate a previously shipped core skill that is no longer a candidate
+        // (e.g. llman-sdd-solidify after Git-native BDD-on).
+        let deprecated = root.join(".agents/skills/llman-sdd-solidify");
+        fs::create_dir_all(&deprecated).expect("create deprecated skill");
+        fs::write(deprecated.join("SKILL.md"), "deprecated").expect("write deprecated");
+
+        super::run_with_root(root).expect("update-skills second pass");
+
+        assert!(
+            !deprecated.exists(),
+            "deprecated llman-sdd-* core skill must be removed on update"
+        );
+        assert!(
+            root.join(".agents/skills/llman-sdd-explore/SKILL.md")
+                .exists(),
+            "current default candidates must still be written"
+        );
+    }
+
+    #[test]
+    fn cleanup_stale_skills_keeps_extra_skills_extend_candidates() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+        fs::create_dir_all(&llmanspec_dir).expect("create llmanspec");
+
+        let config_path = llmanspec_dir.join("config.yaml");
+        fs::write(
+            &config_path,
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n",
+        )
+        .expect("write config");
+
+        super::run_with_root(root).expect("update-skills");
+
+        assert!(root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists());
+
+        // Second pass with same extend list must keep the extra skill
+        super::run_with_root(root).expect("update-skills again");
+        assert!(
+            root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists(),
+            "extra_skills extend candidates must remain"
         );
     }
 
