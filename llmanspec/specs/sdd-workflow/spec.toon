@@ -2,7 +2,7 @@ kind: llman.sdd.spec
 name: "sdd-workflow"
 purpose: 定义 llman SDD 规范驱动开发工作流及其 `llmanspec/` 行为合约。
 valid_scope[1]: "llmanspec/specs/sdd-workflow"
-requirements[9]{req_id,title,statement}:
+requirements[10]{req_id,title,statement}:
   r39,SDD list JSON 含 morphology,"llman sdd list --specs --json output MUST include purpose validScope health staleness 以及 morphology 对象。morphology MUST 含 constraintsReqCount harnessScenarioCount reqLinkCoverage dualWriteCount（数值；BDD-off 时 harness 相关可为 0）。purpose 仍来自 spec；health 与 staleness 在质量检测未实现前可为 null。"
   r47,Context JSON semantic protocol,"llman sdd context output JSON MUST follow: direct array contains z-score greater than 0.60 specs agent MUST read full spec. related array contains z-score greater than -0.20 and at most 0.60 specs agent MAY read on demand. remaining specs are irrelevant. summary MUST include readRecommended and staleWarnings fields."
   r48,变更规模分类与路径选择（Triage）,"SDD 工作流 MUST 在提案阶段前引入变更规模分类步骤，帮助 agent 选择合适的工作路径。分类规则 MUST 包含：- 行为合约变更：修改 MUST/SHALL 定义的外部可观测行为 → 走完整 SDD 流程（proposal + delta specs + tasks + archive）- 实现变更：不改变外部行为只改变内部实现 → 走快速路径（直接改代码，无需 change 目录）- 治理/工具变更：修改 CI/工具配置 → 仅创建 proposal.md 记录 why- 元规范变更：修改 SDD 规范/模板/流程本身 → 走完整 SDD 流程（自举）当变更性质不明确时 agent MUST 升级为完整 SDD 流程而非猜测。"
@@ -12,6 +12,7 @@ requirements[9]{req_id,title,statement}:
   r88,"add-req 拒绝全局已占用 req_id","llman sdd spec add-req 在调用方提供的 req_id 已在 llmanspec/specs 主库任一 capability 中占用时，MUST 以非零退出码失败并在 stderr 说明冲突 capability，MUST NOT 写入会破坏全局唯一性的 requirement 行。自定义短 tag 与 rN 形态 MUST 适用同一守卫。"
   r89,"spec resolve-req 解析归属","llman sdd spec resolve-req <req_id> MUST 在主库中解析该短别名的归属并打印 capability、title、statement；--json 时 MUST 含 reqId 与 capability 字段。找不到时 MUST 非零退出。该命令 MUST 作为 agent 获取 req 关联数据的一等入口，替代把 capability 编码进 req_id。"
   r90,"update-skills 清理废弃 llman-sdd-*","`llman sdd init --update`（及等价 skills 刷新）MUST 以默认 workflow skills + `config.yaml` 的 `extra_skills` 为候选集；先删除 `.agents/skills/` 下不在候选集中的 `llman-sdd-*` 目录，再写入/更新候选。MUST NOT 删除无 `llman-sdd-` 前缀的自定义 skill。清理时 stderr MUST 含 `Cleaned up stale skill`。"
+  r92,"archive freeze --list 枚举冻结条目","`llman sdd archive freeze --list` MUST 枚举冷备份归档 freezed_changes.7z.archived 内已冻结的 change 目录（顶层 YYYY-MM-DD-id 命名）。MUST 为只读：不执行任何冻结、删除或写入。当归档文件不存在时 MUST 打印明确提示并以退出码 0 结束。可执行行为见 archive-freeze-and-gates feature。"
 scenarios[7]{req_id,id,given,when,then,feature}:
   r39,"list-json-morphology",llman 二进制已构建,"运行 llman sdd list --specs --json",输出含 morphology 且含 constraintsReqCount,false
   r60,"show-spec-sections",llman 二进制已构建,"运行 llman sdd show errors-exit --type spec",输出含 Constraints 与 Harness 分段或等价标题,false
@@ -20,3 +21,4 @@ scenarios[7]{req_id,id,given,when,then,feature}:
   r88,"add-req-global-guard-note",约束层说明,"add-req 使用已全局占用的 req_id 或自定义 tag",非零退出且不写入该 id,false
   r89,"resolve-req-note",约束层说明,"运行 llman sdd spec resolve-req <已存在短 id> --json",stdout JSON 含 capability 与 reqId,false
   r90,"update-skills-cleanup-note",约束层说明,"init --update 遇废弃 llman-sdd-*",先删再写；可执行见 skills-template feature,false
+  r92,"freeze-list-note",约束层说明,"运行 llman sdd archive freeze --list",枚举冻结条目且只读；可执行见 archive-freeze-and-gates feature,false
