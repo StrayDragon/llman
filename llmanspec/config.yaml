@@ -5,5 +5,6 @@ locale: zh-Hans
 # BDD-on (feature-as-spec): .feature 文件是可执行规格。
 # locale zh-Hans → Gherkin lang 自动推导为 zh-CN（支持中文关键字）。
 # full mode 跑 `cargo test --features bdd`（rstest-bdd 驱动）。
+# 无 {feature_*} 占位符：validate --all/--specs 对该命令 batch-once（整批至多一次）。
 bdd:
   run_command: "cargo test --features bdd"

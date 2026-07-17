@@ -26,3 +26,10 @@
     那么 退出码为零
     那么 stdout 为合法 JSON
     那么 stderr 不含 BDD check failed
+
+  @executable @req:r91
+  场景: 批量 validate 对无占位符 run_command 只执行一次 harness
+    假如 已初始化含多个 capability 且无占位符计数 run_command 的 sdd 项目
+    当 在非交互终端运行 llman sdd validate --specs --strict
+    那么 退出码为零
+    那么 相对路径 ".bdd-run-count" 行数为 1

@@ -1,0 +1,5 @@
+kind: llman.sdd.delta
+ops[1]{op,req_id,title,statement,from,to,name}:
+  add_requirement,r91,批量 validate check 去重,"BDD-on 且 check mode 开启时：单 spec validate MUST 仍对该 capability 展开 bdd.run_command 占位符后执行一次；validate --all / validate --specs 及任何多 spec 批处理 MUST 按展开后的命令字符串去重，相同展开命令在该次 validate 进程内 MUST 至多实际执行一次，并将通过/失败结果复用到后续命中同一命令的 spec（失败 MUST 仍使相关校验失败）。占位符展开结果不同的命令 MUST 继续按 spec 分别执行。",null,null,null
+op_scenarios[1]{req_id,id,given,when,then,feature}:
+  r91,"batch-check-dedupe-note",约束层说明,"无占位符 run_command 下 validate --specs","harness 场景见 live validate-check.feature",false

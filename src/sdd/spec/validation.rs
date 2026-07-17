@@ -68,9 +68,23 @@ pub fn validate_spec_content_with_frontmatter(
     content: &str,
     strict: bool,
 ) -> SpecValidation {
-    validate_spec_content_with_frontmatter_and_bdd(path, content, strict, None, None, None, false)
+    validate_spec_content_with_frontmatter_and_bdd(
+        path, content, strict, None, None, None, false, None,
+    )
 }
 
+/// Cache of BDD full-mode results keyed by the expanded `run_command` string.
+/// Used by bulk validate (`--all` / `--specs`) so project-wide runners without
+/// differentiating `{feature_*}` placeholders execute at most once per process.
+#[derive(Debug, Clone)]
+pub struct FullModeCacheEntry {
+    pub success: bool,
+    pub issues: Vec<ValidationIssue>,
+}
+
+pub type FullModeCache = HashMap<String, FullModeCacheEntry>;
+
+#[allow(clippy::too_many_arguments)]
 pub fn validate_spec_content_with_frontmatter_and_bdd(
     path: &Path,
     content: &str,
@@ -79,6 +93,7 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
     bdd_config: Option<&BddConfig>,
     locale: Option<&str>,
     check_mode: bool,
+    full_mode_cache: Option<&mut FullModeCache>,
 ) -> SpecValidation {
     let spec_name = path
         .parent()
@@ -143,7 +158,7 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
                     &doc, &spec_name, &harness,
                 ));
                 if check_mode && let Some(bdd) = bdd_config {
-                    issues.extend(run_full_mode(spec_dir, bdd));
+                    issues.extend(run_full_mode_cached(spec_dir, bdd, full_mode_cache));
                 }
             } else {
                 issues.extend(validate_main_spec_doc(&doc, &spec_name));
@@ -771,6 +786,72 @@ mod tests {
         // The runner's stderr line is surfaced verbatim.
         assert!(issues.iter().any(|i| i.message.contains("boom")));
     }
+
+    #[test]
+    fn full_mode_cache_runs_identical_command_once() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        // Mimic <root>/llmanspec/specs/<cap> so project_root_from_spec_dir works.
+        let a = root.join("llmanspec/specs/a");
+        let b = root.join("llmanspec/specs/b");
+        fs::create_dir_all(&a).unwrap();
+        fs::create_dir_all(&b).unwrap();
+        fs::write(a.join("a.feature"), "Feature: A\n").unwrap();
+        fs::write(b.join("b.feature"), "Feature: B\n").unwrap();
+
+        let counter = root.join("counter");
+        let cmd = format!("printf x >> {}", counter.display());
+        let bdd = bdd_with_run_command(&cmd);
+
+        let mut cache = FullModeCache::new();
+        let first = run_full_mode_cached(&a, &bdd, Some(&mut cache));
+        let second = run_full_mode_cached(&b, &bdd, Some(&mut cache));
+
+        assert!(
+            first.iter().all(|i| i.level != ValidationLevel::Error),
+            "{first:?}"
+        );
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].level, ValidationLevel::Info);
+        assert!(
+            second[0].message.contains("reused"),
+            "{}",
+            second[0].message
+        );
+        let count = fs::read_to_string(&counter).unwrap();
+        assert_eq!(
+            count, "x",
+            "project-wide command must run once, got {count:?}"
+        );
+    }
+
+    #[test]
+    fn full_mode_cache_runs_distinct_expanded_commands_separately() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let a = root.join("llmanspec/specs/alpha");
+        let b = root.join("llmanspec/specs/beta");
+        fs::create_dir_all(&a).unwrap();
+        fs::create_dir_all(&b).unwrap();
+        fs::write(a.join("a.feature"), "Feature: A\n").unwrap();
+        fs::write(b.join("b.feature"), "Feature: B\n").unwrap();
+
+        let counter = root.join("counter");
+        // `{feature_name}` expands differently per capability → cache miss → two runs.
+        let bdd = bdd_with_run_command(&format!(
+            "printf x >> {}; echo {{feature_name}} >/dev/null",
+            counter.display()
+        ));
+
+        let mut cache = FullModeCache::new();
+        let _ = run_full_mode_cached(&a, &bdd, Some(&mut cache));
+        let _ = run_full_mode_cached(&b, &bdd, Some(&mut cache));
+        let count = fs::read_to_string(&counter).unwrap();
+        assert_eq!(
+            count, "xx",
+            "distinct expansions must each run, got {count:?}"
+        );
+    }
 }
 
 pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> ValidationReport {
@@ -947,6 +1028,48 @@ fn validate_features_dir(spec_dir: &Path, project_root: &Path, lang: &str) -> Ve
     }
 
     issues
+}
+
+/// Full-mode execution (r52 / r91): shell out the BDD run command once for the
+/// entire spec directory. Exit code 0 → pass; non-zero → fail.
+///
+/// When `cache` is provided (bulk validate), results are keyed by the expanded
+/// command string so identical project-wide runners execute at most once.
+fn run_full_mode_cached(
+    spec_dir: &Path,
+    bdd_config: &BddConfig,
+    cache: Option<&mut FullModeCache>,
+) -> Vec<ValidationIssue> {
+    let command = bdd_config.effective_run_command();
+    let expanded = expand_run_command_placeholders(&command, spec_dir);
+
+    if let Some(cache) = cache {
+        if let Some(entry) = cache.get(&expanded) {
+            let level = if entry.success {
+                ValidationLevel::Info
+            } else {
+                ValidationLevel::Error
+            };
+            return vec![ValidationIssue {
+                level,
+                path: spec_dir.display().to_string(),
+                message: t!("sdd.validate.full_mode_reused", command = expanded.as_str())
+                    .to_string(),
+            }];
+        }
+        let issues = run_full_mode(spec_dir, bdd_config);
+        let success = !issues.iter().any(|i| i.level == ValidationLevel::Error);
+        cache.insert(
+            expanded,
+            FullModeCacheEntry {
+                success,
+                issues: issues.clone(),
+            },
+        );
+        return issues;
+    }
+
+    run_full_mode(spec_dir, bdd_config)
 }
 
 /// Full-mode execution (r52): shell out the BDD run command once for the entire

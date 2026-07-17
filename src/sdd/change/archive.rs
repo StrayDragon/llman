@@ -233,6 +233,7 @@ fn validate_rebuilt_spec(update: &SpecUpdate, content: &str, root: &Path) -> Res
         bdd,
         locale,
         false,
+        None,
     );
     let mut issues = validation.report.issues;
 

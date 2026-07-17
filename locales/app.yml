@@ -1910,6 +1910,8 @@ sdd:
       en: "BDD check failed (`%{command}`). Runner output:"
     full_mode_passed:
       en: "Full mode: %{count} feature(s) parsed, BDD check passed."
+    full_mode_reused:
+      en: "BDD check reused for identical run_command (`%{command}`) in this validate batch."
     meta_field_empty:
       en: "Spec %{key} must not be empty (add it inside the .toon document)."
     empty_requirements:

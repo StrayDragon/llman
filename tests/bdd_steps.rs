@@ -315,6 +315,83 @@ fn fixture_cwd() -> PathBuf {
     })
 }
 
+#[given("已初始化含多个 capability 且无占位符计数 run_command 的 sdd 项目")]
+fn given_multi_cap_counter_run_command() {
+    reset_world();
+    let temp = TempDir::new().expect("create fixture tempdir");
+    let dir = temp.path().to_path_buf();
+
+    run_llman_in(&dir, "sdd init --lang en", &[]);
+
+    for (name, req) in [("sample", "r1"), ("other", "r2")] {
+        run_llman_in(&dir, &format!("sdd spec skeleton {name}"), &[]);
+        run_llman_in(
+            &dir,
+            &format!(
+                "sdd spec add-requirement {name} {req} --title {name} --statement \"System MUST cover {name}.\""
+            ),
+            &[],
+        );
+        std::fs::write(
+            dir.join(format!("llmanspec/specs/{name}/spec.toon")),
+            format!(
+                r#"kind: llman.sdd.spec
+name: "{name}"
+purpose: "{name}"
+valid_scope[1]: "llmanspec/specs/{name}"
+requirements[1]{{req_id,title,statement}}:
+  {req},{name},"System MUST cover {name}."
+scenarios[0]:
+"#
+            ),
+        )
+        .expect("write constraints-only toon");
+        std::fs::write(
+            dir.join(format!("llmanspec/specs/{name}/{name}.feature")),
+            format!(
+                "# language: en\nFeature: {name}\n  @req:{req}\n  Scenario: harness-{name}\n    Given a\n    When b\n    Then c\n"
+            ),
+        )
+        .expect("write live feature");
+    }
+
+    // Project-wide runner with no {feature_*} placeholders; each spawn appends one line.
+    let config = "schema: spec-driven\nlocale: en\n\nbdd:\n  run_command: \"printf 'x\\n' >> .bdd-run-count\"\n";
+    std::fs::write(dir.join("llmanspec/config.yaml"), config).expect("write counter config");
+
+    // git init+commit: staleness checks need a base ref.
+    Command::new("git")
+        .args(["init", "--quiet"])
+        .current_dir(&dir)
+        .output()
+        .expect("git init fixture");
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(&dir)
+        .output()
+        .expect("git add fixture");
+    Command::new("git")
+        .args([
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@x",
+            "commit",
+            "-qm",
+            "fixture",
+        ])
+        .current_dir(&dir)
+        .output()
+        .expect("git commit fixture");
+
+    WORLD.with(|w| {
+        let mut w = w.borrow_mut();
+        let world = w.as_mut().expect("world not initialized");
+        world.fixture_dir = Some(temp);
+        world.cwd = Some(dir);
+    });
+}
+
 #[given("已初始化 sdd 项目且 bdd 配置为 {mode}")]
 fn given_seeded_sdd_project(mode: String) {
     seed_bdd_project(&mode);
@@ -588,6 +665,20 @@ fn then_stdout_has_json_key(key: String) {
 fn then_rel_path_exists(rel: String) {
     let path = fixture_cwd().join(rel.trim().trim_matches('"'));
     assert!(path.exists(), "expected path to exist: {}", path.display());
+}
+
+#[then("相对路径 {rel} 行数为 {n:usize}")]
+fn then_rel_path_line_count(rel: String, n: usize) {
+    let path = fixture_cwd().join(rel.trim().trim_matches('"'));
+    let content =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let lines = content.lines().filter(|l| !l.is_empty()).count();
+    assert_eq!(
+        lines,
+        n,
+        "expected {n} non-empty lines in {}, got {lines}: {content:?}",
+        path.display()
+    );
 }
 
 #[then("相对路径 {rel} 不存在")]
