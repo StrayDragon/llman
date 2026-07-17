@@ -2,6 +2,7 @@ kind: llman.sdd.spec
 name: "sdd-specs-compaction-guidance"
 purpose: 规范 SDD specs 压缩治理技能的生成与流程要求。
 valid_scope[1]: "llmanspec/specs/sdd-specs-compaction-guidance"
-requirements[1]{req_id,title,statement}:
-  r1,"sdd-specs-compaction-guidance",规范 SDD specs 压缩治理技能的生成与流程要求。 The system MUST satisfy the scenarios in this spec.
+requirements[2]{req_id,title,statement}:
+  r1,"specs 压缩 CLI 预留未实现且治理基于事实源并含安全门","对应 spec: sdd-specs-compaction-guidance — 当前版本 MUST NOT 实现 specs compact CLI 子命令；压缩治理 MUST 以代码与 specs 为事实源（而非已废弃的 ISON 制品）； 且 MUST 包含压缩前后安全回归比对步骤。"
+  r2,"specs 压缩治理技能可生成且含 freeze 建议","对应 spec: sdd-specs-compaction-guidance — llman sdd update-skills MUST 生成"
 scenarios[0]:

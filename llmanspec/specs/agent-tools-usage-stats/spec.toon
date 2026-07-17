@@ -2,6 +2,8 @@ kind: llman.sdd.spec
 name: "agent-tools-usage-stats"
 purpose: 规范 Codex/Claude Code/Cursor 的本地按项目历史用量统计（token + 时间）与一致 UX。
 valid_scope[1]: "llmanspec/specs/agent-tools-usage-stats"
-requirements[1]{req_id,title,statement}:
-  r1,"agent-tools-usage-stats",规范 Codex/Claude Code/Cursor 的本地按项目历史用量统计（token + 时间）与一致 UX。 The system MUST satisfy the scenarios in this spec.
+requirements[3]{req_id,title,statement}:
+  r1,"stats 命令视图、稳定 id 与过滤","The system MUST satisfy the harness scenarios for `stats 命令视图、稳定 id 与过滤`: 对应 spec: agent-tools-usage-stats — 三工具（codex/claude-code/cursor）均提供 stats 子命令； v1 仅含当前工作目录记录；支持 summary/trend/sessions/session 视图；sessions 提供稳定 id； trend 支持 day/week/month 聚合；支持时间范围过滤与 sessions 排序/limit。"
+  r2,"输出格式、颜色策略与路径缩写","The system MUST satisfy the harness scenarios for `输出格式、颜色策略与路径缩写`: 对应 spec: agent-tools-usage-stats — 输出含 table/json 与可选 TUI；table 用真实表格渲染无制表符； 颜色策略 auto（默认）/always/never，JSON 永不着色；路径默认缩写、--verbose 显示全路径。"
+  r3,"token 处理、sidechain、breakdown、TUI 与数据源安全","The system MUST satisfy the harness scenarios for `token 处理、sidechain、breakdown、TUI 与数据源安全`: 对应 spec: agent-tools-usage-stats — 缺失 token 字段视为 unknown 不估算；数据源本地只读无网络； Claude Code sidechain 默认含且单独计数；known-token 覆盖率被报告；Codex breakdown 可选默认关； 工具特定 flag 稳定；长扫描提供进度反馈；TUI 提供交互过滤表单。"
 scenarios[0]:

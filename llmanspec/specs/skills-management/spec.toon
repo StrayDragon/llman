@@ -2,6 +2,9 @@ kind: llman.sdd.spec
 name: "skills-management"
 purpose: 规范 llman 跨来源技能发现、托管快照、冲突处理与目标链接的整体流程和约束。
 valid_scope[1]: "llmanspec/specs/skills-management"
-requirements[1]{req_id,title,statement}:
-  r1,"skills-management",规范 llman 跨来源技能发现、托管快照、冲突处理与目标链接的整体流程和约束。 The system MUST satisfy the scenarios in this spec.
+requirements[4]{req_id,title,statement}:
+  r1,"标识规则、分组推断与树形多选","The system MUST satisfy the harness scenarios for `标识规则、分组推断与树形多选`: 对应 spec: skills-management — skill_id 由 SKILL.md frontmatter name 经 slugify 得出（缺失回退目录名）； 默认 target 含 claude user/project 与 agents project；技能按目录名 . 推断分组（无 . 归 ungrouped）； 多选列表以树形结构展示分组节点（三态 + 搜索过滤）；技能项展示 skill_id (directory_name)；"
+  r2,"交互入口、扫描与 scope 语义","The system MUST satisfy the harness scenarios for `交互入口、扫描与 scope 语义`: 对应 spec: skills-management — llman skills 交互式扫描后直接进 agent→scope→skills 流程； 尊重忽略规则并跳过软链接解析；单一来源扫描不可配置；取消是安全 no-op； 项目范围菜单隐藏仅 user scope 已管理技能；scope 排序动态化。"
+  r3,"链接启用/禁用、冲突处理与实时状态","The system MUST satisfy the harness scenarios for `链接启用/禁用、冲突处理与实时状态`: 对应 spec: skills-management — 按 agent 目标启用/禁用技能（link 模式创建软链接，skip 跳过）； 断链 symlink 视为已存在条目；冲突提示取消是安全 abort；非交互冲突需 --target-conflict 策略； 启用状态实时计算不依赖 registry。"
+  r4,"技能版本元数据与不匹配警告","The system MUST satisfy the harness scenarios for `技能版本元数据与不匹配警告`: 对应 spec: skills-management — Skills 模板含 metadata.version（与生成它的 CLI 版本一致）； init 与 update-skills 自动填充当前 CLI 版本；缺失 version 不阻断加载；主版本不匹配输出警告但不阻断。"
 scenarios[0]:
