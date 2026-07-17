@@ -1,6 +1,6 @@
 # language: zh-CN
 # managed by llman sdd (Partitioned SSOT harness)
-功能: sdd-workflow
+功能: global-req-id-authoring
 
   @req:r88
   场景: add-req-rejects-global-collision

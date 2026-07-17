@@ -272,6 +272,46 @@ pub fn load_feature_delta_file(path: &Path) -> Result<FeatureDeltaDoc> {
     parse_feature_delta(&content, &format!("feature_delta `{}`", path.display()))
 }
 
+/// Resolve the harness file path for a feature_delta under `spec_dir`.
+///
+/// Uses `delta.target` when non-empty (bare `*.feature` basename only); otherwise
+/// `{capability}.feature`.
+pub fn resolve_feature_delta_target_path(
+    spec_dir: &Path,
+    capability: &str,
+    delta: &FeatureDeltaDoc,
+) -> Result<std::path::PathBuf> {
+    let file = sanitize_feature_delta_target(delta.target.trim(), capability)?;
+    Ok(spec_dir.join(file))
+}
+
+/// Validate / normalize `feature_delta.target` to a bare `*.feature` filename.
+pub fn sanitize_feature_delta_target(raw: &str, capability: &str) -> Result<String> {
+    let t = raw.trim();
+    if t.is_empty() {
+        return Ok(format!("{capability}.feature"));
+    }
+    if t.contains('/') || t.contains('\\') || t.contains("..") {
+        bail!(
+            "feature_delta target must be a bare `*.feature` filename (no directories), got `{t}`"
+        );
+    }
+    if !t.ends_with(".feature") {
+        bail!("feature_delta target must end with `.feature`, got `{t}`");
+    }
+    Ok(t.to_string())
+}
+
+/// Display title for the Gherkin `Feature:` / `功能:` line (file stem of target).
+pub fn feature_title_for_target(target_file: &str, capability: &str) -> String {
+    std::path::Path::new(target_file)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(capability)
+        .to_string()
+}
+
 /// Discover `<capability>.feature.delta.toon` under a change capability dir.
 pub fn find_feature_delta_path(
     change_cap_dir: &Path,
@@ -331,9 +371,11 @@ fn render_scenario_block(
 }
 
 /// Apply feature_delta ops onto an existing `.feature` body. Returns new body.
+///
+/// `feature_title` is the Gherkin Feature/功能 name (usually the target file stem).
 pub fn apply_feature_delta(
     existing: Option<&str>,
-    capability: &str,
+    feature_title: &str,
     delta: &FeatureDeltaDoc,
     lang: &str,
 ) -> Result<String> {
@@ -393,7 +435,7 @@ pub fn apply_feature_delta(
     let mut out = String::new();
     out.push_str(&format!("# language: {lang}\n"));
     out.push_str("# managed by llman sdd (Partitioned SSOT harness)\n");
-    out.push_str(&format!("{feat_kw}: {capability}\n"));
+    out.push_str(&format!("{feat_kw}: {feature_title}\n"));
     for id in ids {
         let sc = map.get(&id).expect("id in map");
         let rid = sc.req_ids.first().map(|s| s.as_str());
@@ -477,5 +519,36 @@ mod tests {
         };
         let empty = apply_feature_delta(Some(&body), "demo", &delta_rm, "zh-CN").unwrap();
         assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn sanitize_target_defaults_and_rejects_paths() {
+        assert_eq!(
+            sanitize_feature_delta_target("", "cap").unwrap(),
+            "cap.feature"
+        );
+        assert_eq!(
+            sanitize_feature_delta_target("global-req-id.feature", "cap").unwrap(),
+            "global-req-id.feature"
+        );
+        assert!(sanitize_feature_delta_target("../x.feature", "cap").is_err());
+        assert!(sanitize_feature_delta_target("a/b.feature", "cap").is_err());
+        assert!(sanitize_feature_delta_target("nope", "cap").is_err());
+    }
+
+    #[test]
+    fn resolve_target_path_uses_delta_field() {
+        let dir = std::path::Path::new("/tmp/specs/cap");
+        let delta = FeatureDeltaDoc {
+            kind: "llman.sdd.feature_delta".into(),
+            target: "global-req-id.feature".into(),
+            ops: vec![],
+        };
+        let p = resolve_feature_delta_target_path(dir, "cap", &delta).unwrap();
+        assert_eq!(p, dir.join("global-req-id.feature"));
+        assert_eq!(
+            feature_title_for_target("global-req-id.feature", "cap"),
+            "global-req-id"
+        );
     }
 }
