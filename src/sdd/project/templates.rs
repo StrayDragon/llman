@@ -22,7 +22,6 @@ const DEFAULT_SKILL_FILES: &[&str] = &[
     "llman-sdd-archive.md",
     "llman-sdd-graph.md",
     "llman-sdd-apply-cycle.md",
-    "llman-sdd-solidify.md",
 ];
 
 const OPTIONAL_SKILL_FILES: &[&str] = &[
@@ -271,10 +270,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/en/skills/llman-sdd-specs-compact.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/llman-sdd-specs-compact.md"
-        ))),
-        "templates/sdd/en/skills/llman-sdd-solidify.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/skills/llman-sdd-solidify.md"
         ))),
         "templates/sdd/en/units/skills/sdd-commands.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

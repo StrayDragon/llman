@@ -47,12 +47,13 @@ flowchart LR
 5. 判断变更规模（triage），确定是否需要走完整 SDD 流程。
 6. 当结论逐渐清晰时，建议用户把它记录下来（不要自动写入）：
    - 范围变化 → `proposal.md`
-   - 约束 / 不可执行场景 → `llmanspec/changes/<id>/specs/<capability>/spec.toon`
-   - 可执行 harness（BDD-on）→ `.feature` 或 `*.feature.delta.toon`（`@req`）
+   - BDD-off 约束/场景 → `llmanspec/changes/<id>/specs/<capability>/spec.toon`（TOON delta）
+   - BDD-on 约束 → feature 分支上的 live `llmanspec/specs/<capability>/spec.toon`
+   - BDD-on 可执行 harness → live `llmanspec/specs/<capability>/*.feature`（`@req`）；禁止 `*.feature.delta.toon`
    - 设计决策 → `design.md`
    - 新工作项 → `tasks.md`
 
-> BDD-on（Partitioned）：`.feature` = harness 权威；`spec.toon` = 约束权威；勿建议 toon 投影覆盖 feature。
+> BDD-on（Git-native Partitioned）：feature 分支 + live `.feature`/`spec.toon` 为 SSOT；用 `change attach` 绑定；无 solidify / feature_delta。
 
 ## 退出探索模式
 当用户准备开始实现时，根据变更规模选择路径：

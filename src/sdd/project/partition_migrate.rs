@@ -10,11 +10,11 @@
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
-use crate::sdd::solidify::locale_to_gherkin_lang;
 use crate::sdd::spec::backend::{BACKEND, SpecBackend};
 use crate::sdd::spec::ir::ScenarioEntry;
 use crate::sdd::spec::partitioned::split_executable_from_toon;
 use crate::sdd::spec::validation::discover_features;
+use crate::sdd::spec::validation::locale_to_gherkin_lang;
 use anyhow::{Context, Result};
 use std::collections::{HashMap, HashSet};
 use std::fs;

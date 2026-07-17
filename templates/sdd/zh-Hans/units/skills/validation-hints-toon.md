@@ -33,8 +33,8 @@ r1,happy,"",a trigger happens,the outcome is observed
 r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
-4) BDD spec 护栏（Partitioned SSOT）：
-当 `config.yaml` 含 `bdd` 块时：`spec.toon` = 约束层（requirements + 不可执行 scenarios）；`*.feature` = 可执行 harness 唯一 GWT（`@req:<req_id>` 挂回 requirement）。`requirements` 为空且无 `.feature` 是 ERROR。solidify 做一致性门禁，不把 toon 投影覆盖 feature。下游升级用 `llman sdd project partition-migrate`。
+4) BDD spec 护栏（Git-native Partitioned SSOT）：
+当 `config.yaml` 含 `bdd` 块时：`spec.toon` = 约束层（requirements + 不可执行 scenarios）；`*.feature` = 可执行 harness 唯一 GWT（`@req:<req_id>` 挂回 requirement）。在非默认 feature 分支上编辑 live specs/features；用 `llman sdd change attach` 绑定，`checkpoint` 做门禁，`diff` 只读审查。合并前 `change archive` 仅移动 change 文档——永不 apply `feature_delta` / 永不把 TOON 当 SSOT 合并。遗留活跃 `*.feature.delta.toon` 是迁移阻断项。`requirements` 为空且无 `.feature` 是 ERROR。没有 solidify 命令。下游升级用 `llman sdd project migrate --kind partitioned`。
 
 备注：
 - 每个 spec 是一个独立的 `.toon` 文件；没有 Markdown 外壳，也没有 ```toon fence。

@@ -173,7 +173,9 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     let config = load_required_config(&root.join(LLMANSPEC_DIR_NAME)).ok();
     let lang = config
         .as_ref()
-        .map(|c| crate::sdd::solidify::locale_to_gherkin_lang(Some(&c.locale), c.bdd.as_ref()))
+        .map(|c| {
+            crate::sdd::spec::validation::locale_to_gherkin_lang(Some(&c.locale), c.bdd.as_ref())
+        })
         .unwrap_or_else(|| "en".to_string());
 
     for id in spec_ids {

@@ -11,9 +11,8 @@ fn hex_encode(bytes: &[u8]) -> String {
 
 /// Compute sha256 hash of all spec files (sorted by path).
 ///
-/// Hashes `spec.toon` (the SSOT) and, defensively, every `*.feature` file in
-/// each spec directory. Although `.feature` files are derived from `spec.toon`
-/// by `solidify`, including them in the hash means a hand-edited `.feature`
+/// Hashes `spec.toon` (constraints SSOT) and every `*.feature` harness file in
+/// each spec directory. Including harness content means a hand-edited `.feature`
 /// still triggers staleness — there should be no silent divergence between the
 /// index and the on-disk behavior artifacts.
 pub fn compute_spec_hash(specs_dir: &Path) -> Result<String> {

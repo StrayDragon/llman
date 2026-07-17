@@ -48,10 +48,13 @@ flowchart LR
 5. 对比 artifacts 与代码：
    - 标出不一致（缺失行为、错误行为、缺测试/文档）
    - 给出最小修复建议或建议更新 artifacts
-6. **BDD-on 验证（Partitioned SSOT）**——仅当 `config.yaml` 含 `bdd:` 段时：
-   - `llman sdd validate <spec>`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
-   - 确认已运行 `llman sdd solidify <id>` 且 stdout 含 `consistency ok`。
-   - 检查：可执行 GWT 只在 `.feature`；`morphology.dualWriteCount` 应为 0。
+6. **BDD-on 验证（Git-native Partitioned SSOT）**——仅当 `config.yaml` 含 `bdd:` 段时：
+   - 确认 change 已 attach，且当前在对应 feature 分支上。
+   - `llman sdd validate --specs`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
+   - 可选只读审查：`llman sdd change diff <id>`（或 `--export-patch <path>`）。diff 仅作审查/导出——绝不当作 apply 步骤。
+   - 归档前：工作区干净后运行 `llman sdd change checkpoint <id>`。
+   - 检查：可执行 GWT 只在 live `.feature`；无活跃 `*.feature.delta.toon`；`morphology.dualWriteCount` 应为 0。
+   - **没有** solidify 步骤——不要让 agent 在闭环后再去「修复」绑定。
 {% if bdd_verify_prompt %}
    - 额外要求: {{ bdd_verify_prompt }}
 {% endif %}
@@ -59,7 +62,7 @@ flowchart LR
    - **CRITICAL**（归档前必须修复）
    - **WARNING**（建议修复）
    - **SUGGESTION**（可选优化）
-8. 若存在 CRITICAL，建议用 `llman-sdd-apply` 修复；若通过则建议归档：`llman sdd archive run <id>`。
+8. 若存在 CRITICAL，建议用 `llman-sdd-apply` 修复；若通过（BDD-on：且已 checkpoint）则建议归档：`llman sdd change archive <id>`。
 
 > 💡 验证通过 → 下一步 `llman-sdd-archive`（归档）；有 CRITICAL → 回到 `llman-sdd-apply`（修复）
 

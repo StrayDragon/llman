@@ -18,15 +18,12 @@ Create a new change with planning artifacts (proposal + delta specs + tasks; des
    - If the change already exists, STOP and suggest `llman-sdd-continue`.
 4. Create artifacts under `llmanspec/changes/<change-id>/`:
    - `proposal.md` (Why / What Changes / Capabilities / Impact)
-   - `specs/<capability>/spec.toon` for each capability (constraints layer; a standalone TOON document, one per file):
-     - Prefer generating via authoring helpers so the TOON payload is well-formed:
-       - `llman sdd delta skeleton <change-id> <capability>`
-       - `llman sdd delta add-op ...`
-       - `llman sdd delta add-scenario ...` (constraints / `feature:false` only)
-     - Include at least one `add_requirement`/`modify_requirement` op (statement MUST contain MUST/SHALL) and at least one matching op scenario row
-   - **BDD-on Partitioned**: write executable GWT to `specs/<capability>/*.feature.delta.toon` (or edit main `*.feature` directly); do **not** put full Given/When/Then in toon expecting solidify to project them
    - `design.md` only when tradeoffs/migrations matter
    - `tasks.md` as an ordered checklist (include validation commands)
+   - **BDD-off**: `specs/<capability>/spec.toon` deltas (standalone TOON, one per file):
+     - Prefer: `llman sdd change new <id>` then (BDD-off) `llman sdd change delta skeleton` / `add-op` / `add-scenario`
+     - Include at least one `add_requirement`/`modify_requirement` op (statement MUST contain MUST/SHALL) and at least one matching op scenario row
+   - **BDD-on (Git-native)**: on a non-default feature branch, edit live `llmanspec/specs/<capability>/spec.toon` + `*.feature` (`@req`); then `llman sdd change attach <change-id>`. Do **not** write `*.feature.delta.toon` and do not expect a solidify step.
 5. Validate: `llman sdd validate <change-id> --strict --no-interactive`.
    This MUST pass before proceeding. If TOON parse errors appear, fix quoting:
    values containing commas/colons/brackets must be double-quoted in tabular rows.

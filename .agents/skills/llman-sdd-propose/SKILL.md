@@ -28,7 +28,7 @@ flowchart LR
 ## 硬约束
 
 - **必须与用户确认 change id 后再写文件**：不同变更的边界不能模糊。
-- **delta specs 至少含一个 op + 一个 scenario**：否则验证不通过。
+- **BDD-off 的 delta specs 至少含一个 op + 一个 scenario**：否则验证不通过。（BDD-on 以 feature 分支上的 live specs 为 SSOT。）
 - **不要问「要不要继续」**：在 propose 阶段内一路执行到底，生成工件并校验。
 - **若变更已存在**：STOP 并建议用户使用 `llman-sdd-apply` 或 `llman-sdd-continue`。
 
@@ -57,17 +57,15 @@ flowchart LR
    - 必须存在 `llmanspec/`；若不存在，提示先运行 `llman sdd init`，然后 STOP。
 
 ### 3) 创建变更目录与工件
-   - 创建 `llmanspec/changes/<change-id>/` 与 `llmanspec/changes/<change-id>/specs/`。
+   - 建议先用 `llman sdd change new <change-id>` 生成草稿 `proposal.md`（或手动创建 `llmanspec/changes/<change-id>/`）。
    - 若变更已存在，STOP 并建议使用 `llman-sdd-continue`。
-   - `proposal.md`（Why / What Changes / Capabilities / Impact）
-   - 为每个 capability 创建 `specs/<capability>/spec.toon`（每个文件一份独立的 TOON 文档）：
-     - 建议优先通过 authoring helpers 生成，确保 TOON payload 规范：
-       - `llman sdd delta skeleton <change-id> <capability>`
-       - `llman sdd delta add-op ...`
-       - `llman sdd delta add-scenario ...`
-     - 至少包含一个 `add_requirement`/`modify_requirement` op（statement 必须含 MUST/SHALL），并且至少包含一行匹配的 op scenario
+   - 充实 `proposal.md`（Why / What Changes / Capabilities / Impact）
    - 仅在涉及权衡/迁移时创建 `design.md`
    - `tasks.md`：按顺序拆分为可勾选清单（包含校验命令）
+   - **BDD-off**：同时创建 `specs/<capability>/spec.toon` delta（独立 TOON，每文件一份）：
+     - 建议优先通过 authoring helpers：`llman sdd change delta skeleton` / `add-req` / `add-scenario`
+     - 至少包含一个 `add_requirement`/`modify_requirement` op（statement 必须含 MUST/SHALL），以及至少一行匹配的 op scenario
+   - **BDD-on**：不要使用 `change delta`（CLI 会拒绝）——在 feature 分支上编辑 live `llmanspec/specs/**`（见 4b）；然后 `llman sdd change attach <change-id>`
 
 ### 4) 校验：
    ```bash
@@ -83,12 +81,18 @@ flowchart LR
     - **否**：按 BDD-off 写作继续（场景留在 TOON 内仅作文档；`feature` 字段被忽略）。
 - **禁止静默添加 `bdd:` 段**——必须先询问。添加它会改变 `validate`/`index` 在整个项目的行为。
 
-### 4b) BDD-on 模式——仅当 `config.yaml` 含 `bdd:` 段时
-- **Partitioned SSOT**：`spec.toon` = 约束（requirements + 不可执行 scenarios）；`*.feature` = 可执行 harness 唯一 GWT。
-- 可执行场景用 `@req:<req_id>` 挂回 requirement；禁止同一 scenario id 的 GWT 双写。
-- Delta：约束/不可执行 → TOON `ops`/`op_scenarios`；可执行 → `*.feature.delta.toon`（按 id add/modify/remove）。
-- `apply` 后运行 `llman sdd solidify <change-id>` 做一致性门禁（可选 `--write-stubs`）。
-- 勿再教导「toon 投影生成 feature / feature 只读衍生为唯一模型」。
+### 4b) BDD-on 模式——仅当 `config.yaml` 含 `bdd:` 段时（Git-native）
+- 在**非默认 Git feature 分支**上工作（禁止在 main/master 上 propose/实现 BDD-on 变更）。
+- **Partitioned SSOT**：编辑 live `llmanspec/specs/<capability>/spec.toon`（约束 + 不可执行 scenarios）与 `*.feature`（可执行 GWT，带 `@req:<req_id>`）。禁止同一 scenario id 的 GWT 双写进 toon。
+- Change 文档仍在 `llmanspec/changes/<change-id>/`（`proposal.md`、`tasks.md`、可选 `design.md`）。建议先用 `llman sdd change new <change-id>` 建草稿壳。**禁止**编写 `*.feature.delta.toon`——遗留活跃 feature_delta 是迁移阻断项。
+- 绑定变更：`llman sdd change attach <change-id>`（记录 feature 分支 + merge-base SHA）。
+- **没有** `solidify` 命令——不要让 agent 在闭环后再去「修复」harness 绑定。
+- **BDD-off**（无 `bdd:` 段）：用 `llman sdd change delta …` 写 `changes/<id>/specs/` 下的 TOON delta；不要求 feature 分支 / attach / checkpoint / harness。
+
+### 4c) BDD-off delta 写作（无 `bdd:` 段）
+- 创建变更壳：`llman sdd change new <change-id>`。
+- 约束与场景通过 `llman sdd change delta skeleton|add-req|…` 写在 change 内 TOON。
+- 后续用 `llman sdd change archive <id>` 将 delta 合并进主 `spec.toon`。
 
 ### 5) 总结已创建内容，并建议下一步：
    - 进入实现阶段：`llman-sdd-apply`。
@@ -96,21 +100,27 @@ flowchart LR
 
 > 💡 提案完成 → 下一步 `llman-sdd-apply` 进入实施阶段。
 
-在执行之前，请先阅读 `llmanspec/config.yaml`，若其中包含 `context` 与 `rules` 请遵循。
+行动前先阅读 `llmanspec/config.yaml`，并遵循其中的 `context` 与 `rules`（若有）。
 
 常用命令：
-- `llman sdd context --task "<description>" --paths "<files>"`（获取相关 specs）。使用 pageindex agentic 树检索后端（需配置 `LLMAN_SDD_INDEX_CHAT_MODEL`）。可用 `LLMAN_SDD_INDEX_BACKEND` 预设。
+- `llman sdd context --task "<描述>" --paths "<文件>"`（找相关 specs）。使用 pageindex agentic tree 后端（需 `LLMAN_SDD_INDEX_CHAT_MODEL`）。可用 `LLMAN_SDD_INDEX_BACKEND` 预设。
 - `llman sdd list`（列出变更）
-- `llman sdd list --specs`（列出 specs，含 purpose/scope 元数据）
-- `llman sdd show <id>`（查看 change/spec）
-- `llman sdd validate <id>`（校验变更或 spec）
+- `llman sdd list --specs`（列出 specs 及 purpose/scope 元数据）
+- `llman sdd show <id>`（展示 change/spec）
+- `llman sdd validate <id>`（校验 change 或 spec）
 - `llman sdd validate --all`（批量校验）
-- `llman sdd index rebuild`（重建 pageindex 树索引——无需模型）
+- `llman sdd index rebuild`（重建 pageindex 树索引——不需要模型）
 - `llman sdd index check`（检查索引新鲜度）
-- `llman sdd archive run <id>`（归档变更）
-- `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（冻结归档目录）
-- `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（解冻归档）
+- `llman sdd change new <id>`（创建草稿 `changes/<id>/proposal.md`）
+- `llman sdd change attach <id> [--force]`（BDD-on：绑定 feature 分支 + base SHA）
+- `llman sdd change checkpoint <id> [--no-check]`（BDD-on：干净工作区 + 归档前门禁）
+- `llman sdd change diff <id> [--export-patch <path>]`（BDD-on：只读 `base...HEAD` 审查/导出）
+- `llman sdd change delta …`（仅 BDD-off：TOON delta 作者工具；BDD-on 会拒绝）
+- `llman sdd change archive <id>`（封存变更；BDD-on：checkpoint 后仅文档；BDD-off：合并 TOON delta）
+- `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（冻结已归档目录）
+- `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备份恢复）
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图）
+- `llman sdd project migrate [--kind format|partitioned|legacy-bdd|auto]`（一次性迁移）
 
 常见校验修复（TOON 独立文件 spec）：
 
@@ -147,8 +157,8 @@ r1,happy,"",a trigger happens,the outcome is observed
 r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
-4) BDD spec 护栏（Partitioned SSOT）：
-当 `config.yaml` 含 `bdd` 块时：`spec.toon` = 约束层（requirements + 不可执行 scenarios）；`*.feature` = 可执行 harness 唯一 GWT（`@req:<req_id>` 挂回 requirement）。`requirements` 为空且无 `.feature` 是 ERROR。solidify 做一致性门禁，不把 toon 投影覆盖 feature。下游升级用 `llman sdd project partition-migrate`。
+4) BDD spec 护栏（Git-native Partitioned SSOT）：
+当 `config.yaml` 含 `bdd` 块时：`spec.toon` = 约束层（requirements + 不可执行 scenarios）；`*.feature` = 可执行 harness 唯一 GWT（`@req:<req_id>` 挂回 requirement）。在非默认 feature 分支上编辑 live specs/features；用 `llman sdd change attach` 绑定，`checkpoint` 做门禁，`diff` 只读审查。合并前 `change archive` 仅移动 change 文档——永不 apply `feature_delta` / 永不把 TOON 当 SSOT 合并。遗留活跃 `*.feature.delta.toon` 是迁移阻断项。`requirements` 为空且无 `.feature` 是 ERROR。没有 solidify 命令。下游升级用 `llman sdd project migrate --kind partitioned`。
 
 备注：
 - 每个 spec 是一个独立的 `.toon` 文件；没有 Markdown 外壳，也没有 ```toon fence。

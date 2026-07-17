@@ -28,7 +28,7 @@ flowchart LR
 ## Hard Constraints
 
 - **Must confirm change id with user before writing files**: change boundaries must stay clear.
-- **Delta specs must have at least one op + one scenario**: otherwise validation fails.
+- **BDD-off delta specs must have at least one op + one scenario**: otherwise validation fails. (BDD-on uses live specs on the feature branch instead.)
 - **Don't ask "should I continue?"**: execute the full propose phase in one pass, generate artifacts and validate.
 - **If change already exists**: STOP and suggest `llman-sdd-continue` or `llman-sdd-apply`.
 
@@ -57,17 +57,15 @@ flowchart LR
    - `llmanspec/` must exist; if missing, tell the user to run `llman sdd init`, then STOP.
 
 ### 3) Create change directory and artifacts
-   - Create `llmanspec/changes/<change-id>/` and `llmanspec/changes/<change-id>/specs/`.
+   - Prefer `llman sdd change new <change-id>` for the draft `proposal.md` shell (or create `llmanspec/changes/<change-id>/` manually).
    - If the change already exists, STOP and suggest `llman-sdd-continue`.
-   - `proposal.md` (Why / What Changes / Capabilities / Impact)
-   - `specs/<capability>/spec.toon` for each capability (a standalone TOON document, one per file):
-     - Prefer generating via authoring helpers so the TOON payload is well-formed:
-       - `llman sdd delta skeleton <change-id> <capability>`
-       - `llman sdd delta add-op ...`
-       - `llman sdd delta add-scenario ...`
-     - Include at least one `add_requirement`/`modify_requirement` op (statement MUST contain MUST/SHALL) and at least one matching op scenario row
+   - Flesh out `proposal.md` (Why / What Changes / Capabilities / Impact)
    - `design.md` only when tradeoffs/migrations matter
    - `tasks.md` as an ordered checklist (include validation commands)
+   - **BDD-off**: also create `specs/<capability>/spec.toon` deltas (standalone TOON, one per file):
+     - Prefer authoring helpers: `llman sdd change delta skeleton` / `add-req` / `add-scenario`
+     - Include at least one `add_requirement`/`modify_requirement` op (statement MUST contain MUST/SHALL) and at least one matching op scenario row
+   - **BDD-on**: do **not** use `change delta` (CLI rejects it) — edit live `llmanspec/specs/**` on the feature branch (see 4b); then `llman sdd change attach <change-id>`
 
 ### 4) Validate:
    ```bash
@@ -84,12 +82,18 @@ flowchart LR
     - If **no**: proceed with BDD-off authoring (scenarios stay in TOON as documentation; the `feature` field is ignored).
 - **Do NOT silently add the `bdd:` block** — always ask first. Adding it changes how `validate`/`index` behave project-wide.
 
-### 4b) BDD-on mode — only when `config.yaml` has a `bdd:` block
-- **Partitioned SSOT**: `spec.toon` = constraints (requirements + non-executable scenarios); `*.feature` = executable harness GWT only.
-- Tag executable scenarios with `@req:<req_id>`; never dual-write the same scenario id GWT.
-- Deltas: constraints/non-executable → TOON `ops`/`op_scenarios`; executable → `*.feature.delta.toon` (add/modify/remove by id).
-- After `apply`, run `llman sdd solidify <change-id>` as a consistency gate (optional `--write-stubs`).
-- Do not teach “toon projects feature” or “feature is read-only derived only”.
+### 4b) BDD-on mode — only when `config.yaml` has a `bdd:` block (Git-native)
+- Work on a **non-default Git feature branch** (never propose/implement BDD-on changes on main/master).
+- **Partitioned SSOT**: edit live `llmanspec/specs/<capability>/spec.toon` (constraints + non-executable scenarios) and `*.feature` (executable GWT only, tagged `@req:<req_id>`). Never dual-write the same scenario id GWT into toon.
+- Change docs stay under `llmanspec/changes/<change-id>/` (`proposal.md`, `tasks.md`, optional `design.md`). Prefer `llman sdd change new <change-id>` for the draft shell. Do **not** author `*.feature.delta.toon` — legacy active feature_delta is a migration blocker.
+- Bind the change: `llman sdd change attach <change-id>` (records feature branch + merge-base SHA).
+- There is **no** `solidify` command — do not tell agents to repair harness bindings after the loop.
+- **BDD-off** (no `bdd:` block): use `llman sdd change delta …` for change-scoped TOON deltas under `changes/<id>/specs/`; no feature branch / attach / checkpoint / harness requirements.
+
+### 4c) BDD-off delta authoring (no `bdd:` block)
+- Create the change shell: `llman sdd change new <change-id>`.
+- Constraints and scenarios stay in change-scoped TOON via `llman sdd change delta skeleton|add-req|…`.
+- Archive later: `llman sdd change archive <id>` merges those deltas into main `spec.toon`.
 
 ### 5) Summarize and suggest next step:
    - Enter implementation phase: `llman-sdd-apply`.

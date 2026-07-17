@@ -19,9 +19,9 @@ pub struct ReqNode {
     pub statement: String,
 }
 
-/// One scenario node (behavior detail under a requirement). Only `feature: true`
-/// scenarios from `spec.toon` are kept — these are the ones `solidify` writes to
-/// `.feature` files, i.e. the executable behavior contract.
+/// One scenario node (behavior detail under a requirement). Index rebuild may
+/// embed harness scenarios derived from `.feature` files (Partitioned SSOT);
+/// constraint-layer toon scenarios with `feature: false` stay documentation-only.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ScenarioNode {
     pub req_id: String,
@@ -85,8 +85,8 @@ pub fn build_docs(parsed: &[(String, MainSpecDoc)]) -> Vec<DocNode> {
                     statement: r.statement.clone(),
                 })
                 .collect(),
-            // Keep only `feature: true` scenarios: these are the executable
-            // behavior contract (the ones `solidify` serializes to `.feature`).
+            // Keep only `feature: true` scenarios from toon as a legacy fallback;
+            // primary harness embed comes from `.feature` files when BDD-on.
             // `feature: false` scenarios stay in `spec.toon` as documentation
             // only and are intentionally excluded from the retrieval index.
             scenarios: doc

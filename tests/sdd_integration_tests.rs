@@ -103,13 +103,14 @@ fn author_sample_change(work_dir: &Path, change_id: &str) {
     fs::write(change_dir.join("proposal.md"), proposal).expect("write proposal");
 
     assert_success(&run_llman(
-        &["sdd", "delta", "skeleton", change_id, "sample"],
+        &["sdd", "change", "delta", "skeleton", change_id, "sample"],
         work_dir,
         work_dir,
     ));
     assert_success(&run_llman(
         &[
             "sdd",
+            "change",
             "delta",
             "add-req",
             change_id,
@@ -126,6 +127,7 @@ fn author_sample_change(work_dir: &Path, change_id: &str) {
     assert_success(&run_llman(
         &[
             "sdd",
+            "change",
             "delta",
             "add-scenario",
             change_id,
@@ -257,7 +259,11 @@ Need a sample change.
         serde_json::from_slice(&validate_output.stdout).expect("validate json");
     assert_eq!(validate_json["items"][0]["valid"], true);
 
-    let archive_output = run_llman(&["sdd", "archive", "run", "add-sample"], work_dir, work_dir);
+    let archive_output = run_llman(
+        &["sdd", "change", "archive", "add-sample"],
+        work_dir,
+        work_dir,
+    );
     assert_success(&archive_output);
 
     let archive_root = llmanspec_dir.join("changes").join("archive");
@@ -311,7 +317,11 @@ fn test_sdd_archive_flow_works_in_toon_project() {
     );
     assert_success(&validate_spec);
 
-    let archive_output = run_llman(&["sdd", "archive", "run", "add-sample"], work_dir, work_dir);
+    let archive_output = run_llman(
+        &["sdd", "change", "archive", "add-sample"],
+        work_dir,
+        work_dir,
+    );
     assert_success(&archive_output);
 
     let updated = fs::read_to_string(work_dir.join("llmanspec/specs/sample/spec.toon"))
@@ -494,7 +504,7 @@ fn test_sdd_authoring_helpers_produce_strict_valid_spec_and_change() {
     fs::write(change_dir.join("tasks.md"), "- [x] Implement the change\n").expect("write tasks");
 
     let delta_skel = run_llman(
-        &["sdd", "delta", "skeleton", "add-sample", "sample"],
+        &["sdd", "change", "delta", "skeleton", "add-sample", "sample"],
         work_dir,
         work_dir,
     );
@@ -503,6 +513,7 @@ fn test_sdd_authoring_helpers_produce_strict_valid_spec_and_change() {
     let add_op = run_llman(
         &[
             "sdd",
+            "change",
             "delta",
             "add-req",
             "add-sample",
@@ -521,6 +532,7 @@ fn test_sdd_authoring_helpers_produce_strict_valid_spec_and_change() {
     let add_delta_scenario = run_llman(
         &[
             "sdd",
+            "change",
             "delta",
             "add-scenario",
             "add-sample",

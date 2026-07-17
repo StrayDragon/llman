@@ -2,11 +2,11 @@
 //!
 //! See `llmanspec/changes/add-sdd-bdd-partitioned-ssot/design.md`.
 
-use crate::sdd::spec::ir::{FeatureDeltaDoc, MainSpecDoc, ScenarioEntry};
+use crate::sdd::spec::ir::{MainSpecDoc, ScenarioEntry};
 use crate::sdd::spec::validation::{ValidationIssue, ValidationLevel, discover_features};
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -98,6 +98,29 @@ pub fn load_spec_harness(spec_dir: &Path, lang: &str) -> Result<Vec<FeatureScena
         }
     }
     Ok(all)
+}
+
+/// Parse a `.feature` file into spec-level
+/// [`ScenarioNode`](crate::sdd::context::tree::ScenarioNode)s.
+///
+/// `req_id` is taken from the first `@req:<id>` tag when present; otherwise empty
+/// (spec-level). Used by pageindex rebuild under Partitioned SSOT (feature wins).
+pub fn parse_feature_file(
+    path: &Path,
+    lang: &str,
+) -> Result<Vec<crate::sdd::context::tree::ScenarioNode>> {
+    use crate::sdd::context::tree::ScenarioNode;
+    let scenarios = parse_feature_scenarios(path, lang)?;
+    Ok(scenarios
+        .into_iter()
+        .map(|sc| ScenarioNode {
+            req_id: sc.req_ids.first().cloned().unwrap_or_default(),
+            id: sc.id,
+            given: sc.given,
+            when_: sc.when_,
+            then_: sc.then_,
+        })
+        .collect())
 }
 
 /// Soft-load harness: skip malformed files with a warning issue instead of failing.
@@ -231,7 +254,7 @@ pub fn validate_partitioned(
             level,
             path: format!("{spec_name}/dual-write"),
             message: format!(
-                "dual-write: {dual} executable scenario(s) still have GWT in both spec.toon and .feature; run `llman sdd project partition-migrate`"
+                "dual-write: {dual} executable scenario(s) still have GWT in both spec.toon and .feature; run `llman sdd project migrate --kind partitioned`"
             ),
         });
     }
@@ -254,200 +277,6 @@ pub fn validate_partitioned(
     issues
 }
 
-pub fn parse_feature_delta(content: &str, context: &str) -> Result<FeatureDeltaDoc> {
-    let doc: FeatureDeltaDoc = toon_format::decode_default(content.trim())
-        .map_err(|err| anyhow::anyhow!("{context}: failed to parse feature_delta: {err}"))?;
-    if doc.kind.trim() != "llman.sdd.feature_delta" {
-        bail!(
-            "{context}: kind must be `llman.sdd.feature_delta`, got `{}`",
-            doc.kind.trim()
-        );
-    }
-    Ok(doc)
-}
-
-pub fn load_feature_delta_file(path: &Path) -> Result<FeatureDeltaDoc> {
-    let content = fs::read_to_string(path)
-        .with_context(|| format!("read feature_delta {}", path.display()))?;
-    parse_feature_delta(&content, &format!("feature_delta `{}`", path.display()))
-}
-
-/// Resolve the harness file path for a feature_delta under `spec_dir`.
-///
-/// Uses `delta.target` when non-empty (bare `*.feature` basename only); otherwise
-/// `{capability}.feature`.
-pub fn resolve_feature_delta_target_path(
-    spec_dir: &Path,
-    capability: &str,
-    delta: &FeatureDeltaDoc,
-) -> Result<std::path::PathBuf> {
-    let file = sanitize_feature_delta_target(delta.target.trim(), capability)?;
-    Ok(spec_dir.join(file))
-}
-
-/// Validate / normalize `feature_delta.target` to a bare `*.feature` filename.
-pub fn sanitize_feature_delta_target(raw: &str, capability: &str) -> Result<String> {
-    let t = raw.trim();
-    if t.is_empty() {
-        return Ok(format!("{capability}.feature"));
-    }
-    if t.contains('/') || t.contains('\\') || t.contains("..") {
-        bail!(
-            "feature_delta target must be a bare `*.feature` filename (no directories), got `{t}`"
-        );
-    }
-    if !t.ends_with(".feature") {
-        bail!("feature_delta target must end with `.feature`, got `{t}`");
-    }
-    Ok(t.to_string())
-}
-
-/// Display title for the Gherkin `Feature:` / `功能:` line (file stem of target).
-pub fn feature_title_for_target(target_file: &str, capability: &str) -> String {
-    std::path::Path::new(target_file)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .filter(|s| !s.is_empty())
-        .unwrap_or(capability)
-        .to_string()
-}
-
-/// Discover `<capability>.feature.delta.toon` under a change capability dir.
-pub fn find_feature_delta_path(
-    change_cap_dir: &Path,
-    capability: &str,
-) -> Option<std::path::PathBuf> {
-    let p1 = change_cap_dir.join(format!("{capability}.feature.delta.toon"));
-    if p1.exists() {
-        return Some(p1);
-    }
-    let p2 = change_cap_dir.join("feature.delta.toon");
-    if p2.exists() {
-        return Some(p2);
-    }
-    None
-}
-
-fn keywords_for(
-    lang: &str,
-) -> (
-    &'static str,
-    &'static str,
-    &'static str,
-    &'static str,
-    &'static str,
-    &'static str,
-) {
-    match lang {
-        "zh-CN" | "zh-TW" | "zh" => ("功能", "场景", "假如", "当", "那么", "而且"),
-        _ => ("Feature", "Scenario", "Given", "When", "Then", "And"),
-    }
-}
-
-fn render_scenario_block(
-    id: &str,
-    req_id: Option<&str>,
-    given: &str,
-    when_: &str,
-    then_: &str,
-    lang: &str,
-) -> String {
-    let (_feat, scenario, given_kw, when_kw, then_kw, _and) = keywords_for(lang);
-    let mut out = String::new();
-    if let Some(rid) = req_id.filter(|s| !s.is_empty()) {
-        out.push_str(&format!("  @req:{rid}\n"));
-    }
-    out.push_str(&format!("  {scenario}: {id}\n"));
-    if !given.trim().is_empty() {
-        out.push_str(&format!("    {given_kw} {}\n", given.trim()));
-    }
-    if !when_.trim().is_empty() {
-        out.push_str(&format!("    {when_kw} {}\n", when_.trim()));
-    }
-    if !then_.trim().is_empty() {
-        out.push_str(&format!("    {then_kw} {}\n", then_.trim()));
-    }
-    out
-}
-
-/// Apply feature_delta ops onto an existing `.feature` body. Returns new body.
-///
-/// `feature_title` is the Gherkin Feature/功能 name (usually the target file stem).
-pub fn apply_feature_delta(
-    existing: Option<&str>,
-    feature_title: &str,
-    delta: &FeatureDeltaDoc,
-    lang: &str,
-) -> Result<String> {
-    let (feat_kw, scenario_kw, given_kw, when_kw, then_kw, _and) = keywords_for(lang);
-    let mut map: HashMap<String, FeatureScenario> = HashMap::new();
-
-    if let Some(body) = existing.filter(|s| !s.trim().is_empty()) {
-        for sc in parse_feature_scenarios_content(body, lang)? {
-            map.insert(sc.id.clone(), sc);
-        }
-    }
-
-    for op in &delta.ops {
-        match op.op.as_str() {
-            "add" | "modify" => {
-                if op.op == "modify" && !map.contains_key(&op.id) {
-                    bail!("feature_delta modify: scenario `{}` not found", op.id);
-                }
-                if op.op == "add" && map.contains_key(&op.id) {
-                    bail!("feature_delta add: scenario `{}` already exists", op.id);
-                }
-                let mut req_ids = Vec::new();
-                if !op.req_id.trim().is_empty() {
-                    req_ids.push(op.req_id.clone());
-                }
-                map.insert(
-                    op.id.clone(),
-                    FeatureScenario {
-                        id: op.id.clone(),
-                        given: op.given.clone(),
-                        when_: op.when_.clone(),
-                        then_: op.then_.clone(),
-                        req_ids,
-                        tags: if op.req_id.trim().is_empty() {
-                            Vec::new()
-                        } else {
-                            vec![format!("req:{}", op.req_id)]
-                        },
-                    },
-                );
-            }
-            "remove" => {
-                if map.remove(&op.id).is_none() {
-                    bail!("feature_delta remove: scenario `{}` not found", op.id);
-                }
-            }
-            other => bail!("feature_delta: unsupported op `{other}`"),
-        }
-    }
-
-    if map.is_empty() {
-        return Ok(String::new());
-    }
-
-    let mut ids: Vec<String> = map.keys().cloned().collect();
-    ids.sort();
-    let mut out = String::new();
-    out.push_str(&format!("# language: {lang}\n"));
-    out.push_str("# managed by llman sdd (Partitioned SSOT harness)\n");
-    out.push_str(&format!("{feat_kw}: {feature_title}\n"));
-    for id in ids {
-        let sc = map.get(&id).expect("id in map");
-        let rid = sc.req_ids.first().map(|s| s.as_str());
-        out.push('\n');
-        out.push_str(&render_scenario_block(
-            &sc.id, rid, &sc.given, &sc.when_, &sc.then_, lang,
-        ));
-        let _ = (scenario_kw, given_kw, when_kw, then_kw);
-    }
-    Ok(out)
-}
-
 /// Strip executable GWT from toon (keep feature:false only); return removed rows for migrate.
 pub fn split_executable_from_toon(doc: &mut MainSpecDoc) -> Vec<ScenarioEntry> {
     let (keep, removed): (Vec<_>, Vec<_>) = doc.scenarios.drain(..).partition(|s| !s.feature);
@@ -458,7 +287,6 @@ pub fn split_executable_from_toon(doc: &mut MainSpecDoc) -> Vec<ScenarioEntry> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sdd::spec::ir::FeatureDeltaOp;
 
     #[test]
     fn parses_req_tags() {
@@ -473,82 +301,5 @@ mod tests {
         assert_eq!(scs.len(), 1);
         assert_eq!(scs[0].id, "happy");
         assert_eq!(scs[0].req_ids, vec!["r1"]);
-    }
-
-    #[test]
-    fn feature_delta_add_modify_remove() {
-        let delta = FeatureDeltaDoc {
-            kind: "llman.sdd.feature_delta".into(),
-            target: "demo.feature".into(),
-            ops: vec![
-                FeatureDeltaOp {
-                    op: "add".into(),
-                    id: "s1".into(),
-                    req_id: "r1".into(),
-                    given: "g".into(),
-                    when_: "w".into(),
-                    then_: "t".into(),
-                },
-                FeatureDeltaOp {
-                    op: "modify".into(),
-                    id: "s1".into(),
-                    req_id: "r1".into(),
-                    given: "g2".into(),
-                    when_: "w2".into(),
-                    then_: "t2".into(),
-                },
-            ],
-        };
-        // first apply add+modify in one doc — modify after add in same batch works via map
-        let body = apply_feature_delta(None, "demo", &delta, "zh-CN").unwrap();
-        assert!(body.contains("场景: s1"));
-        assert!(body.contains("@req:r1"));
-        assert!(body.contains("g2"));
-
-        let delta_rm = FeatureDeltaDoc {
-            kind: "llman.sdd.feature_delta".into(),
-            target: "demo.feature".into(),
-            ops: vec![FeatureDeltaOp {
-                op: "remove".into(),
-                id: "s1".into(),
-                req_id: String::new(),
-                given: String::new(),
-                when_: String::new(),
-                then_: String::new(),
-            }],
-        };
-        let empty = apply_feature_delta(Some(&body), "demo", &delta_rm, "zh-CN").unwrap();
-        assert!(empty.is_empty());
-    }
-
-    #[test]
-    fn sanitize_target_defaults_and_rejects_paths() {
-        assert_eq!(
-            sanitize_feature_delta_target("", "cap").unwrap(),
-            "cap.feature"
-        );
-        assert_eq!(
-            sanitize_feature_delta_target("global-req-id.feature", "cap").unwrap(),
-            "global-req-id.feature"
-        );
-        assert!(sanitize_feature_delta_target("../x.feature", "cap").is_err());
-        assert!(sanitize_feature_delta_target("a/b.feature", "cap").is_err());
-        assert!(sanitize_feature_delta_target("nope", "cap").is_err());
-    }
-
-    #[test]
-    fn resolve_target_path_uses_delta_field() {
-        let dir = std::path::Path::new("/tmp/specs/cap");
-        let delta = FeatureDeltaDoc {
-            kind: "llman.sdd.feature_delta".into(),
-            target: "global-req-id.feature".into(),
-            ops: vec![],
-        };
-        let p = resolve_feature_delta_target_path(dir, "cap", &delta).unwrap();
-        assert_eq!(p, dir.join("global-req-id.feature"));
-        assert_eq!(
-            feature_title_for_target("global-req-id.feature", "cap"),
-            "global-req-id"
-        );
     }
 }

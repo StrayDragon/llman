@@ -1,21 +1,21 @@
 kind: llman.sdd.spec
 name: "sdd-bdd-mode-compat"
-purpose: "规范 sdd 工具链在 BDD-on（feature-as-spec 启用）与 BDD-off（未启用）两种项目配置下的行为合约与兼容性。当 config.yaml 的 bdd 段存在与否时，validate / solidify / index 等子命令 MUST 表现出符合预期的差异，且 BDD-off 项目不得因 .feature 文件而失败。"
+purpose: "规范 sdd 工具链在 BDD-on（Git-native feature-as-spec）与 BDD-off（未启用）两种项目配置下的行为合约与兼容性。当 config.yaml 的 bdd 段存在与否时，validate / change attach|checkpoint|diff / archive / index 等子命令 MUST 表现出符合预期的差异，且 BDD-off 项目不得因 .feature 文件而失败。"
 valid_scope[1]: "llmanspec/specs/sdd-bdd-mode-compat"
 requirements[9]{req_id,title,statement}:
-  r26,validate 的 check 语义,"validate 的 --check/--no-check 行为 MUST 随 BDD 模式切换：BDD-on 时默认执行 BDD runner，--no-check 跳过；BDD-off 时 --check 不执行 runner 且不视为错误。"
-  r57,solidify 的一致性门禁,"solidify MUST 随 BDD 模式切换：BDD-on 时对 change 作用域执行 Partitioned 一致性检查（@req 链接、双写、不可执行 id 入侵），可选 --write-stubs 仅为缺失 scenario id 写入骨架与 @req 且 MUST NOT 覆盖已有 GWT 正文；MUST NOT 再把 toon op_scenarios 全文投影覆盖 .feature。BDD-off 时为 no-op 并明确提示未配置。"
+  r26,validate 的 check 语义,"validate 的 --check/--no-check 行为 MUST 随 BDD 模式切换：BDD-on 时默认执行 BDD runner（对 live 分支树中的真实 .feature），--no-check 跳过；BDD-off 时 --check 不执行 runner 且不视为错误。"
+  r57,Git-native change binding,"BDD-on 时 change MUST 绑定非默认 Git 分支与 immutable base SHA（`llman sdd change attach`）；`checkpoint` MUST 要求干净工作树并跑门禁；`diff` MUST 只读展示/导出 base...HEAD。`llman sdd change new` MUST 能创建 proposal 草稿。`llman sdd change delta` MUST 在 BDD-on 下失败并提示仅 BDD-off。默认分支上 attach/checkpoint/archive MUST 失败。BDD-off 时 attach/checkpoint MUST 失败并提示需配置 bdd。MUST NOT 再提供 `sdd solidify` 子命令。"
   r78,index rebuild 的 feature embed,"index rebuild MUST 在 BDD-on 项目中把 .feature 派生的 spec-level scenario（req_id 为空）编入 tree.json；BDD-off 项目（无 .feature）不得产生 spec-level scenario。"
   r83,"BDD-off 忽略 feature 文件","validate 在 BDD-off 项目中 MUST 静默忽略 .feature 文件，既不解析 Gherkin 也不因格式问题报错。"
-  r5,Partitioned SSOT 分区权威,"BDD-on 时 MUST 采用 Partitioned SSOT：spec.toon 权威承载 requirements 与不可执行 scenarios；*.feature 权威承载可执行场景 GWT；同一 scenario id 的完整 GWT MUST NOT 同时存在于 toon 与 feature。可执行场景 MUST 使用 @req:<req_id> 标签挂回 requirement。"
+  r5,Partitioned SSOT 分区权威,"BDD-on 时 MUST 采用 Partitioned SSOT：spec.toon 权威承载 requirements 与不可执行 scenarios；*.feature 权威承载可执行场景 GWT；同一 scenario id 的完整 GWT MUST NOT 同时存在于 toon 与 feature。可执行场景 MUST 使用 @req:<req_id> 标签挂回 requirement。Git-native 下可执行变更直接编辑分支上的 live .feature。"
   r6,validate 链接与双写及全局唯一门禁,"BDD-on 时 validate MUST 校验：feature 中每个 @req:X 对应 toon requirement X 存在；同一 scenario id 可执行 GWT 双写在 --strict 下 MUST 为失败；不可执行 toon scenario id MUST NOT 出现在 .feature；跨不同 main spec 的重复 req_id MUST 立即失败并附修复建议（见全局唯一合约）。--check 仍按 bdd.run_command 执行 harness。"
-  r7,feature_delta 与 archive 双管道,"BDD-on 时 change MUST 能携带 feature_delta（按 scenario id 的 add/modify/remove 整块操作；target 字段为 capability 目录下的裸 *.feature 文件名，缺省为 {capability}.feature）。archive MUST merge toon ops 到 spec.toon 且 apply feature_delta 到 target 指定的主 .feature；找不到目标 id 的 modify/remove MUST 失败。MUST NOT 再以整文件覆盖复制 .feature 作为默认归档路径。"
-  r85,"partition-migrate","llman sdd project partition-migrate MUST 将 BDD-on 项目中 feature:true（或缺省可执行）双写拆为：toon 移除可执行 GWT、.feature 保留或补齐场景并写入 @req；--dry-run MUST 只打印计划。BDD-off 时 MUST no-op 并提示。"
+  r7,pre-merge archive 与模式隔离,"BDD-on 时 `llman sdd change archive` MUST 在 checkpoint 之后仅移动 change 文档到 changes/archive/，MUST NOT merge TOON delta、MUST NOT apply feature_delta。活跃 `*.feature.delta.toon` MUST 作为迁移阻断（ERROR）。BDD-off 时 archive MUST 继续按 TOON delta 合并到主 spec.toon，且 MUST NOT 暴露 harness/attach/checkpoint 作为必需路径。顶层 `sdd archive run` 为兼容别名。"
+  r85,"partition-migrate","llman sdd project migrate --kind partitioned MUST 将 BDD-on 项目中 feature:true（或缺省可执行）双写拆为：toon 移除可执行 GWT、.feature 保留或补齐场景并写入 @req；--dry-run MUST 只打印计划。BDD-off 时 MUST no-op 并提示。隐藏别名 partition-migrate 仍可用。"
   r86,全局 req_id 唯一性,"在 llmanspec/specs 主库中，每个 requirement 的 req_id MUST 在全部 capability 间全局唯一。通用 validate 路径（validate --all、validate <spec>、validate <change> 且会加载主库约束时）MUST 立即检测跨 capability 重复 req_id：默认与 --strict 下 MUST 判为失败并拦截；错误信息 MUST 指出冲突的 req_id 与涉及 capability，并给出可操作修复建议（例如改用 llman sdd spec next-req-id 分配新短 id，或 llman sdd spec resolve-req 查看归属）。非交互场景 MUST NOT 静默放过重复以免积累债务。"
 scenarios[6]{req_id,id,given,when,then,feature}:
-  r57,"solidify-consistency-note",约束层说明,"BDD-on solidify",一致性门禁而非投影,false
+  r57,"git-binding-note",约束层说明,"BDD-on change attach/checkpoint",绑定分支与门禁；无 solidify,false
   r5,"dual-write-forbidden-note",约束层说明,可执行 GWT 双写,harness 场景见 .feature,false
   r6,"req-link-global-note",约束层说明,validate 检查 @req 与全局唯一,链接与跨 spec 撞车均按合约失败,false
-  r7,"archive-applies-feature-delta",llman 二进制已构建,运行 llman sdd archive run 含 feature_delta 的 change,主 .feature 含 delta 场景且 toon 已 merge,false
+  r7,"archive-docs-only-note",约束层说明,BDD-on archive,仅移动文档且拒绝 legacy feature_delta,false
   r85,"partition-migrate-note",约束层说明,"partition-migrate --dry-run",harness 场景见 .feature,false
-  r86,"global-req-id-unique-note",约束层说明,两个 main spec 使用相同 req_id,validate 立即失败并含修复建议；可执行场景见 feature_delta,false
+  r86,"global-req-id-unique-note",约束层说明,两个 main spec 使用相同 req_id,validate 立即失败并含修复建议；可执行场景见 .feature,false

@@ -54,6 +54,13 @@ pub struct SpecValidation {
 pub struct ProposalFrontmatter {
     pub depends_on: Vec<String>,
     pub blocks: Vec<String>,
+    /// BDD-on Git-native binding: feature branch name.
+    pub branch: Option<String>,
+    /// BDD-on Git-native binding: immutable merge-base SHA at attach time.
+    pub base_sha: Option<String>,
+    /// Whether `sdd change checkpoint` has succeeded.
+    pub checkpointed: bool,
+    pub checkpoint_sha: Option<String>,
 }
 
 pub fn validate_spec_content_with_frontmatter(
@@ -509,6 +516,7 @@ mod tests {
                 ProposalFrontmatter {
                     depends_on: vec!["b".to_string()],
                     blocks: vec![],
+                    ..Default::default()
                 },
             ),
             (
@@ -516,6 +524,7 @@ mod tests {
                 ProposalFrontmatter {
                     depends_on: vec!["a".to_string()],
                     blocks: vec![],
+                    ..Default::default()
                 },
             ),
         ];
@@ -534,6 +543,7 @@ mod tests {
                 ProposalFrontmatter {
                     depends_on: vec![],
                     blocks: vec![],
+                    ..Default::default()
                 },
             ),
             (
@@ -541,6 +551,7 @@ mod tests {
                 ProposalFrontmatter {
                     depends_on: vec!["a".to_string()],
                     blocks: vec![],
+                    ..Default::default()
                 },
             ),
         ];
@@ -848,7 +859,7 @@ pub fn discover_features(spec_dir: &Path) -> Vec<std::path::PathBuf> {
 /// Map a config locale to a Gherkin parsing language (r53).
 /// `zh-Hans*` → `zh-CN`; everything else passes through. An explicit
 /// `bdd.default_language` always wins over locale derivation.
-fn locale_to_gherkin_lang(locale: Option<&str>, bdd_config: Option<&BddConfig>) -> String {
+pub fn locale_to_gherkin_lang(locale: Option<&str>, bdd_config: Option<&BddConfig>) -> String {
     if let Some(bdd) = bdd_config
         && let Some(lang) = &bdd.default_language
         && !lang.trim().is_empty()
@@ -940,15 +951,31 @@ fn validate_features_dir(spec_dir: &Path, project_root: &Path, lang: &str) -> Ve
 
 /// Full-mode execution (r52): shell out the BDD run command once for the entire
 /// spec directory. Exit code 0 → pass; non-zero → fail.
+///
+/// For `cargo test` / rstest-bdd style runners, inject a per-HEAD
+/// `CARGO_TARGET_DIR` so compile-time feature discovery cannot reuse a stale
+/// expansion from a previous HEAD.
 fn run_full_mode(spec_dir: &Path, bdd_config: &BddConfig) -> Vec<ValidationIssue> {
     let command = bdd_config.effective_run_command();
     let expanded = expand_run_command_placeholders(&command, spec_dir);
-    let shell = match std::process::Command::new("sh")
+    let mut shell = std::process::Command::new("sh");
+    shell
         .args(["-c", &expanded])
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-    {
+        .stderr(std::process::Stdio::piped());
+
+    // Prefer running from the project root (parent of llmanspec/) when possible.
+    if let Some(root) = project_root_from_spec_dir(spec_dir) {
+        shell.current_dir(root);
+        if looks_like_cargo_test(&expanded)
+            && let Ok(sha) = short_head_sha(root)
+        {
+            let target = root.join(format!("target/bdd-{sha}"));
+            shell.env("CARGO_TARGET_DIR", &target);
+        }
+    }
+
+    let shell = match shell.spawn() {
         Ok(child) => child,
         Err(e) => {
             return vec![ValidationIssue {
@@ -1009,6 +1036,31 @@ fn run_full_mode(spec_dir: &Path, bdd_config: &BddConfig) -> Vec<ValidationIssue
         });
     }
     issues
+}
+
+fn looks_like_cargo_test(command: &str) -> bool {
+    let c = command.to_ascii_lowercase();
+    c.contains("cargo test") || c.contains("cargo nextest")
+}
+
+fn project_root_from_spec_dir(spec_dir: &Path) -> Option<&Path> {
+    // spec_dir is typically <root>/llmanspec/specs/<cap>
+    spec_dir
+        .parent()
+        .and_then(|p| p.parent()) // llmanspec
+        .and_then(|p| p.parent()) // root
+}
+
+fn short_head_sha(root: &Path) -> Result<String, String> {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "--short=12", "HEAD"])
+        .current_dir(root)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        return Err("git rev-parse failed".into());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 fn expand_run_command_placeholders(command: &str, spec_dir: &Path) -> String {
@@ -1428,6 +1480,12 @@ pub fn check_proposal_frontmatter(
 
     let depends_on = parse_yaml_string_list(&parsed, "depends_on", &mut issues);
     let blocks = parse_yaml_string_list(&parsed, "blocks", &mut issues);
+    let branch = parse_yaml_optional_string(&parsed, "branch");
+    let base_sha = parse_yaml_optional_string(&parsed, "base_sha")
+        .or_else(|| parse_yaml_optional_string(&parsed, "baseSha"));
+    let checkpointed = parse_yaml_optional_bool(&parsed, "checkpointed");
+    let checkpoint_sha = parse_yaml_optional_string(&parsed, "checkpoint_sha")
+        .or_else(|| parse_yaml_optional_string(&parsed, "checkpointSha"));
 
     for id in &depends_on {
         if active_ids.contains(id.as_str()) {
@@ -1477,7 +1535,39 @@ pub fn check_proposal_frontmatter(
         }
     }
 
-    (issues, ProposalFrontmatter { depends_on, blocks })
+    (
+        issues,
+        ProposalFrontmatter {
+            depends_on,
+            blocks,
+            branch,
+            base_sha,
+            checkpointed,
+            checkpoint_sha,
+        },
+    )
+}
+
+fn parse_yaml_optional_string(doc: &serde_yaml::Value, key: &str) -> Option<String> {
+    doc.get(key).and_then(|v| match v {
+        serde_yaml::Value::String(s) => {
+            let t = s.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        }
+        _ => None,
+    })
+}
+
+fn parse_yaml_optional_bool(doc: &serde_yaml::Value, key: &str) -> bool {
+    match doc.get(key) {
+        Some(serde_yaml::Value::Bool(b)) => *b,
+        Some(serde_yaml::Value::String(s)) => matches!(s.trim(), "true" | "yes" | "1"),
+        _ => false,
+    }
 }
 
 fn parse_yaml_string_list(

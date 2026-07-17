@@ -1,13 +1,13 @@
 ---
 name: "llman-sdd-archive"
-description: "Archive completed llman SDD changes — merge delta specs into main specs, validate, and guide the final commit. Use after verify reports all-clear. Supports single or batch archiving with full project validation."
+description: "Archive completed llman SDD changes. BDD-off merges TOON deltas into main specs; BDD-on seals change docs only after attach/checkpoint, then Git/PR merge promotes live specs. Use after verify reports all-clear."
 metadata:
   version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Archive
 
-Use this skill to archive completed changes, merge delta specs into main specs, and guide the commit.
+Use this skill to archive completed changes. **BDD-off**: merge delta specs into main specs. **BDD-on**: move change docs only (specs already live on the feature branch), then merge via Git/PR.
 
 ## Pipeline Position
 
@@ -43,25 +43,28 @@ flowchart LR
 ### 2) Archive one by one
 - Validate each first: `llman sdd validate <id> --strict --no-interactive`.
 - Validation failure → STOP and report; don't skip validation and force archive.
-- Optional preview: `llman sdd archive <id> --dry-run`.
+- Optional preview: `llman sdd change archive <id> --dry-run`.
 - Execute archive:
-  - default: `llman sdd archive run <id>`
-  - tooling-only: `llman sdd archive run <id> --skip-specs`
+  - default: `llman sdd change archive <id>`
+  - tooling-only: `llman sdd change archive <id> --skip-specs`
   - **stop immediately on first failure**, report remaining unprocessed IDs.
-- **BDD-on (Partitioned SSOT)**:
-  - `archive run` merges delta `spec.toon` into main `spec.toon` (constraints / non-executable scenarios).
-  - If the change has `*.feature.delta.toon`, archive **also** applies it by scenario id to the main `.feature`.
-  - Run `llman sdd solidify <id>` before archive as a consistency gate (not projection).
-  - Do not whole-file overwrite-copy `.feature` as the default archive path.
+- **BDD-on (Git-native Partitioned SSOT)**:
+  - Prerequisites: `llman sdd change attach <id>` done, then `llman sdd change checkpoint <id>` (clean tree + gates), still on the feature branch.
+  - `change archive` moves **change documentation only** into `changes/archive/` — it does **not** merge TOON deltas as SSOT and never applies `feature_delta`.
+  - Legacy active `*.feature.delta.toon` under the change is a migration blocker — remove/migrate before archive.
+  - After archive, promote live `llmanspec/specs/**` via normal Git/PR merge of the feature branch into the default branch.
+- **BDD-off**:
+  - `change archive` merges change-scoped TOON deltas into main `spec.toon` as today.
+  - No attach / checkpoint / feature-branch / harness requirements.
 
 ### 3) Full validation
 - After all archives complete: `llman sdd validate --all --strict --no-interactive`.
 - Confirm post-archive spec artifacts are consistent.
 
-### 4) Commit guidance
-- Output suggested commit message (format: `feat(sdd): archive <id1>, <id2> - <short summary>`).
-- Prompt user: `git add -A && git commit -m "..."`.
-- If user requests auto-commit, execute and output commit hash.
+### 4) Commit / merge guidance
+- BDD-off: suggest commit message (format: `feat(sdd): archive <id1>, <id2> - <short summary>`), then `git add -A && git commit -m "..."`.
+- BDD-on: after docs archive, open/merge the feature-branch PR so live specs/features land on the default branch.
+- If user requests auto-commit of the archive docs commit, execute and output commit hash.
 
 > 💡 Previous phase `llman-sdd-verify` (passed verification) → this phase completes the loop. If specs grow too large, run `llman-sdd-specs-compact`.
 

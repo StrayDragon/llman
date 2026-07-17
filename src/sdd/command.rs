@@ -1,6 +1,7 @@
 use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
+use crate::sdd::change::git_native;
 use crate::sdd::project::{
     init, interop, migrate, partition_migrate, solidify_migrate, upgrade_guide,
 };
@@ -286,7 +287,7 @@ pub enum SddCommands {
         #[arg(long)]
         no_check: bool,
     },
-    /// Archive workflow commands
+    /// Archive workflow commands (cold backup). Prefer `sdd change archive` to seal a change.
     Archive {
         /// Disable interactive prompts (e.g. purpose input for new specs)
         #[arg(long)]
@@ -294,21 +295,12 @@ pub enum SddCommands {
         #[command(subcommand)]
         command: ArchiveSubcommand,
     },
-    /// Solidify a change: Partitioned consistency gate (BDD-on). Optional
-    /// `--write-stubs` applies `feature_delta` adds without overwriting GWT.
-    Solidify {
-        /// Change id
-        change: String,
-        /// Dry run mode: preview stub writes without writing
-        #[arg(long)]
-        dry_run: bool,
-        /// Write missing harness scenario stubs from feature_delta (add ops only)
-        #[arg(long)]
-        write_stubs: bool,
-    },
+    /// Change lifecycle: new / Git-native bind / BDD-off delta / archive
+    Change(SddChangeArgs),
     /// Spec authoring helpers
     Spec(SddSpecArgs),
-    /// Delta authoring helpers
+    /// Deprecated alias for `sdd change delta` (BDD-off TOON authoring)
+    #[command(hide = true)]
     Delta(SddDeltaArgs),
     /// Generate a change dependency graph
     Graph {
@@ -408,12 +400,16 @@ pub enum SddProjectCommands {
         #[arg(long)]
         no_interactive: bool,
     },
-    /// Migrate specs to the current canonical format (one-shot, idempotent)
+    /// Migrate specs (format / partitioned / legacy-bdd)
     Migrate {
+        /// Which migration: `format` (canonical toon), `partitioned` (strip dual-write),
+        /// `legacy-bdd` (old minimal BDD specs), or `auto` (format then partitioned if BDD-on).
+        #[arg(long, default_value = "format", value_parser = ["format", "partitioned", "legacy-bdd", "auto"])]
+        kind: String,
         /// Scan and report without writing files (no confirmation prompt)
         #[arg(long)]
         dry_run: bool,
-        /// Re-migrate even when both `spec.toon` and legacy `spec.md` exist
+        /// Re-migrate even when both `spec.toon` and legacy `spec.md` exist (format only)
         #[arg(long)]
         force: bool,
         /// Skip the confirmation prompt and apply (for agents/scripts)
@@ -425,17 +421,15 @@ pub enum SddProjectCommands {
     },
     /// Output an upgrade guide prompt for the current SDD project
     UpgradeGuide,
-    /// One-shot: migrate legacy BDD-on specs (minimal spec.toon + .feature
-    /// files) to the unified full structure (valid_scope + requirements +
-    /// scenarios). Idempotent; safe to re-run.
+    /// Deprecated alias for `sdd project migrate --kind legacy-bdd`
+    #[command(hide = true)]
     SolidifyMigrate {
         /// Scan and report without writing files
         #[arg(long)]
         dry_run: bool,
     },
-    /// Partitioned SSOT migrate: strip executable GWT from spec.toon into
-    /// `.feature` (with `@req`), leaving only constraints + non-executable
-    /// scenarios in toon. Idempotent.
+    /// Deprecated alias for `sdd project migrate --kind partitioned`
+    #[command(hide = true)]
     PartitionMigrate {
         /// Scan and report without writing files
         #[arg(long)]
@@ -449,9 +443,70 @@ pub enum SddProjectCommands {
     },
 }
 
+#[derive(Args)]
+pub struct SddChangeArgs {
+    #[command(subcommand)]
+    pub command: SddChangeCommands,
+}
+
+#[derive(Subcommand)]
+pub enum SddChangeCommands {
+    /// Create `llmanspec/changes/<id>/proposal.md` (draft shell only)
+    New {
+        /// Change id
+        change: String,
+        /// Overwrite existing proposal.md
+        #[arg(long)]
+        force: bool,
+    },
+    /// Attach the current feature branch + base SHA to a BDD-on change
+    Attach {
+        /// Change id
+        change: String,
+        /// Rebind even if already attached
+        #[arg(long)]
+        force: bool,
+    },
+    /// Checkpoint a clean, validated feature branch for archive
+    Checkpoint {
+        /// Change id
+        change: String,
+        /// Skip BDD runner during checkpoint (fast gates only)
+        #[arg(long)]
+        no_check: bool,
+    },
+    /// Show (or export) `base...HEAD` diff for an attached change
+    Diff {
+        /// Change id
+        change: String,
+        /// Optional path to write a patch export (never used as SSOT)
+        #[arg(long)]
+        export_patch: Option<PathBuf>,
+    },
+    /// BDD-off TOON delta authoring helpers (rejected when BDD-on)
+    Delta(SddDeltaArgs),
+    /// Seal a change: BDD-on docs-only after checkpoint; BDD-off merge TOON deltas
+    Archive {
+        /// Change id
+        change: Option<String>,
+        /// Skip updating specs (BDD-off) / ignore leftover deltas (BDD-on)
+        #[arg(long)]
+        skip_specs: bool,
+        /// Dry run mode
+        #[arg(long)]
+        dry_run: bool,
+        /// Force archive even if validation fails
+        #[arg(long, hide = true)]
+        force: bool,
+        /// Disable interactive prompts
+        #[arg(long)]
+        no_interactive: bool,
+    },
+}
+
 #[derive(Subcommand)]
 pub enum ArchiveSubcommand {
-    /// Archive a change and update main specs
+    /// Deprecated alias for `sdd change archive`
     Run {
         /// Change id
         change: Option<String>,
@@ -603,13 +658,18 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 dry_run,
                 force,
                 no_interactive,
-            } => archive::run(archive::ArchiveArgs {
-                change: change.clone(),
-                skip_specs: *skip_specs,
-                dry_run: *dry_run,
-                force: *force,
-                no_interactive: *no_interactive,
-            }),
+            } => {
+                eprintln!(
+                    "note: `sdd archive run` is deprecated; prefer `llman sdd change archive`"
+                );
+                archive::run(archive::ArchiveArgs {
+                    change: change.clone(),
+                    skip_specs: *skip_specs,
+                    dry_run: *dry_run,
+                    force: *force,
+                    no_interactive: *no_interactive,
+                })
+            }
             ArchiveSubcommand::Freeze {
                 before,
                 keep_recent,
@@ -626,11 +686,53 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 dest: dest.clone(),
             }),
         },
-        SddCommands::Solidify {
-            change,
-            dry_run,
-            write_stubs,
-        } => crate::sdd::solidify::run(change, *dry_run, *write_stubs),
+        SddCommands::Change(args) => match &args.command {
+            SddChangeCommands::New { change, force } => crate::sdd::change::new::run(
+                std::path::Path::new("."),
+                crate::sdd::change::new::NewArgs {
+                    change: change.clone(),
+                    force: *force,
+                },
+            ),
+            SddChangeCommands::Attach { change, force } => git_native::run_attach(
+                std::path::Path::new("."),
+                git_native::AttachArgs {
+                    change: change.clone(),
+                    force: *force,
+                },
+            ),
+            SddChangeCommands::Checkpoint { change, no_check } => git_native::run_checkpoint(
+                std::path::Path::new("."),
+                git_native::CheckpointArgs {
+                    change: change.clone(),
+                    no_check: *no_check,
+                },
+            ),
+            SddChangeCommands::Diff {
+                change,
+                export_patch,
+            } => git_native::run_diff(
+                std::path::Path::new("."),
+                git_native::DiffArgs {
+                    change: change.clone(),
+                    export_patch: export_patch.clone(),
+                },
+            ),
+            SddChangeCommands::Delta(delta_args) => dispatch_delta(delta_args),
+            SddChangeCommands::Archive {
+                change,
+                skip_specs,
+                dry_run,
+                force,
+                no_interactive,
+            } => archive::run(archive::ArchiveArgs {
+                change: change.clone(),
+                skip_specs: *skip_specs,
+                dry_run: *dry_run,
+                force: *force,
+                no_interactive: *no_interactive,
+            }),
+        },
         SddCommands::Spec(args) => match &args.command {
             SddSpecCommands::Skeleton { capability, force } => authoring::spec::run_skeleton(
                 std::path::Path::new("."),
@@ -678,7 +780,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 let config = crate::sdd::project::config::load_required_config(
                     &std::path::Path::new(".").join("llmanspec"),
                 )?;
-                let lang = crate::sdd::solidify::locale_to_gherkin_lang(
+                let lang = crate::sdd::spec::validation::locale_to_gherkin_lang(
                     Some(&config.locale),
                     config.bdd.as_ref(),
                 );
@@ -690,118 +792,12 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 )
             }
         },
-        SddCommands::Delta(args) => match &args.command {
-            SddDeltaCommands::Skeleton {
-                change_id,
-                capability,
-                force,
-            } => authoring::delta::run_skeleton(
-                std::path::Path::new("."),
-                authoring::delta::DeltaSkeletonArgs {
-                    change_id: change_id.clone(),
-                    capability: capability.clone(),
-                    force: *force,
-                },
-            ),
-            SddDeltaCommands::AddReq {
-                change_id,
-                capability,
-                req_id,
-                title,
-                statement,
-            } => authoring::delta::run_add_op(
-                std::path::Path::new("."),
-                authoring::delta::DeltaAddOpArgs {
-                    change_id: change_id.clone(),
-                    capability: capability.clone(),
-                    op: "add_requirement".to_string(),
-                    req_id: req_id.clone(),
-                    title: Some(title.clone()),
-                    statement: Some(statement.clone()),
-                    from: None,
-                    to: None,
-                    name: None,
-                },
-            ),
-            SddDeltaCommands::ModifyReq {
-                change_id,
-                capability,
-                req_id,
-                title,
-                statement,
-            } => authoring::delta::run_add_op(
-                std::path::Path::new("."),
-                authoring::delta::DeltaAddOpArgs {
-                    change_id: change_id.clone(),
-                    capability: capability.clone(),
-                    op: "modify_requirement".to_string(),
-                    req_id: req_id.clone(),
-                    title: title.clone(),
-                    statement: statement.clone(),
-                    from: None,
-                    to: None,
-                    name: None,
-                },
-            ),
-            SddDeltaCommands::RemoveReq {
-                change_id,
-                capability,
-                req_id,
-                name,
-            } => authoring::delta::run_add_op(
-                std::path::Path::new("."),
-                authoring::delta::DeltaAddOpArgs {
-                    change_id: change_id.clone(),
-                    capability: capability.clone(),
-                    op: "remove_requirement".to_string(),
-                    req_id: req_id.clone(),
-                    title: None,
-                    statement: None,
-                    from: None,
-                    to: None,
-                    name: name.clone(),
-                },
-            ),
-            SddDeltaCommands::RenameReq {
-                change_id,
-                capability,
-                from,
-                to,
-            } => authoring::delta::run_add_op(
-                std::path::Path::new("."),
-                authoring::delta::DeltaAddOpArgs {
-                    change_id: change_id.clone(),
-                    capability: capability.clone(),
-                    op: "rename_requirement".to_string(),
-                    req_id: from.clone(),
-                    title: None,
-                    statement: None,
-                    from: Some(from.clone()),
-                    to: Some(to.clone()),
-                    name: None,
-                },
-            ),
-            SddDeltaCommands::AddScenario {
-                change_id,
-                capability,
-                req_id,
-                scenario_id,
-                given,
-                when_,
-                then_,
-            } => authoring::delta::run_add_scenario(
-                std::path::Path::new("."),
-                authoring::delta::DeltaAddScenarioArgs {
-                    change_id: change_id.clone(),
-                    capability: capability.clone(),
-                    req_id: req_id.clone(),
-                    scenario_id: scenario_id.clone(),
-                    given: given.clone(),
-                    when_: when_.clone(),
-                    then_: then_.clone(),
-                },
-            ),
-        },
+        SddCommands::Delta(args) => {
+            eprintln!(
+                "note: `sdd delta` is deprecated; prefer `llman sdd change delta` (BDD-off only)"
+            );
+            dispatch_delta(args)
+        }
         SddCommands::Graph {
             format,
             scope,
@@ -865,19 +861,25 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 },
             ),
             SddProjectCommands::Migrate {
+                kind,
                 dry_run,
                 force,
                 yes,
                 no_interactive,
-            } => migrate::run(migrate::MigrateArgs {
-                dry_run: *dry_run,
-                force: *force,
-                yes: *yes,
-                no_interactive: *no_interactive,
-            }),
+            } => dispatch_project_migrate(kind, *dry_run, *force, *yes, *no_interactive),
             SddProjectCommands::UpgradeGuide => upgrade_guide::run(),
-            SddProjectCommands::SolidifyMigrate { dry_run } => solidify_migrate::run(*dry_run),
-            SddProjectCommands::PartitionMigrate { dry_run } => partition_migrate::run(*dry_run),
+            SddProjectCommands::SolidifyMigrate { dry_run } => {
+                eprintln!(
+                    "note: `sdd project solidify-migrate` is deprecated; prefer `llman sdd project migrate --kind legacy-bdd`"
+                );
+                solidify_migrate::run(*dry_run)
+            }
+            SddProjectCommands::PartitionMigrate { dry_run } => {
+                eprintln!(
+                    "note: `sdd project partition-migrate` is deprecated; prefer `llman sdd project migrate --kind partitioned`"
+                );
+                partition_migrate::run(*dry_run)
+            }
             SddProjectCommands::DedupeReqIds { dry_run } => {
                 crate::sdd::spec::req_registry::run_dedupe_req_ids(
                     std::path::Path::new("."),
@@ -885,5 +887,157 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 )
             }
         },
+    }
+}
+
+fn dispatch_project_migrate(
+    kind: &str,
+    dry_run: bool,
+    force: bool,
+    yes: bool,
+    no_interactive: bool,
+) -> Result<()> {
+    match kind {
+        "format" => migrate::run(migrate::MigrateArgs {
+            dry_run,
+            force,
+            yes,
+            no_interactive,
+        }),
+        "partitioned" => partition_migrate::run(dry_run),
+        "legacy-bdd" => solidify_migrate::run(dry_run),
+        "auto" => {
+            migrate::run(migrate::MigrateArgs {
+                dry_run,
+                force,
+                yes,
+                no_interactive,
+            })?;
+            let config = crate::sdd::project::config::load_required_config(std::path::Path::new(
+                "llmanspec",
+            ))?;
+            if config.bdd.is_some() {
+                partition_migrate::run(dry_run)?;
+            }
+            Ok(())
+        }
+        other => anyhow::bail!(
+            "unknown migrate kind `{other}`; expected format|partitioned|legacy-bdd|auto"
+        ),
+    }
+}
+
+fn dispatch_delta(args: &SddDeltaArgs) -> Result<()> {
+    match &args.command {
+        SddDeltaCommands::Skeleton {
+            change_id,
+            capability,
+            force,
+        } => authoring::delta::run_skeleton(
+            std::path::Path::new("."),
+            authoring::delta::DeltaSkeletonArgs {
+                change_id: change_id.clone(),
+                capability: capability.clone(),
+                force: *force,
+            },
+        ),
+        SddDeltaCommands::AddReq {
+            change_id,
+            capability,
+            req_id,
+            title,
+            statement,
+        } => authoring::delta::run_add_op(
+            std::path::Path::new("."),
+            authoring::delta::DeltaAddOpArgs {
+                change_id: change_id.clone(),
+                capability: capability.clone(),
+                op: "add_requirement".to_string(),
+                req_id: req_id.clone(),
+                title: Some(title.clone()),
+                statement: Some(statement.clone()),
+                from: None,
+                to: None,
+                name: None,
+            },
+        ),
+        SddDeltaCommands::ModifyReq {
+            change_id,
+            capability,
+            req_id,
+            title,
+            statement,
+        } => authoring::delta::run_add_op(
+            std::path::Path::new("."),
+            authoring::delta::DeltaAddOpArgs {
+                change_id: change_id.clone(),
+                capability: capability.clone(),
+                op: "modify_requirement".to_string(),
+                req_id: req_id.clone(),
+                title: title.clone(),
+                statement: statement.clone(),
+                from: None,
+                to: None,
+                name: None,
+            },
+        ),
+        SddDeltaCommands::RemoveReq {
+            change_id,
+            capability,
+            req_id,
+            name,
+        } => authoring::delta::run_add_op(
+            std::path::Path::new("."),
+            authoring::delta::DeltaAddOpArgs {
+                change_id: change_id.clone(),
+                capability: capability.clone(),
+                op: "remove_requirement".to_string(),
+                req_id: req_id.clone(),
+                title: None,
+                statement: None,
+                from: None,
+                to: None,
+                name: name.clone(),
+            },
+        ),
+        SddDeltaCommands::RenameReq {
+            change_id,
+            capability,
+            from,
+            to,
+        } => authoring::delta::run_add_op(
+            std::path::Path::new("."),
+            authoring::delta::DeltaAddOpArgs {
+                change_id: change_id.clone(),
+                capability: capability.clone(),
+                op: "rename_requirement".to_string(),
+                req_id: from.clone(),
+                title: None,
+                statement: None,
+                from: Some(from.clone()),
+                to: Some(to.clone()),
+                name: None,
+            },
+        ),
+        SddDeltaCommands::AddScenario {
+            change_id,
+            capability,
+            req_id,
+            scenario_id,
+            given,
+            when_,
+            then_,
+        } => authoring::delta::run_add_scenario(
+            std::path::Path::new("."),
+            authoring::delta::DeltaAddScenarioArgs {
+                change_id: change_id.clone(),
+                capability: capability.clone(),
+                req_id: req_id.clone(),
+                scenario_id: scenario_id.clone(),
+                given: given.clone(),
+                when_: when_.clone(),
+                then_: then_.clone(),
+            },
+        ),
     }
 }
