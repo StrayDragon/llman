@@ -56,8 +56,6 @@ flowchart LR
    - 归档：**优先** `llman sdd change finalize <id>`（可不要求干净树；随后一次 `git commit`）；需要严格 `checkpoint_sha` 时再走 `checkpoint` → `archive`。
    - 检查：可执行 GWT 只在 live `.feature`；`morphology.dualWriteCount` 应为 0；若已有活跃 `*.feature.delta.toon` 则先迁移（不要自创 solidify/找补步骤）。
 
-   - 额外要求: Each scenario in the feature file MUST be mapped to an implemented step definition. Run `cargo test --test bdd` to confirm all scenarios pass.
-
 7. 输出简短报告：
    - **CRITICAL**（归档前必须修复）
    - **WARNING**（建议修复）
