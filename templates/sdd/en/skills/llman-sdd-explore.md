@@ -43,6 +43,7 @@ flowchart LR
    - If context is unavailable, rebuild with `llman sdd index rebuild` (default `pageindex`, no model needed) and retry.
 2. Clarify the goal and constraints (ask 1–3 questions).
 3. If a change id is relevant, read its artifacts under `llmanspec/changes/<id>/`.
+   - When diagnosing validation errors, prefer `llman sdd validate <spec> --strict --no-check` (fast mode, skips the potentially slow `bdd.run_command`); resolve structural gates first (Gherkin / `@req` linkage / dual-write / req_id uniqueness), then run full mode (`--check` or `cargo test --features bdd`). The `FAIL <item_type>/<id>` lines in the output pin down each failing item.
 4. Explore options and tradeoffs (2–3 options).
 5. Assess change scale (triage) to determine if full SDD is needed.
 6. When something crystallizes, offer to capture it (don't auto-write):

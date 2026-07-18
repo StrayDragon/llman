@@ -53,6 +53,14 @@ flowchart LR
   - `change archive` moves **change documentation only** into `changes/archive/` — it does **not** merge TOON deltas as SSOT and never applies `feature_delta`.
   - Legacy active `*.feature.delta.toon` under the change is a migration blocker — remove/migrate before archive.
   - After archive, promote live `llmanspec/specs/**` via normal Git/PR merge of the feature branch into the default branch.
+  - **Full commit/checkpoint sequence** (checkpoint rewrites `proposal.md` frontmatter, so archive needs two commits):
+    ```text
+    1. git commit   # commit live specs + code (clean tree required for checkpoint)
+    2. llman sdd change checkpoint <id>   # writes checkpointed / checkpoint_sha
+    3. git commit   # commit proposal.md checkpoint metadata
+    4. llman sdd change archive <id>      # moves change docs only
+    5. git commit   # commit archive rename
+    ```
 - **BDD-off**:
   - `change archive` merges change-scoped TOON deltas into main `spec.toon` as today.
   - No attach / checkpoint / feature-branch / harness requirements.
@@ -65,6 +73,7 @@ flowchart LR
 - BDD-off: suggest commit message (format: `feat(sdd): archive <id1>, <id2> - <short summary>`), then `git add -A && git commit -m "..."`.
 - BDD-on: after docs archive, open/merge the feature-branch PR so live specs/features land on the default branch.
 - If user requests auto-commit of the archive docs commit, execute and output commit hash.
+- **Archived `depends_on`**: archive renames the change dir to `archive/YYYY-MM-DD-<id>`, but validate recognizes `depends_on` pointing to archived/frozen ids as INFO (not ERROR), so you do **not** need to manually update other changes' `depends_on` frontmatter after archive.
 
 > 💡 Previous phase `llman-sdd-verify` (passed verification) → this phase completes the loop. If specs grow too large, run `llman-sdd-specs-compact`.
 

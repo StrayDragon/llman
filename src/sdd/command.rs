@@ -474,6 +474,11 @@ pub enum SddChangeCommands {
         /// Skip BDD runner during checkpoint (fast gates only)
         #[arg(long)]
         no_check: bool,
+        /// Accepted and ignored; checkpoint has no interactive mode. Keeps the
+        /// flag matrix uniform across change subcommands so skills can pass it
+        /// unconditionally (alongside archive/freeze/migrate).
+        #[arg(long)]
+        no_interactive: bool,
     },
     /// Show (or export) `base...HEAD` diff for an attached change
     Diff {
@@ -706,7 +711,11 @@ pub fn run(args: &SddArgs) -> Result<()> {
                     force: *force,
                 },
             ),
-            SddChangeCommands::Checkpoint { change, no_check } => git_native::run_checkpoint(
+            SddChangeCommands::Checkpoint {
+                change,
+                no_check,
+                no_interactive: _,
+            } => git_native::run_checkpoint(
                 std::path::Path::new("."),
                 git_native::CheckpointArgs {
                     change: change.clone(),

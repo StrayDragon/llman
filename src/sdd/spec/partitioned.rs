@@ -161,17 +161,22 @@ pub fn non_executable_toon_scenarios(doc: &MainSpecDoc) -> Vec<&ScenarioEntry> {
 /// Count dual-writes: same scenario id present as executable in toon and in harness
 /// with non-empty GWT on both sides.
 pub fn dual_write_count(doc: &MainSpecDoc, harness: &[FeatureScenario]) -> usize {
+    dual_write_pairs(doc, harness).len()
+}
+
+/// Return each dual-write conflict as `(req_id, scenario_id)`. A dual-write exists
+/// when an executable toon scenario (`feature == true`) carries non-empty GWT and
+/// its id also appears in the harness. Listing concrete pairs lets agents locate
+/// the offending rows without a second pass.
+pub fn dual_write_pairs(doc: &MainSpecDoc, harness: &[FeatureScenario]) -> Vec<(String, String)> {
     let harness_ids: HashSet<&str> = harness.iter().map(|h| h.id.as_str()).collect();
     executable_toon_scenarios(doc)
         .into_iter()
         .filter(|s| {
-            if !harness_ids.contains(s.id.as_str()) {
-                return false;
-            }
-            // Dual-write if toon still carries full GWT text for an executable row.
-            gwt_nonempty(&s.given, &s.when_, &s.then_)
+            harness_ids.contains(s.id.as_str()) && gwt_nonempty(&s.given, &s.when_, &s.then_)
         })
-        .count()
+        .map(|s| (s.req_id.clone(), s.id.clone()))
+        .collect()
 }
 
 pub fn compute_morphology(doc: &MainSpecDoc, harness: &[FeatureScenario]) -> Morphology {
@@ -243,18 +248,24 @@ pub fn validate_partitioned(
     }
 
     // Dual-write
-    let dual = dual_write_count(doc, harness);
+    let pairs = dual_write_pairs(doc, harness);
+    let dual = pairs.len();
     if dual > 0 {
         let level = if strict {
             ValidationLevel::Error
         } else {
             ValidationLevel::Warning
         };
+        let pairs_formatted = pairs
+            .iter()
+            .map(|(rid, sid)| format!("({rid}, {sid})"))
+            .collect::<Vec<_>>()
+            .join(", ");
         issues.push(ValidationIssue {
             level,
             path: format!("{spec_name}/dual-write"),
             message: format!(
-                "dual-write: {dual} executable scenario(s) still have GWT in both spec.toon and .feature; run `llman sdd project migrate --kind partitioned`"
+                "dual-write: {dual} executable scenario(s) still have GWT in both spec.toon and .feature: [{pairs_formatted}]; run `llman sdd project migrate --kind partitioned`"
             ),
         });
     }
@@ -301,5 +312,91 @@ mod tests {
         assert_eq!(scs.len(), 1);
         assert_eq!(scs[0].id, "happy");
         assert_eq!(scs[0].req_ids, vec!["r1"]);
+    }
+
+    fn scenario(req_id: &str, id: &str, feature: bool, gwt_nonempty: bool) -> ScenarioEntry {
+        let text = if gwt_nonempty { "g" } else { "" };
+        ScenarioEntry {
+            req_id: req_id.to_string(),
+            id: id.to_string(),
+            given: text.to_string(),
+            when_: text.to_string(),
+            then_: text.to_string(),
+            feature,
+        }
+    }
+
+    fn harness(id: &str, req_id: &str) -> FeatureScenario {
+        FeatureScenario {
+            id: id.to_string(),
+            given: String::new(),
+            when_: String::new(),
+            then_: String::new(),
+            req_ids: vec![req_id.to_string()],
+            tags: vec![],
+        }
+    }
+
+    fn doc_with(scenarios: Vec<ScenarioEntry>) -> MainSpecDoc {
+        MainSpecDoc {
+            kind: "llman.sdd.spec".to_string(),
+            name: "t".to_string(),
+            purpose: "t".to_string(),
+            valid_scope: vec![],
+            requirements: vec![],
+            scenarios,
+        }
+    }
+
+    #[test]
+    fn dual_write_pairs_lists_conflicts() {
+        // Two executable toon scenarios with GWT also exist in harness → both reported.
+        let doc = doc_with(vec![
+            scenario("r1", "happy", true, true),
+            scenario("r12", "login-ok", true, true),
+            // Non-executable (feature:false) → never dual-write even if id matches.
+            scenario("r3", "doc-only", false, true),
+            // Executable but not in harness → not dual-write.
+            scenario("r4", "only-toon", true, true),
+            // Executable, in harness, but GWT empty → not dual-write.
+            scenario("r5", "empty-gwt", true, false),
+        ]);
+        let harness_scenarios = vec![
+            harness("happy", "r1"),
+            harness("login-ok", "r12"),
+            harness("doc-only", "r3"),
+            harness("empty-gwt", "r5"),
+        ];
+        let mut pairs = dual_write_pairs(&doc, &harness_scenarios);
+        pairs.sort();
+        assert_eq!(
+            pairs,
+            vec![
+                ("r1".to_string(), "happy".to_string()),
+                ("r12".to_string(), "login-ok".to_string())
+            ]
+        );
+        assert_eq!(dual_write_count(&doc, &harness_scenarios), 2);
+    }
+
+    #[test]
+    fn dual_write_pairs_empty_when_no_conflict() {
+        let doc = doc_with(vec![scenario("r1", "happy", true, true)]);
+        // harness empty → no overlap
+        assert!(dual_write_pairs(&doc, &[]).is_empty());
+        assert_eq!(dual_write_count(&doc, &[]), 0);
+    }
+
+    #[test]
+    fn validate_partitioned_dual_write_message_lists_pairs() {
+        let doc = doc_with(vec![scenario("r1", "happy", true, true)]);
+        let harness_scenarios = vec![harness("happy", "r1")];
+        let issues = validate_partitioned("sample", &doc, &harness_scenarios, true);
+        let dual_issue = issues
+            .iter()
+            .find(|i| i.path == "sample/dual-write")
+            .expect("dual-write issue present");
+        assert!(dual_issue.message.contains("(r1, happy)"));
+        assert!(dual_issue.message.contains("dual-write: 1"));
     }
 }
