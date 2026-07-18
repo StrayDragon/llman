@@ -45,3 +45,23 @@
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
     当 在非交互终端运行 llman sdd change checkpoint add-scen --no-interactive
     那么 stderr 不含 unexpected argument
+
+  @executable @req:r94
+  场景: finalize 接受 --no-interactive flag
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change finalize add-scen --no-interactive
+    那么 stderr 不含 unexpected argument
+
+  @executable @req:r94
+  场景: BDD-off 时 change finalize 失败并提示需 bdd
+    假如 已初始化 sdd 项目且 bdd 配置为 "off"
+    当 在非交互终端运行 llman sdd change finalize add-scen
+    那么 退出码非零
+    那么 stderr 包含 BDD-on
+
+  @executable @req:r94
+  场景: finalize 未 attach 时失败
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change finalize add-scen
+    那么 退出码非零
+    那么 stderr 包含 attach
