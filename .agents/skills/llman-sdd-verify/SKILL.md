@@ -28,6 +28,7 @@ flowchart LR
 - **必须先通过 apply 阶段全绿**：未完成实现的 change 跳过验证。
 - **CRITICAL 必须修复**：标记为 CRITICAL 的问题归档前必须修复。
 - **不要问「要不要继续」**：跑完整个验证流程，输出完整报告。
+- **提交卫生（SHOULD）**：不要单独 `git commit` 纯流程产物（如刚生成的 draft proposal、空的 design 框架）；draft 与首实现或 propose 收尾同提。BDD-on 闭环收尾优先用 `llman sdd change finalize <id>`（单 commit）。
 
 ## 步骤
 1. 确定 change id（不明确时让用户从 `llman sdd list --json` 选择）。

@@ -131,7 +131,7 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
     }
 
     let archive_dir = changes_dir.join("archive");
-    let archive_name = format!("{}-{}", archive_date(), change_name);
+    let archive_name = archive_name_for(change_name);
     let archive_path = archive_dir.join(&archive_name);
 
     if args.dry_run {
@@ -139,21 +139,8 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
         return Ok(());
     }
 
-    fs::create_dir_all(&archive_dir)?;
-    match fs::rename(&change_dir, &archive_path) {
-        Ok(()) => {}
-        Err(e)
-            if e.kind() == ErrorKind::AlreadyExists
-                || e.kind() == ErrorKind::DirectoryNotEmpty
-                || archive_path.exists() =>
-        {
-            return Err(anyhow!(t!(
-                "sdd.archive.archive_exists",
-                name = archive_name
-            )));
-        }
-        Err(e) => return Err(e.into()),
-    }
+    do_archive_rename(&change_dir, &archive_dir, &archive_name)?;
+
     println!(
         "{}",
         t!(
@@ -164,6 +151,40 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
     );
 
     Ok(())
+}
+
+/// Perform the final rename of `change_dir` into `archive_dir/<archive_name>`,
+/// creating `archive_dir` if needed. Shared by `archive` and `finalize`.
+///
+/// Errors with the localized "archive_exists" message when the target already
+/// exists (matches prior behavior).
+pub(crate) fn do_archive_rename(
+    change_dir: &Path,
+    archive_dir: &Path,
+    archive_name: &str,
+) -> Result<()> {
+    let archive_path = archive_dir.join(archive_name);
+    fs::create_dir_all(archive_dir)?;
+    match fs::rename(change_dir, &archive_path) {
+        Ok(()) => Ok(()),
+        Err(e)
+            if e.kind() == ErrorKind::AlreadyExists
+                || e.kind() == ErrorKind::DirectoryNotEmpty
+                || archive_path.exists() =>
+        {
+            Err(anyhow!(t!(
+                "sdd.archive.archive_exists",
+                name = archive_name
+            )))
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Compute the archive directory name for a change: `YYYY-MM-DD-<change_id>`.
+/// Shared by `archive` and `finalize` so both produce identical naming.
+pub(crate) fn archive_name_for(change_name: &str) -> String {
+    format!("{}-{}", archive_date(), change_name)
 }
 
 fn find_spec_updates(change_dir: &Path, root: &Path) -> Result<Vec<SpecUpdate>> {

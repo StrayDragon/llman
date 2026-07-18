@@ -480,6 +480,27 @@ pub enum SddChangeCommands {
         #[arg(long)]
         no_interactive: bool,
     },
+    /// BDD-on single-commit closure: checkpoint (relaxed gates) + docs-only archive
+    /// in one process, leaving a single dirty tree for one `git commit`.
+    ///
+    /// Differs from `checkpoint` + `archive` in two ways: (1) it does NOT require
+    /// a clean working tree (the whole point — let the implementation diff be
+    /// committed together with the finalize metadata), and (2) the written
+    /// `checkpoint_sha` equals the attach-time `base_sha` (not the HEAD commit
+    /// carrying the implementation). If you need the strict sha semantics, use
+    /// `change checkpoint` then `change archive` instead.
+    Finalize {
+        /// Change id
+        change: String,
+        /// Skip BDD runner during finalize (fast gates only)
+        #[arg(long)]
+        no_check: bool,
+        /// Accepted and ignored; finalize has no interactive mode. Keeps the
+        /// flag matrix uniform across change subcommands so skills can pass it
+        /// unconditionally (alongside checkpoint/archive/freeze/migrate).
+        #[arg(long)]
+        no_interactive: bool,
+    },
     /// Show (or export) `base...HEAD` diff for an attached change
     Diff {
         /// Change id
@@ -718,6 +739,17 @@ pub fn run(args: &SddArgs) -> Result<()> {
             } => git_native::run_checkpoint(
                 std::path::Path::new("."),
                 git_native::CheckpointArgs {
+                    change: change.clone(),
+                    no_check: *no_check,
+                },
+            ),
+            SddChangeCommands::Finalize {
+                change,
+                no_check,
+                no_interactive: _,
+            } => crate::sdd::change::finalize::run_finalize(
+                std::path::Path::new("."),
+                crate::sdd::change::finalize::FinalizeArgs {
                     change: change.clone(),
                     no_check: *no_check,
                 },
