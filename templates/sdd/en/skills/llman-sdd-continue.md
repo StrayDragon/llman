@@ -33,8 +33,9 @@ Use this skill to continue an existing change and create the next missing artifa
    - Implement: `llman-sdd-apply`
    - Validate: `llman sdd validate <id> --strict --no-interactive`
    - BDD-on review: `llman sdd change diff <id>` (read-only)
-   - BDD-on gate: `llman sdd change checkpoint <id>` (clean tree required)
-   - Archive (when ready): `llman sdd change archive <id>`
+   - BDD-on close (recommended): `llman sdd change finalize <id>` (dirty tree OK; then one `git commit`)
+   - BDD-on fallback: `llman sdd change checkpoint <id>` (clean tree required) → `llman sdd change archive <id>`
+   - Archive (BDD-off / or already checkpointed): `llman sdd change archive <id>`
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}

@@ -34,6 +34,7 @@ flowchart LR
 - **No guessing**: If requirements are unclear, or specs contradict reality, STOP and report — don't assume behavior.
 - **No legacy compatibility layers**: If a change requires new behavior, upgrade all call sites directly, unless tasks/proposal explicitly require compatibility.
 - **Don't ask "should I continue?"**: Execute to loop closure unless you hit an unresolvable blocker.
+- **BDD-on close**: after self-tests pass, prefer `llman sdd change finalize <id>` (dirty tree OK) → one `git commit`; do not default to the checkpoint/archive three-commit sequence.
 
 ## Steps
 
@@ -92,7 +93,7 @@ Run project gate commands (adapt to the actual project):
 - Relevant test suite: `just test` or `cargo test --all`
 - Format/lint: `just check` or `just lint` + `just fmt`
 {% if bdd_enabled %}
-- BDD-on (Git-native Partitioned SSOT): stay on the attached feature branch; edit live `spec.toon` (constraints) and `*.feature` (`@req`); implement steps; after `llman sdd validate --specs` passes, clean tree then `change checkpoint <id>`. Do not run solidify or create feature_delta.
+- BDD-on (Git-native Partitioned SSOT): stay on the attached feature branch; edit live `spec.toon` (constraints) and `*.feature` (`@req`); implement steps; after `llman sdd validate --specs` passes, prefer `change finalize` after verify (dirty tree OK); do not run `checkpoint` after every task. Do not run solidify or create feature_delta.
 {% endif %}
 - SDD validation: `llman sdd validate <id> --strict --no-interactive`
 

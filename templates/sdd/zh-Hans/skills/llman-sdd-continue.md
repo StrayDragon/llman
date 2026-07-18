@@ -33,8 +33,9 @@ metadata:
    - 实施：`llman-sdd-apply`
    - 校验：`llman sdd validate <id> --strict --no-interactive`
    - BDD-on 审查：`llman sdd change diff <id>`（只读）
-   - BDD-on 门禁：`llman sdd change checkpoint <id>`（要求干净工作区）
-   - 归档（准备好后）：`llman sdd change archive <id>`
+   - BDD-on 收尾（推荐）：`llman sdd change finalize <id>`（不要求干净工作区；随后一次 `git commit`）
+   - BDD-on fallback：`llman sdd change checkpoint <id>`（要求干净工作区）→ `llman sdd change archive <id>`
+   - 归档（BDD-off / 或已 checkpoint）：`llman sdd change archive <id>`
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}

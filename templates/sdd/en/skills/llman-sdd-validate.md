@@ -18,7 +18,7 @@ Use this skill to validate change/spec format and staleness.
 5. **BDD checks (Git-native Partitioned SSOT)**:
    - Validate live `.feature` Gherkin and `@req` / dual-write gates on the feature branch.
    - `.feature` is the harness authority — maintain executable GWT there (no solidify; no `feature_delta`).
-   - Change lifecycle gates: `llman sdd change attach` / `checkpoint` / `diff` (diff is read-only).
+   - Change lifecycle gates: `llman sdd change attach` / `finalize` (recommended) / `checkpoint` (fallback) / `diff` (diff is read-only).
    - `llman sdd validate --specs` runs `bdd.run_command` by default.
    - Use `list --specs --json` for `morphology` (includes `dualWriteCount`).
 {% endif %}

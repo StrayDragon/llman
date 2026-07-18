@@ -28,7 +28,6 @@ flowchart LR
 - **必须先通过 apply 阶段全绿**：未完成实现的 change 跳过验证。
 - **CRITICAL 必须修复**：标记为 CRITICAL 的问题归档前必须修复。
 - **不要问「要不要继续」**：跑完整个验证流程，输出完整报告。
-- **提交卫生（SHOULD）**：不要单独 `git commit` 纯流程产物（如刚生成的 draft proposal、空的 design 框架）；draft 与首实现或 propose 收尾同提。BDD-on 闭环收尾优先用 `llman sdd change finalize <id>`（单 commit）。
 
 ## 步骤
 1. 确定 change id（不明确时让用户从 `llman sdd list --json` 选择）。
@@ -38,7 +37,7 @@ flowchart LR
    ```
    （若无 `jq`，可用任意工具从 JSON 中解析 `stage` 值。）
    - 若 `stage` 不为 `full`，变更尚未实现、无可验证内容 → 必须停止并给出守卫提示：
-     - `draft`："变更 <id> 是 draft 提案（仅 proposal.md），尚无可验证的实现。请先用 llman-sdd-propose 生成完整工件，再用 llman-sdd-apply <id> 实现。"
+     - `draft`："变更 <id> 是 draft 提案（仅 proposal.md），尚无可验证的实现。请先用 llman-sdd-propose 生成完整工件，再用 llman-sdd-apply <id> 实现。" BDD-on 下，已有 proposal+design+tasks 仍是 `draft` 意味着变更**未 attach** —— 修复方式是 `llman sdd change attach <id>`（而非新增 `changes/<id>/specs/`）。
      - 其他非 full 阶段（`specified`/`designed`）："变更 <id> 处于 <stage> 阶段，尚未准备好被验证。请先用 llman-sdd-apply 实现。"
 3. 先跑一个快速校验门禁：
    - `llman sdd validate <id> --strict --no-interactive`
@@ -54,14 +53,16 @@ flowchart LR
    - 确认 change 已 attach，且当前在对应 feature 分支上。
    - `llman sdd validate --specs`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
    - 可选只读审查：`llman sdd change diff <id>`（或 `--export-patch <path>`）。diff 仅作审查/导出——绝不当作 apply 步骤。
-   - 归档前：工作区干净后运行 `llman sdd change checkpoint <id>`。
+   - 归档：**优先** `llman sdd change finalize <id>`（可不要求干净树；随后一次 `git commit`）；需要严格 `checkpoint_sha` 时再走 `checkpoint` → `archive`。
    - 检查：可执行 GWT 只在 live `.feature`；`morphology.dualWriteCount` 应为 0；若已有活跃 `*.feature.delta.toon` 则先迁移（不要自创 solidify/找补步骤）。
+
+   - 额外要求: Each scenario in the feature file MUST be mapped to an implemented step definition. Run `cargo test --test bdd` to confirm all scenarios pass.
 
 7. 输出简短报告：
    - **CRITICAL**（归档前必须修复）
    - **WARNING**（建议修复）
    - **SUGGESTION**（可选优化）
-8. 若存在 CRITICAL，建议用 `llman-sdd-apply` 修复；若通过（BDD-on：且已 checkpoint）则建议归档：`llman sdd change archive <id>`。
+8. 若存在 CRITICAL，建议用 `llman-sdd-apply` 修复；若通过则建议归档：`llman sdd change finalize <id>`（推荐）或 fallback `checkpoint` + `archive`。
 
 > 💡 验证通过 → 下一步 `llman-sdd-archive`（归档）；有 CRITICAL → 回到 `llman-sdd-apply`（修复）
 
@@ -78,10 +79,11 @@ flowchart LR
 - `llman sdd index check`（检查索引新鲜度）
 - `llman sdd change new <id>`（创建草稿 `changes/<id>/proposal.md`）
 - `llman sdd change attach <id> [--force]`（BDD-on：绑定 feature 分支 + base SHA）
-- `llman sdd change checkpoint <id> [--no-check]`（BDD-on：干净工作区 + 归档前门禁）
+- `llman sdd change finalize <id> [--no-check]`（BDD-on：**推荐单 commit 路径**——不要求干净树；同进程 checkpoint + docs-only archive；写 `checkpoint_sha = base_sha`）
+- `llman sdd change checkpoint <id> [--no-check]`（BDD-on：干净工作区 + 归档前门禁；严格 sha = HEAD）
 - `llman sdd change diff <id> [--export-patch <path>]`（BDD-on：只读 `base...HEAD` 审查/导出）
 - `llman sdd change delta …`（仅 BDD-off：TOON delta 作者工具；BDD-on 会拒绝）
-- `llman sdd change archive <id>`（封存变更；BDD-on：checkpoint 后仅文档；BDD-off：合并 TOON delta）
+- `llman sdd change archive <id>`（封存变更；BDD-on：checkpoint 后仅文档 / 或作 finalize fallback；BDD-off：合并 TOON delta）
 - `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（冻结已归档目录）
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备份恢复）
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图）

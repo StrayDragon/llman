@@ -35,7 +35,7 @@ r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
 4) BDD-on guardrail (Git-native Partitioned SSOT):
-When `config.yaml` has `bdd:`: `spec.toon` = constraints / non-executable scenarios; `*.feature` = executable GWT (`@req`). Edit live files on a non-default branch → `change attach` / `checkpoint` → docs-only `change archive` → Git merge. Do not hunt for solidify, and do not create `*.feature.delta.toon` (if one already exists it is a migration blocker — run `project migrate --kind partitioned`). Empty requirements with no `.feature` = ERROR.
+When `config.yaml` has `bdd:`: `spec.toon` = constraints / non-executable scenarios; `*.feature` = executable GWT (`@req`). Edit live files on a non-default branch → `change attach` → prefer `change finalize` (single commit) or fallback `checkpoint` → docs-only `change archive` → Git merge. Do not hunt for solidify, and do not create `*.feature.delta.toon` (if one already exists it is a migration blocker — run `project migrate --kind partitioned`). Empty requirements with no `.feature` = ERROR.
 
 Notes:
 - Each spec is a single standalone `.toon` file; there is no Markdown shell or ```toon fence.

@@ -34,7 +34,7 @@ flowchart LR
 - **禁止猜测**：需求不明确、specs 与实现矛盾时，先 STOP 并报告，不要自行假定行为。
 - **不保留旧兼容层**：若 change 要求改行为，直接全量升级到新写法，除非 tasks/proposal 明确写了要兼容。
 - **不要问「要不要继续」**：除非遇到无法自动解决的 blocker，否则一路执行到闭环结束。
-- **提交卫生（SHOULD）**：不要单独 `git commit` 纯流程产物（如刚生成的 draft proposal、空的 design 框架）；draft 与首实现或 propose 收尾同提。BDD-on 闭环收尾优先用 `llman sdd change finalize <id>`（单 commit）而非 `checkpoint` + `archive`（3 commit）。`chore(sdd)` 与产品 `feat`/`fix` 分离时，避免产生纯元数据孤立 commit。
+- **BDD-on 收尾**：实现自测通过后优先 `llman sdd change finalize <id>`（工作区可脏）→ 一次 `git commit`；勿默认再拆 checkpoint/archive 三连 commit。
 
 ## 步骤
 
@@ -57,8 +57,8 @@ flowchart LR
   ```bash
   llman sdd show <id> --json --type change
   ```
-  - `draft`：变更尚未准备好实现 → STOP，提示先用 `llman-sdd-propose` 完善到至少 `spec` 阶段。
-  - `specified` / `designed` / `full`：通过，继续。
+  - `draft`：变更尚未准备好实现 → STOP，提示先用 `llman-sdd-propose` 完善到至少 `spec` 阶段。 BDD-on 下，若已有 proposal+design+tasks 仍是 `draft`，说明变更**未 attach** —— 在非默认 feature 分支上运行 `llman sdd change attach <id>`（不要新增 `changes/<id>/specs/`，BDD-on specs 位于分支）。attach 后 stage 即为 `full`。
+  - `specified` / `designed` / `full`：通过，继续。 BDD-on 下 `full` 由 attach + 完整工件推断；`changes/<id>/specs/` 预期为**不存在**，请勿视为缺失。
 - 使用 `llman sdd context --task "<proposal 中的目标>" --paths "<specs 中的 scope>"` 获取相关 specs。
   - 若 context 不可用，运行 `llman sdd index rebuild` 后重试。
 
@@ -91,7 +91,7 @@ flowchart LR
 - 相关测试集：`just test` 或 `cargo test --all`
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
 
-- BDD-on（Git-native Partitioned SSOT）：留在已 attach 的 feature 分支；编辑 live `spec.toon`（约束）与 `*.feature`（`@req`）；实现 steps；`llman sdd validate --specs` 通过后，干净工作区再 `change checkpoint <id>`。不要跑 solidify / 新建 feature_delta。
+- BDD-on（Git-native Partitioned SSOT）：留在已 attach 的 feature 分支；编辑 live `spec.toon`（约束）与 `*.feature`（`@req`）；实现 steps；`llman sdd validate --specs` 通过。闭环收尾优先在 verify 后用 `change finalize`（工作区可脏）；勿在每个 task 后跑 `checkpoint`。不要跑 solidify / 新建 feature_delta。
 
 - SDD 校验：`llman sdd validate <id> --strict --no-interactive`
 
@@ -122,10 +122,11 @@ flowchart LR
 - `llman sdd index check`（检查索引新鲜度）
 - `llman sdd change new <id>`（创建草稿 `changes/<id>/proposal.md`）
 - `llman sdd change attach <id> [--force]`（BDD-on：绑定 feature 分支 + base SHA）
-- `llman sdd change checkpoint <id> [--no-check]`（BDD-on：干净工作区 + 归档前门禁）
+- `llman sdd change finalize <id> [--no-check]`（BDD-on：**推荐单 commit 路径**——不要求干净树；同进程 checkpoint + docs-only archive；写 `checkpoint_sha = base_sha`）
+- `llman sdd change checkpoint <id> [--no-check]`（BDD-on：干净工作区 + 归档前门禁；严格 sha = HEAD）
 - `llman sdd change diff <id> [--export-patch <path>]`（BDD-on：只读 `base...HEAD` 审查/导出）
 - `llman sdd change delta …`（仅 BDD-off：TOON delta 作者工具；BDD-on 会拒绝）
-- `llman sdd change archive <id>`（封存变更；BDD-on：checkpoint 后仅文档；BDD-off：合并 TOON delta）
+- `llman sdd change archive <id>`（封存变更；BDD-on：checkpoint 后仅文档 / 或作 finalize fallback；BDD-off：合并 TOON delta）
 - `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（冻结已归档目录）
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备份恢复）
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图）

@@ -49,14 +49,21 @@ flowchart LR
   - 仅工具类变更：`llman sdd change archive <id> --skip-specs`
   - **任一失败立即停止**，报告剩余未处理 ID。
 - **BDD-on（Git-native Partitioned SSOT）**：
-  - 前置：已 `llman sdd change attach <id>`，再 `llman sdd change checkpoint <id>`（干净工作区 + 门禁），仍在 feature 分支上。
-  - `change archive` **只移动 change 文档**到 `changes/archive/`——**不会**把 TOON delta 当 SSOT 合并，也永不 apply `feature_delta`。
+  - 前置：已 `llman sdd change attach <id>`，仍在 feature 分支上。
+  - `change archive` / `change finalize` **只移动 change 文档**到 `changes/archive/`——**不会**把 TOON delta 当 SSOT 合并，也永不 apply `feature_delta`。
   - change 下遗留活跃 `*.feature.delta.toon` 是迁移阻断项——归档前须移除/迁移。
   - 归档后，通过正常 Git/PR 将 feature 分支合并进默认分支，以提升 live `llmanspec/specs/**`。
-  - **完整的 commit/checkpoint 时序**（checkpoint 会改写 proposal.md 的 frontmatter，故 archive 需要两次 commit）：
+  - **推荐：单 commit 收尾（`change finalize`）**——同进程跑门禁 → 写 frontmatter（`checkpointed` / `checkpoint_sha = base_sha`）→ docs-only archive，结束后工作区脏一次，**一次 `git commit`** 收尾：
+    ```text
+    1. 实现 live specs + 代码（工作区可保持脏）
+    2. llman sdd change finalize <id>   # 门禁 + 写 frontmatter + 移动 change 文档
+    3. git commit                       # 一次提交：实现 + frontmatter + archive 改名
+    ```
+    **`checkpoint_sha` 语义**：finalize 写入的是 attach 时的 `base_sha`，不是实现 commit 的 HEAD（单 commit 模式下实现 commit 尚未发生）。如需精确指向实现 commit，走下方 fallback。
+  - **Fallback：多 commit 时序（`checkpoint` + `archive`）**——需要严格 `checkpoint_sha`、或想中途 review 实现快照时使用：
     ```text
     1. git commit   # 提交 live specs + 代码（让工作区干净，checkpoint 才能跑）
-    2. llman sdd change checkpoint <id>   # 写入 checkpointed / checkpoint_sha
+    2. llman sdd change checkpoint <id>   # 写入 checkpointed / checkpoint_sha（指向实现 commit HEAD）
     3. git commit   # 提交 proposal.md 的 checkpoint 元数据
     4. llman sdd change archive <id>      # 仅移动 change 文档到 archive/
     5. git commit   # 提交 archive 改名
