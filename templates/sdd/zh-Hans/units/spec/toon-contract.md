@@ -49,7 +49,7 @@ scenarios[1]{req_id,id,given,when,then,feature}:
     那么 退出码为 0
 ```
 
-- **BDD-on（Git-native）**：在非默认 feature 分支上编辑 live `.feature` 与 `spec.toon`；用 `llman sdd change attach` 绑定；归档前 `checkpoint`；`diff` 只读审查/导出。合并前 `change archive` 仅移动 change 文档——Git/PR merge 提升 specs。**禁止**编写 `*.feature.delta.toon`（遗留活跃 feature_delta 是迁移阻断项）。没有 solidify 命令。
+- **BDD-on（Git-native）**：在非默认 feature 分支上编辑 live `.feature` 与 `spec.toon`；用 `llman sdd change attach` 绑定；优先 `change finalize` 单 commit 收尾（或 fallback：归档前 `checkpoint` 再 `change archive`）；`diff` 只读审查/导出。合并前 archive/finalize 仅移动 change 文档——Git/PR merge 提升 specs。**禁止**编写 `*.feature.delta.toon`（遗留活跃 feature_delta 是迁移阻断项）。没有 solidify 命令。
 - **BDD-off**：使用下方 Delta 节的 change 内 TOON delta（`ops` / `op_scenarios`）与 archive 合并——不要求 attach/checkpoint/harness。
 - 下游升级：`llman sdd project migrate --kind partitioned`。
 - BDD 已启用且 `requirements` 为空、又无 `.feature` 是 ERROR。

@@ -53,7 +53,7 @@ flowchart LR
    - Confirm the change is attached and you are on that feature branch.
    - `llman sdd validate --specs`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
    - Optional read-only review: `llman sdd change diff <id>` (or `--export-patch <path>`). Diff is review/export only — never treat it as an apply step.
-   - Before archive: clean tree, then `llman sdd change checkpoint <id>`.
+   - Archive: **prefer** `llman sdd change finalize <id>` (dirty tree OK; then one `git commit`); use `checkpoint` → `archive` only when you need a strict `checkpoint_sha`.
    - Check: executable GWT only in live `.feature`; `morphology.dualWriteCount` should be 0; if an active `*.feature.delta.toon` already exists, migrate first (do not invent a solidify / repair hunt).
 {% if bdd_verify_prompt %}
    - Extra requirement: {{ bdd_verify_prompt }}
@@ -62,7 +62,7 @@ flowchart LR
    - **CRITICAL** (must fix before archive)
    - **WARNING** (should fix)
    - **SUGGESTION** (nice to have)
-8. If CRITICAL exists, suggest `llman-sdd-apply` for fixes. If clean (BDD-on: also checkpointed), suggest archive: `llman sdd change archive <id>`.
+8. If CRITICAL exists, suggest `llman-sdd-apply` for fixes. If clean, suggest archive: `llman sdd change finalize <id>` (recommended) or fallback `checkpoint` + `archive`.
 
 > 💡 Verify pass → next: `llman-sdd-archive` (archive); CRITICAL issues → go back to `llman-sdd-apply` (fix)
 

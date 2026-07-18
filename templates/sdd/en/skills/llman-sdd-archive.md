@@ -49,14 +49,21 @@ flowchart LR
   - tooling-only: `llman sdd change archive <id> --skip-specs`
   - **stop immediately on first failure**, report remaining unprocessed IDs.
 - **BDD-on (Git-native Partitioned SSOT)**:
-  - Prerequisites: `llman sdd change attach <id>` done, then `llman sdd change checkpoint <id>` (clean tree + gates), still on the feature branch.
-  - `change archive` moves **change documentation only** into `changes/archive/` — it does **not** merge TOON deltas as SSOT and never applies `feature_delta`.
+  - Prerequisites: `llman sdd change attach <id>` done, still on the feature branch.
+  - `change archive` / `change finalize` move **change documentation only** into `changes/archive/` — they do **not** merge TOON deltas as SSOT and never apply `feature_delta`.
   - Legacy active `*.feature.delta.toon` under the change is a migration blocker — remove/migrate before archive.
   - After archive, promote live `llmanspec/specs/**` via normal Git/PR merge of the feature branch into the default branch.
-  - **Full commit/checkpoint sequence** (checkpoint rewrites `proposal.md` frontmatter, so archive needs two commits):
+  - **Recommended: single-commit close (`change finalize`)** — same process runs gates → writes frontmatter (`checkpointed` / `checkpoint_sha = base_sha`) → docs-only archive; leaves the tree dirty once for **one `git commit`**:
+    ```text
+    1. Implement live specs + code (working tree may stay dirty)
+    2. llman sdd change finalize <id>   # gates + frontmatter + move change docs
+    3. git commit                       # one commit: impl + frontmatter + archive rename
+    ```
+    **`checkpoint_sha` semantics**: finalize writes attach-time `base_sha`, not the implementation HEAD (under single-commit mode that commit has not happened yet). For a strict implementation SHA, use the fallback below.
+  - **Fallback: multi-commit sequence (`checkpoint` + `archive`)** — when you need a strict `checkpoint_sha`, or want a mid-flight review snapshot:
     ```text
     1. git commit   # commit live specs + code (clean tree required for checkpoint)
-    2. llman sdd change checkpoint <id>   # writes checkpointed / checkpoint_sha
+    2. llman sdd change checkpoint <id>   # writes checkpointed / checkpoint_sha (implementation HEAD)
     3. git commit   # commit proposal.md checkpoint metadata
     4. llman sdd change archive <id>      # moves change docs only
     5. git commit   # commit archive rename
