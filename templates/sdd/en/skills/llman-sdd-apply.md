@@ -56,8 +56,8 @@ flowchart LR
   ```bash
   llman sdd show <id> --json --type change
   ```
-  - `draft`: change not ready to implement → STOP, suggest using `llman-sdd-propose` to grow to at least `spec` stage.
-  - `specified` / `designed` / `full`: proceed.
+  - `draft`: change not ready to implement → STOP, suggest using `llman-sdd-propose` to grow to at least `spec` stage.{% if bdd_enabled %} Under BDD-on, a change with proposal+design+tasks but `stage: draft` means it is **not attached** — run `llman sdd change attach <id>` on a non-default feature branch (do NOT add `changes/<id>/specs/`; BDD-on specs live on the branch). After attach the stage becomes `full`.{% endif %}
+  - `specified` / `designed` / `full`: proceed.{% if bdd_enabled %} Under BDD-on, `full` reflects attach + complete artifacts; `changes/<id>/specs/` is expected to be **absent** — do not treat that as missing.{% endif %}
 - Use `llman sdd context --task "<goal from proposal>" --paths "<scope from specs>"` to get relevant specs.
   - If context is unavailable, run `llman sdd index rebuild` and retry.
 

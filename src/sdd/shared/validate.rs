@@ -421,7 +421,7 @@ fn validate_change_full(
     archive_config: &ArchiveConfig,
     bdd_on: bool,
 ) -> ValidationReport {
-    let stage = stage_override.unwrap_or_else(|| determine_stage(change_dir));
+    let stage = stage_override.unwrap_or_else(|| determine_stage(change_dir, bdd_on));
     let mut issues = Vec::new();
 
     // Validate consistency when stage is forced via --stage
@@ -497,7 +497,12 @@ fn validate_change_full(
     }
 
     // Stage hint (always Info — stage reflects effective stage)
-    issues.extend(check_completeness_stage(change_dir, strict, stage_override));
+    issues.extend(check_completeness_stage(
+        change_dir,
+        strict,
+        stage_override,
+        bdd_on,
+    ));
 
     issues.extend(dag_issues.to_vec());
 

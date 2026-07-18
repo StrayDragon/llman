@@ -37,7 +37,7 @@ flowchart LR
    ```
    （若无 `jq`，可用任意工具从 JSON 中解析 `stage` 值。）
    - 若 `stage` 不为 `full`，变更尚未实现、无可验证内容 → 必须停止并给出守卫提示：
-     - `draft`："变更 <id> 是 draft 提案（仅 proposal.md），尚无可验证的实现。请先用 llman-sdd-propose 生成完整工件，再用 llman-sdd-apply <id> 实现。"
+     - `draft`："变更 <id> 是 draft 提案（仅 proposal.md），尚无可验证的实现。请先用 llman-sdd-propose 生成完整工件，再用 llman-sdd-apply <id> 实现。"{% if bdd_enabled %} BDD-on 下，已有 proposal+design+tasks 仍是 `draft` 意味着变更**未 attach** —— 修复方式是 `llman sdd change attach <id>`（而非新增 `changes/<id>/specs/`）。{% endif %}
      - 其他非 full 阶段（`specified`/`designed`）："变更 <id> 处于 <stage> 阶段，尚未准备好被验证。请先用 llman-sdd-apply 实现。"
 3. 先跑一个快速校验门禁：
    - `llman sdd validate <id> --strict --no-interactive`

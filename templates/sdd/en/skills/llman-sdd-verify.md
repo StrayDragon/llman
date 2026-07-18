@@ -37,7 +37,7 @@ flowchart LR
    ```
    (If `jq` is unavailable, parse the `stage` value from the JSON with any tool.)
    - If `stage` is not `full`, the change has nothing implemented to verify → STOP with a guard:
-     - `draft`: "Change <id> is a draft proposal (proposal.md only); nothing to verify yet. Generate full artifacts with llman-sdd-propose, then implement with llman-sdd-apply <id>."
+     - `draft`: "Change <id> is a draft proposal (proposal.md only); nothing to verify yet. Generate full artifacts with llman-sdd-propose, then implement with llman-sdd-apply <id>."{% if bdd_enabled %} Under BDD-on, `draft` with proposal+design+tasks present means the change is **not attached** — the fix is `llman sdd change attach <id>` (not adding `changes/<id>/specs/`).{% endif %}
      - other non-full (`specified`/`designed`): "Change <id> is in <stage> stage, not ready to verify. Implement first with llman-sdd-apply."
 3. Run a fast validation gate:
    - `llman sdd validate <id> --strict --no-interactive`

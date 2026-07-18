@@ -56,8 +56,8 @@ flowchart LR
   ```bash
   llman sdd show <id> --json --type change
   ```
-  - `draft`：变更尚未准备好实现 → STOP，提示先用 `llman-sdd-propose` 完善到至少 `spec` 阶段。
-  - `specified` / `designed` / `full`：通过，继续。
+  - `draft`：变更尚未准备好实现 → STOP，提示先用 `llman-sdd-propose` 完善到至少 `spec` 阶段。{% if bdd_enabled %} BDD-on 下，若已有 proposal+design+tasks 仍是 `draft`，说明变更**未 attach** —— 在非默认 feature 分支上运行 `llman sdd change attach <id>`（不要新增 `changes/<id>/specs/`，BDD-on specs 位于分支）。attach 后 stage 即为 `full`。{% endif %}
+  - `specified` / `designed` / `full`：通过，继续。{% if bdd_enabled %} BDD-on 下 `full` 由 attach + 完整工件推断；`changes/<id>/specs/` 预期为**不存在**，请勿视为缺失。{% endif %}
 - 使用 `llman sdd context --task "<proposal 中的目标>" --paths "<specs 中的 scope>"` 获取相关 specs。
   - 若 context 不可用，运行 `llman sdd index rebuild` 后重试。
 
