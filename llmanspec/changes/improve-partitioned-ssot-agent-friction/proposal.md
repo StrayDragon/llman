@@ -2,7 +2,8 @@
 depends_on: []
 branch: sdd/improve-partitioned-ssot-agent-friction
 base_sha: 97eca13f0f6a2c183d4d978b7a2bb56f6f4767a7
-checkpointed: false
+checkpointed: true
+checkpoint_sha: 39d8917d4e463e1a249ea99afa7efdbcea81dee7
 ---
 
 ## Why
