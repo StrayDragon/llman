@@ -111,8 +111,13 @@ fn resolve_check_mode(bdd_configured: bool, check_flag: bool, no_check: bool) ->
     (false, check_flag)
 }
 
-pub fn run(args: ValidateArgs) -> Result<()> {
-    let root = Path::new(".");
+/// Run validation against the project rooted at `root`.
+///
+/// Most internal helpers already take `root: &Path`; this entrypoint threads
+/// it explicitly so that in-process callers (e.g. `run_finalize`, `run_checkpoint`)
+/// can validate a TempDir fixture without mutating process cwd. The CLI boundary
+/// in `command.rs` passes `Path::new(".")` to preserve the cwd-implicit behavior.
+pub fn run(root: &Path, args: ValidateArgs) -> Result<()> {
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let config = load_required_config(&llmanspec_dir)?;
     let archive_config = config.archive_config();
