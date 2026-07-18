@@ -32,3 +32,10 @@
     假如 已初始化含可执行双写的 sdd 项目且 bdd 配置为 on
     当 在非交互终端运行 llman sdd validate sample --strict --no-check
     那么 stderr 包含 dual-write
+
+  @executable @req:r6
+  场景: 双写错误消息列出具体冲突对
+    假如 已初始化含可执行双写的 sdd 项目且 bdd 配置为 on
+    当 在非交互终端运行 llman sdd validate sample --strict --no-check
+    那么 stderr 包含 dual-write
+    那么 stderr 包含 (r1, happy)

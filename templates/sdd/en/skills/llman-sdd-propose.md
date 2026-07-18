@@ -84,7 +84,14 @@ flowchart LR
 
 ### 4b) BDD-on mode — only when `config.yaml` has a `bdd:` block (Git-native)
 - Work on a **non-default Git feature branch** (never propose/implement BDD-on changes on main/master).
-- **Partitioned SSOT**: edit live `spec.toon` (constraints) and `*.feature` (executable GWT + `@req`); never dual-write the same scenario id.
+- **Partitioned SSOT**: edit live `spec.toon` (constraints) and `*.feature` (executable GWT + `@req`); never dual-write the same scenario id. Dual-write shape reference:
+
+  | Scenario type | `spec.toon` `scenarios[]` | `*.feature` |
+  |---|---|---|
+  | Executable (`@req` / harness-driven) | **MUST NOT** appear (requirements in toon, examples in .feature) | **only** place for executable GWT |
+  | Non-executable (doc-only) | `feature: false` + GWT ok | n/a (do not place) |
+
+  Key point: under Partitioned SSOT, do **not** write `feature: true` rows in toon at all; requirement statements live in toon, executable examples live in `.feature` linked back via `@req:<req_id>`.
 - Change shell: `llman sdd change new <change-id>` → fill proposal/tasks → `llman sdd change attach <change-id>`.
 - Do **not** run solidify / use `change delta` / create feature_delta; if an active `*.feature.delta.toon` already exists, migrate first.
 - **BDD-off** (no `bdd:`): use `change delta …`; no feature branch / attach / checkpoint.

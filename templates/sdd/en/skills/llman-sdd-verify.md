@@ -41,6 +41,7 @@ flowchart LR
      - other non-full (`specified`/`designed`): "Change <id> is in <stage> stage, not ready to verify. Implement first with llman-sdd-apply."
 3. Run a fast validation gate:
    - `llman sdd validate <id> --strict --no-interactive`
+   - **When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / global req_id uniqueness), prefer adding `--no-check`** (skips the potentially slow `bdd.run_command` under BDD-on); run the full `--check` (full mode) only after structural gates are green. Each `FAIL <item_type>/<id>` line lists a failing item (above the Totals line).
 4. Read:
    - Delta specs under `llmanspec/changes/<id>/specs/`
    - `proposal.md` and `design.md` if present

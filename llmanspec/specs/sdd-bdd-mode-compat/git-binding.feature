@@ -39,3 +39,9 @@
     当 在非交互终端运行 llman sdd change delta skeleton add-scen sample
     那么 退出码非零
     那么 stderr 包含 BDD-off only
+
+  @executable @req:r57
+  场景: change checkpoint 接受 --no-interactive flag
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change checkpoint add-scen --no-interactive
+    那么 stderr 不含 unexpected argument
