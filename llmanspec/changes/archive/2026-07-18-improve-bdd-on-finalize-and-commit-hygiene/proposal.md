@@ -6,7 +6,8 @@ depends_on:
 - improve-partitioned-ssot-agent-friction
 branch: propose/improve-bdd-on-finalize-and-commit-hygiene
 base_sha: 97eca13f0f6a2c183d4d978b7a2bb56f6f4767a7
-checkpointed: false
+checkpointed: true
+checkpoint_sha: 97eca13f0f6a2c183d4d978b7a2bb56f6f4767a7
 ---
 
 # Proposal: BDD-on 单 commit 收尾（`finalize`）
@@ -34,7 +35,9 @@ commit(code+specs) → checkpoint → commit(metadata) → archive → commit(re
 
 Field notes：`docs/release/partitioned-ssot/COMMIT_FRICTION_FROM_XYLITOL.md`。
 
-## What Changes（Route C：单 commit + 弱化 sha）
+## What Changes
+
+> Route C：单 commit + 弱化 sha（详见 design.md D1/D2）。
 
 ### 1. 新子命令：`llman sdd change finalize <id> [--no-check] [--no-interactive]`
 

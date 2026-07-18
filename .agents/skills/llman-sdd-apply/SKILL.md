@@ -34,6 +34,7 @@ flowchart LR
 - **禁止猜测**：需求不明确、specs 与实现矛盾时，先 STOP 并报告，不要自行假定行为。
 - **不保留旧兼容层**：若 change 要求改行为，直接全量升级到新写法，除非 tasks/proposal 明确写了要兼容。
 - **不要问「要不要继续」**：除非遇到无法自动解决的 blocker，否则一路执行到闭环结束。
+- **提交卫生（SHOULD）**：不要单独 `git commit` 纯流程产物（如刚生成的 draft proposal、空的 design 框架）；draft 与首实现或 propose 收尾同提。BDD-on 闭环收尾优先用 `llman sdd change finalize <id>`（单 commit）而非 `checkpoint` + `archive`（3 commit）。`chore(sdd)` 与产品 `feat`/`fix` 分离时，避免产生纯元数据孤立 commit。
 
 ## 步骤
 

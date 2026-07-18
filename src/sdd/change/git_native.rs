@@ -239,7 +239,11 @@ fn upsert_frontmatter_fields(content: &str, updates: &[(&str, String)]) -> Resul
     Ok(format!("---\n{yaml}\n---\n\n{body}"))
 }
 
-fn write_binding(root: &Path, change_id: &str, binding: &ChangeGitBinding) -> Result<()> {
+pub(crate) fn write_binding(
+    root: &Path,
+    change_id: &str,
+    binding: &ChangeGitBinding,
+) -> Result<()> {
     let path = proposal_path(root, change_id);
     let content = fs::read_to_string(&path)?;
     let mut updates = vec![
@@ -424,7 +428,27 @@ pub fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
 }
 
 /// Enforce BDD-on archive preconditions: attached, checkpointed, clean, on branch.
+///
+/// This is the strict variant used by `change archive` — it requires a clean
+/// working tree (because archive itself does not write the checkpoint frontmatter,
+/// so a clean tree guarantees `checkpoint_sha` still points to a real commit).
+/// For the `finalize` path (which writes the frontmatter itself and intentionally
+/// leaves the tree dirty for a single commit), use
+/// [`enforce_bdd_archive_gates_relaxed`] instead.
 pub fn enforce_bdd_archive_gates(root: &Path, change_id: &str) -> Result<ChangeGitBinding> {
+    enforce_bdd_archive_gates_inner(root, change_id, /* require_clean_tree */ true)
+}
+
+/// Relaxed variant of [`enforce_bdd_archive_gates`] that skips the clean-tree
+/// AND `checkpointed` checks. Used by `change finalize` so:
+/// (1) the implementation diff can stay dirty and be committed together with
+///     the finalize metadata in a single commit; and
+/// (2) finalize itself is responsible for writing the `checkpointed` field
+///     (and `checkpoint_sha`), so we must not reject a pre-checkpoint binding.
+///
+/// Caller is responsible for writing `checkpointed: true` after this returns
+/// (typically via [`write_binding`]).
+pub fn enforce_bdd_archive_gates_relaxed(root: &Path, change_id: &str) -> Result<ChangeGitBinding> {
     let Some(binding) = read_binding(root, change_id)? else {
         bail!(
             "BDD-on archive requires Git binding; run `llman sdd change attach {change_id}` then checkpoint"
@@ -440,7 +464,53 @@ pub fn enforce_bdd_archive_gates(root: &Path, change_id: &str) -> Result<ChangeG
     if is_default_branch(root, &branch)? {
         bail!("BDD-on archive must not run on the default branch");
     }
-    if !working_tree_clean(root)? {
+    if shared_mode_required() && !branch_has_upstream(root)? {
+        bail!("shared mode requires an upstream before archive");
+    }
+    // Reject leftover feature_delta files (legacy model).
+    let change_specs = change_dir(root, change_id).join("specs");
+    if change_specs.exists() {
+        for entry in fs::read_dir(&change_specs)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            for file in fs::read_dir(entry.path())? {
+                let file = file?;
+                let name = file.file_name().to_string_lossy().to_string();
+                if name.ends_with(".feature.delta.toon") || name == "feature.delta.toon" {
+                    bail!(
+                        "legacy feature_delta found at {}; migrate to branch-local .feature files before archive",
+                        file.path().display()
+                    );
+                }
+            }
+        }
+    }
+    Ok(binding)
+}
+
+fn enforce_bdd_archive_gates_inner(
+    root: &Path,
+    change_id: &str,
+    require_clean_tree: bool,
+) -> Result<ChangeGitBinding> {
+    let Some(binding) = read_binding(root, change_id)? else {
+        bail!(
+            "BDD-on archive requires Git binding; run `llman sdd change attach {change_id}` then checkpoint"
+        );
+    };
+    let branch = current_branch(root)?;
+    if branch != binding.branch {
+        bail!(
+            "archive must run on attached branch `{}` (current: `{branch}`)",
+            binding.branch
+        );
+    }
+    if is_default_branch(root, &branch)? {
+        bail!("BDD-on archive must not run on the default branch");
+    }
+    if require_clean_tree && !working_tree_clean(root)? {
         bail!("working tree must be clean before BDD-on archive");
     }
     if !binding.checkpointed {

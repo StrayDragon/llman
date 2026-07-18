@@ -295,6 +295,22 @@ fn test_all_subcommands_smoke_bdd_on_and_off() {
             assert!(!delta.status.success(), "change delta must reject BDD-on");
         }
 
+        // change finalize exists and parses. Both BDD-on (default branch / not
+        // attached) and BDD-off paths reject with non-zero exit, but the
+        // command must be recognized — i.e. no `unrecognized subcommand`.
+        {
+            let finalize = run(&["sdd", "change", "finalize", "add-scen"], &env);
+            assert!(
+                !finalize.status.success(),
+                "change finalize should reject without attach/BDD-on setup"
+            );
+            let stderr = String::from_utf8_lossy(&finalize.stderr);
+            assert!(
+                !stderr.contains("unrecognized subcommand"),
+                "change finalize must exist (got stderr: {stderr})"
+            );
+        }
+
         // archive dry-run: BDD-off works without git binding; BDD-on needs attach/checkpoint
         if bdd.is_none() {
             assert_success(&run(
