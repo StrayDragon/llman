@@ -20,7 +20,7 @@ metadata:
      stage=$(llman sdd show <id> --json --type change | jq -r .stage)
      ```
      （若无 `jq`，可用任意工具从 JSON 中解析 `stage` 值。）
-   - 若 `stage` 为 `draft`（仅 proposal.md），明确告知用户："这是一个 draft 提案。需要把它长大到 `full`（specs → design → tasks）后才能实现；draft 不能直接被 apply 或 verify。"
+   - 若 `stage` 为 `draft`（仅 proposal.md），明确告知用户："这是一个 draft 提案。需要把它长大到 `full`（specs → design → tasks）后才能实现；draft 不能直接被 apply 或 verify。"{% if bdd_enabled %} BDD-on 下，已有 proposal+design+tasks 仍是 `draft` 意味着变更**未 attach** —— 下一步是 `llman sdd change attach <id>`（在非默认 feature 分支上；BDD-on specs 位于分支，**不要**新增 `changes/<id>/specs/`）。{% endif %}
 3. 找出下一个需要创建的 artifact（按顺序）：
    1) `proposal.md`
    2) BDD-off：change 下 `specs/<capability>/spec.toon` delta；BDD-on：在 feature 分支上编辑 live `llmanspec/specs/<capability>/spec.toon` + `*.feature`（未绑定时再 `llman sdd change attach <id>`）

@@ -1854,6 +1854,8 @@ sdd:
       en: "Change has tasks.md but missing design.md. Tasks MUST be generated after design decisions are documented. Create design.md first, then regenerate tasks.md."
     stage_draft_hint:
       en: "Change is in 'draft' stage (next: add specs/)"
+    stage_draft_hint_bdd_on:
+      en: "Change is in 'draft' stage (next: `llman sdd change attach <id>` on a non-default feature branch; BDD-on specs live on the branch, not under changes/<id>/specs)"
     stage_specified_hint:
       en: "Change is in 'specified' stage (next: add design.md)"
     stage_designed_hint:

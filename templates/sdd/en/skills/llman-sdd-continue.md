@@ -20,7 +20,7 @@ Use this skill to continue an existing change and create the next missing artifa
      stage=$(llman sdd show <id> --json --type change | jq -r .stage)
      ```
      (If `jq` is unavailable, parse the `stage` value from the JSON with any tool.)
-   - If `stage` is `draft` (proposal.md only), explicitly tell the user: "This is a draft proposal. Grow it to `full` (specs → design → tasks) before it can be implemented; a draft cannot be applied or verified directly."
+   - If `stage` is `draft` (proposal.md only), explicitly tell the user: "This is a draft proposal. Grow it to `full` (specs → design → tasks) before it can be implemented; a draft cannot be applied or verified directly."{% if bdd_enabled %} Under BDD-on, `draft` with proposal+design+tasks already present means the change is **not attached** — the next step is `llman sdd change attach <id>` on a non-default feature branch (BDD-on specs live on the branch; do NOT create `changes/<id>/specs/`).{% endif %}
 3. Determine the next artifact to create (in order):
    1) `proposal.md`
    2) BDD-off: `specs/<capability>/spec.toon` deltas under the change; BDD-on: live edits to `llmanspec/specs/<capability>/spec.toon` + `*.feature` on the feature branch (then `llman sdd change attach <id>` if unbound)

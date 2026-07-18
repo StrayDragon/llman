@@ -852,6 +852,155 @@ mod tests {
             "distinct expansions must each run, got {count:?}"
         );
     }
+
+    // --- determine_stage: BDD-on attach vs BDD-off change/specs (r93) ---
+
+    const PROPOSAL_NO_FM: &str = "## Why\nTest";
+    const PROPOSAL_ATTACHED: &str = "---\nbranch: feat/x\nbase_sha: abc123\n---\n## Why\nTest";
+
+    #[test]
+    fn stage_bdd_off_requires_change_specs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[
+                ("proposal.md", PROPOSAL_NO_FM),
+                ("design.md", "# design"),
+                ("tasks.md", "- [ ] t1"),
+            ],
+        );
+        // No change/specs/ → not full under BDD-off, even with attach frontmatter.
+        assert_eq!(determine_stage(&change_dir, false), ChangeStage::Draft);
+    }
+
+    #[test]
+    fn stage_bdd_off_full_with_change_specs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[
+                ("proposal.md", PROPOSAL_NO_FM),
+                ("design.md", "# design"),
+                ("tasks.md", "- [ ] t1"),
+                ("specs/cap/spec.toon", "kind: llman.sdd.spec\n"),
+            ],
+        );
+        assert_eq!(determine_stage(&change_dir, false), ChangeStage::Full);
+    }
+
+    #[test]
+    fn stage_bdd_on_full_with_attach_no_change_specs() {
+        let tmp = tempfile::tempdir().unwrap();
+        // attach frontmatter + proposal/design/tasks, NO change/specs/.
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[
+                ("proposal.md", PROPOSAL_ATTACHED),
+                ("design.md", "# design"),
+                ("tasks.md", "- [ ] t1"),
+            ],
+        );
+        assert_eq!(determine_stage(&change_dir, true), ChangeStage::Full);
+    }
+
+    #[test]
+    fn stage_bdd_on_draft_without_attach() {
+        let tmp = tempfile::tempdir().unwrap();
+        // proposal/design/tasks present but NOT attached → draft under BDD-on.
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[
+                ("proposal.md", PROPOSAL_NO_FM),
+                ("design.md", "# design"),
+                ("tasks.md", "- [ ] t1"),
+            ],
+        );
+        assert_eq!(determine_stage(&change_dir, true), ChangeStage::Draft);
+    }
+
+    #[test]
+    fn stage_bdd_on_partial_attach_is_draft() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Only `branch`, missing `base_sha` → not a complete attach binding.
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[
+                ("proposal.md", "---\nbranch: feat/x\n---\n## Why\nx"),
+                ("design.md", "# design"),
+                ("tasks.md", "- [ ] t1"),
+            ],
+        );
+        assert_eq!(determine_stage(&change_dir, true), ChangeStage::Draft);
+    }
+
+    #[test]
+    fn stage_bdd_on_designed_when_no_tasks() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[
+                ("proposal.md", PROPOSAL_ATTACHED),
+                ("design.md", "# design"),
+            ],
+        );
+        assert_eq!(determine_stage(&change_dir, true), ChangeStage::Designed);
+    }
+
+    #[test]
+    fn stage_bdd_on_ignores_change_specs_without_attach() {
+        let tmp = tempfile::tempdir().unwrap();
+        // BDD-on: change/specs/ present but NOT attached → still draft
+        // (attach binding is the only spec signal under BDD-on).
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[
+                ("proposal.md", PROPOSAL_NO_FM),
+                ("design.md", "# design"),
+                ("tasks.md", "- [ ] t1"),
+                ("specs/cap/spec.toon", "kind: llman.sdd.spec\n"),
+            ],
+        );
+        assert_eq!(determine_stage(&change_dir, true), ChangeStage::Draft);
+    }
+
+    #[test]
+    fn has_attach_binding_detects_complete_frontmatter() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(&tmp, &[("proposal.md", PROPOSAL_ATTACHED)]);
+        assert!(has_attach_binding(&change_dir));
+    }
+
+    #[test]
+    fn has_attach_binding_rejects_incomplete_or_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let only_branch = setup_change_dir(
+            &tmp,
+            &[("proposal.md", "---\nbranch: feat/x\n---\n## Why\nx")],
+        );
+        assert!(!has_attach_binding(&only_branch));
+
+        let no_fm = setup_change_dir(&tmp, &[("proposal.md", "## Why\nx")]);
+        assert!(!has_attach_binding(&no_fm));
+
+        let missing = setup_change_dir(&tmp, &[]);
+        assert!(!has_attach_binding(&missing));
+    }
+
+    #[test]
+    fn completeness_draft_hint_bdd_on_mentions_attach() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[
+                ("proposal.md", PROPOSAL_NO_FM),
+                ("design.md", "# design"),
+                ("tasks.md", "- [ ] t1"),
+            ],
+        );
+        let issues = check_completeness_stage(&change_dir, false, None, true);
+        assert_eq!(issues.len(), 1);
+        assert!(issues[0].message.contains("attach"));
+    }
 }
 
 pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> ValidationReport {
@@ -1904,11 +2053,26 @@ impl ChangeStage {
     }
 }
 
-pub fn determine_stage(change_dir: &Path) -> ChangeStage {
+/// Infer the change stage from on-disk artifacts.
+///
+/// - **BDD-off** (`bdd_on = false`): the spec signal is `changes/<id>/specs/`
+///   containing toon and/or `.feature` files (see `has_spec_files`).
+/// - **BDD-on** (`bdd_on = true`): the spec signal is the Git-native attach
+///   binding — non-empty `branch` **and** `base_sha` in `proposal.md`
+///   frontmatter. Live specs live on the feature branch, so `change/specs/`
+///   is never required (and is ignored when present).
+pub fn determine_stage(change_dir: &Path, bdd_on: bool) -> ChangeStage {
     let has_proposal = change_dir.join("proposal.md").exists();
-    let has_specs = has_spec_files(&change_dir.join("specs"));
     let has_design = change_dir.join("design.md").exists();
     let has_tasks = change_dir.join("tasks.md").exists();
+
+    // BDD-on: attach binding (branch + base_sha) replaces change/specs/.
+    // BDD-off: change/specs/ toon/.feature content is the spec signal.
+    let has_specs = if bdd_on {
+        has_attach_binding(change_dir)
+    } else {
+        has_spec_files(&change_dir.join("specs"))
+    };
 
     match (has_proposal, has_specs, has_design, has_tasks) {
         (true, true, true, true) => ChangeStage::Full,
@@ -1916,6 +2080,35 @@ pub fn determine_stage(change_dir: &Path) -> ChangeStage {
         (true, true, _, _) => ChangeStage::Specified,
         _ => ChangeStage::Draft,
     }
+}
+
+/// Read proposal.md frontmatter and report whether a Git-native BDD-on attach
+/// binding is present (non-empty `branch` **and** `base_sha`). Best-effort: any
+/// parse failure or missing file returns `false`, matching the historical
+/// "no specs signal" semantics.
+pub fn has_attach_binding(change_dir: &Path) -> bool {
+    let Ok(content) = fs::read_to_string(change_dir.join("proposal.md")) else {
+        return false;
+    };
+    let (yaml_str, _body) = split_frontmatter(&content);
+    let Some(yaml_str) = yaml_str else {
+        return false;
+    };
+    let Ok(parsed) = serde_yaml::from_str::<serde_yaml::Value>(&yaml_str) else {
+        return false;
+    };
+    let branch = parsed
+        .get("branch")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim())
+        .unwrap_or("");
+    let base_sha = parsed
+        .get("base_sha")
+        .or_else(|| parsed.get("baseSha"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim())
+        .unwrap_or("");
+    !branch.is_empty() && !base_sha.is_empty()
 }
 
 pub fn has_spec_files(specs_dir: &Path) -> bool {
@@ -1957,8 +2150,9 @@ pub fn check_completeness_stage(
     change_dir: &Path,
     _strict: bool,
     force_stage: Option<ChangeStage>,
+    bdd_on: bool,
 ) -> Vec<ValidationIssue> {
-    let stage = force_stage.unwrap_or_else(|| determine_stage(change_dir));
+    let stage = force_stage.unwrap_or_else(|| determine_stage(change_dir, bdd_on));
     let mut issues = Vec::new();
 
     // Stage hints are always Info — they describe the current state without
@@ -1980,10 +2174,17 @@ pub fn check_completeness_stage(
             });
         }
         ChangeStage::Draft => {
+            // BDD-on: the "grow up" signal is `change attach`, not "add specs/".
+            // BDD-off: keep the historical "add specs/" guidance.
+            let message = if bdd_on {
+                t!("sdd.validate.stage_draft_hint_bdd_on").to_string()
+            } else {
+                t!("sdd.validate.stage_draft_hint").to_string()
+            };
             issues.push(ValidationIssue {
                 level: ValidationLevel::Info,
                 path: "completeness".to_string(),
-                message: t!("sdd.validate.stage_draft_hint").to_string(),
+                message,
             });
         }
     }

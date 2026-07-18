@@ -92,11 +92,14 @@ fn extract_priority(dir_name: &str) -> usize {
 fn collect_active_changes(root: &Path) -> Vec<ChangeInfo> {
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let changes_dir = llmanspec_dir.join("changes");
+    let bdd_on = crate::sdd::project::config::load_required_config(&llmanspec_dir)
+        .map(|c| c.bdd.is_some())
+        .unwrap_or(false);
     let mut result = Vec::new();
 
     for name in list_changes(root).unwrap_or_default() {
         let change_dir = changes_dir.join(&name);
-        let stage = determine_stage(&change_dir);
+        let stage = determine_stage(&change_dir, bdd_on);
         let (done, total) = parse_task_counts(&change_dir);
         result.push(ChangeInfo {
             dir_name: name.clone(),
@@ -118,6 +121,9 @@ fn collect_archived_changes(root: &Path) -> Vec<ChangeInfo> {
         .join(LLMANSPEC_DIR_NAME)
         .join("changes")
         .join("archive");
+    let bdd_on = crate::sdd::project::config::load_required_config(&root.join(LLMANSPEC_DIR_NAME))
+        .map(|c| c.bdd.is_some())
+        .unwrap_or(false);
     let mut result = Vec::new();
 
     let entries = match std::fs::read_dir(&archive_dir) {
@@ -138,7 +144,7 @@ fn collect_archived_changes(root: &Path) -> Vec<ChangeInfo> {
         let priority = extract_priority(&name);
         let change_dir = entry.path();
         // For archived changes, we still check stage from the artifacts present
-        let stage = determine_stage(&change_dir);
+        let stage = determine_stage(&change_dir, bdd_on);
         let (done, total) = parse_task_counts(&change_dir);
         result.push(ChangeInfo {
             dir_name,

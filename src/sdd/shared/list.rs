@@ -93,10 +93,14 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
     }
 
     let mut changes = Vec::new();
+    // BDD-on: stage inference keys off attach binding instead of change/specs/.
+    let bdd_on = load_required_config(&root.join(LLMANSPEC_DIR_NAME))
+        .map(|c| c.bdd.is_some())
+        .unwrap_or(false);
     for change in change_ids {
         let (completed, total) = task_progress(&changes_dir, &change)?;
         let last_modified = last_modified(&changes_dir.join(&change))?;
-        let stage = determine_stage(&changes_dir.join(&change));
+        let stage = determine_stage(&changes_dir.join(&change), bdd_on);
         changes.push(ChangeInfo {
             name: change,
             stage,

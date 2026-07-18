@@ -188,7 +188,8 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
 
     if args.json {
         let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-        let _config = load_required_config(&llmanspec_dir)?;
+        let config = load_required_config(&llmanspec_dir)?;
+        let bdd_on = config.bdd.is_some();
 
         let content = fs::read_to_string(&proposal_path)?;
         let change = parse_change(&content, change_id, &change_dir)?;
@@ -197,15 +198,25 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
         if args.requirements_only {
             eprintln!("{}", t!("sdd.show.requirements_only_deprecated"));
         }
-        let stage = determine_stage(&change_dir);
+        let stage = determine_stage(&change_dir, bdd_on);
         let artifacts = list_change_artifacts(&change_dir);
         let ready_to_implement = stage == ChangeStage::Full;
+        // BDD-on: surface the attach binding so consumers can tell stage=full
+        // comes from Git-native attach (not change/specs/).
+        let attached = if bdd_on {
+            Some(crate::sdd::spec::validation::has_attach_binding(
+                &change_dir,
+            ))
+        } else {
+            None
+        };
         let output = serde_json::json!({
             "id": change_id,
             "title": title,
             "stage": stage.as_str(),
             "artifacts": artifacts,
             "readyToImplement": ready_to_implement,
+            "attached": attached,
             "deltaCount": deltas.len(),
             "deltas": deltas
         });
@@ -213,8 +224,11 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
         return Ok(());
     }
 
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = load_required_config(&llmanspec_dir).ok();
+    let bdd_on = config.as_ref().map(|c| c.bdd.is_some()).unwrap_or(false);
     let content = fs::read_to_string(&proposal_path)?;
-    let stage = determine_stage(&change_dir);
+    let stage = determine_stage(&change_dir, bdd_on);
     println!("{}", t!("sdd.show.change_stage", stage = stage.as_str()));
     print!("{content}");
     Ok(())

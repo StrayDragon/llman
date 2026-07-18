@@ -511,6 +511,36 @@ fn given_extra_skills(name: String) {
     std::fs::write(dir.join("llmanspec/config.yaml"), config).expect("write extra_skills config");
 }
 
+/// Seed a project with a change directory carrying proposal+design+tasks, and
+/// optionally a Git-native attach binding in proposal frontmatter. Used to
+/// exercise `determine_stage` under BDD-on (r93): `attached = "yes"` writes
+/// non-empty `branch` + `base_sha`; any other value omits them.
+///
+/// `{change}` is the change id (used as the branch name when attached). The
+/// fixture must be combined with `已初始化 sdd 项目且 bdd 配置为 {mode}` first to
+/// establish config + git base ref.
+#[given("变更 {change} 含 proposal design tasks 且 attach 状态为 {attached}")]
+fn given_change_with_artifacts_and_attach(change: String, attached: String) {
+    let dir = fixture_cwd();
+    let change_dir = dir.join("llmanspec/changes").join(&change);
+    std::fs::create_dir_all(&change_dir).expect("mkdir attach-stage fixture change");
+    let attach_flag = attached.trim().trim_matches('"');
+    let frontmatter = if matches!(attach_flag, "yes" | "true" | "attached" | "on") {
+        format!(
+            "---\nchange_id: {change}\ntitle: {change}\nstatus: full\nbranch: feat/{change}\nbase_sha: 0000000000000000000000000000000000000000\n---\n"
+        )
+    } else {
+        format!("---\nchange_id: {change}\ntitle: {change}\nstatus: full\n---\n")
+    };
+    // `parse_change` (used by `show`) requires both `## Why` and `## What Changes`.
+    let proposal = format!(
+        "{frontmatter}\n## Why\nr93 stage fixture.\n\n## What Changes\n- Probe determine_stage.\n"
+    );
+    std::fs::write(change_dir.join("proposal.md"), proposal).expect("write fixture proposal");
+    std::fs::write(change_dir.join("design.md"), "# Design\nr93 fixture.\n").expect("write design");
+    std::fs::write(change_dir.join("tasks.md"), "- [ ] t1\n").expect("write tasks");
+}
+
 // ---------------------------------------------------------------------------
 // When steps
 // ---------------------------------------------------------------------------
@@ -657,6 +687,30 @@ fn then_stdout_has_json_key(key: String) {
             obj.contains_key(&key),
             "expected stdout JSON to contain key {key:?}, got keys: {:?}",
             obj.keys().collect::<Vec<_>>()
+        );
+    });
+}
+
+/// Assert a top-level stdout JSON key equals a string value.
+/// rstest-bdd captures quoted placeholders verbatim, so `{value}` may arrive as
+/// `"full"` — surrounding quotes are stripped before comparison.
+#[then("stdout 的 JSON 键 {key} 为 {value}")]
+fn then_stdout_json_key_equals(key: String, value: String) {
+    with_world(|w| {
+        let parsed: serde_json::Value = serde_json::from_str(&w.stdout)
+            .unwrap_or_else(|e| panic!("stdout is not valid JSON: {e}\n{}", w.stdout));
+        let actual = parsed
+            .get(&key)
+            .unwrap_or_else(|| panic!("stdout JSON missing key {key:?}; got: {parsed}"));
+        // Normalize both sides to JSON string form for comparison.
+        let actual_str = match actual {
+            serde_json::Value::String(s) => s.clone(),
+            other => other.to_string(),
+        };
+        let expected = value.trim().trim_matches('"').to_string();
+        assert!(
+            actual_str == expected,
+            "expected stdout JSON {key:?} = {expected:?}, got {actual_str:?}"
         );
     });
 }

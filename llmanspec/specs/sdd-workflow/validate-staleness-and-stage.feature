@@ -66,20 +66,34 @@
     而且 那么JSON 含 stage、artifacts 与 readyToImplement
     而且 而且readyToImplement 在 stage 非 full 时为 false
 
-  @req:r93
+  @executable @req:r93
   场景: bdd-on-attached-full-without-change-specs
-    假如 config 含 bdd 段且变更已 attach（branch 与 base_sha 非空）且含 proposal.md design.md tasks.md 但无 changes 下 specs 目录
-    当 用户执行 llman sdd show <id> --json --type change
-    而且 那么 JSON 的 stage 为 full 且 readyToImplement 为 true
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 变更 r93-attached 含 proposal design tasks 且 attach 状态为 "yes"
+    当 在非交互终端运行 llman sdd show r93-attached --json --type change
+    那么 退出码为零
+    而且 stdout 为合法 JSON
+    而且 stdout 的 JSON 键 stage 为 "full"
+    而且 stdout 的 JSON 键 readyToImplement 为 "true"
+    而且 stdout 的 JSON 键 attached 为 "true"
 
-  @req:r93
+  @executable @req:r93
   场景: bdd-on-unattached-stays-draft
-    假如 config 含 bdd 段且变更含 proposal.md design.md tasks.md 但未 attach
-    当 用户执行 llman sdd show <id> --json --type change
-    而且 那么 JSON 的 stage 为 draft 且 readyToImplement 为 false
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 变更 r93-bare 含 proposal design tasks 且 attach 状态为 "no"
+    当 在非交互终端运行 llman sdd show r93-bare --json --type change
+    那么 退出码为零
+    而且 stdout 为合法 JSON
+    而且 stdout 的 JSON 键 stage 为 "draft"
+    而且 stdout 的 JSON 键 readyToImplement 为 "false"
 
-  @req:r93
+  @executable @req:r93
   场景: bdd-off-still-needs-change-specs
-    假如 config 不含 bdd 段且变更含 proposal.md design.md tasks.md 但无 change/specs
-    当 用户执行 llman sdd show <id> --json --type change
-    而且 那么 JSON 的 stage 为 draft
+    假如 已初始化 sdd 项目且 bdd 配置为 "off"
+    而且 变更 r93-off 含 proposal design tasks 且 attach 状态为 "yes"
+    当 在非交互终端运行 llman sdd show r93-off --json --type change
+    那么 退出码为零
+    而且 stdout 为合法 JSON
+    而且 stdout 的 JSON 键 stage 为 "draft"
+    而且 stdout 的 JSON 键 readyToImplement 为 "false"
+
