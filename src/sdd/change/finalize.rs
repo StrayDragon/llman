@@ -57,36 +57,42 @@ pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         );
     } else {
         // Fast + optional full validation of the live branch tree.
-        crate::sdd::shared::validate::run(crate::sdd::shared::validate::ValidateArgs {
-            item: None,
-            all: false,
-            changes: false,
-            specs: true,
-            item_type: None,
-            strict: true,
-            json: false,
-            compact_json: false,
-            stage: None,
-            no_interactive: true,
-            check: !args.no_check,
-            no_check: args.no_check,
-        })?;
+        crate::sdd::shared::validate::run(
+            root,
+            crate::sdd::shared::validate::ValidateArgs {
+                item: None,
+                all: false,
+                changes: false,
+                specs: true,
+                item_type: None,
+                strict: true,
+                json: false,
+                compact_json: false,
+                stage: None,
+                no_interactive: true,
+                check: !args.no_check,
+                no_check: args.no_check,
+            },
+        )?;
 
         // Also validate the change documentation itself (proposal/tasks stage).
-        crate::sdd::shared::validate::run(crate::sdd::shared::validate::ValidateArgs {
-            item: Some(args.change.clone()),
-            all: false,
-            changes: false,
-            specs: false,
-            item_type: Some("change".into()),
-            strict: true,
-            json: false,
-            compact_json: false,
-            stage: None,
-            no_interactive: true,
-            check: false,
-            no_check: true,
-        })?;
+        crate::sdd::shared::validate::run(
+            root,
+            crate::sdd::shared::validate::ValidateArgs {
+                item: Some(args.change.clone()),
+                all: false,
+                changes: false,
+                specs: false,
+                item_type: Some("change".into()),
+                strict: true,
+                json: false,
+                compact_json: false,
+                stage: None,
+                no_interactive: true,
+                check: false,
+                no_check: true,
+            },
+        )?;
 
         // Write frontmatter. checkpoint_sha = base_sha (single-commit semantics;
         // the implementation commit has not happened yet so HEAD would be stale).
@@ -143,6 +149,12 @@ mod tests {
         .unwrap();
         // tasks.md all-checked so archive tasks-gate does not interfere.
         fs::write(changes.join("tasks.md"), "# Tasks\n\n- [x] done\n").unwrap();
+        // validate requires design.md when tasks.md is present.
+        fs::write(
+            changes.join("design.md"),
+            "# Design\n\nTest fixture design.\n",
+        )
+        .unwrap();
 
         // git init, default branch rename, commit, branch off.
         let git = |args: &[&str]| {
@@ -191,6 +203,92 @@ mod tests {
         crate::sdd::change::git_native::write_binding(root, change_id, &binding).unwrap();
 
         (tmp, change_id.to_string(), base_sha)
+    }
+
+    #[test]
+    fn finalize_writes_checkpointed_and_base_sha_then_archives() {
+        // Full happy path: dirty tree → finalize → archive rename, with the
+        // internal validate::run exercised against the TempDir root (no chdir).
+        // This is the coverage gap flagged in the parent change's verify report
+        // (W1); it became possible once validate::run accepted a root parameter.
+        let (tmp, id, base_sha) = setup_repo_with_attached_change("finalize-happy");
+        let root = tmp.path();
+
+        // Seed a minimal BDD-on spec so `validate --specs` has something to pass
+        // on. r1 + a non-executable scenario; no .feature (so BDD runner is a
+        // no-op even if accidentally invoked; we also pass --no-check).
+        let sample_dir = root.join("llmanspec/specs/sample");
+        fs::create_dir_all(&sample_dir).unwrap();
+        fs::write(
+            sample_dir.join("spec.toon"),
+            "kind: llman.sdd.spec\n\
+             name: \"sample\"\n\
+             purpose: \"sample for finalize happy-path test\"\n\
+             valid_scope[1]: \"llmanspec/specs/sample\"\n\
+             requirements[1]{req_id,title,statement}:\n\
+             \x20 r1,R1,\"System MUST do X.\"\n\
+             scenarios[1]{req_id,id,given,when,then,feature}:\n\
+             \x20 r1,happy,constraint note,trigger,outcome,false\n",
+        )
+        .unwrap();
+        // Commit the spec so the tree isn't carrying untracked files that would
+        // trip staleness warnings (warnings, not errors — but keep it clean).
+        std::process::Command::new("git")
+            .args(["add", "-A"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "add sample spec"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+
+        // Make the tree dirty (simulating uncommitted implementation) to prove
+        // finalize does not require a clean tree.
+        fs::write(
+            root.join("llmanspec/specs/sample/impl.txt"),
+            "dirty implementation",
+        )
+        .unwrap();
+
+        run_finalize(
+            root,
+            FinalizeArgs {
+                change: id.clone(),
+                no_check: true,
+            },
+        )
+        .expect("finalize succeeds");
+
+        // Active change dir is gone; archive entry exists.
+        assert!(
+            !root.join("llmanspec/changes").join(&id).exists(),
+            "active change dir should be gone"
+        );
+        let entries: Vec<_> = std::fs::read_dir(root.join("llmanspec/changes/archive"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        let archived_name = entries
+            .iter()
+            .find(|n| n.ends_with(&format!("-{id}")))
+            .cloned()
+            .unwrap_or_else(|| panic!("archive entry not found: {entries:?}"));
+
+        // Archived proposal.md carries the finalize semantics: checkpointed=true
+        // and checkpoint_sha == base_sha (Route C).
+        let proposal = fs::read_to_string(
+            root.join("llmanspec/changes/archive")
+                .join(&archived_name)
+                .join("proposal.md"),
+        )
+        .unwrap();
+        assert!(proposal.contains("checkpointed: true"));
+        assert!(
+            proposal.contains(&format!("checkpoint_sha: {base_sha}")),
+            "expected checkpoint_sha == base_sha in:\n{proposal}"
+        );
     }
 
     #[test]

@@ -353,36 +353,42 @@ pub fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
     }
 
     // Fast + optional full validation of the live branch tree.
-    crate::sdd::shared::validate::run(crate::sdd::shared::validate::ValidateArgs {
-        item: None,
-        all: false,
-        changes: false,
-        specs: true,
-        item_type: None,
-        strict: true,
-        json: false,
-        compact_json: false,
-        stage: None,
-        no_interactive: true,
-        check: !args.no_check,
-        no_check: args.no_check,
-    })?;
+    crate::sdd::shared::validate::run(
+        root,
+        crate::sdd::shared::validate::ValidateArgs {
+            item: None,
+            all: false,
+            changes: false,
+            specs: true,
+            item_type: None,
+            strict: true,
+            json: false,
+            compact_json: false,
+            stage: None,
+            no_interactive: true,
+            check: !args.no_check,
+            no_check: args.no_check,
+        },
+    )?;
 
     // Also validate the change documentation itself (proposal/tasks stage).
-    crate::sdd::shared::validate::run(crate::sdd::shared::validate::ValidateArgs {
-        item: Some(args.change.clone()),
-        all: false,
-        changes: false,
-        specs: false,
-        item_type: Some("change".into()),
-        strict: true,
-        json: false,
-        compact_json: false,
-        stage: None,
-        no_interactive: true,
-        check: false,
-        no_check: true,
-    })?;
+    crate::sdd::shared::validate::run(
+        root,
+        crate::sdd::shared::validate::ValidateArgs {
+            item: Some(args.change.clone()),
+            all: false,
+            changes: false,
+            specs: false,
+            item_type: Some("change".into()),
+            strict: true,
+            json: false,
+            compact_json: false,
+            stage: None,
+            no_interactive: true,
+            check: false,
+            no_check: true,
+        },
+    )?;
 
     let head = current_head_sha(root)?;
     binding.checkpointed = true;
