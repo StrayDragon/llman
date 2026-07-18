@@ -27,13 +27,13 @@
     而且 而且指引按 specs → design → tasks 顺序长大到 full
 
   场景: apply draft 守卫
-    假如 变更处于非 full 阶段
+    假如 变更处于非 full 阶段（缺工件，或 BDD-on 未 attach）
     当 用户调用 llman-sdd-apply
     而且 那么skill 通过 show 读取 stage 后拒绝实施并 STOP
-    而且 而且引导使用 llman-sdd-continue 长大到 full
+    而且 而且引导使用 llman-sdd-continue 长大到 full 或先 attach
 
   场景: apply full 放行
-    假如 变更处于 full 阶段
+    假如 变更处于 full 阶段（含 BDD-on：已 attach 且 proposal/design/tasks 齐全、无 change/specs）
     当 用户调用 llman-sdd-apply
     而且 那么skill 正常实施 tasks.md 中的任务
 
@@ -48,10 +48,10 @@
     而且 那么提示使用 llman-sdd-continue 继续
 
   场景: verify non-full 守卫
-    假如 变更处于非 full 阶段
+    假如 变更处于非 full 阶段（缺工件，或 BDD-on 未 attach）
     当 用户调用 llman-sdd-verify
     而且 那么skill 通过 show 读取 stage 后拒绝验证并 STOP
-    而且 而且引导使用 llman-sdd-continue 长大到 full
+    而且 而且引导使用 llman-sdd-continue 长大到 full 或先 attach
 
   场景: sync 同步 delta specs 后验证
     假如 用户调用 llman-sdd-sync <change-name>

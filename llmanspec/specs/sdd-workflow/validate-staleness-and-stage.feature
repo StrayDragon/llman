@@ -65,3 +65,21 @@
     当 用户执行 llman sdd show <id> --json --type change
     而且 那么JSON 含 stage、artifacts 与 readyToImplement
     而且 而且readyToImplement 在 stage 非 full 时为 false
+
+  @req:r93
+  场景: bdd-on-attached-full-without-change-specs
+    假如 config 含 bdd 段且变更已 attach（branch 与 base_sha 非空）且含 proposal.md design.md tasks.md 但无 changes 下 specs 目录
+    当 用户执行 llman sdd show <id> --json --type change
+    而且 那么 JSON 的 stage 为 full 且 readyToImplement 为 true
+
+  @req:r93
+  场景: bdd-on-unattached-stays-draft
+    假如 config 含 bdd 段且变更含 proposal.md design.md tasks.md 但未 attach
+    当 用户执行 llman sdd show <id> --json --type change
+    而且 那么 JSON 的 stage 为 draft 且 readyToImplement 为 false
+
+  @req:r93
+  场景: bdd-off-still-needs-change-specs
+    假如 config 不含 bdd 段且变更含 proposal.md design.md tasks.md 但无 change/specs
+    当 用户执行 llman sdd show <id> --json --type change
+    而且 那么 JSON 的 stage 为 draft
