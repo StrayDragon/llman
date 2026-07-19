@@ -2,9 +2,11 @@ kind: llman.sdd.spec
 name: "sdd-structured-skill-prompts"
 purpose: 规范 SDD 技能模板的结构化提示协议（Context/Goal/Constraints/Workflow/Decision Policy/Output Contract 及治理字段）。
 valid_scope[1]: "llmanspec/specs/sdd-structured-skill-prompts"
-requirements[2]{req_id,title,statement}:
+requirements[3]{req_id,title,statement}:
   r32,SDD 技能结构化提示协议含 Partitioned BDD,"llman SDD 的技能模板 MUST 采用统一结构化提示协议（Context/Goal/Constraints/Workflow/Decision Policy/Output Contract），并通过模板单元注入组装。Constraints MUST 含 context-first 与 triage。当项目 BDD-on 时，propose/archive/apply/verify/explore 技能 MUST 描述 Git-native Partitioned SSOT：toon=约束层、feature=harness 层、在 feature 分支编辑 live 文件并用 change attach/checkpoint、禁止教导 feature_delta 或 solidify 或 toon 投影覆盖 feature。"
-  r65,propose 与 archive 技能对齐 Git-native,"llman-sdd-propose 与 llman-sdd-archive 技能 MUST 声明：BDD-on 在非默认分支编辑 live `.feature`/`spec.toon`，attach/checkpoint 后 docs-only archive，再 Git merge；禁止要求 agent 双写可执行 GWT 或运行 solidify。"
-scenarios[2]{req_id,id,given,when,then,feature}:
-  r32,"skills-mention-partitioned",agent 阅读生成的 propose 或 archive 技能模板,检查 Constraints 或 Workflow,提及 Partitioned 或 Git-native 或 harness 且不要求 toon 投影覆盖 feature,false
+  r65,"propose 与 archive 技能对齐 Git-native","llman-sdd-propose 与 llman-sdd-archive 技能 MUST 声明：BDD-on 在非默认分支编辑 live `.feature`/`spec.toon`，attach/checkpoint 后 docs-only archive，再 Git merge；禁止要求 agent 双写可执行 GWT 或运行 solidify。"
+  r96,Skill 模板按 BDD 模式条件渲染,"SDD skill 模板 MUST 经 MiniJinja 按项目 bdd_enabled（config 是否含 bdd:）条件渲染：BDD-on 产物的 propose/apply/verify/archive/explore description 与正文 MUST NOT 将 change 内 delta specs 表述为主要规划产物，MUST 以 feature 分支 live spec.toon 与 *.feature 加 attach/finalize 为主路径；BDD-off 产物 MUST NOT 将 attach/checkpoint/finalize 表述为必经。对 optional skills（continue/ff/sync/validate/new-change）的「下一步」推荐 MUST 仅在 config.extra_skills 包含对应项时出现，否则 MUST 给出不依赖该 skill 的替代指引。渲染产物 MUST 保留各 skill 内 mermaid pipeline 图。sdd-commands 等共享单元 SHOULD 按模式裁剪无关命令行。"
+scenarios[3]{req_id,id,given,when,then,feature}:
+  r32,"skills-mention-partitioned",agent 阅读生成的 propose 或 archive 技能模板,检查 Constraints 或 Workflow,"提及 Partitioned 或 Git-native 或 harness 且不要求 toon 投影覆盖 feature",false
   r65,"propose-skill-no-toon-ssot-only",更新后的 propose 技能文案,搜索唯一真源表述,MUST NOT 写明 toon 为可执行 GWT 的唯一真源,false
+  r96,"bdd-conditioned-skills-note",约束层说明,"update-skills 在 BDD-on 与 BDD-off 项目分别渲染",产物路径与交叉引用符合模式；保留 mermaid,false
