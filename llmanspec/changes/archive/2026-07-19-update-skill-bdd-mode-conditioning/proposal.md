@@ -3,7 +3,8 @@ id: update-skill-bdd-mode-conditioning
 depends_on: []
 branch: feat/update-skill-bdd-mode-conditioning
 base_sha: 7aaab05c9eabcfd6b26b4b2e7b0082d959997154
-checkpointed: false
+checkpointed: true
+checkpoint_sha: 7aaab05c9eabcfd6b26b4b2e7b0082d959997154
 ---
 
 # Proposal: Skill 按 BDD 模式条件渲染 + 元信息一致性门禁 + context 懒刷新

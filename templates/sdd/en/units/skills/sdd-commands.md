@@ -10,11 +10,15 @@ Common commands:
 - `llman sdd index rebuild` (rebuild the pageindex tree index — no model needed)
 - `llman sdd index check` (check index freshness)
 - `llman sdd change new <id>` (create draft `changes/<id>/proposal.md`)
+{% if bdd_enabled %}
 - `llman sdd change attach <id> [--force]` (BDD-on: bind feature branch + base SHA)
 - `llman sdd change finalize <id> [--no-check]` (BDD-on: **recommended single-commit path** — dirty tree OK; same-process checkpoint + docs-only archive; writes `checkpoint_sha = base_sha`)
 - `llman sdd change checkpoint <id> [--no-check]` (BDD-on: clean tree + gates before archive; strict sha = HEAD)
 - `llman sdd change diff <id> [--export-patch <path>]` (BDD-on: read-only `base...HEAD` review/export)
+{% endif %}
+{% if not bdd_enabled %}
 - `llman sdd change delta …` (BDD-off only: TOON delta authoring; rejected when BDD-on)
+{% endif %}
 - `llman sdd change archive <id>` (seal a change; BDD-on: docs only after checkpoint / finalize fallback; BDD-off: merge TOON deltas)
 - `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]` (freeze archived dirs)
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]` (restore from cold-backup)

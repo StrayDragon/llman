@@ -3,6 +3,9 @@ name: "llman-sdd-verify"
 description: "Verify that an implemented llman SDD change matches its specs, design, and tasks. Produces a report (CRITICAL / WARNING / SUGGESTION) comparing code to artifacts. Run after apply completes. If clean, the change is ready to archive."
 metadata:
   version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Verify
@@ -43,9 +46,16 @@ flowchart LR
    - `llman sdd validate <id> --strict --no-interactive`
    - **When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / global req_id uniqueness), prefer adding `--no-check`** (skips the potentially slow `bdd.run_command` under BDD-on); run the full `--check` (full mode) only after structural gates are green. Each `FAIL <item_type>/<id>` line lists a failing item (above the Totals line).
 4. Read:
+{% if bdd_enabled %}
+   - Live specs on the feature branch: `llmanspec/specs/**` (`spec.toon` + `*.feature`) — SSOT under BDD-on
+   - `proposal.md` and `design.md` if present
+   - `tasks.md` to understand what was implemented
+   - `llmanspec/changes/<id>/specs/` only if residual docs exist (prefer live specs)
+{% else %}
    - Delta specs under `llmanspec/changes/<id>/specs/`
    - `proposal.md` and `design.md` if present
    - `tasks.md` to understand what was implemented
+{% endif %}
 5. Compare artifacts vs code:
    - Identify mismatches (missing behavior, wrong behavior, missing tests/docs)
    - Suggest minimal fixes or artifact updates

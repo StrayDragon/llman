@@ -3,6 +3,9 @@ name: "llman-sdd-sync"
 description: "Manually sync delta specs into main specs without archiving the change."
 metadata:
   version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Sync

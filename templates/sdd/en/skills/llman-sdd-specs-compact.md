@@ -3,6 +3,9 @@ name: "llman-sdd-specs-compact"
 description: "Human-triggered maintenance tool. Compacts and deduplicates llman SDD specs after many archived changes — merges redundant requirements and scenarios while preserving all normative behavior. NOT part of the regular pipeline: only run when the user explicitly asks to compact specs."
 metadata:
   version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Specs Compact

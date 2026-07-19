@@ -74,11 +74,11 @@ fn resolve_optional_skills(config: &SddConfig) -> Vec<&'static str> {
 pub fn skill_templates(config: &SddConfig, root: &Path) -> Result<Vec<SkillTemplate>> {
     let mut files = Vec::new();
     for name in DEFAULT_SKILL_FILES {
-        let content = load_template(config, root, &format!("skills/{}", name))?;
+        let content = load_skill_template(config, root, name, "default")?;
         files.push(SkillTemplate { name, content });
     }
     for name in resolve_optional_skills(config) {
-        let content = load_template(config, root, &format!("skills/{}", name))?;
+        let content = load_skill_template(config, root, name, "optional")?;
         files.push(SkillTemplate { name, content });
     }
     Ok(files)
@@ -86,6 +86,24 @@ pub fn skill_templates(config: &SddConfig, root: &Path) -> Result<Vec<SkillTempl
 
 pub fn root_stub_content(config: &SddConfig, root: &Path) -> Result<String> {
     load_template(config, root, "agents-root-stub.md")
+}
+
+fn load_skill_template(
+    config: &SddConfig,
+    root: &Path,
+    skill_file: &str,
+    skill_set: &str,
+) -> Result<String> {
+    let units = load_template_units(config, root)?;
+    let mut vars = build_template_vars(config);
+    vars.insert("skill_set".to_string(), skill_set.to_string());
+    load_template_with_context(
+        config,
+        root,
+        &format!("skills/{}", skill_file),
+        &units,
+        &vars,
+    )
 }
 
 fn load_template(config: &SddConfig, root: &Path, relative_path: &str) -> Result<String> {
@@ -101,6 +119,11 @@ fn build_template_vars(config: &SddConfig) -> BTreeMap<String, String> {
         "llman_version".to_string(),
         env!("CARGO_PKG_VERSION").to_string(),
     );
+    let bdd_mode = if config.bdd.is_some() { "on" } else { "off" };
+    vars.insert("bdd_mode".to_string(), bdd_mode.to_string());
+    // Default skill_set; overridden per-skill in load_skill_template.
+    vars.insert("skill_set".to_string(), "default".to_string());
+
     if let Some(ref bdd) = config.bdd {
         vars.insert("bdd_enabled".to_string(), "true".to_string());
         vars.insert("bdd_framework".to_string(), bdd.framework.clone());
@@ -113,6 +136,22 @@ fn build_template_vars(config: &SddConfig) -> BTreeMap<String, String> {
         }
         if let Some(ref prompt) = bdd.verify_prompt {
             vars.insert("bdd_verify_prompt".to_string(), prompt.clone());
+        }
+    }
+
+    let extras: HashSet<&str> = config
+        .extra_skills
+        .as_ref()
+        .map(|v| v.iter().map(|s| s.as_str()).collect())
+        .unwrap_or_default();
+    for name in OPTIONAL_SKILL_FILES {
+        let stem = name.trim_end_matches(".md");
+        let key = format!(
+            "extra_skill_{}",
+            stem.trim_start_matches("llman-sdd-").replace('-', "_")
+        );
+        if extras.contains(stem) {
+            vars.insert(key, "true".to_string());
         }
     }
     vars

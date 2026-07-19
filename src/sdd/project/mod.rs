@@ -5,6 +5,7 @@ pub mod interop;
 pub mod migrate;
 pub mod partition_migrate;
 pub mod regions;
+pub mod skill_consistency;
 pub mod solidify_migrate;
 pub mod templates;
 pub mod update_skills;

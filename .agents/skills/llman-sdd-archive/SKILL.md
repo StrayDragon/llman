@@ -3,6 +3,9 @@ name: "llman-sdd-archive"
 description: "归档已完成的 llman SDD 变更。BDD-off 合并 TOON delta 到主 specs；BDD-on 在 attach/checkpoint 后仅封存 change 文档，再由 Git/PR merge 提升 live specs。在 verify 报告全绿后运行。"
 metadata:
   version: "0.0.64"
+  llman_sdd:
+    bdd_mode: "on"
+    skill_set: "default"
 ---
 
 # LLMAN SDD 归档
@@ -104,11 +107,15 @@ flowchart LR
 - `llman sdd index rebuild`（重建 pageindex 树索引——不需要模型）
 - `llman sdd index check`（检查索引新鲜度）
 - `llman sdd change new <id>`（创建草稿 `changes/<id>/proposal.md`）
+{% if bdd_enabled %}
 - `llman sdd change attach <id> [--force]`（BDD-on：绑定 feature 分支 + base SHA）
 - `llman sdd change finalize <id> [--no-check]`（BDD-on：**推荐单 commit 路径**——不要求干净树；同进程 checkpoint + docs-only archive；写 `checkpoint_sha = base_sha`）
 - `llman sdd change checkpoint <id> [--no-check]`（BDD-on：干净工作区 + 归档前门禁；严格 sha = HEAD）
 - `llman sdd change diff <id> [--export-patch <path>]`（BDD-on：只读 `base...HEAD` 审查/导出）
+{% endif %}
+{% if not bdd_enabled %}
 - `llman sdd change delta …`（仅 BDD-off：TOON delta 作者工具；BDD-on 会拒绝）
+{% endif %}
 - `llman sdd change archive <id>`（封存变更；BDD-on：checkpoint 后仅文档 / 或作 finalize fallback；BDD-off：合并 TOON delta）
 - `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（冻结已归档目录）
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备份恢复）

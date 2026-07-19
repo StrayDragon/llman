@@ -3,6 +3,9 @@ name: "llman-sdd-continue"
 description: "继续一个 llman SDD change：创建下一个缺失的 artifact。"
 metadata:
   version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Continue
