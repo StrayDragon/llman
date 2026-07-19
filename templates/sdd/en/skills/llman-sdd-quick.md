@@ -3,6 +3,9 @@ name: "llman-sdd-quick"
 description: "Handle small code changes that do NOT modify behavioral contracts — no MUST/SHALL changes, no spec modifications. Use for refactors, typo fixes, or perf tweaks. Switch to propose for anything affecting externally observable behavior."
 metadata:
   version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Quick Path

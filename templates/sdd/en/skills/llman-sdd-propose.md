@@ -1,13 +1,20 @@
 ---
 name: "llman-sdd-propose"
-description: "Create a new llman SDD change proposal with planning artifacts (proposal, delta specs, tasks) in one pass. Use when the user asks to define a formal change — especially for behavioral contract changes that modify MUST/SHALL requirements."
+description: "{% if bdd_enabled %}Create an llman SDD change proposal with planning artifacts (proposal/tasks; edit live specs/features on a feature branch and attach). Use for MUST/SHALL behavioral contract changes.{% else %}Create a new llman SDD change proposal with planning artifacts (proposal, delta specs, tasks) in one pass. Use when the user asks to define a formal change — especially for behavioral contract changes that modify MUST/SHALL requirements.{% endif %}"
 metadata:
   version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Propose
 
+{% if bdd_enabled %}
+Create a new change with planning artifacts (proposal + tasks; design optional), edit live `spec.toon` / `*.feature` on a feature branch, `change attach`, validate, and suggest next actions.
+{% else %}
 Create a new change and generate all planning artifacts in one pass (proposal + delta specs + tasks; design optional), then validate and suggest next actions.
+{% endif %}
 
 ## Pipeline Position
 
@@ -30,7 +37,11 @@ flowchart LR
 - **Must confirm change id with user before writing files**: change boundaries must stay clear.
 - **BDD-off delta specs must have at least one op + one scenario**: otherwise validation fails. (BDD-on uses live specs on the feature branch instead.)
 - **Don't ask "should I continue?"**: execute the full propose phase in one pass, generate artifacts and validate.
+{% if extra_skill_continue %}
 - **If change already exists**: STOP and suggest `llman-sdd-continue` or `llman-sdd-apply`.
+{% else %}
+- **If change already exists**: STOP and suggest `llman-sdd-apply`; to fill missing artifacts, edit `llmanspec/changes/<id>/` directly (or enable `extra_skills: [llman-sdd-continue]`).
+{% endif %}
 
 ## Steps
 
@@ -58,7 +69,11 @@ flowchart LR
 
 ### 3) Create change directory and artifacts
    - Prefer `llman sdd change new <change-id>` for the draft `proposal.md` shell (or create `llmanspec/changes/<change-id>/` manually).
+{% if extra_skill_continue %}
    - If the change already exists, STOP and suggest `llman-sdd-continue`.
+{% else %}
+   - If the change already exists, STOP and suggest filling missing artifacts or `llman-sdd-apply` (optionally enable continue via `extra_skills`).
+{% endif %}
    - Flesh out `proposal.md` (Why / What Changes / Capabilities / Impact)
    - `design.md` only when tradeoffs/migrations matter
    - `tasks.md` as an ordered checklist (include validation commands)

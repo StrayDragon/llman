@@ -42,6 +42,9 @@ pub(crate) fn run_with_root(root: &Path) -> Result<()> {
 
     write_tool_skills(&skills_base, &templates)?;
 
+    // Ensure rendered skills match project bdd mode (self-check after write).
+    super::skill_consistency::check_installed_skills_bdd_mode(root, &config)?;
+
     Ok(())
 }
 

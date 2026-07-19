@@ -3,6 +3,9 @@ name: "llman-sdd-apply-cycle"
 description: "Single closed-loop for one change: implement→test→validate→archive→commit. Manual trigger only. Agent MUST NOT auto-invoke."
 metadata:
   version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 disable-model-invocation: true
 ---
 
@@ -34,9 +37,23 @@ llman sdd validate <change-id> --strict --no-interactive
 If validation fails, fix issues and retry (up to 3 times).
 
 ### 3) Archive
+{% if bdd_enabled %}
+Prefer:
+```bash
+llman sdd change finalize <change-id>
+```
+(dirty tree OK; then one `git commit`.)
+
+Fallback:
+```bash
+llman sdd change checkpoint <change-id>
+llman sdd change archive <change-id>
+```
+{% else %}
 ```bash
 llman sdd change archive <change-id>
 ```
+{% endif %}
 
 ### 4) Commit
 ```bash

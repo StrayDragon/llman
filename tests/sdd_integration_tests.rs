@@ -836,7 +836,10 @@ fn test_sdd_update_skills_new_style_uses_markdown_override() {
 name: "llman-sdd-explore"
 description: "markdown override"
 metadata:
-  llman-template-version: 1
+  version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 ---
 
 # Markdown Override

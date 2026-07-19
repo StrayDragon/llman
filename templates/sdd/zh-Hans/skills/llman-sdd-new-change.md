@@ -3,6 +3,9 @@ name: "llman-sdd-new-change"
 description: "创建新的 SDD 变更提案与增量 specs。"
 metadata:
   version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD 新变更

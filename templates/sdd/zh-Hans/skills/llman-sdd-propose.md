@@ -1,13 +1,20 @@
 ---
 name: "llman-sdd-propose"
-description: "创建 llman SDD 变更提案，一次性生成 proposal + delta specs + tasks 等规划工件。用于正式定义变更——尤其是涉及 MUST/SHALL 行为合约的变更。"
+description: "{% if bdd_enabled %}创建 llman SDD 变更提案与规划工件（proposal/tasks；在 feature 分支编辑 live specs/features 并 attach）。用于 MUST/SHALL 行为合约变更。{% else %}创建 llman SDD 变更提案，一次性生成 proposal + delta specs + tasks 等规划工件。用于正式定义变更——尤其是涉及 MUST/SHALL 行为合约的变更。{% endif %}"
 metadata:
   version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD 提案（Propose）
 
+{% if bdd_enabled %}
+创建一个新变更并生成规划工件（proposal + tasks；design 可选），在 feature 分支上编辑 live `spec.toon` / `*.feature`，然后 `change attach`、校验并建议下一步。
+{% else %}
 创建一个新变更，并一次性生成所有规划工件（proposal + delta specs + tasks；design 可选），然后执行校验并建议下一步动作。
+{% endif %}
 
 ## Pipeline 位置
 
@@ -30,7 +37,11 @@ flowchart LR
 - **必须与用户确认 change id 后再写文件**：不同变更的边界不能模糊。
 - **BDD-off 的 delta specs 至少含一个 op + 一个 scenario**：否则验证不通过。（BDD-on 以 feature 分支上的 live specs 为 SSOT。）
 - **不要问「要不要继续」**：在 propose 阶段内一路执行到底，生成工件并校验。
+{% if extra_skill_continue %}
 - **若变更已存在**：STOP 并建议用户使用 `llman-sdd-apply` 或 `llman-sdd-continue`。
+{% else %}
+- **若变更已存在**：STOP 并建议用户使用 `llman-sdd-apply`；若需补齐缺失 artifact，直接编辑 `llmanspec/changes/<id>/`（或启用 `extra_skills: [llman-sdd-continue]` 后使用 continue）。
+{% endif %}
 
 ## 步骤
 
@@ -58,7 +69,11 @@ flowchart LR
 
 ### 3) 创建变更目录与工件
    - 建议先用 `llman sdd change new <change-id>` 生成草稿 `proposal.md`（或手动创建 `llmanspec/changes/<change-id>/`）。
+{% if extra_skill_continue %}
    - 若变更已存在，STOP 并建议使用 `llman-sdd-continue`。
+{% else %}
+   - 若变更已存在，STOP 并建议补齐缺失 artifact 或改用 `llman-sdd-apply`（可选启用 `extra_skills` 中的 continue）。
+{% endif %}
    - 充实 `proposal.md`（Why / What Changes / Capabilities / Impact）
    - 仅在涉及权衡/迁移时创建 `design.md`
    - `tasks.md`：按顺序拆分为可勾选清单（包含校验命令）
