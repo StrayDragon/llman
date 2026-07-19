@@ -93,12 +93,16 @@ pub async fn context_run(
     backend: Backend,
 ) -> Result<()> {
     let llmanspec_dir = find_llmanspec_dir(Path::new("."))?;
-    let _config = load_required_config(&llmanspec_dir)?;
+    let config = load_required_config(&llmanspec_dir)?;
     let context_dir = llmanspec_dir.join(".context");
     let specs_dir = llmanspec_dir.join("specs");
+    let lang = crate::sdd::spec::validation::locale_to_gherkin_lang(
+        Some(&config.locale),
+        config.bdd.as_ref(),
+    );
     // Only pageindex is supported.
     let _ = backend;
-    context_run_pageindex(&context_dir, &specs_dir, task, paths, top).await
+    context_run_pageindex(&context_dir, &specs_dir, task, paths, top, &lang).await
 }
 
 /// pageindex backend: agentic tree retrieval.
@@ -108,26 +112,21 @@ async fn context_run_pageindex(
     task: Option<String>,
     paths: Vec<String>,
     top: usize,
+    lang: &str,
 ) -> Result<()> {
     match check_freshness(context_dir, specs_dir, Backend::Pageindex) {
         IndexFreshness::Fresh => run_pageindex_retrieval(context_dir, task, paths, top).await,
-        IndexFreshness::Stale { .. } => {
-            print_err("index_stale", "index stale; run `llman sdd index rebuild`");
-            Ok(())
-        }
-        IndexFreshness::Missing => {
-            print_err(
-                "index_missing",
-                "index missing; run `llman sdd index rebuild`",
-            );
-            Ok(())
-        }
-        IndexFreshness::Corrupted(msg) => {
-            print_err(
-                "index_corrupted",
-                &format!("index corrupted ({msg}); run `llman sdd index rebuild`"),
-            );
-            Ok(())
+        IndexFreshness::Stale { .. } | IndexFreshness::Missing | IndexFreshness::Corrupted(_) => {
+            // Lazy refresh (r97): rebuild tree index then retrieve.
+            // Chat-model errors after rebuild still surface as api_error.
+            if let Err(e) = index_rebuild_pageindex(context_dir, specs_dir, lang).await {
+                print_err(
+                    "index_rebuild_failed",
+                    &format!("auto-rebuild failed: {e}; run `llman sdd index rebuild`"),
+                );
+                return Ok(());
+            }
+            run_pageindex_retrieval(context_dir, task, paths, top).await
         }
     }
 }

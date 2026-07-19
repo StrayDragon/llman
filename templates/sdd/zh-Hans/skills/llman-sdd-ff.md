@@ -3,6 +3,9 @@ name: "llman-sdd-ff"
 description: "Fast-forward：一次性创建 proposal/specs/design/tasks。"
 metadata:
   version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Fast-Forward (FF)

@@ -88,3 +88,20 @@
     当 在非交互终端运行 llman sdd init --update
     那么 退出码为零
     那么 相对路径 .agents/skills/llman-sdd-sync 存在
+
+  @executable @req:r95
+  场景: validate 拒绝缺少 llman_sdd 元信息的托管 skill
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    假如 项目中存在技能目录 llman-sdd-explore
+    当 运行 llman sdd validate --all --strict --no-check --no-interactive
+    那么 退出码非零
+    那么 stderr 包含 init --update
+
+  @executable @req:r95
+  场景: init --update 写入 bdd_mode 后 validate 通过
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    假如 项目中存在技能目录 llman-sdd-explore
+    当 在非交互终端运行 llman sdd init --update
+    那么 退出码为零
+    当 运行 llman sdd validate --all --strict --no-check --no-interactive
+    那么 退出码为零
