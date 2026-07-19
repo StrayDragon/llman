@@ -2,11 +2,13 @@ kind: llman.sdd.spec
 name: "sdd-context"
 purpose: 规范 `llman sdd context` 命令的后端选项、默认值与 pageindex 检索行为。
 valid_scope[1]: "llmanspec/specs/sdd-context"
-requirements[3]{req_id,title,statement}:
+requirements[4]{req_id,title,statement}:
   r27,pageindex backend and config isolation,"llman sdd index/context MUST only support `--backend pageindex`. Chat model and embedding model configuration MUST be separated. The default chat host MUST be a safe empty value: when unset (and without OpenAI host fallback), ChatConfig MUST error with guidance to set `LLMAN_SDD_INDEX_CHAT_API_HOST` rather than routing to an implicit endpoint."
   r58,"Scenario-Aware Retrieval Partitioned",build_docs 与检索工具 MUST 按 Partitioned SSOT 暴露场景：可执行 GWT 以 *.feature 为权威；spec.toon 仅提供 requirements 与不可执行 scenarios。compute_spec_hash MUST 仍哈希 *.feature 与 spec.toon。get_document_structure MUST 能列出 requirement 下经由 @req 关联的 harness 场景 id。get_spec_content MUST 返回对应 given/when/then 全文且同一 scenario id MUST NOT 出现两份正文。旧 tree.json 无 scenarios 字段 MUST 仍可加载；无 .feature 的 spec MUST 行为与仅 toon 一致。
   r79,Feature Embedding 单次且 feature 优先,"index_rebuild 在 BDD-on 时 MUST 解析 *.feature 并编入索引；与 toon 可执行行同 id 碰撞时 MUST 以 feature 为准且 MUST NOT 再 embed toon 副本。toon 中不可执行 scenarios MUST 仍编入。req_id 优先取自 @req 标签；无标签时可为 spec-level 空 req_id 并在 validate 中按门禁告警。畸形 .feature MUST 跳过并警告而非中止 rebuild。BDD-off 或无 .feature 时输出 MUST 与仅 toon 一致。"
-scenarios[3]{req_id,id,given,when,then,feature}:
+  r97,context 对 stale/missing 懒刷新,llman sdd context 在 pageindex 索引为 stale 或 missing 时 MUST 自动执行一次 index rebuild（无需 chat model）后再进行 retrieval，MUST NOT 仅因 stale 或 missing 返回 status.quality=unavailable 或 errorKind index_stale/index_missing。索引 corrupted 时 MUST 尝试 rebuild；rebuild 失败则非零或 JSON error。chat model 未配置时，在成功 rebuild 后仍可按既有 api_error 语义失败。
+scenarios[4]{req_id,id,given,when,then,feature}:
   r58,"get-spec-content-no-dual-gwt",tree.json 中同 id 不应双份,调用 get_spec_content,返回的 given/when/then 每个 scenario id 至多一份,false
   r79,"rebuild-feature-wins-collision",spec 目录曾双写同 id GWT,执行 sdd index rebuild,索引中该 id 仅一份且正文来自 feature,false
   r79,"rebuild-embeds-feature-once",某 spec 含 .feature 与仅约束 toon,执行 sdd index rebuild,harness 场景来自 feature 且无 toon 可执行副本,false
+  r97,"context-lazy-rebuild-note",约束层说明,index stale 时运行 sdd context,自动 rebuild 后再检索；不因 stale 直接 unavailable,false
