@@ -19,27 +19,27 @@
 
 ## 2. 实现：元信息 + 一致性检查
 
-- [ ] 2.1 模板 frontmatter：所有默认/optional skill 模板写入 `metadata.llman_sdd`；
+- [x] 2.1 模板 frontmatter：所有默认/optional skill 模板写入 `metadata.llman_sdd`；
       `update-skills` 渲染时填入正确 `bdd_mode` / `skill_set`。
-- [ ] 2.2 实现 `check_installed_skills_bdd_mode`（或等价）并挂到 validate、init --update、
+- [x] 2.2 实现 `check_installed_skills_bdd_mode`（或等价）并挂到 validate、init --update、
       update-skills。
-- [ ] 2.3 单元/集成测试：mismatch ERROR、缺字段 ERROR、匹配 OK、自定义非 `llman-sdd-*` 忽略。
-- [ ] 2.4 i18n 错误串含修复命令。
+- [x] 2.3 单元/集成测试：mismatch ERROR、缺字段 ERROR、匹配 OK、自定义非 `llman-sdd-*` 忽略。
+- [x] 2.4 i18n 错误串含修复命令。
 
 ## 3. 实现：模板条件化与描述修复
 
-- [ ] 3.1 propose/apply/verify/archive/explore/quick（及 units `sdd-commands` /
+- [x] 3.1 propose/apply/verify/archive/explore/quick（及 units `sdd-commands` /
       `structured-protocol`）按 `bdd_enabled` / `extra_skills` 条件化。
-- [ ] 3.2 修复：propose 不以 delta 为 BDD-on 主表述；verify 优先 live specs；continue 引用门控；
+- [x] 3.2 修复：propose 不以 delta 为 BDD-on 主表述；verify 优先 live specs；continue 引用门控；
       apply-cycle BDD-on 提及 finalize（手动 skill 可简短）。
-- [ ] 3.3 保留 mermaid；裁剪与模式无关的命令/空 Ethics。
-- [ ] 3.4 `just check-sdd-templates` 通过；对本仓执行 `update-skills` 刷新 `.agents/skills`。
+- [x] 3.3 保留 mermaid；裁剪与模式无关的命令/空 Ethics。
+- [x] 3.4 `just check-sdd-templates` 通过；对本仓执行 `update-skills` 刷新 `.agents/skills`。
 
 ## 4. 实现：context 懒刷新
 
-- [ ] 4.1 `context_run_pageindex`：stale/missing（及合理的 corrupted）→ auto rebuild → retrieve。
-- [ ] 4.2 测试：stale 不再返回 `index_stale`；rebuild 后仍缺 chat model 时行为不变。
-- [ ] 4.3 同步 `sdd-bdd-mode-compat` / `tests/sdd_bdd_compat_tests.rs` 若断言受影响。
+- [x] 4.1 `context_run_pageindex`：stale/missing（及合理的 corrupted）→ auto rebuild → retrieve。
+- [x] 4.2 测试：stale 不再返回 `index_stale`；rebuild 后仍缺 chat model 时行为不变。
+- [x] 4.3 同步 `sdd-bdd-mode-compat` / `tests/sdd_bdd_compat_tests.rs` 若断言受影响。
 
 ## 5. 文档
 
@@ -48,7 +48,7 @@
 
 ## 6. 门禁
 
-- [ ] 6.1 `just fmt` + `just lint`。
-- [ ] 6.2 `llman sdd validate --all --strict --no-check`。
-- [ ] 6.3 相关测试 / `just test`（或最小子集 + 说明）。
-- [ ] 6.4 建议下一步：`llman-sdd-verify` → `change finalize`。
+- [x] 6.1 `just fmt` + `just lint`。
+- [x] 6.2 `llman sdd validate --all --strict --no-check`。
+- [x] 6.3 相关测试 / `just test`（或最小子集 + 说明）。
+- [x] 6.4 建议下一步：`llman-sdd-verify` → `change finalize`。

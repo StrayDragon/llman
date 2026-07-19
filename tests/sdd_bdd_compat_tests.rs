@@ -122,6 +122,8 @@ fn init_project(env: &TestEnvironment, bdd: Option<&str>) {
     write_config(env, None);
     seed_spec_and_change(env);
     write_config(env, bdd);
+    // Refresh skills so metadata.llman_sdd.bdd_mode matches final config (r95).
+    assert_success(&run(&["sdd", "init", "--update"], env));
 }
 
 fn git(env: &TestEnvironment, args: &[&str]) -> std::process::Output {

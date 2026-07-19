@@ -239,6 +239,9 @@ fn seed_bdd_project(mode: &str) {
     }
     std::fs::write(dir.join("llmanspec/config.yaml"), config).expect("write fixture config");
 
+    // Regenerated skills must match final bdd mode (r95 metadata gate).
+    run_llman_in(&dir, "sdd init --update", &[]);
+
     if mode_norm == "off" {
         // BDD-off: drop a deliberately malformed .feature next to the spec to prove
         // validate ignores it (r83 contract).
@@ -358,6 +361,7 @@ scenarios[0]:
     // Project-wide runner with no {feature_*} placeholders; each spawn appends one line.
     let config = "schema: spec-driven\nlocale: en\n\nbdd:\n  run_command: \"printf 'x\\n' >> .bdd-run-count\"\n";
     std::fs::write(dir.join("llmanspec/config.yaml"), config).expect("write counter config");
+    run_llman_in(&dir, "sdd init --update", &[]);
 
     // git init+commit: staleness checks need a base ref.
     Command::new("git")
@@ -507,8 +511,33 @@ fn given_skill_dir(name: String) {
 fn given_extra_skills(name: String) {
     let dir = fixture_cwd();
     let skill = name.trim().trim_matches('"');
-    let config = format!("schema: spec-driven\nlocale: en\nextra_skills:\n  - {skill}\n");
-    std::fs::write(dir.join("llmanspec/config.yaml"), config).expect("write extra_skills config");
+    let config_path = dir.join("llmanspec/config.yaml");
+    let existing = std::fs::read_to_string(&config_path).unwrap_or_default();
+    // Preserve an existing `bdd:` block so skill bdd_mode stays consistent (r95).
+    let bdd_tail = existing
+        .find("\nbdd:")
+        .map(|i| existing[i + 1..].to_string())
+        .or_else(|| {
+            if existing.starts_with("bdd:") {
+                Some(existing.clone())
+            } else {
+                None
+            }
+        });
+    let mut config = format!("schema: spec-driven\nlocale: en\nextra_skills:\n  - {skill}\n");
+    if let Some(bdd) = bdd_tail {
+        // Keep only the bdd section if present at start of remainder.
+        if let Some(rest) = bdd.strip_prefix("bdd:") {
+            config.push_str("\nbdd:");
+            config.push_str(rest);
+        } else if bdd.starts_with("bdd:") {
+            config.push('\n');
+            config.push_str(&bdd);
+        }
+    }
+    std::fs::write(&config_path, config).expect("write extra_skills config");
+    // Refresh managed skills so optional skill is installed and bdd_mode matches.
+    run_llman_in(&dir, "sdd init --update", &[]);
 }
 
 /// Seed a project with a change directory carrying proposal+design+tasks, and

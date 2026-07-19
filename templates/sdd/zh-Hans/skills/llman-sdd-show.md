@@ -3,6 +3,9 @@ name: "llman-sdd-show"
 description: "快速查看 llmanspec 变更与 specs。"
 metadata:
   version: "{{ llman_version }}"
+  llman_sdd:
+    bdd_mode: "{{ bdd_mode }}"
+    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD 查看

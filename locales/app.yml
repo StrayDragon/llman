@@ -1659,6 +1659,10 @@ sdd:
     no_llmanspec:
       en: "No llmanspec directory found. Run '%{cmd}' first."
 
+  skill_consistency:
+    bdd_mode_mismatch:
+      en: "Installed managed skill(s) have metadata.llman_sdd.bdd_mode inconsistent with this project (expected '%{expected}').%{details}\nFix: run `%{fix}` to regenerate skills from templates."
+
   list:
     no_changes_dir:
       en: "No llmanspec changes directory found. Run 'llman sdd init' first."
