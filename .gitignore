@@ -33,5 +33,8 @@ pnpm-debug.log*
 __pycache__/
 *.py[cod]
 
+# Claude (IDE local config)
+.claude/
+
 # ZCode (IDE plan/session artifacts)
 .zcode/

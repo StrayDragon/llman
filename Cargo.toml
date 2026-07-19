@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "tools/fake-acp-agent"]
+members = ["."]
 
 [workspace.package]
 version = "0.0.64"
