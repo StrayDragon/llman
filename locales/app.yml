@@ -1874,6 +1874,8 @@ sdd:
       en: "- Each add/modify requirement op MUST include at least one scenario object"
     change_step_3:
       en: "- Debug parsed deltas: llman sdd show <id> --json --deltas-only"
+    change_step_1_bdd_on:
+      en: "- BDD-on: change-scoped TOON deltas are ignored — edit live `llmanspec/specs/**` on the feature branch (`spec.toon` for constraints, `*.feature` for executable GWT) and run `llman sdd change attach <id>` / `llman sdd change finalize <id>`"
     spec_step_1:
       en: "- Ensure spec ISON includes `purpose` and `requirements`"
     spec_step_2:
@@ -1954,6 +1956,8 @@ sdd:
       en: "Archive '%{name}' already exists."
     archived:
       en: "Change '%{change}' archived as '%{archive}'."
+    finalize_next_step:
+      en: "Next: commit on the feature branch, then merge into '%{default}' locally (push / hosting PR optional — only if explicitly required)."
     rebuilt_invalid:
       en: "Validation errors in rebuilt spec for %{spec}: %{errors}"
     no_deltas:

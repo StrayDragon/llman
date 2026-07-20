@@ -18,7 +18,7 @@ This is a manual, reproducible protocol.
 1. Select the change id (prompt the user if ambiguous).
    - Always announce: "Using change: <id>".
 2. Mode check (`llmanspec/config.yaml`):
-   - **BDD-on (Git-native)**: sync is unnecessary — live `llmanspec/specs/**` on the feature branch is SSOT. Use `llman sdd change diff <id>` for read-only review. Do **not** invent `feature_delta` apply. When ready: prefer `change finalize` (single commit) or fallback `checkpoint` → `change archive` (docs only) → Git/PR merge.
+   - **BDD-on (Git-native)**: sync is unnecessary — live `llmanspec/specs/**` on the feature branch is SSOT. Use `llman sdd change diff <id>` for read-only review. Do **not** invent `feature_delta` apply. When ready: prefer `change finalize` (single commit) or fallback `checkpoint` → `change archive` (docs only) → local merge into the default branch (`git switch <default> && git merge --ff-only <feature>`; push / hosting PR optional).
    - **BDD-off**: for each delta capability, apply `changes/<id>/specs/<capability>/spec.toon` → main `specs/<capability>/spec.toon` manually (classic TOON delta merge). No harness/branch requirements.
 3. Validate specs:
    ```bash

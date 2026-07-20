@@ -18,7 +18,7 @@ metadata:
 1. 确定 change id（不明确时让用户选择）。
    - 始终说明："使用变更：<id>"。
 2. 模式检查（`llmanspec/config.yaml`）：
-   - **BDD-on（Git-native）**：无需 sync——feature 分支上的 live `llmanspec/specs/**` 即 SSOT。用 `llman sdd change diff <id>` 只读审查。**不要**编造 `feature_delta` apply。准备好后：优先 `change finalize`（单 commit）或 fallback `checkpoint` → `change archive`（仅文档）→ Git/PR merge。
+   - **BDD-on（Git-native）**：无需 sync——feature 分支上的 live `llmanspec/specs/**` 即 SSOT。用 `llman sdd change diff <id>` 只读审查。**不要**编造 `feature_delta` apply。准备好后：优先 `change finalize`（单 commit）或 fallback `checkpoint` → `change archive`（仅文档）→ 本地 merge 进默认分支（`git switch <default> && git merge --ff-only <feature>`；push / Hosting PR 可选）。
    - **BDD-off**：对每个 delta capability，手动将 `changes/<id>/specs/<capability>/spec.toon` → 主 `specs/<capability>/spec.toon`（经典 TOON delta 合并）。无 harness/分支要求。
 3. 校验 specs：
    ```bash
