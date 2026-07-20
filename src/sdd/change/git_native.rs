@@ -452,8 +452,8 @@ pub fn enforce_bdd_archive_gates(root: &Path, change_id: &str) -> Result<ChangeG
 /// (2) finalize itself is responsible for writing the `checkpointed` field
 ///     (and `checkpoint_sha`), so we must not reject a pre-checkpoint binding.
 ///
-/// Caller is responsible for writing `checkpointed: true` after this returns
-/// (typically via [`write_binding`]).
+/// Caller is responsible for persisting `checkpointed: true` (and
+/// `checkpoint_sha`) on the change binding after this returns.
 pub fn enforce_bdd_archive_gates_relaxed(root: &Path, change_id: &str) -> Result<ChangeGitBinding> {
     let Some(binding) = read_binding(root, change_id)? else {
         bail!(
