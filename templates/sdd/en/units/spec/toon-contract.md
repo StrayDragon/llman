@@ -49,7 +49,7 @@ Feature: sample
     Then exit code 0
 ```
 
-- **BDD-on (Git-native)**: edit live `.feature` and `spec.toon` on a non-default feature branch; bind with `llman sdd change attach`; prefer `change finalize` for single-commit close (or fallback: `checkpoint` then `change archive` before merge); `diff` is read-only review/export. Pre-merge archive/finalize moves change docs only — Git/PR merge promotes specs. Do **not** author `*.feature.delta.toon` (legacy active feature_delta is a migration blocker). There is no solidify command.
+- **BDD-on (Git-native)**: edit live `.feature` and `spec.toon` on a non-default feature branch; bind with `llman sdd change attach`; prefer `change finalize` for single-commit close (or fallback: `checkpoint` then `change archive` before merge); `diff` is read-only review/export. Pre-merge archive/finalize moves change docs only — a local merge promotes specs (`git switch <default> && git merge --ff-only <feature>`; push / hosting PR optional). Do **not** author `*.feature.delta.toon` (legacy active feature_delta is a migration blocker). There is no solidify command.
 - **BDD-off**: use change-scoped TOON deltas (`ops` / `op_scenarios`) and archive merge as in the Delta section below — no attach/checkpoint/harness requirements.
 - Downstream upgrade: `llman sdd project migrate --kind partitioned`.
 - BDD enabled with empty `requirements` and no `.feature` is an ERROR.

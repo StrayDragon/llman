@@ -62,7 +62,7 @@ Cargo equivalents use `cargo +nightly ...`.
 `llman sdd spec resolve-req <id>` / `next-req-id` 查询与分配；`validate` 对跨
 capability 重复立即 ERROR 并给出修复建议。
 
-禁止同一 scenario id 的可执行 GWT 双写在 toon 与 feature。BDD-on 采用 **Git-native** 流程：在非默认 feature 分支上编辑 live `llmanspec/specs/**/spec.toon` 与 `*.feature`；`llman sdd change attach <id>` 绑定分支 + base SHA；`checkpoint` 要求干净工作区并跑门禁；`diff` 只读审查/导出；合并前 `llman sdd change archive <id>` **仅移动 change 文档**（永不 apply `feature_delta` / 永不把 TOON 当 SSOT 合并），再经正常 Git/PR 合并进主分支。**没有** `solidify` 命令。遗留活跃 `*.feature.delta.toon` 是迁移阻断项。下游升级：`llman sdd project migrate --kind partitioned`（自循环 agent prompt 见 `docs/release/partitioned-ssot/UPGRADE_AGENT_PROMPT.md`）。
+禁止同一 scenario id 的可执行 GWT 双写在 toon 与 feature。BDD-on 采用 **Git-native** 流程：在非默认 feature 分支上编辑 live `llmanspec/specs/**/spec.toon` 与 `*.feature`；`llman sdd change attach <id>` 绑定分支 + base SHA；`checkpoint` 要求干净工作区并跑门禁；`diff` 只读审查/导出；合并前 `llman sdd change archive <id>` **仅移动 change 文档**（永不 apply `feature_delta` / 永不把 TOON 当 SSOT 合并），再经正常 Git 合并进主分支（本地 `git merge --ff-only` 即可；`git push` / Hosting PR 仅为可选——仅当用户或项目明确要求远程审查时再做）。**没有** `solidify` 命令。遗留活跃 `*.feature.delta.toon` 是迁移阻断项。下游升级：`llman sdd project migrate --kind partitioned`（自循环 agent prompt 见 `docs/release/partitioned-ssot/UPGRADE_AGENT_PROMPT.md`）。
 
 ### 如何启用/关闭 BDD-on 模式
 **启用**：在 `llmanspec/config.yaml` 加 `bdd:` 段，`run_command` 按测试框架选：

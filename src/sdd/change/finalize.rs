@@ -113,6 +113,15 @@ pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         "finalized change `{}` → archive `{archive_name}` on branch `{}` (checkpoint_sha=base_sha=`{}`)",
         args.change, binding.branch, binding.base_sha,
     );
+    // Next-step hint: BDD-on close-out defaults to a LOCAL merge into the
+    // default branch (r98 contract). push / hosting PR are optional.
+    let default_branch = crate::sdd::change::git_native::resolve_default_branch_ref(root)
+        .map(|r| r.strip_prefix("origin/").unwrap_or(r.as_str()).to_string())
+        .unwrap_or_else(|_| "<default>".to_string());
+    println!(
+        "{}",
+        t!("sdd.archive.finalize_next_step", default = default_branch)
+    );
     Ok(())
 }
 

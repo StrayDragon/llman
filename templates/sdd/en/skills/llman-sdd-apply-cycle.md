@@ -61,11 +61,23 @@ git add -A && git commit -m "<prefix>: <description>"
 ```
 Use conventional commit prefix (feat:/fix:/refactor:).
 
+### 5) Merge back into the default branch locally (BDD-on; no default push/PR)
+{% if bdd_enabled %}
+```bash
+git switch <default-branch> && git merge --ff-only <feature-branch>
+# optional: git branch -d <feature-branch>
+```
+The default close-out is a **local** ff-merge into the default branch. `git push` / hosting PR (`gh pr create`/`gh pr merge`) are optional — only when the user or project explicitly requires remote review.
+{% else %}
+BDD-off has no feature-branch close-out step (commit completes the loop).
+{% endif %}
+
 ## Hard Constraints
 - **Never ask** "should I continue" — keep executing until done or blocker.
 - **Never switch** to another change until current is archived and committed.
 - **Retry limit**: 3 attempts per failing step, then report blocker.
 - **SSOT**: Use `llman sdd status` output as the single source of truth. Do not read tasks.md/proposal.md/spec files directly.
+- **No default push/PR**: do **not** run `git push` or `gh pr create|merge` without explicit user request. BDD-on close-out defaults to a local merge into the default branch.
 
 ## Ethics Governance
 - `ethics.risk_level`: medium

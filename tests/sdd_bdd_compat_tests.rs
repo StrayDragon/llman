@@ -442,3 +442,80 @@ fn test_bdd_off_attach_unavailable() {
         "expected BDD-on requirement, got: {err}"
     );
 }
+
+/// r98: under BDD-on, `validate <change>` failure MUST NOT print the BDD-off
+/// delta hint (`Ensure change has deltas`); it MUST point at live specs +
+/// attach/finalize. BDD-off retains the delta hint (verified symmetrically).
+#[test]
+fn test_validate_change_next_steps_branches_on_bdd_mode() {
+    // BDD-on: change validate fails on a bad depends_on; next-steps must not
+    // push delta authoring.
+    {
+        let env = TestEnvironment::new();
+        init_project(&env, Some(BDD_ON_BLOCK));
+        // Corrupt the change proposal's frontmatter so `validate <change>` fails
+        // (unknown depends_on ref) — this is the trigger for `print_next_steps`.
+        let change_dir = env.work_dir.join("llmanspec/changes/add-scen");
+        fs::write(
+            change_dir.join("proposal.md"),
+            "---\ndepends_on: [nonexistent-change]\n---\n\n## Why\nx\n\n## What Changes\n- y\n",
+        )
+        .unwrap();
+
+        let out = run(
+            &[
+                "sdd",
+                "validate",
+                "add-scen",
+                "--no-interactive",
+                "--no-check",
+            ],
+            &env,
+        );
+        assert!(
+            !out.status.success(),
+            "validate must fail on bad depends_on"
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            !stderr.contains("Ensure change has deltas"),
+            "BDD-on must NOT show BDD-off delta hint; stderr:\n{stderr}"
+        );
+        assert!(
+            stderr.contains("BDD-on") && stderr.contains("live"),
+            "BDD-on next-steps must point at live specs; stderr:\n{stderr}"
+        );
+    }
+
+    // BDD-off: same failure MUST retain the delta hint.
+    {
+        let env = TestEnvironment::new();
+        init_project(&env, None);
+        let change_dir = env.work_dir.join("llmanspec/changes/add-scen");
+        fs::write(
+            change_dir.join("proposal.md"),
+            "---\ndepends_on: [nonexistent-change]\n---\n\n## Why\nx\n\n## What Changes\n- y\n",
+        )
+        .unwrap();
+
+        let out = run(
+            &[
+                "sdd",
+                "validate",
+                "add-scen",
+                "--no-interactive",
+                "--no-check",
+            ],
+            &env,
+        );
+        assert!(
+            !out.status.success(),
+            "validate must fail on bad depends_on"
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("Ensure change has deltas"),
+            "BDD-off must retain delta hint; stderr:\n{stderr}"
+        );
+    }
+}

@@ -16,7 +16,7 @@ flowchart TD
   AP --> V[llman-sdd-verify]
   V -->|CRITICAL| AP
   V -->|全绿| AR[llman-sdd-archive<br/>优先 change finalize]
-  AR --> PR[Git/PR merge feature → 默认分支]
+  AR --> PR[本地 merge feature → 默认分支<br/>push / Hosting PR 可选]
   Q --> C[git commit]
   G[llman-sdd-graph] -.-> AP
   SC[llman-sdd-specs-compact] -.-> AR
@@ -32,7 +32,7 @@ flowchart LR
   ATT --> IMP[实现代码 + tasks]
   IMP --> F[change finalize]
   F --> GC[一次 git commit]
-  GC --> PR[PR merge]
+  GC --> PR[本地 merge<br/>push / PR 可选]
 ```
 
 Fallback（需严格 `checkpoint_sha = HEAD`）：`checkpoint` → commit → `archive` → commit。

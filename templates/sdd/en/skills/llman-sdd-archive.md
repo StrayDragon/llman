@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-archive"
-description: "Archive completed llman SDD changes. BDD-off merges TOON deltas into main specs; BDD-on seals change docs only after attach/checkpoint, then Git/PR merge promotes live specs. Use after verify reports all-clear."
+description: "Archive completed llman SDD changes. BDD-off merges TOON deltas into main specs; BDD-on seals change docs only after attach/checkpoint, then a local merge promotes live specs. Use after verify reports all-clear."
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
@@ -10,7 +10,7 @@ metadata:
 
 # LLMAN SDD Archive
 
-Use this skill to archive completed changes. **BDD-off**: merge delta specs into main specs. **BDD-on**: move change docs only (specs already live on the feature branch), then merge via Git/PR.
+Use this skill to archive completed changes. **BDD-off**: merge delta specs into main specs. **BDD-on**: move change docs only (specs already live on the feature branch), then promote via a local merge into the default branch (`git push` / hosting PR are optional).
 
 ## Pipeline Position
 
@@ -31,6 +31,7 @@ flowchart LR
 - **Must pass verify phase all-green first**: don't archive changes that haven't passed verification.
 - **SSOT validation**: every change must pass `llman sdd validate <id> --strict --no-interactive` before archiving.
 - **Don't ask "should I continue?"**: execute the full batch to completion unless you hit an unresolvable error.
+- **BDD-on close-out MUST NOT default to PR/push**: after docs archive, default to merging the feature branch into the default branch **locally** (e.g. `git switch <default> && git merge --ff-only <feature>`). `git push` / hosting PR (`gh pr create`/`gh pr merge`) are optional — only when the user or project explicitly requires remote review. **Agent MUST NOT** push or open a PR by default on this skill's account.
 
 ## Steps
 
@@ -55,7 +56,7 @@ flowchart LR
   - Prerequisites: `llman sdd change attach <id>` done, still on the feature branch.
   - `change archive` / `change finalize` move **change documentation only** into `changes/archive/` — they do **not** merge TOON deltas as SSOT and never apply `feature_delta`.
   - Legacy active `*.feature.delta.toon` under the change is a migration blocker — remove/migrate before archive.
-  - After archive, promote live `llmanspec/specs/**` via normal Git/PR merge of the feature branch into the default branch.
+  - After archive, promote live `llmanspec/specs/**` via a local merge of the feature branch into the default branch (`git switch <default> && git merge --ff-only <feature>`; push / hosting PR optional).
   - **Recommended: single-commit close (`change finalize`)** — same process runs gates → writes frontmatter (`checkpointed` / `checkpoint_sha = base_sha`) → docs-only archive; leaves the tree dirty once for **one `git commit`**:
     ```text
     1. Implement live specs + code (working tree may stay dirty)
@@ -81,7 +82,7 @@ flowchart LR
 
 ### 4) Commit / merge guidance
 - BDD-off: suggest commit message (format: `feat(sdd): archive <id1>, <id2> - <short summary>`), then `git add -A && git commit -m "..."`.
-- BDD-on: after docs archive, open/merge the feature-branch PR so live specs/features land on the default branch.
+- BDD-on: after docs archive, merge the feature branch into the default branch locally (`git switch <default> && git merge --ff-only <feature>`; optional `git branch -d <feature>`). push / hosting PR only when the user or project explicitly requires remote review.
 - If user requests auto-commit of the archive docs commit, execute and output commit hash.
 - **Archived `depends_on`**: archive renames the change dir to `archive/YYYY-MM-DD-<id>`, but validate recognizes `depends_on` pointing to archived/frozen ids as INFO (not ERROR), so you do **not** need to manually update other changes' `depends_on` frontmatter after archive.
 

@@ -453,8 +453,15 @@ pub struct SddChangeArgs {
 pub enum SddChangeCommands {
     /// Create `llmanspec/changes/<id>/proposal.md` (draft shell only)
     New {
-        /// Change id
-        change: String,
+        /// Change id. Optional when `--from` is given (id is derived from the
+        /// description). Exactly one of <CHANGE> or `--from` is required.
+        change: Option<String>,
+        /// Derive a legal, meaningful change id from this description and create
+        /// the draft shell. Follows naming conventions declared in the repo's
+        /// `llmanspec/AGENTS.md`; otherwise names by the description's semantics.
+        /// Prints the derived id and proposal path on stdout.
+        #[arg(long, value_name = "DESCRIPTION")]
+        from: Option<String>,
         /// Overwrite existing proposal.md
         #[arg(long)]
         force: bool,
@@ -721,10 +728,15 @@ pub fn run(args: &SddArgs) -> Result<()> {
             }),
         },
         SddCommands::Change(args) => match &args.command {
-            SddChangeCommands::New { change, force } => crate::sdd::change::new::run(
+            SddChangeCommands::New {
+                change,
+                from,
+                force,
+            } => crate::sdd::change::new::run(
                 std::path::Path::new("."),
                 crate::sdd::change::new::NewArgs {
                     change: change.clone(),
+                    from: from.clone(),
                     force: *force,
                 },
             ),
