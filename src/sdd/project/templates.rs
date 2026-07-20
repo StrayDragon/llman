@@ -219,39 +219,60 @@ fn candidate_template_roots(root: &Path) -> Vec<PathBuf> {
     roots
 }
 
+/// Max nesting depth for `unit()` → `unit()` (guards cycles / runaway includes).
+const MAX_UNIT_NESTING_DEPTH: usize = 32;
+
 fn render_template(
     raw: &str,
     units: &TemplateUnitRegistry,
     vars: &BTreeMap<String, String>,
 ) -> Result<String> {
+    let rendered =
+        render_with_units(raw, &units.units, vars, 0).context("render minijinja template")?;
+    Ok(rendered.trim_end().to_string())
+}
+
+/// Render a template string with globals + nested `unit()` expansion.
+///
+/// `unit()` returns **already-rendered** content (same vars), so MiniJinja
+/// conditionals inside unit files are evaluated — not pasted as raw source.
+fn render_with_units(
+    raw: &str,
+    unit_map: &BTreeMap<String, String>,
+    vars: &BTreeMap<String, String>,
+    depth: usize,
+) -> std::result::Result<String, minijinja::Error> {
+    if depth > MAX_UNIT_NESTING_DEPTH {
+        return Err(minijinja::Error::new(
+            ErrorKind::InvalidOperation,
+            "template unit nesting exceeded max depth (possible cycle)",
+        ));
+    }
+
     let mut env = Environment::new();
     env.set_undefined_behavior(UndefinedBehavior::Lenient);
-
-    let unit_map = units.units.clone();
-    env.add_function(
-        "unit",
-        move |id: String| -> std::result::Result<String, minijinja::Error> {
-            unit_map.get(&id).cloned().ok_or_else(|| {
-                minijinja::Error::new(
-                    ErrorKind::InvalidOperation,
-                    format!("missing template unit '{}'", id),
-                )
-            })
-        },
-    );
 
     for (key, value) in vars {
         env.add_global(key.clone(), value.clone());
     }
 
-    env.add_template("sdd_template", raw)
-        .context("load minijinja template")?;
-    let rendered = env
-        .get_template("sdd_template")
-        .context("get minijinja template")?
-        .render(())
-        .context("render minijinja template")?;
-    Ok(rendered.trim_end().to_string())
+    let unit_map = unit_map.clone();
+    let vars = vars.clone();
+    env.add_function(
+        "unit",
+        move |id: String| -> std::result::Result<String, minijinja::Error> {
+            let content = unit_map.get(&id).cloned().ok_or_else(|| {
+                minijinja::Error::new(
+                    ErrorKind::InvalidOperation,
+                    format!("missing template unit '{}'", id),
+                )
+            })?;
+            render_with_units(&content, &unit_map, &vars, depth + 1)
+        },
+    );
+
+    env.add_template("sdd_template", raw)?;
+    env.get_template("sdd_template")?.render(())
 }
 
 fn embedded_template(path: &str) -> Option<&'static str> {
@@ -471,5 +492,74 @@ mod tests {
         )
         .expect("render");
         assert_eq!(rendered, "Header\ncommands\nFooter");
+    }
+
+    #[test]
+    fn render_evaluates_conditionals_inside_units() {
+        let mut registry = TemplateUnitRegistry::default();
+        registry
+            .register(
+                "skills/sdd-commands",
+                "{% if bdd_enabled %}\n- attach\n{% endif %}\n{% if not bdd_enabled %}\n- delta\n{% endif %}"
+                    .to_string(),
+            )
+            .expect("register");
+
+        let mut on_vars = BTreeMap::new();
+        on_vars.insert("bdd_enabled".to_string(), "true".to_string());
+        let on = render_template("{{ unit(\"skills/sdd-commands\") }}", &registry, &on_vars)
+            .expect("render on");
+        assert!(on.contains("- attach"), "{on}");
+        assert!(!on.contains("- delta"), "{on}");
+        assert!(!on.contains("{%"), "{on}");
+
+        let off = render_template(
+            "{{ unit(\"skills/sdd-commands\") }}",
+            &registry,
+            &BTreeMap::new(),
+        )
+        .expect("render off");
+        assert!(off.contains("- delta"), "{off}");
+        assert!(!off.contains("- attach"), "{off}");
+        assert!(!off.contains("{%"), "{off}");
+    }
+
+    #[test]
+    fn render_supports_nested_unit_calls() {
+        let mut registry = TemplateUnitRegistry::default();
+        registry
+            .register(
+                "skills/inner",
+                "INNER-{% if bdd_enabled %}ON{% endif %}".to_string(),
+            )
+            .expect("register inner");
+        registry
+            .register(
+                "skills/outer",
+                "OUTER\n{{ unit(\"skills/inner\") }}".to_string(),
+            )
+            .expect("register outer");
+
+        let mut vars = BTreeMap::new();
+        vars.insert("bdd_enabled".to_string(), "true".to_string());
+        let rendered =
+            render_template("{{ unit(\"skills/outer\") }}", &registry, &vars).expect("render");
+        assert_eq!(rendered, "OUTER\nINNER-ON");
+    }
+
+    #[test]
+    fn render_rejects_excessive_unit_nesting() {
+        let mut registry = TemplateUnitRegistry::default();
+        // Self-recursive unit → exceeds MAX_UNIT_NESTING_DEPTH.
+        registry
+            .register("skills/loop", "{{ unit(\"skills/loop\") }}".to_string())
+            .expect("register");
+        let err = render_template("{{ unit(\"skills/loop\") }}", &registry, &BTreeMap::new())
+            .expect_err("cycle should fail");
+        assert!(
+            err.to_string().contains("render minijinja template")
+                || format!("{err:#}").contains("max depth"),
+            "{err:#}"
+        );
     }
 }
