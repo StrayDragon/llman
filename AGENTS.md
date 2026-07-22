@@ -10,6 +10,39 @@
 保留此托管块，便于 `llman sdd init --update` 刷新。
 <!-- LLMANSPEC:END -->
 
+## SDD 可选增强能力
+
+主 pipeline（explore→propose→apply→verify→archive）之外的**可选增强**，按需触发，默认行为不变。来源：将 mattpocock.skills 的高价值能力内化（单 SSOT = `spec.toon`，不引入 `CONTEXT.md`）。
+
+### pipeline 阶段内增强（触发词进入分支）
+
+| 阶段 | 增强能力 | 触发词 | 说明 |
+|------|---------|--------|------|
+| explore | grilling 深对齐 | 「深挖」「grill」「逐个问」 | 逐问走决策树，每问附推荐答案；事实自行查证，决策才问用户；领域术语冲突时回写 `spec.toon`（不建 glossary） |
+| propose | seam 前置确认 + 垂直切片 | 写 tasks 前自动 | 先列将测试的 seam（来自 `*.feature` GWT）并确认；tasks 按 tracer-bullet 垂直切片 + `[blocked-by]` 依赖 |
+| apply | diagnose 紧反馈 | 自修复失败且判定为 hard bug | 先建 red-capable 命令（紧/确定/快）再假设，禁止无复现命令就猜 |
+| verify | 双轴审查 | 用户要求或 Standards 疑似 | Spec 轴（spec.toon/.feature 合约）+ Standards 轴（AGENTS.md style + Fowler 12 smell）分离呈现 |
+
+### 独立可选 skill（不属于线性 pipeline）
+
+| skill | invocation | 用途 |
+|-------|-----------|------|
+| `llman-sdd-arch-review` | model-invoked | 扫描 shallow module 产出 deepening 候选 |
+| `llman-sdd-wayfinder` | user-invoked | 大型雾状工作规划为 decision ticket map |
+| `llman-sdd-research` | model-invoked | 后台 agent 委托外部文献调研 |
+
+> 注：这 3 个独立 skill 尚未被 `init --update` 托管（需后续 CLI change 加入 `OPTIONAL_SKILL_NAMES`）。运行 `init --update` 前备份，否则会被清理。
+
+### 设计词汇（借自 codebase-design，避免双轨）
+
+以下词汇在 arch-review / verify Standards 轴 / propose seam 中使用，MUST NOT 替换为 component/service/API/boundary：
+
+- **Module** — 有 interface 和 implementation 的任何东西。
+- **Interface** — 调用者须知道的一切（签名 + 不变量 + 错误模式 + 性能）。
+- **Depth** — 小 interface 后面的行为量；深 = 大行为 behind 小 surface，浅 = interface ≈ implementation。
+- **Seam** — 无需就地编辑即可改行为的位置（interface 栖身处）；在 llman 中 seam = `*.feature` GWT 驱动的公共边界（CLI 子进程或 public 函数）。
+- **deletion test** — 想象删除 module：复杂度消失（pass-through，无价值）还是在 N 处重现（有价值）。
+
 
 # Repository Guidelines
 
