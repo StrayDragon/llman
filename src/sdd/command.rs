@@ -476,7 +476,7 @@ pub enum SddChangeCommands {
     /// Create `llmanspec/changes/<id>/proposal.md` (draft shell only)
     New {
         /// Change id. Optional when `--from` is given (id is derived from the
-        /// description). Exactly one of <CHANGE> or `--from` is required.
+        /// description). Exactly one of `<CHANGE>` or `--from` is required.
         change: Option<String>,
         /// Derive a legal, meaningful change id from this description and create
         /// the draft shell. Follows naming conventions declared in the repo's
