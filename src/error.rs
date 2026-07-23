@@ -28,9 +28,6 @@ pub enum LlmanError {
     #[error("Inquire Error: {0}")]
     Inquire(#[from] inquire::InquireError),
 
-    #[error("Database Error: {0}")]
-    Database(#[from] rusqlite::Error),
-
     #[error("JSON Parse Error: {0}")]
     Json(#[from] serde_json::Error),
 
@@ -59,7 +56,6 @@ impl LlmanError {
             LlmanError::Custom(message) => t!("errors.custom_error", message = message).to_string(),
             LlmanError::Io(error) => t!("errors.io_error", error = error).to_string(),
             LlmanError::Inquire(error) => t!("errors.inquire_error", error = error).to_string(),
-            LlmanError::Database(error) => t!("errors.database_error", error = error).to_string(),
             LlmanError::Json(error) => t!("errors.json_error", error = error).to_string(),
             LlmanError::Glob(error) => t!("errors.glob_error", error = error).to_string(),
             LlmanError::GlobPattern(error) => {

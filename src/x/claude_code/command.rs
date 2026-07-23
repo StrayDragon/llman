@@ -10,7 +10,6 @@ use crate::x::claude_code::env_injection::{
 use crate::x::claude_code::interactive;
 use crate::x::claude_code::prompts::ClaudeCodePromptsArgs;
 use crate::x::claude_code::security::{SecurityChecker, SecurityWarning};
-use crate::x::claude_code::stats::ClaudeCodeStatsArgs;
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
@@ -69,9 +68,6 @@ pub enum ClaudeCodeCommands {
         )]
         args: Vec<String>,
     },
-    /// View local usage statistics (tokens + time)
-    Stats(ClaudeCodeStatsArgs),
-    /// Manage Claude Code prompt templates and memory injection
     Prompts(ClaudeCodePromptsArgs),
     /// Sync ignore rules to Claude Code settings (forward to `llman tool sync-ignore`)
     #[command(name = "sync-ignore", alias = "si")]
@@ -180,7 +176,6 @@ pub fn run(args: &ClaudeCodeArgs) -> Result<()> {
         }) => {
             handle_run_command(*interactive, group.as_deref(), args.clone())?;
         }
-        Some(ClaudeCodeCommands::Stats(stats)) => crate::x::claude_code::stats::run_stats(stats)?,
         Some(ClaudeCodeCommands::Prompts(prompts)) => crate::x::claude_code::prompts::run(prompts)?,
         Some(ClaudeCodeCommands::SyncIgnore(sync_args)) => {
             crate::tool::sync_ignore::run(&ToolSyncIgnoreArgs {

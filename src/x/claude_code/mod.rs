@@ -4,4 +4,3 @@ pub mod env_injection;
 pub mod interactive;
 pub mod prompts;
 pub mod security;
-pub mod stats;

@@ -1,15 +1,14 @@
-//! One-shot, idempotent migration that brings an `llmanspec/` tree to the current
-//! canonical spec format: standalone `.toon` files with `valid_scope` in-document.
+//! One-shot, idempotent conversion: legacy `spec.md` (YAML frontmatter + fenced
+//! ```` ```toon ```` block) → canonical `spec.toon`.
 //!
 //! The runtime's own decode/encode is used so the migrated output is guaranteed to
-//! round-trip (`dump_*` already re-decodes strictly). Re-running `migrate` on an
-//! already-current tree is a no-op.
+//! round-trip. Re-running on an already-current tree is a no-op.
 //!
 //! Per spec directory it handles three states:
-//! - `spec.md` (legacy: YAML frontmatter + a fenced ```` ```toon ```` block) -> fold
+//! - `spec.md` (legacy: YAML frontmatter + a fenced ```toon block) → fold
 //!   `valid_scope`, write `spec.toon`, delete `spec.md`.
-//! - `spec.toon` that strict-parses -> already current, skip.
-//! - `spec.toon` carrying dropped fields (`valid_commands`/`evidence`) -> strip them
+//! - `spec.toon` that strict-parses → already current, skip.
+//! - `spec.toon` carrying dropped fields (`valid_commands`/`evidence`) → strip them
 //!   and re-encode.
 
 use crate::fs_utils::atomic_write_with_mode;
@@ -148,7 +147,7 @@ enum Plan {
     /// Needs migration; `action` carries the computed output + side effects.
     Migrate { action: Action },
     /// Already current (or un-diagnosable) — left untouched.
-    Skip { reason: String },
+    Skip { _reason: String },
 }
 
 /// A concrete migration to apply: the serialized target content and whether the
@@ -199,9 +198,8 @@ fn print_scan_report(plans: &[(PathBuf, Plan)], errors: &[String], dry_run: bool
                     println!("  [normalize] {}", display_rel(&dir.join(SPEC_FILE)));
                 }
             }
-            Plan::Skip { reason } => {
+            Plan::Skip { .. } => {
                 skipped += 1;
-                let _ = reason; // kept quiet by default; uncomment to debug
             }
         }
     }
@@ -260,13 +258,13 @@ fn plan_dir(dir: &Path, force: bool) -> Result<Plan> {
     } else {
         // No spec file at all — nothing to do.
         return Ok(Plan::Skip {
-            reason: "no spec file".into(),
+            _reason: "no spec file".into(),
         });
     };
 
     if both && !force {
         return Ok(Plan::Skip {
-            reason: format!("both {SPEC_FILE} and {LEGACY_SPEC_FILE} exist (pass --force)"),
+            _reason: format!("both {SPEC_FILE} and {LEGACY_SPEC_FILE} exist (pass --force)"),
         });
     }
 
@@ -278,7 +276,7 @@ fn plan_dir(dir: &Path, force: bool) -> Result<Plan> {
     // left untouched — `validate` reports any real error.
     if !is_legacy && !has_dropped_keys(&content) {
         return Ok(Plan::Skip {
-            reason: "already current".into(),
+            _reason: "already current".into(),
         });
     }
 
@@ -516,7 +514,6 @@ mod tests {
     fn normalizes_stale_toon_with_dropped_fields() {
         let dir = tempdir().unwrap();
         let specs = dir.path().join("llmanspec/specs/foo");
-        // A .toon that carries the dropped valid_commands/evidence keys.
         write(
             &specs.join(SPEC_FILE),
             "kind: llman.sdd.spec\nname: foo\npurpose: \"x\"\nvalid_scope[1]: src\nvalid_commands[1]: \"cargo test\"\nevidence[1]: ci\nrequirements[1]{req_id,title,statement}:\n  r1,A,System MUST do a.\nscenarios[1]{req_id,id,given,when,then}:\n  r1,b,\"\",t happens,it works\n",
@@ -549,11 +546,9 @@ mod tests {
 
     #[test]
     fn strip_only_drops_targeted_top_level_keys() {
-        // A requirement statement that mentions "evidence[" must survive.
         let content = "kind: llman.sdd.spec\nname: foo\nvalid_scope[1]: src\nvalid_commands[1]: cargo test\nevidence[1]: ci\nrequirements[1]{req_id,title,statement}:\n  r1,A,System MUST reference evidence[0] in prose.\n";
         let stripped = strip_dropped_keys(content);
         assert!(!stripped.contains("valid_commands"));
-        // The indented requirement line mentioning evidence[ is preserved.
         assert!(stripped.contains("evidence[0] in prose"));
     }
 }

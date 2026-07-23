@@ -2,9 +2,7 @@ use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
 use crate::sdd::change::git_native;
-use crate::sdd::project::{
-    init, interop, migrate, partition_migrate, solidify_migrate, upgrade_guide,
-};
+use crate::sdd::project::{init, interop, migrate};
 use crate::sdd::shared::{graph, list, show, status, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -217,33 +215,12 @@ pub enum SddCommands {
         /// Output format (e.g. json,compact,meta-only,deltas,reqs-only,no-scenarios)
         #[arg(long)]
         output: Option<String>,
-        /// Output as JSON (deprecated: use --output json)
-        #[arg(long, hide = true)]
-        json: bool,
-        /// Emit compact JSON (deprecated: use --output json,compact)
-        #[arg(long, hide = true, requires = "json")]
-        compact_json: bool,
-        /// Spec-only: output metadata only (deprecated: use --output json,meta-only)
-        #[arg(long, hide = true, requires = "json")]
-        meta_only: bool,
         /// Specify item type when ambiguous: change|spec
         #[arg(long = "type")]
         item_type: Option<String>,
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
-        /// Change-only: show only deltas (deprecated: use --output deltas)
-        #[arg(long, hide = true)]
-        deltas_only: bool,
-        /// Change-only: alias for --deltas-only (deprecated)
-        #[arg(long, hide = true)]
-        requirements_only: bool,
-        /// Spec-only: show only requirements (deprecated: use --output reqs-only)
-        #[arg(long, hide = true)]
-        requirements: bool,
-        /// Spec-only: exclude scenarios (deprecated: use --output no-scenarios)
-        #[arg(long, hide = true)]
-        no_scenarios: bool,
         /// Spec-only: show specific requirement by ID (1-based)
         #[arg(short = 'r', long)]
         requirement: Option<usize>,
@@ -299,9 +276,7 @@ pub enum SddCommands {
     Change(SddChangeArgs),
     /// Spec authoring helpers
     Spec(SddSpecArgs),
-    /// Deprecated alias for `sdd change delta` (BDD-off TOON authoring)
-    #[command(hide = true)]
-    Delta(SddDeltaArgs),
+
     /// Generate a change dependency graph
     Graph {
         /// Output format (default: mermaid)
@@ -422,16 +397,15 @@ pub enum SddProjectCommands {
         #[arg(long)]
         no_interactive: bool,
     },
-    /// Migrate specs (format / partitioned / legacy-bdd)
+    /// Convert legacy `spec.md` (YAML frontmatter + fenced \`\`\`toon) to canonical `spec.toon`
     Migrate {
-        /// Which migration: `format` (canonical toon), `partitioned` (strip dual-write),
-        /// `legacy-bdd` (old minimal BDD specs), or `auto` (format then partitioned if BDD-on).
-        #[arg(long, default_value = "format", value_parser = ["format", "partitioned", "legacy-bdd", "auto"])]
+        /// Migration kind (only `spec-md2toon` is supported)
+        #[arg(long, default_value = "spec-md2toon", value_parser = ["spec-md2toon"])]
         kind: String,
         /// Scan and report without writing files (no confirmation prompt)
         #[arg(long)]
         dry_run: bool,
-        /// Re-migrate even when both `spec.toon` and legacy `spec.md` exist (format only)
+        /// Re-migrate even when both `spec.toon` and legacy `spec.md` exist
         #[arg(long)]
         force: bool,
         /// Skip the confirmation prompt and apply (for agents/scripts)
@@ -440,22 +414,6 @@ pub enum SddProjectCommands {
         /// Treat the terminal as non-interactive
         #[arg(long)]
         no_interactive: bool,
-    },
-    /// Output an upgrade guide prompt for the current SDD project
-    UpgradeGuide,
-    /// Deprecated alias for `sdd project migrate --kind legacy-bdd`
-    #[command(hide = true)]
-    SolidifyMigrate {
-        /// Scan and report without writing files
-        #[arg(long)]
-        dry_run: bool,
-    },
-    /// Deprecated alias for `sdd project migrate --kind partitioned`
-    #[command(hide = true)]
-    PartitionMigrate {
-        /// Scan and report without writing files
-        #[arg(long)]
-        dry_run: bool,
     },
     /// Remap colliding main-library req_ids to fresh short `rN` aliases
     DedupeReqIds {
@@ -561,23 +519,6 @@ pub enum SddChangeCommands {
 
 #[derive(Subcommand)]
 pub enum ArchiveSubcommand {
-    /// Deprecated alias for `sdd change archive`
-    Run {
-        /// Change id
-        change: Option<String>,
-        /// Skip updating specs
-        #[arg(long)]
-        skip_specs: bool,
-        /// Dry run mode
-        #[arg(long)]
-        dry_run: bool,
-        /// Force archive even if validation fails
-        #[arg(long, hide = true)]
-        force: bool,
-        /// Disable interactive prompts (e.g. purpose input for new specs)
-        #[arg(long)]
-        no_interactive: bool,
-    },
     /// Freeze archived change directories into a single cold-backup archive
     Freeze {
         /// List archived change directories already in the cold-backup archive
@@ -632,18 +573,10 @@ pub fn run(args: &SddArgs) -> Result<()> {
         SddCommands::Show {
             item,
             output,
-            json,
-            compact_json,
-            meta_only,
             item_type,
             no_interactive,
-            deltas_only,
-            requirements_only,
-            requirements,
-            no_scenarios,
             requirement,
         } => {
-            // Parse --output option or fall back to legacy flags
             let (use_json, use_compact, use_meta_only, use_deltas, use_reqs_only, use_no_scenarios) =
                 if let Some(output_str) = output {
                     let flags: Vec<&str> = output_str.split(',').map(|s| s.trim()).collect();
@@ -656,14 +589,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
                         flags.contains(&"no-scenarios"),
                     )
                 } else {
-                    (
-                        *json,
-                        *compact_json,
-                        *meta_only,
-                        *deltas_only || *requirements_only,
-                        *requirements,
-                        *no_scenarios,
-                    )
+                    (false, false, false, false, false, false)
                 };
             show::run(show::ShowArgs {
                 item: item.clone(),
@@ -713,24 +639,6 @@ pub fn run(args: &SddArgs) -> Result<()> {
             no_interactive: _,
             command,
         } => match command {
-            ArchiveSubcommand::Run {
-                change,
-                skip_specs,
-                dry_run,
-                force,
-                no_interactive,
-            } => {
-                eprintln!(
-                    "note: `sdd archive run` is deprecated; prefer `llman sdd change archive`"
-                );
-                archive::run(archive::ArchiveArgs {
-                    change: change.clone(),
-                    skip_specs: *skip_specs,
-                    dry_run: *dry_run,
-                    force: *force,
-                    no_interactive: *no_interactive,
-                })
-            }
             ArchiveSubcommand::Freeze {
                 list,
                 before,
@@ -875,12 +783,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 )
             }
         },
-        SddCommands::Delta(args) => {
-            eprintln!(
-                "note: `sdd delta` is deprecated; prefer `llman sdd change delta` (BDD-off only)"
-            );
-            dispatch_delta(args)
-        }
+
         SddCommands::Graph {
             format,
             scope,
@@ -950,20 +853,16 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 force,
                 yes,
                 no_interactive,
-            } => dispatch_project_migrate(kind, *dry_run, *force, *yes, *no_interactive),
-            SddProjectCommands::UpgradeGuide => upgrade_guide::run(),
-            SddProjectCommands::SolidifyMigrate { dry_run } => {
-                eprintln!(
-                    "note: `sdd project solidify-migrate` is deprecated; prefer `llman sdd project migrate --kind legacy-bdd`"
-                );
-                solidify_migrate::run(*dry_run)
+            } => {
+                let _ = kind; // only "spec-md2toon" is accepted by clap
+                migrate::run(migrate::MigrateArgs {
+                    dry_run: *dry_run,
+                    force: *force,
+                    yes: *yes,
+                    no_interactive: *no_interactive,
+                })
             }
-            SddProjectCommands::PartitionMigrate { dry_run } => {
-                eprintln!(
-                    "note: `sdd project partition-migrate` is deprecated; prefer `llman sdd project migrate --kind partitioned`"
-                );
-                partition_migrate::run(*dry_run)
-            }
+
             SddProjectCommands::DedupeReqIds { dry_run } => {
                 crate::sdd::spec::req_registry::run_dedupe_req_ids(
                     std::path::Path::new("."),
@@ -982,43 +881,6 @@ fn dispatch_config(args: &SddConfigArgs) -> Result<()> {
             json,
         }) => crate::sdd::project::config_skills::run(*no_interactive, *json, root),
         None => crate::sdd::project::config_skills::run_overview(root),
-    }
-}
-
-fn dispatch_project_migrate(
-    kind: &str,
-    dry_run: bool,
-    force: bool,
-    yes: bool,
-    no_interactive: bool,
-) -> Result<()> {
-    match kind {
-        "format" => migrate::run(migrate::MigrateArgs {
-            dry_run,
-            force,
-            yes,
-            no_interactive,
-        }),
-        "partitioned" => partition_migrate::run(dry_run),
-        "legacy-bdd" => solidify_migrate::run(dry_run),
-        "auto" => {
-            migrate::run(migrate::MigrateArgs {
-                dry_run,
-                force,
-                yes,
-                no_interactive,
-            })?;
-            let config = crate::sdd::project::config::load_required_config(std::path::Path::new(
-                "llmanspec",
-            ))?;
-            if config.bdd.is_some() {
-                partition_migrate::run(dry_run)?;
-            }
-            Ok(())
-        }
-        other => anyhow::bail!(
-            "unknown migrate kind `{other}`; expected format|partitioned|legacy-bdd|auto"
-        ),
     }
 }
 

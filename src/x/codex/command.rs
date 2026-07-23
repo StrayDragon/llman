@@ -5,7 +5,6 @@ use crate::x::codex::agents::CodexAgentsArgs;
 use crate::x::codex::config::{Config, upsert_to_codex_config};
 use crate::x::codex::interactive;
 use crate::x::codex::prompts::CodexPromptsArgs;
-use crate::x::codex::stats::CodexStatsArgs;
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use rust_i18n::t;
@@ -61,8 +60,6 @@ pub enum CodexCommands {
         )]
         args: Vec<String>,
     },
-    /// View local usage statistics (tokens + time)
-    Stats(CodexStatsArgs),
     /// Manage Codex custom agent configurations
     Agents(CodexAgentsArgs),
     /// Manage Codex prompt templates and injection
@@ -86,7 +83,6 @@ pub fn run(args: &CodexArgs) -> Result<()> {
             group,
             args,
         }) => handle_run_command(*interactive, group.as_deref(), args.clone())?,
-        Some(CodexCommands::Stats(stats)) => crate::x::codex::stats::run_stats(stats)?,
         Some(CodexCommands::Agents(agents)) => crate::x::codex::agents::run(agents)?,
         Some(CodexCommands::Prompts(prompts)) => crate::x::codex::prompts::run(prompts)?,
     }
