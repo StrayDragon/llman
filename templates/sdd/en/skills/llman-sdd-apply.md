@@ -102,7 +102,14 @@ Run project gate commands (adapt to the actual project):
 
 **On failure → enter self-healing loop (don't ask "should I continue?"):**
 1. Parse failure cause (test failure / lint / format / validation error).
-2. Apply minimum fix (don't expand scope).
+2. **Decide if it's a hard-to-locate bug** (cause unclear / intermittent flake / regression not obvious at a glance):
+   - **Not hard-to-locate** (clear lint/format/compile/validation error): apply a minimum fix (don't expand scope); re-run the "minimum failure repro command" first, then re-run all gates.
+   - **Hard-to-locate bug → escalate to the diagnose sub-flow (r102)**:
+     1. **First build a command that reproduces the failure** (fast, deterministic, agent-runnable, and goes red on *this* bug) — one that drives the real bug path and asserts the user's exact symptom. **MUST NOT start hypothesizing before such a command exists** (staring at code and guessing is the failure this prevents).
+     2. Run it, confirm red → minimize the repro (cut inputs/calls/config/data one at a time, keep only what's load-bearing).
+     3. Generate **3–5 ranked hypotheses**, each falsifiable ("if X is the cause, changing Y makes the bug disappear").
+     4. Verify one variable at a time; fix once the root cause is found.
+     5. If there's no correct seam for a regression test, note the architectural gap (hand off to `llman-sdd-arch-review`).
 3. Re-run the "minimum failure repro command" first, then re-run all gates.
 4. Log as one self-healing round: `Round N: failure → fix → re-run → pass/fail`.
 

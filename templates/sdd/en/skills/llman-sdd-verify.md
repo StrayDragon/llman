@@ -56,9 +56,15 @@ flowchart LR
    - `proposal.md` and `design.md` if present
    - `tasks.md` to understand what was implemented
 {% endif %}
-5. Compare artifacts vs code:
-   - Identify mismatches (missing behavior, wrong behavior, missing tests/docs)
-   - Suggest minimal fixes or artifact updates
+5. **Dual-axis review (Standards + Spec, kept separate so neither masks the other)** — diff against `git diff <merge-base>...HEAD` (merge-base = the attach base_sha or `main`) on two axes:
+   - **Spec axis**: does the implementation satisfy the `spec.toon` MUST/SHALL and the `*.feature` GWT?
+     - Missing/partial behaviors, wrong implementations, and scope creep in the diff not asked for by the spec.
+     - Suggest minimal fixes or artifact updates.
+   - **Standards axis**: does the code follow `AGENTS.md` coding style + the Fowler smell baseline?
+     - **Authority priority**: `AGENTS.md` documented standard > smell baseline (repo overrides); skip anything tooling already enforces.
+     - Smells are **judgement heuristics** ("possible Feature Envy"), not hard violations.
+     - Smell baseline (each "what → fix"): Mysterious Name (name hides intent → rename) / Duplicated Code (same logic shape → extract shared) / Feature Envy (method uses another's data more → move it) / Data Clumps (same fields travel together → bundle into a type) / Primitive Obsession (primitive stands in for a domain concept → dedicated type) / Repeated Switches (same switch recurs → polymorphism or shared map) / Shotgun Surgery (one change scatters edits → gather into one module) / Divergent Change (one file changes for unrelated reasons → split) / Speculative Generality (abstraction for unseen needs → delete) / Message Chains (long a.b().c() → hide behind one method) / Middle Man (just delegates → cut, call direct) / Refused Bequest (subclass rejects most inheritance → composition).
+   - The two axes may be reviewed in parallel (sub-agents); the report MUST present them separately, MUST NOT merge or cross-rerank (one axis passing must not mask the other failing).
 6. **BDD-on verification (Git-native Partitioned SSOT)** — only when `config.yaml` has a `bdd:` block:
    - Confirm the change is attached and you are on that feature branch.
    - `llman sdd validate --specs`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
