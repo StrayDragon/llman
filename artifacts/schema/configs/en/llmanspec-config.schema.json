@@ -14,7 +14,7 @@
       "default": "en"
     },
     "extra_skills": {
-      "description": "Additional optional SDD skills to enable (extend candidates). On init --update / update-skills, candidates = default workflow skills + this list; then `.agents/skills/llman-sdd-*` not in candidates are removed before rewrite. Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, llman-sdd-sync, llman-sdd-validate.",
+      "description": "Additional optional SDD skills to enable (extend candidates). On init --update / update-skills, candidates = default workflow skills + this list; then `.agents/skills/llman-sdd-*` not in candidates are removed before rewrite. Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, llman-sdd-sync, llman-sdd-validate, llman-sdd-arch-review, llman-sdd-wayfinder, llman-sdd-research.",
       "type": [
         "array",
         "null"

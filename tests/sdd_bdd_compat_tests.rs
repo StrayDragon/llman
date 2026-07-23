@@ -264,6 +264,9 @@ fn test_all_subcommands_smoke_bdd_on_and_off() {
         &["sdd", "project", "upgrade-guide"],
         &["sdd", "spec", "next-req-id", "--json"],
         &["sdd", "spec", "resolve-req", "r1", "--json"],
+        &["sdd", "config"],
+        &["sdd", "config", "skills", "--no-interactive"],
+        &["sdd", "config", "skills", "--json"],
     ];
     for bdd in [Some(BDD_ON_BLOCK), None] {
         let env = TestEnvironment::new();

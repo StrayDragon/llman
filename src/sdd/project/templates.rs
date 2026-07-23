@@ -30,6 +30,9 @@ const OPTIONAL_SKILL_FILES: &[&str] = &[
     "llman-sdd-ff.md",
     "llman-sdd-sync.md",
     "llman-sdd-validate.md",
+    "llman-sdd-arch-review.md",
+    "llman-sdd-wayfinder.md",
+    "llman-sdd-research.md",
 ];
 
 const UNIT_FILES: &[&str] = &[

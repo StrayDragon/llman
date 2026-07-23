@@ -1410,3 +1410,64 @@ fn test_sdd_validate_draft_non_stract_shows_stage_info() {
         "non-strict validate should surface the draft stage INFO, got stderr: {stderr}"
     );
 }
+
+/// `llman sdd config` (no subcommand) prints a read-only overview (sdd-workflow r109).
+/// `llman sdd config skills --no-interactive` prints enabled/available lists (r110).
+/// `llman sdd config skills --json` outputs structured JSON (r110).
+#[test]
+fn test_sdd_config_skills_non_interactive() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    // Overview (r109).
+    let overview = run_llman(&["sdd", "config"], work_dir, work_dir);
+    assert_success(&overview);
+    let overview_stdout = String::from_utf8_lossy(&overview.stdout);
+    assert!(
+        overview_stdout.contains("spec-driven"),
+        "overview should show schema, got: {overview_stdout}"
+    );
+    assert!(
+        overview_stdout.contains("bdd"),
+        "overview should show bdd status, got: {overview_stdout}"
+    );
+
+    // Non-interactive state (r110): lists all 8 candidates.
+    let state = run_llman(
+        &["sdd", "config", "skills", "--no-interactive"],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&state);
+    let state_stdout = String::from_utf8_lossy(&state.stdout);
+    assert!(
+        state_stdout.contains("llman-sdd-arch-review"),
+        "non-interactive should list arch-review, got: {state_stdout}"
+    );
+    assert!(
+        state_stdout.contains("llman-sdd-research"),
+        "non-interactive should list research, got: {state_stdout}"
+    );
+
+    // JSON (r110): structured enabled/available.
+    let json_out = run_llman(&["sdd", "config", "skills", "--json"], work_dir, work_dir);
+    assert_success(&json_out);
+    let json: Value = serde_json::from_slice(&json_out.stdout).expect("parse config skills json");
+    assert!(
+        json["available"].is_array(),
+        "json should have available array, got: {json}"
+    );
+    let available = json["available"].as_array().unwrap();
+    assert_eq!(
+        available.len(),
+        8,
+        "should list all 8 optional skills as available (none enabled yet), got: {available:?}"
+    );
+}

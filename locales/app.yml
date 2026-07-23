@@ -1630,6 +1630,34 @@ sdd:
       en: "Failed to serialize llmanspec config: %{error}"
     write_failed:
       en: "Failed to write llmanspec config: %{error}"
+    skills:
+      enabled:
+        en: "Enabled optional skills:"
+      available:
+        en: "Available but not enabled:"
+      non_interactive_hint:
+        en: "(Run without --no-interactive to edit interactively.)"
+      prompt:
+        en: "Toggle optional skills to enable (Space to toggle, Enter to confirm):"
+      confirm:
+        en: "Write these changes to config.yaml? (comments in the file will be lost)"
+      cancelled:
+        en: "Cancelled; config.yaml unchanged."
+      no_change:
+        en: "No changes; config.yaml unchanged."
+      written_hint:
+        en: "config.yaml updated. Run `llman sdd init --update` to apply skill files."
+    overview:
+      schema:
+        en: "schema"
+      locale:
+        en: "locale"
+      extra_skills:
+        en: "extra_skills (enabled/total)"
+      bdd:
+        en: "bdd"
+      archive:
+        en: "archive"
 
   style:
     pretty_ison_requires_ison:
