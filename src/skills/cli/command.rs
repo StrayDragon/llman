@@ -22,10 +22,6 @@ use std::path::{Path, PathBuf};
 #[derive(Args)]
 #[command(about = "Manage skills", long_about = "Interactive skills manager")]
 pub struct SkillsArgs {
-    /// Removed: relink sources is no longer supported
-    #[arg(long = "relink-sources", hide = true)]
-    pub relink_sources_removed: bool,
-
     /// Conflict policy when a target entry already exists (overwrite or skip)
     #[arg(long = "target-conflict", value_enum)]
     pub target_conflict: Option<TargetConflictArg>,
@@ -77,9 +73,6 @@ struct SkillDirCatalog {
 }
 
 pub fn run(args: &SkillsArgs) -> Result<()> {
-    if args.relink_sources_removed {
-        return Err(anyhow::anyhow!(t!("skills.relink_removed")));
-    }
     let interactive = is_interactive();
 
     let paths = SkillsPaths::resolve_with_override(args.skills_dir.as_deref())?;

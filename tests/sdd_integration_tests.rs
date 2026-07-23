@@ -231,7 +231,9 @@ Need a sample change.
     git_commit_all(work_dir, "init sdd sample");
 
     let show_output = run_llman(
-        &["sdd", "show", "sample", "--type", "spec", "--json"],
+        &[
+            "sdd", "show", "sample", "--type", "spec", "--output", "json",
+        ],
         work_dir,
         work_dir,
     );
@@ -352,7 +354,9 @@ fn test_sdd_single_toon_block_show_and_validate_spec() {
     git_commit_all(work_dir, "add toon spec");
 
     let show_output = run_llman(
-        &["sdd", "show", "sample", "--type", "spec", "--json"],
+        &[
+            "sdd", "show", "sample", "--type", "spec", "--output", "json",
+        ],
         work_dir,
         work_dir,
     );
@@ -400,7 +404,9 @@ fn test_sdd_given_mapping_to_raw_text_is_deterministic() {
     fs::write(spec_dir.join("spec.toon"), spec_content).expect("write spec");
 
     let show_output = run_llman(
-        &["sdd", "show", "sample", "--type", "spec", "--json"],
+        &[
+            "sdd", "show", "sample", "--type", "spec", "--output", "json",
+        ],
         work_dir,
         work_dir,
     );
@@ -653,7 +659,15 @@ fn test_sdd_show_change_json_uses_delta_specs() {
     fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
 
     let show_output = run_llman(
-        &["sdd", "show", "add-sample", "--type", "change", "--json"],
+        &[
+            "sdd",
+            "show",
+            "add-sample",
+            "--type",
+            "change",
+            "--output",
+            "json",
+        ],
         work_dir,
         work_dir,
     );
@@ -1355,7 +1369,15 @@ fn test_sdd_show_change_full_stage_ready_to_implement() {
     fs::write(change_dir.join("tasks.md"), "- [ ] implement\n").expect("write tasks");
 
     let show_output = run_llman(
-        &["sdd", "show", "full-change", "--type", "change", "--json"],
+        &[
+            "sdd",
+            "show",
+            "full-change",
+            "--type",
+            "change",
+            "--output",
+            "json",
+        ],
         work_dir,
         work_dir,
     );

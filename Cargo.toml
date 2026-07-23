@@ -54,13 +54,9 @@ chrono = { version = "0.4.45", features = ["serde"] }
 glob = "0.3.3"
 ignore = "0.4.26"
 tokio = { version = "1.49.0", features = ["rt-multi-thread", "time", "process", "io-std"] }
-rusqlite = { version = "0.40.1", features = ["bundled"] }
 tempfile = "3.26.0"
 sha2 = "0.10.9"
-# LLM HTTP client for sdd context/index (chat + tool-calling).
-# async-openai itself depends on reqwest transitively, but
-# llman no longer depends on reqwest directly.
-async-openai = "0.28"
+async-openai = { version = "0.28", default-features = false, features = ["rustls"] }
 
 # Comment processing and parsing
 tree-sitter = "0.26.6"
@@ -84,7 +80,6 @@ serde_yaml = "0.9.34"
 toon-format = { version = "0.5.0", default-features = false }
 gherkin = "0.16"
 sevenz-rust2 = "0.20.2"
-indexmap = { version = "2.14.0", features = ["serde"] }
 
 [features]
 # BDD feature-as-spec testing via rstest-bdd. Opt-in: `cargo test --features bdd`.

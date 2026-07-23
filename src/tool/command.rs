@@ -14,9 +14,6 @@ pub enum ToolCommands {
     CleanUselessComments(CleanUselessCommentsArgs),
     /// Remove useless directories recursively
     RmUselessDirs(RmUselessDirsArgs),
-    /// Deprecated: use rm-useless-dirs instead
-    #[command(hide = true)]
-    RmEmptyDirs(RmUselessDirsArgs),
     /// Sync ignore rules across OpenCode/Cursor/Claude Code
     #[command(alias = "si")]
     SyncIgnore(SyncIgnoreArgs),
