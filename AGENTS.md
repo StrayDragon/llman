@@ -43,33 +43,7 @@
 - **Seam（接缝）** — 不改调用处就能换实现的位置；在 llman 中接缝 = `*.feature` GWT 驱动的公共边界（CLI 子进程或 public 函数）。
 - **删除验证** — 想象删除模块：复杂度直接消失（只是透传，无价值）还是在 N 处重新冒出来（在扛事，有价值）。
 
-### 致谢
-
-上述增强能力的设计思路借鉴自 [mattpocock/skills](https://github.com/mattpocock/skills)（作者 Matt Pocock），其原始仓库以 MIT 协议开源。本项目的实现已按 llman 的单 SSOT（`spec.toon`）与 Git-native BDD 流程重写，并非直接复制；原始 skill 的措辞与结构版权归 Matt Pocock 所有。
-
-```
-MIT License
-
-Copyright (c) 2026 Matt Pocock
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+> 上述能力的借鉴来源与第三方许可声明见根目录 `NOTICE` 文件。
 
 
 # Repository Guidelines
