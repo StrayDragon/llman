@@ -346,6 +346,8 @@ pub enum SddCommands {
     },
     /// Index management commands (rebuild, check freshness)
     Index(IndexCommands),
+    /// Project configuration commands (view/edit config.yaml)
+    Config(SddConfigArgs),
     /// Project management commands
     Project(SddProjectArgs),
 }
@@ -372,6 +374,26 @@ pub enum IndexSubcommand {
     },
     /// Check index freshness without rebuilding
     Check {},
+}
+
+/// SDD project configuration commands
+#[derive(Args)]
+pub struct SddConfigArgs {
+    #[command(subcommand)]
+    pub command: Option<SddConfigCommands>,
+}
+
+#[derive(Subcommand)]
+pub enum SddConfigCommands {
+    /// Interactively manage optional skills (extra_skills in config.yaml)
+    Skills {
+        /// Disable interactive prompts; print current state instead
+        #[arg(long)]
+        no_interactive: bool,
+        /// Output as JSON (implies --no-interactive)
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Args)]
@@ -904,6 +926,7 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 ))
             }
         },
+        SddCommands::Config(args) => dispatch_config(args),
         SddCommands::Project(args) => match &args.command {
             SddProjectCommands::Import {
                 source,
@@ -948,6 +971,17 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 )
             }
         },
+    }
+}
+
+fn dispatch_config(args: &SddConfigArgs) -> Result<()> {
+    let root = std::path::Path::new(".");
+    match &args.command {
+        Some(SddConfigCommands::Skills {
+            no_interactive,
+            json,
+        }) => crate::sdd::project::config_skills::run(*no_interactive, *json, root),
+        None => crate::sdd::project::config_skills::run_overview(root),
     }
 }
 

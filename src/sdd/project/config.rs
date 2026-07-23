@@ -17,6 +17,9 @@ pub(crate) const OPTIONAL_SKILL_NAMES: &[&str] = &[
     "llman-sdd-ff",
     "llman-sdd-sync",
     "llman-sdd-validate",
+    "llman-sdd-arch-review",
+    "llman-sdd-wayfinder",
+    "llman-sdd-research",
 ];
 
 const DEFAULT_CONFIG_EN: &str = r#"schema: spec-driven
@@ -35,6 +38,9 @@ locale: en
 #   - llman-sdd-ff
 #   - llman-sdd-sync
 #   - llman-sdd-validate
+#   - llman-sdd-arch-review
+#   - llman-sdd-wayfinder
+#   - llman-sdd-research
 
 # BDD integration (optional, uncomment to enable)
 # bdd:
@@ -64,6 +70,9 @@ locale: zh-Hans
 #   - llman-sdd-ff
 #   - llman-sdd-sync
 #   - llman-sdd-validate
+#   - llman-sdd-arch-review
+#   - llman-sdd-wayfinder
+#   - llman-sdd-research
 
 # BDD 集成（可选，取消注释以启用）
 # bdd:
@@ -178,7 +187,8 @@ pub struct SddConfig {
         On init --update / update-skills, candidates = default workflow skills + this list; \
         then `.agents/skills/llman-sdd-*` not in candidates are removed before rewrite. \
         Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, \
-        llman-sdd-sync, llman-sdd-validate."
+        llman-sdd-sync, llman-sdd-validate, llman-sdd-arch-review, \
+        llman-sdd-wayfinder, llman-sdd-research."
     )]
     pub extra_skills: Option<Vec<String>>,
 
