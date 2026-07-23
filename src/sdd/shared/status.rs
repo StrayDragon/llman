@@ -177,39 +177,67 @@ enum TargetResult {
 }
 
 fn resolve_target(root: &Path, target: &str) -> TargetResult {
+    use crate::sdd::shared::match_utils::{PrefixOutcome, prefix_resolve};
+
     let active = collect_active_changes(root);
     let archived = collect_archived_changes(root);
 
-    // 1. Exact match against active changes
-    if let Some(ci) = active
-        .iter()
-        .find(|c| c.name == target || c.dir_name == target)
-    {
-        return TargetResult::Single(ci.clone());
+    // Resolution shares the same "exact > prefix" core as discovery::resolve_change_id
+    // (cli spec r112). Status additionally treats multi-match as a legitimate
+    // Multiple result rather than an error, and preserves dir_name exact match
+    // for archived entries (full date-prefixed name).
+
+    // Helper: map a matched id back to its ChangeInfo(s). Archived entries match
+    // on either the change-id portion (name) or the full dir_name (with date).
+    fn collect_matches(pool: &[ChangeInfo], target: &str, matched_ids: &[&str]) -> Vec<ChangeInfo> {
+        pool.iter()
+            .filter(|c| {
+                matched_ids.contains(&c.name.as_str())
+                    || matched_ids.contains(&c.dir_name.as_str())
+                    // exact dir_name match (e.g. full archived date-prefixed name)
+                    || c.dir_name == target
+            })
+            .cloned()
+            .collect()
     }
 
-    // 2. Exact match against archived (by dir_name = full date-prefixed name)
-    if let Some(ci) = archived.iter().find(|c| c.dir_name == target) {
-        return TargetResult::Single(ci.clone());
+    // 1) Exact / prefix match against active changes (active takes priority)
+    let active_ids: Vec<String> = active.iter().map(|c| c.name.clone()).collect();
+    match prefix_resolve(target, &active_ids) {
+        PrefixOutcome::Single(id) => {
+            if let Some(ci) = active.iter().find(|c| c.name == id || c.dir_name == target) {
+                return TargetResult::Single(ci.clone());
+            }
+        }
+        PrefixOutcome::Multiple(ids) => {
+            let mut m = collect_matches(&active, target, &ids);
+            m.sort_by_key(|c| c.priority);
+            return TargetResult::Multiple(m);
+        }
+        PrefixOutcome::None => {}
     }
 
-    // 3. Fuzzy / date-prefix match against all (active + archived)
-    let lower = target.to_lowercase();
-    let mut matches: Vec<ChangeInfo> = active
-        .into_iter()
-        .chain(archived)
-        .filter(|c| {
-            c.dir_name.to_lowercase().contains(&lower) || c.name.to_lowercase().contains(&lower)
-        })
-        .collect();
-
-    matches.sort_by_key(|c| c.priority);
-
-    match matches.len() {
-        0 => TargetResult::None,
-        1 => TargetResult::Single(matches.remove(0)),
-        _ => TargetResult::Multiple(matches),
+    // 2) Exact / prefix match against archived changes
+    let archived_ids: Vec<String> = archived.iter().map(|c| c.name.clone()).collect();
+    match prefix_resolve(target, &archived_ids) {
+        PrefixOutcome::Single(id) => {
+            if let Some(ci) = archived
+                .iter()
+                .find(|c| c.name == id || c.dir_name == target)
+            {
+                return TargetResult::Single(ci.clone());
+            }
+        }
+        PrefixOutcome::Multiple(ids) => {
+            let mut m = collect_matches(&archived, target, &ids);
+            m.sort_by_key(|c| c.priority);
+            return TargetResult::Multiple(m);
+        }
+        PrefixOutcome::None => {}
     }
+
+    // 3) No match — per cli spec r112, MUST NOT fall back to substring contains.
+    TargetResult::None
 }
 
 // ── TOON output builders ──

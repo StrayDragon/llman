@@ -1,5 +1,5 @@
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use std::fs;
 use std::path::Path;
 
@@ -106,4 +106,70 @@ pub fn list_specs(root: &Path) -> Result<Vec<String>> {
 
     result.sort();
     Ok(result)
+}
+
+/// Resolve a user-provided change name input to a canonical change id.
+///
+/// Resolution priority:
+/// 1. Exact match against active changes (`llmanspec/changes/<input>/proposal.md` exists)
+/// 2. Prefix match against active changes (directory name starts with `input`)
+/// 3. Prefix match against archived changes (change id portion starts with `input`)
+///
+/// Returns the resolved change id on success. Errors with a descriptive message on
+/// multi-match (lists all candidates) or no-match.
+pub fn resolve_change_id(root: &Path, input: &str) -> Result<String> {
+    use crate::sdd::shared::match_utils::{PrefixOutcome, prefix_resolve};
+
+    let input = input.trim();
+    if input.is_empty() {
+        bail!("change id must not be empty");
+    }
+
+    let active = list_changes(root)?;
+    let archived = list_archived_changes(root)?;
+
+    // 1) Exact / prefix match against active changes (active takes priority)
+    match prefix_resolve(input, &active) {
+        PrefixOutcome::Single(id) => return Ok(id.to_string()),
+        PrefixOutcome::Multiple(matches) => {
+            let candidates = matches
+                .iter()
+                .map(|s| format!("  - {s}"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            bail!(
+                "change '{input}' matches multiple active changes:\n{candidates}\nDid you mean one of these?"
+            );
+        }
+        PrefixOutcome::None => {}
+    }
+
+    // 2) Prefix match against archived changes (only when active had no match)
+    match prefix_resolve(input, &archived) {
+        PrefixOutcome::Single(id) => return Ok(id.to_string()),
+        PrefixOutcome::Multiple(matches) => {
+            let candidates = matches
+                .iter()
+                .map(|s| format!("  - {s}"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            bail!(
+                "change '{input}' matches multiple archived changes:\n{candidates}\nDid you mean one of these?"
+            );
+        }
+        PrefixOutcome::None => {}
+    }
+
+    // 3) No match at all
+    let mut suggestions = Vec::new();
+    suggestions.extend(active);
+    suggestions.extend(archived);
+    let nearby = crate::sdd::shared::match_utils::nearest_matches(input, &suggestions, 5);
+    if nearby.is_empty() {
+        bail!("change '{input}' not found.");
+    }
+    bail!(
+        "change '{input}' not found. Did you mean: {}?",
+        nearby.join(", ")
+    );
 }
