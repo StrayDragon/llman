@@ -12,36 +12,64 @@
 
 ## SDD 可选增强能力
 
-主 pipeline（explore→propose→apply→verify→archive）之外的**可选增强**，按需触发，默认行为不变。来源：将 mattpocock.skills 的高价值能力内化（单 SSOT = `spec.toon`，不引入 `CONTEXT.md`）。
+主 pipeline（explore→propose→apply→verify→archive）之外的**可选增强**，按需触发，默认行为不变。能力借鉴自 [mattpocock/skills](https://github.com/mattpocock/skills)（MIT，见下方致谢），经内化重写以 llman 的单 SSOT（`spec.toon`）为根，不引入 `CONTEXT.md`。
 
 ### pipeline 阶段内增强（触发词进入分支）
 
 | 阶段 | 增强能力 | 触发词 | 说明 |
 |------|---------|--------|------|
-| explore | grilling 深对齐 | 「深挖」「grill」「逐个问」 | 逐问走决策树，每问附推荐答案；事实自行查证，决策才问用户；领域术语冲突时回写 `spec.toon`（不建 glossary） |
-| propose | seam 前置确认 + 垂直切片 | 写 tasks 前自动 | 先列将测试的 seam（来自 `*.feature` GWT）并确认；tasks 按 tracer-bullet 垂直切片 + `[blocked-by]` 依赖 |
-| apply | diagnose 紧反馈 | 自修复失败且判定为 hard bug | 先建 red-capable 命令（紧/确定/快）再假设，禁止无复现命令就猜 |
-| verify | 双轴审查 | 用户要求或 Standards 疑似 | Spec 轴（spec.toon/.feature 合约）+ Standards 轴（AGENTS.md style + Fowler 12 smell）分离呈现 |
+| explore | 逐问深挖 | 「深挖」「逐个问」 | 一次只问一个问题并附推荐答案；能查到的事实不问用户，只有决策才问；术语冲突时回写 `spec.toon`（不另建词表） |
+| propose | 测试边界前置 + 垂直切片 | 写 tasks 前自动 | 先列将测试的边界（seam，来自 `*.feature` GWT）并确认；tasks 按垂直切片拆 + `[blocked-by]` 依赖 |
+| apply | 紧反馈诊断 | 自修复失败且判定为难定位 bug | 先建一个能复现失败的命令，再排查；禁止没有复现命令就猜原因 |
+| verify | 双轴审查 | 用户要求或规范疑似 | 合约轴（spec.toon/.feature 合约）+ 标准轴（AGENTS.md 编码规范 + 12 项代码坏味）分离呈现 |
 
 ### 独立可选 skill（不属于线性 pipeline）
 
 | skill | invocation | 用途 |
 |-------|-----------|------|
-| `llman-sdd-arch-review` | model-invoked | 扫描 shallow module 产出 deepening 候选 |
-| `llman-sdd-wayfinder` | user-invoked | 大型雾状工作规划为 decision ticket map |
-| `llman-sdd-research` | model-invoked | 后台 agent 委托外部文献调研 |
+| `llman-sdd-arch-review` | model-invoked | 扫描薄模块，找出可加深（藏更多行为到更小接口后）的候选 |
+| `llman-sdd-wayfinder` | user-invoked | 把大型、一团乱的工作拆成决策地图，逐个解决决策 |
+| `llman-sdd-research` | model-invoked | 后台 agent 委托查一手资料（官方文档/源码/API） |
 
 > 注：这 3 个独立 skill 尚未被 `init --update` 托管（需后续 CLI change 加入 `OPTIONAL_SKILL_NAMES`）。运行 `init --update` 前备份，否则会被清理。
 
-### 设计词汇（借自 codebase-design，避免双轨）
+### 设计词汇
 
-以下词汇在 arch-review / verify Standards 轴 / propose seam 中使用，MUST NOT 替换为 component/service/API/boundary：
+下面这组关于模块形状的词，在 arch-review / verify 标准轴 / propose 测试边界中使用。MUST NOT 替换为 component/service/API/boundary（它们含义更宽、不够精确）：
 
-- **Module** — 有 interface 和 implementation 的任何东西。
-- **Interface** — 调用者须知道的一切（签名 + 不变量 + 错误模式 + 性能）。
-- **Depth** — 小 interface 后面的行为量；深 = 大行为 behind 小 surface，浅 = interface ≈ implementation。
-- **Seam** — 无需就地编辑即可改行为的位置（interface 栖身处）；在 llman 中 seam = `*.feature` GWT 驱动的公共边界（CLI 子进程或 public 函数）。
-- **deletion test** — 想象删除 module：复杂度消失（pass-through，无价值）还是在 N 处重现（有价值）。
+- **Module（模块）** — 有接口和实现的东西（函数/类/包都算）。
+- **Interface（接口）** — 调用者为正确使用所须知道的一切（签名 + 不变量 + 错误模式 + 性能）。
+- **Depth（厚度）** — 接口背后的行为量；厚 = 小接口后藏大量行为，薄 = 接口 ≈ 实现（调用者没省事）。
+- **Seam（接缝）** — 不改调用处就能换实现的位置；在 llman 中接缝 = `*.feature` GWT 驱动的公共边界（CLI 子进程或 public 函数）。
+- **删除验证** — 想象删除模块：复杂度直接消失（只是透传，无价值）还是在 N 处重新冒出来（在扛事，有价值）。
+
+### 致谢
+
+上述增强能力的设计思路借鉴自 [mattpocock/skills](https://github.com/mattpocock/skills)（作者 Matt Pocock），其原始仓库以 MIT 协议开源。本项目的实现已按 llman 的单 SSOT（`spec.toon`）与 Git-native BDD 流程重写，并非直接复制；原始 skill 的措辞与结构版权归 Matt Pocock 所有。
+
+```
+MIT License
+
+Copyright (c) 2026 Matt Pocock
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 
 # Repository Guidelines
