@@ -101,47 +101,8 @@ fn author_sample_change(work_dir: &Path, change_id: &str) {
     fs::create_dir_all(&change_dir).expect("create change dir");
     let proposal = "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n";
     fs::write(change_dir.join("proposal.md"), proposal).expect("write proposal");
-
-    assert_success(&run_llman(
-        &["sdd", "change", "delta", "skeleton", change_id, "sample"],
-        work_dir,
-        work_dir,
-    ));
-    assert_success(&run_llman(
-        &[
-            "sdd",
-            "change",
-            "delta",
-            "add-req",
-            change_id,
-            "sample",
-            "r2",
-            "--title",
-            "R2",
-            "--statement",
-            "System MUST support R2.",
-        ],
-        work_dir,
-        work_dir,
-    ));
-    assert_success(&run_llman(
-        &[
-            "sdd",
-            "change",
-            "delta",
-            "add-scenario",
-            change_id,
-            "sample",
-            "r2",
-            "happy",
-            "--when",
-            "r2 is used",
-            "--then",
-            "it works",
-        ],
-        work_dir,
-        work_dir,
-    ));
+    fs::write(change_dir.join("design.md"), "# Design\n").expect("write design");
+    fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
 }
 
 #[test]
@@ -279,11 +240,11 @@ Need a sample change.
     assert!(archive_name.ends_with("-add-sample"));
 
     let updated_spec = fs::read_to_string(spec_dir.join("spec.toon")).expect("read updated spec");
+    // Unified flow: archive does docs rename only, no TOON delta merge (r113).
+    // The main spec is unchanged.
     assert!(updated_spec.contains("requirements["));
     assert!(updated_spec.contains("existing"));
-    assert!(updated_spec.contains("added"));
     assert!(updated_spec.contains("Existing behavior"));
-    assert!(updated_spec.contains("Added behavior"));
 }
 
 #[test]
@@ -326,11 +287,18 @@ fn test_sdd_archive_flow_works_in_toon_project() {
     );
     assert_success(&archive_output);
 
+    // Unified flow: archive does docs rename only, no TOON delta merge (r113).
+    // The main spec is unchanged; change docs are moved to archive/.
     let updated = fs::read_to_string(work_dir.join("llmanspec/specs/sample/spec.toon"))
         .expect("read updated spec");
     assert!(updated.contains("valid_scope"));
-    assert!(updated.contains("r2"));
-    assert!(updated.contains("System MUST support R2."));
+    // r2 was in the delta, not merged to main spec; only r1 remains.
+    assert!(updated.contains("r1"));
+    assert!(!updated.contains("r2"));
+    assert!(
+        !work_dir.join("llmanspec/changes/add-sample").exists(),
+        "active change dir must be moved"
+    );
 }
 
 #[test]
@@ -514,49 +482,12 @@ fn test_sdd_authoring_helpers_produce_strict_valid_spec_and_change() {
         work_dir,
         work_dir,
     );
-    assert_success(&delta_skel);
+    // change delta is removed (r115) — always rejected.
+    assert!(!delta_skel.status.success(), "change delta must be removed");
+    let delta_err = String::from_utf8_lossy(&delta_skel.stderr);
+    assert!(delta_err.contains("removed"), "got: {delta_err}");
 
-    let add_op = run_llman(
-        &[
-            "sdd",
-            "change",
-            "delta",
-            "add-req",
-            "add-sample",
-            "sample",
-            "r2",
-            "--title",
-            "R2",
-            "--statement",
-            "System MUST support R2.",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&add_op);
-
-    let add_delta_scenario = run_llman(
-        &[
-            "sdd",
-            "change",
-            "delta",
-            "add-scenario",
-            "add-sample",
-            "sample",
-            "r2",
-            "s1",
-            "--when",
-            "r2 is used",
-            "--then",
-            "it works",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&add_delta_scenario);
-
-    git_commit_all(work_dir, "add delta content");
-
+    // Validate the change still passes (specs are not read from change dir).
     let validate_change = run_llman(
         &[
             "sdd",
@@ -648,16 +579,16 @@ fn test_sdd_show_change_json_uses_delta_specs() {
 
     let llmanspec_dir = work_dir.join("llmanspec");
     let change_dir = llmanspec_dir.join("changes").join("add-sample");
-    let change_specs_dir = change_dir.join("specs").join("sample");
-    fs::create_dir_all(&change_specs_dir).expect("create change spec dir");
+    fs::create_dir_all(&change_dir).expect("create change dir");
     fs::write(
         change_dir.join("proposal.md"),
         "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n",
     )
     .expect("write proposal");
-    let delta_spec = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  added,added,,a new action is taken,the new behavior happens\n";
-    fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
+    fs::write(change_dir.join("design.md"), "# Design\n").expect("write design");
+    fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
 
+    // Unified flow: delta specs are removed; deltaCount is always 0 (r115).
     let show_output = run_llman(
         &[
             "sdd",
@@ -675,13 +606,12 @@ fn test_sdd_show_change_json_uses_delta_specs() {
 
     let show_json: Value = serde_json::from_slice(&show_output.stdout).expect("show change json");
     assert_eq!(show_json["id"], "add-sample");
-    assert_eq!(show_json["deltaCount"], 1);
-    assert_eq!(show_json["deltas"][0]["operation"], "ADDED");
-    assert_eq!(show_json["deltas"][0]["spec"], "sample");
+    // Unified flow: delta specs removed, deltaCount is always 0 (r115).
+    assert_eq!(show_json["deltaCount"], 0);
+    assert!(show_json["deltas"].as_array().unwrap().is_empty());
 
-    // stage is inferred from artifacts (proposal + specs = specified, no
-    // design/tasks yet → not ready to implement). See sdd-workflow r46.
-    assert_eq!(show_json["stage"], "specified");
+    // stage: proposal+design+tasks but no attach -> designed (r93).
+    assert_eq!(show_json["stage"], "designed");
     assert_eq!(show_json["readyToImplement"], false);
     let artifacts = show_json["artifacts"]
         .as_array()
@@ -691,12 +621,98 @@ fn test_sdd_show_change_json_uses_delta_specs() {
         "artifacts should include proposal.md, got: {artifacts:?}"
     );
     assert!(
-        artifacts.iter().any(|v| v == "specs"),
-        "artifacts should include specs, got: {artifacts:?}"
+        artifacts.iter().any(|v| v == "design.md"),
+        "artifacts should include design.md, got: {artifacts:?}"
     );
     assert!(
-        !artifacts.iter().any(|v| v == "design.md"),
-        "artifacts should not include design.md yet"
+        artifacts.iter().any(|v| v == "tasks.md"),
+        "artifacts should include tasks.md, got: {artifacts:?}"
+    )
+}
+
+#[test]
+fn test_sdd_show_change_prefix_match_emits_hint_and_json_flag() {
+    // cli spec r112: resolving a change via a unique prefix MUST emit the
+    // "'input' -> 'resolved' (prefix match)" hint (human: stderr) and set
+    // `matchedViaPrefix` in JSON. Exact match MUST NOT emit the hint and sets
+    // `matchedViaPrefix=false`.
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+
+    let init_output = run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&init_output);
+
+    let change_id = "c123-fix-bug";
+    let change_dir = work_dir.join("llmanspec").join("changes").join(change_id);
+    fs::create_dir_all(&change_dir).expect("create change dir");
+    fs::write(
+        change_dir.join("proposal.md"),
+        "## Why\nNeed a sample change.\n\n## What Changes\n- Fix a bug.\n",
+    )
+    .expect("write proposal");
+
+    // --- Prefix match: hint on stderr + matchedViaPrefix=true in JSON ---
+    let prefix_json = run_llman(
+        &[
+            "sdd", "show", "c123", "--type", "change", "--output", "json",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&prefix_json);
+    let json: Value = serde_json::from_slice(&prefix_json.stdout).expect("prefix show json");
+    assert_eq!(
+        json["id"], change_id,
+        "resolved id should be the full change"
+    );
+    assert_eq!(
+        json["matchedViaPrefix"], true,
+        "prefix match MUST set matchedViaPrefix=true"
+    );
+
+    // Human-readable output: hint goes to stderr.
+    let prefix_human = run_llman(
+        &["sdd", "show", "c123", "--type", "change"],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&prefix_human);
+    let stderr = String::from_utf8_lossy(&prefix_human.stderr);
+    assert!(
+        stderr.contains("'c123' -> 'c123-fix-bug' (prefix match)"),
+        "human output MUST emit prefix-match hint on stderr, got stderr: {stderr}"
+    );
+
+    // --- Exact match: no hint + matchedViaPrefix=false ---
+    let exact_json = run_llman(
+        &[
+            "sdd", "show", change_id, "--type", "change", "--output", "json",
+        ],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&exact_json);
+    let json: Value = serde_json::from_slice(&exact_json.stdout).expect("exact show json");
+    assert_eq!(json["id"], change_id);
+    assert_eq!(
+        json["matchedViaPrefix"], false,
+        "exact match MUST set matchedViaPrefix=false"
+    );
+
+    let exact_human = run_llman(
+        &["sdd", "show", change_id, "--type", "change"],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&exact_human);
+    let stderr = String::from_utf8_lossy(&exact_human.stderr);
+    assert!(
+        !stderr.contains("(prefix match)"),
+        "exact match MUST NOT emit prefix-match hint, got stderr: {stderr}"
     );
 }
 
@@ -1356,15 +1372,12 @@ fn test_sdd_show_change_full_stage_ready_to_implement() {
 
     let llmanspec_dir = work_dir.join("llmanspec");
     let change_dir = llmanspec_dir.join("changes").join("full-change");
-    let change_specs_dir = change_dir.join("specs").join("sample");
-    fs::create_dir_all(&change_specs_dir).expect("create change spec dir");
+    fs::create_dir_all(&change_dir).expect("create change dir");
     fs::write(
         change_dir.join("proposal.md"),
-        "## Why\nFull change.\n\n## What Changes\n- Add behavior.\n",
+        "---\nbranch: feat/x\nbase_sha: abc123\n---\n# Proposal\n\n## Why\nFull change.\n\n## What Changes\n- Add behavior.\n",
     )
     .expect("write proposal");
-    let delta_spec = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  added,added,,a new action is taken,the new behavior happens\n";
-    fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
     fs::write(change_dir.join("design.md"), "# Design\nTrivial.\n").expect("write design");
     fs::write(change_dir.join("tasks.md"), "- [ ] implement\n").expect("write tasks");
 
@@ -1489,7 +1502,7 @@ fn test_sdd_config_skills_non_interactive() {
     let available = json["available"].as_array().unwrap();
     assert_eq!(
         available.len(),
-        8,
+        7,
         "should list all 8 optional skills as available (none enabled yet), got: {available:?}"
     );
 }

@@ -225,7 +225,7 @@ description: "override for test"
             "llman-sdd-new-change",
             "llman-sdd-continue",
             "llman-sdd-ff",
-            "llman-sdd-sync",
+            "llman-sdd-ff",
             "llman-sdd-validate",
         ];
         for skill in &optional_skills {
@@ -261,7 +261,7 @@ description: "override for test"
         let config_path = llmanspec_dir.join("config.yaml");
         fs::write(
             &config_path,
-            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n  - llman-sdd-new-change\n",
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-ff\n  - llman-sdd-new-change\n",
         )
         .expect("write config");
 
@@ -283,7 +283,7 @@ description: "override for test"
         );
 
         // Enabled extra skills present
-        assert!(root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists());
+        assert!(root.join(".agents/skills/llman-sdd-ff/SKILL.md").exists());
         assert!(
             root.join(".agents/skills/llman-sdd-new-change/SKILL.md")
                 .exists()
@@ -295,7 +295,11 @@ description: "override for test"
                 .join(".agents/skills/llman-sdd-continue/SKILL.md")
                 .exists()
         );
-        assert!(!root.join(".agents/skills/llman-sdd-ff/SKILL.md").exists());
+        assert!(
+            !root
+                .join(".agents/skills/llman-sdd-validate/SKILL.md")
+                .exists()
+        );
     }
 
     #[test]
@@ -309,7 +313,7 @@ description: "override for test"
         let config_path = llmanspec_dir.join("config.yaml");
         fs::write(
             &config_path,
-            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n  - llman-sdd-new-change\n",
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-ff\n  - llman-sdd-new-change\n",
         )
         .expect("write config");
 
@@ -317,7 +321,7 @@ description: "override for test"
         super::run_with_root(root).expect("update-skills");
 
         // Verify skills exist
-        assert!(root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists());
+        assert!(root.join(".agents/skills/llman-sdd-ff/SKILL.md").exists());
         assert!(
             root.join(".agents/skills/llman-sdd-new-change/SKILL.md")
                 .exists()
@@ -332,7 +336,7 @@ description: "override for test"
         // Update config to remove llman-sdd-new-change
         fs::write(
             &config_path,
-            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n",
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-ff\n",
         )
         .expect("write config");
 
@@ -352,7 +356,7 @@ description: "override for test"
         );
 
         // Verify kept skills still exist
-        assert!(root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists());
+        assert!(root.join(".agents/skills/llman-sdd-ff/SKILL.md").exists());
         assert!(
             root.join(".agents/skills/llman-sdd-explore/SKILL.md")
                 .exists()
@@ -473,18 +477,18 @@ description: "override for test"
         let config_path = llmanspec_dir.join("config.yaml");
         fs::write(
             &config_path,
-            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n",
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-ff\n",
         )
         .expect("write config");
 
         super::run_with_root(root).expect("update-skills");
 
-        assert!(root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists());
+        assert!(root.join(".agents/skills/llman-sdd-ff/SKILL.md").exists());
 
         // Second pass with same extend list must keep the extra skill
         super::run_with_root(root).expect("update-skills again");
         assert!(
-            root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists(),
+            root.join(".agents/skills/llman-sdd-ff/SKILL.md").exists(),
             "extra_skills extend candidates must remain"
         );
     }
@@ -500,7 +504,7 @@ description: "override for test"
         let config_path = llmanspec_dir.join("config.yaml");
         fs::write(
             &config_path,
-            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n  - llman-sdd-new-change\n",
+            "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-ff\n  - llman-sdd-new-change\n",
         )
         .expect("write config");
 
@@ -508,7 +512,7 @@ description: "override for test"
         super::run_with_root(root).expect("update-skills");
 
         // Verify optional skills exist
-        assert!(root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists());
+        assert!(root.join(".agents/skills/llman-sdd-ff/SKILL.md").exists());
         assert!(
             root.join(".agents/skills/llman-sdd-new-change/SKILL.md")
                 .exists()
@@ -522,8 +526,8 @@ description: "override for test"
 
         // Verify optional skills are removed
         assert!(
-            !root.join(".agents/skills/llman-sdd-sync/SKILL.md").exists(),
-            "optional skill llman-sdd-sync should be removed"
+            !root.join(".agents/skills/llman-sdd-ff/SKILL.md").exists(),
+            "optional skill llman-sdd-ff should be removed"
         );
         assert!(
             !root

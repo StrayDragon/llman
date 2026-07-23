@@ -208,7 +208,7 @@ fn seed_bdd_project(mode: &str) {
         &[],
     );
 
-    // author add-scen change: delta adds r2 + a scenario (BDD-off archive target).
+    // author add-scen change: proposal only (delta specs are removed, r115).
     let change_dir = dir.join("llmanspec/changes/add-scen");
     std::fs::create_dir_all(&change_dir).expect("mkdir fixture change");
     std::fs::write(
@@ -216,17 +216,8 @@ fn seed_bdd_project(mode: &str) {
         "## Why\nAdd r2 to sample.\n\n## What Changes\n- Add requirement r2.\n",
     )
     .expect("write fixture proposal");
-    run_llman_in(&dir, "sdd change delta skeleton add-scen sample", &[]);
-    run_llman_in(
-        &dir,
-        "sdd change delta add-req add-scen sample r2 --title R2 --statement \"System MUST support r2.\"",
-        &[],
-    );
-    run_llman_in(
-        &dir,
-        "sdd change delta add-scenario add-scen sample r2 \"new r2 behavior\" --when \"r2 triggered\" --then \"r2 works\"",
-        &[],
-    );
+    std::fs::write(change_dir.join("design.md"), "# Design\n").expect("write fixture design");
+    std::fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write fixture tasks");
 
     // Overwrite config.yaml to the requested bdd mode AFTER authoring (authoring
     // commands rewrite config.yaml, so this must be the last config write).

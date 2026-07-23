@@ -39,7 +39,6 @@ struct StatusJson {
     #[serde(rename = "activeChanges")]
     active_changes: usize,
     draft: usize,
-    specified: usize,
     designed: usize,
     full: usize,
     #[serde(rename = "pendingValidation")]
@@ -58,6 +57,9 @@ struct SingleChangeJson {
     total_tasks: usize,
     #[serde(rename = "nextAction")]
     next_action: String,
+    /// r112: true when the target was resolved via a prefix match.
+    #[serde(rename = "matchedViaPrefix")]
+    matched_via_prefix: bool,
 }
 
 // ── Target resolution ──
@@ -92,14 +94,11 @@ fn extract_priority(dir_name: &str) -> usize {
 fn collect_active_changes(root: &Path) -> Vec<ChangeInfo> {
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let changes_dir = llmanspec_dir.join("changes");
-    let bdd_on = crate::sdd::project::config::load_required_config(&llmanspec_dir)
-        .map(|c| c.bdd.is_some())
-        .unwrap_or(false);
     let mut result = Vec::new();
 
     for name in list_changes(root).unwrap_or_default() {
         let change_dir = changes_dir.join(&name);
-        let stage = determine_stage(&change_dir, bdd_on);
+        let stage = determine_stage(&change_dir);
         let (done, total) = parse_task_counts(&change_dir);
         result.push(ChangeInfo {
             dir_name: name.clone(),
@@ -121,9 +120,6 @@ fn collect_archived_changes(root: &Path) -> Vec<ChangeInfo> {
         .join(LLMANSPEC_DIR_NAME)
         .join("changes")
         .join("archive");
-    let bdd_on = crate::sdd::project::config::load_required_config(&root.join(LLMANSPEC_DIR_NAME))
-        .map(|c| c.bdd.is_some())
-        .unwrap_or(false);
     let mut result = Vec::new();
 
     let entries = match std::fs::read_dir(&archive_dir) {
@@ -144,7 +140,7 @@ fn collect_archived_changes(root: &Path) -> Vec<ChangeInfo> {
         let priority = extract_priority(&name);
         let change_dir = entry.path();
         // For archived changes, we still check stage from the artifacts present
-        let stage = determine_stage(&change_dir, bdd_on);
+        let stage = determine_stage(&change_dir);
         let (done, total) = parse_task_counts(&change_dir);
         result.push(ChangeInfo {
             dir_name,
@@ -171,7 +167,12 @@ fn parse_task_counts(change_dir: &Path) -> (usize, usize) {
 
 /// Resolve TARGET to either a unique ChangeInfo or a list of matches.
 enum TargetResult {
-    Single(ChangeInfo),
+    /// `via_prefix` is true when the target was a unique prefix rather than an
+    /// exact match (used for the r112 hint + JSON `matchedViaPrefix` field).
+    Single {
+        info: ChangeInfo,
+        via_prefix: bool,
+    },
     Multiple(Vec<ChangeInfo>),
     None,
 }
@@ -204,9 +205,15 @@ fn resolve_target(root: &Path, target: &str) -> TargetResult {
     // 1) Exact / prefix match against active changes (active takes priority)
     let active_ids: Vec<String> = active.iter().map(|c| c.name.clone()).collect();
     match prefix_resolve(target, &active_ids) {
-        PrefixOutcome::Single(id) => {
+        PrefixOutcome::Single { id, via_prefix } => {
             if let Some(ci) = active.iter().find(|c| c.name == id || c.dir_name == target) {
-                return TargetResult::Single(ci.clone());
+                // `via_prefix` is authoritative from prefix_resolve; a dir_name
+                // exact match (c.dir_name == target) is never a prefix match.
+                let via_prefix = via_prefix && ci.dir_name != target;
+                return TargetResult::Single {
+                    info: ci.clone(),
+                    via_prefix,
+                };
             }
         }
         PrefixOutcome::Multiple(ids) => {
@@ -220,12 +227,16 @@ fn resolve_target(root: &Path, target: &str) -> TargetResult {
     // 2) Exact / prefix match against archived changes
     let archived_ids: Vec<String> = archived.iter().map(|c| c.name.clone()).collect();
     match prefix_resolve(target, &archived_ids) {
-        PrefixOutcome::Single(id) => {
+        PrefixOutcome::Single { id, via_prefix } => {
             if let Some(ci) = archived
                 .iter()
                 .find(|c| c.name == id || c.dir_name == target)
             {
-                return TargetResult::Single(ci.clone());
+                let via_prefix = via_prefix && ci.dir_name != target;
+                return TargetResult::Single {
+                    info: ci.clone(),
+                    via_prefix,
+                };
             }
         }
         PrefixOutcome::Multiple(ids) => {
@@ -260,7 +271,6 @@ fn toon_project_overview(changes: &[ChangeInfo], specs_count: usize) -> String {
         for c in changes {
             let stage_str = match c.stage {
                 ChangeStage::Draft => "draft",
-                ChangeStage::Specified => "spec",
                 ChangeStage::Designed => "design",
                 ChangeStage::Full => "full",
             };
@@ -299,7 +309,6 @@ fn toon_single_change(ci: &ChangeInfo, root: &Path) -> String {
 
     let stage_str = match ci.stage {
         ChangeStage::Draft => "draft",
-        ChangeStage::Specified => "spec",
         ChangeStage::Designed => "design",
         ChangeStage::Full => "full",
     };
@@ -452,8 +461,7 @@ fn derive_next_action(ci: &ChangeInfo) -> String {
     }
     match ci.stage {
         ChangeStage::Draft => "propose".to_string(),
-        ChangeStage::Specified => "design".to_string(),
-        ChangeStage::Designed => "tasks".to_string(),
+        ChangeStage::Designed => "start".to_string(),
         ChangeStage::Full => {
             if ci.tasks_done < ci.tasks_total {
                 format!("impl task {}", ci.tasks_done + 1)
@@ -490,7 +498,6 @@ fn maybe_quote(s: &str) -> String {
 
 fn json_project_overview(changes: &[ChangeInfo], specs_count: usize) -> Result<()> {
     let mut draft = 0;
-    let mut specified = 0;
     let mut designed = 0;
     let mut full = 0;
     let mut pending_validation = 0;
@@ -498,7 +505,6 @@ fn json_project_overview(changes: &[ChangeInfo], specs_count: usize) -> Result<(
     for c in changes {
         match c.stage {
             ChangeStage::Draft => draft += 1,
-            ChangeStage::Specified => specified += 1,
             ChangeStage::Designed => designed += 1,
             ChangeStage::Full => {
                 full += 1;
@@ -512,7 +518,6 @@ fn json_project_overview(changes: &[ChangeInfo], specs_count: usize) -> Result<(
     let status = StatusJson {
         active_changes: changes.len(),
         draft,
-        specified,
         designed,
         full,
         pending_validation,
@@ -522,10 +527,9 @@ fn json_project_overview(changes: &[ChangeInfo], specs_count: usize) -> Result<(
     Ok(())
 }
 
-fn json_single_change(ci: &ChangeInfo) -> Result<()> {
+fn json_single_change(ci: &ChangeInfo, via_prefix: bool) -> Result<()> {
     let stage_str = match ci.stage {
         ChangeStage::Draft => "draft",
-        ChangeStage::Specified => "specified",
         ChangeStage::Designed => "designed",
         ChangeStage::Full => "full",
     };
@@ -538,12 +542,15 @@ fn json_single_change(ci: &ChangeInfo) -> Result<()> {
             status: String,
             archived: bool,
             next_action: String,
+            #[serde(rename = "matchedViaPrefix")]
+            matched_via_prefix: bool,
         }
         let out = ArchivedJsonOut {
             change: ci.dir_name.clone(),
             status: stage_str.to_string(),
             archived: true,
             next_action: next,
+            matched_via_prefix: via_prefix,
         };
         println!("{}", serde_json::to_string_pretty(&out)?);
     } else {
@@ -558,6 +565,7 @@ fn json_single_change(ci: &ChangeInfo) -> Result<()> {
             completed_tasks: ci.tasks_done,
             total_tasks: ci.tasks_total,
             next_action: next,
+            matched_via_prefix: via_prefix,
         };
         println!("{}", serde_json::to_string_pretty(&out)?);
     }
@@ -642,10 +650,24 @@ pub fn run(args: StatusArgs) -> Result<()> {
         Some(target) => {
             let resolved = resolve_target(root, target);
             match resolved {
-                TargetResult::Single(ci) => match format {
-                    Format::Toon => print!("{}", toon_single_change(&ci, root)),
-                    Format::Json => json_single_change(&ci)?,
-                },
+                TargetResult::Single {
+                    info: ci,
+                    via_prefix,
+                } => {
+                    // r112: emit the "'input' -> 'resolved' (prefix match)" hint
+                    // to stderr for human (TOON) output when the target was a
+                    // prefix match. JSON carries the `matchedViaPrefix` field.
+                    if via_prefix && format != Format::Json {
+                        eprintln!(
+                            "{}",
+                            t!("sdd.prefix_match_hint", input = target, resolved = ci.name)
+                        );
+                    }
+                    match format {
+                        Format::Toon => print!("{}", toon_single_change(&ci, root)),
+                        Format::Json => json_single_change(&ci, via_prefix)?,
+                    }
+                }
                 TargetResult::Multiple(matches) => match format {
                     Format::Toon => print!("{}", toon_multiple_matches(&matches)),
                     Format::Json => json_multiple_matches(&matches)?,

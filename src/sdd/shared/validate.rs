@@ -84,12 +84,19 @@ struct ValidationItem {
     #[serde(rename = "durationMs")]
     duration_ms: u128,
     staleness: StalenessInfo,
+    /// r112: true when the change id was resolved via a prefix match. Only
+    /// meaningful for change items; always false for specs / interactive picks.
+    #[serde(rename = "matchedViaPrefix", default)]
+    matched_via_prefix: bool,
 }
 
 fn parse_stage_override(value: Option<&str>) -> Option<ChangeStage> {
     match value?.to_lowercase().as_str() {
         "draft" => Some(ChangeStage::Draft),
-        "spec" => Some(ChangeStage::Specified),
+        // Legacy "spec" / "specified" inputs map to Designed (Specified stage
+        // is removed under the unified three-state flow, r93).
+        "spec" | "specified" => Some(ChangeStage::Designed),
+        "designed" => Some(ChangeStage::Designed),
         "full" => Some(ChangeStage::Full),
         _ => None,
     }
@@ -296,6 +303,7 @@ fn run_interactive_selector(
         locale,
         check_mode,
         false, // interactive user can't pass --check
+        false, // interactive pick is never a prefix match
     )
 }
 
@@ -329,21 +337,26 @@ fn validate_direct(
     let specs = list_specs(root)?;
     let is_spec = specs.contains(&item.to_string());
     let mut resolved_change_id: Option<String> = None;
+    // Whether the change id was resolved via a prefix match (r112 hint + JSON
+    // `matchedViaPrefix`). Only meaningful when resolving a change.
+    let mut matched_via_prefix = false;
 
     // When --type change is specified, use prefix-aware resolution.
     // When no type, exact spec match takes priority (cli spec r112) so a spec
     // id is not hijacked by a change whose id starts with it.
     match type_override {
         Some(ItemType::Change) => {
-            resolved_change_id = Some(crate::sdd::shared::discovery::resolve_change_id(
-                root, item,
-            )?);
+            let resolved = crate::sdd::shared::discovery::resolve_change_id(root, item)?;
+            matched_via_prefix = resolved.via_prefix;
+            resolved_change_id = Some(resolved.id);
         }
         Some(ItemType::Spec) => {}
         None => {
-            if !is_spec && let Ok(id) = crate::sdd::shared::discovery::resolve_change_id(root, item)
+            if !is_spec
+                && let Ok(resolved) = crate::sdd::shared::discovery::resolve_change_id(root, item)
             {
-                resolved_change_id = Some(id);
+                matched_via_prefix = resolved.via_prefix;
+                resolved_change_id = Some(resolved.id);
             }
         }
     }
@@ -384,6 +397,18 @@ fn validate_direct(
     }
 
     let resolved_id = resolved_change_id.as_deref().unwrap_or(item);
+    // r112: emit the "'input' -> 'resolved' (prefix match)" hint to stderr for
+    // human output when a change id was resolved via a prefix.
+    if matched_via_prefix && is_change && !json {
+        eprintln!(
+            "{}",
+            t!(
+                "sdd.prefix_match_hint",
+                input = item,
+                resolved = resolved_id
+            )
+        );
+    }
     validate_by_type(
         root,
         resolved_type,
@@ -399,6 +424,7 @@ fn validate_direct(
         locale,
         check_mode,
         check_deprecated,
+        matched_via_prefix,
     )
 }
 
@@ -442,7 +468,7 @@ fn validate_change_full(
     archive_config: &ArchiveConfig,
     bdd_on: bool,
 ) -> ValidationReport {
-    let stage = stage_override.unwrap_or_else(|| determine_stage(change_dir, bdd_on));
+    let stage = stage_override.unwrap_or_else(|| determine_stage(change_dir));
     let mut issues = Vec::new();
 
     // Validate consistency when stage is forced via --stage
@@ -457,13 +483,20 @@ fn validate_change_full(
                     });
                 }
             }
-            ChangeStage::Specified => {
-                if !has_spec_files(&change_dir.join("specs")) {
+            ChangeStage::Designed => {
+                // Designed requires design.md + tasks.md but no attach binding.
+                if !change_dir.join("design.md").exists() {
                     issues.push(ValidationIssue {
                         level: ValidationLevel::Error,
-                        path: "specs".to_string(),
-                        message: "Stage forced to 'spec' but specs/ is missing or empty"
-                            .to_string(),
+                        path: "design.md".to_string(),
+                        message: "Stage forced to 'designed' but design.md is missing".to_string(),
+                    });
+                }
+                if !change_dir.join("tasks.md").exists() {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: "tasks.md".to_string(),
+                        message: "Stage forced to 'designed' but tasks.md is missing".to_string(),
                     });
                 }
             }
@@ -476,7 +509,6 @@ fn validate_change_full(
                     });
                 }
             }
-            ChangeStage::Designed => {}
         }
     }
 
@@ -605,6 +637,7 @@ fn validate_by_type(
     locale: &str,
     check_mode: bool,
     check_deprecated: bool,
+    matched_via_prefix: bool,
 ) -> Result<()> {
     let start = Instant::now();
     let (report, staleness) = match item_type {
@@ -707,6 +740,7 @@ fn validate_by_type(
             issues: report.issues.clone(),
             duration_ms,
             staleness: staleness.clone(),
+            matched_via_prefix,
         }];
         let summary = summary_for_items(&items, &[item_type]);
         let output = serde_json::json!({
@@ -939,6 +973,7 @@ fn run_bulk_validation(
             issues: report.issues,
             duration_ms: start.elapsed().as_millis(),
             staleness: StalenessInfo::not_applicable(),
+            matched_via_prefix: false,
         });
     }
     // When validating changes without specs, still surface main-library req_id debt once.
@@ -950,6 +985,7 @@ fn run_bulk_validation(
             issues: global_req_issues.clone(),
             duration_ms: 0,
             staleness: StalenessInfo::not_applicable(),
+            matched_via_prefix: false,
         });
     }
     let staleness_evaluator = StalenessEvaluator::new(root);
@@ -1008,6 +1044,7 @@ fn run_bulk_validation(
                     issues: report.issues,
                     duration_ms: start.elapsed().as_millis(),
                     staleness: staleness.info,
+                    matched_via_prefix: false,
                 });
             }
             Err(err) => {
@@ -1020,6 +1057,7 @@ fn run_bulk_validation(
                     issues: report.issues,
                     duration_ms: start.elapsed().as_millis(),
                     staleness: StalenessInfo::not_applicable(),
+                    matched_via_prefix: false,
                 });
             }
         }

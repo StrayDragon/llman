@@ -85,8 +85,34 @@ Cargo equivalents use `cargo +nightly ...`.
 - Avoid parallel test collisions: don’t use fixed relative paths/identifiers in the repo root (e.g. `config`, `config.yaml`); prefer unique temp paths and guard env/cwd changes with `crate::test_utils::TestProcess`.
 - When editing `templates/sdd/**`, run `just check-sdd-templates` (also in `just check-all`).
 
-## BDD-on（Partitioned SSOT）Conventions
-本项目已启用 BDD-on（`llmanspec/config.yaml` 含 `bdd:` 段），采用 **Partitioned SSOT**：
+## 统一 Git-native 变更流程
+
+本项目采用统一 Git-native 流程（不再区分 BDD-on/off）：
+
+```
+draft [proposal.md] → designed [+design+tasks] → full [change start→分支+attach] → apply → verify → archive [docs rename + ff-merge→main]
+```
+
+`bdd:` 段降级为**仅 runner 开关**（决定 `validate --check` 是否跑 `bdd.run_command`，不影响变更生命周期）。
+
+| 阶段 | 状态 | 触发命令 |
+|------|------|----------|
+| draft | proposal.md only | `change new` |
+| designed | +design.md +tasks.md | 手动补充 artifact |
+| full | +attach binding | `change start`（推荐）或 `change attach` |
+| apply | 实现代码 | `llman-sdd-apply` |
+| verify | 验证一致性 | `llman-sdd-verify` |
+| archive | docs rename + ff-merge | `change archive` 或 `change finalize` |
+
+- **`change start <id>`**：clean-tree 门禁 → 自动建分支 `sdd/<id>` → 写入 attach binding
+- **`change attach <id>`**：手动绑已有 feature 分支（共存命令）
+- **`change start --worktree <id>`**：`git worktree add` 并行工作（路径 `<repo>/.git/sdd/worktrees/`）
+- **`change finalize <id>`**：checkpoint + docs rename + ff-merge 单进程（工作区可脏）
+- **`change archive <id>`**：docs rename + `git merge --ff-only` 到默认分支
+- **无 `change delta`**：编辑 live `llmanspec/specs/**/spec.toon` + `*.feature`；已移除
+- **无 `solidify`**：不保留兼容别名
+
+BFD-on（`bdd:` 段存在）时 `.feature` harness 为 SSOT：
 
 | 层 | 权威 | 内容 |
 |---|---|---|
@@ -94,22 +120,17 @@ Cargo equivalents use `cargo +nightly ...`.
 | Harness | `llmanspec/specs/<name>/*.feature` | 可执行 GWT 唯一正文；场景带 `@req:<req_id>` |
 
 `req_id` 是**全库唯一的短别名**（`r12` 或自定义 tag）。归属用
-`llman sdd spec resolve-req <id>` / `next-req-id` 查询与分配；`validate` 对跨
-capability 重复立即 ERROR 并给出修复建议。
+`llman sdd spec resolve-req <id>` / `next-req-id` 查询与分配。
 
-禁止同一 scenario id 的可执行 GWT 双写在 toon 与 feature。BDD-on 采用 **Git-native** 流程：在非默认 feature 分支上编辑 live `llmanspec/specs/**/spec.toon` 与 `*.feature`；`llman sdd change attach <id>` 绑定分支 + base SHA；`checkpoint` 要求干净工作区并跑门禁；`diff` 只读审查/导出；合并前 `llman sdd change archive <id>` **仅移动 change 文档**（永不 apply `feature_delta` / 永不把 TOON 当 SSOT 合并），再经正常 Git 合并进主分支（本地 `git merge --ff-only` 即可；`git push` / Hosting PR 仅为可选——仅当用户或项目明确要求远程审查时再做）。**没有** `solidify` 命令。遗留活跃 `*.feature.delta.toon` 是迁移阻断项。下游升级：`llman sdd project migrate --kind partitioned`（自循环 agent prompt 见 `docs/release/partitioned-ssot/UPGRADE_AGENT_PROMPT.md`）。
+`spec scaffold <cap>` 生成框架 spec.toon + 可选 `.feature`（BDD-on 时），自动分配首个 `req_id`。
 
-### 如何启用/关闭 BDD-on 模式
-**启用**：在 `llmanspec/config.yaml` 加 `bdd:` 段，`run_command` 按测试框架选：
-```yaml
-bdd:
-  run_command: "cargo test --features bdd"                      # rstest-bdd
-  # run_command: "pytest {feature_dir} -k {feature_name} -v"    # pytest-bdd
-```
-agent 在 propose 阶段遇到可执行行为场景时会主动询问是否启用（见 `llman-sdd-propose` 4a）。
-**关闭**：删除 `bdd:` 段。注意：已有的 `.feature` 文件**不会被自动删除**——`validate`/`index`
-会忽略它们。若确定不再需要，手动删除或保留作文档。BDD-off 保持 TOON delta + archive 合并，
-**不**引入 feature 分支 / attach / checkpoint / harness 要求。
+禁止同一 scenario id 的可执行 GWT 双写在 toon 与 feature。
+
+### BDD runner 开关
+`bdd:` 段不再影响变更生命周期，仅控制 validate runner：
+- `bdd:` 存在时 `validate --check` 执行 `bdd.run_command`
+- 无 `bdd:` 时 `validate --check` 给出 INFO 提示
+- `--no-check` 始终跳过 runner
 
 - **fast mode（默认）**：`llman sdd validate <spec> --strict` 做 Gherkin + Partitioned 链接/双写门禁，
   不执行 runner（可用项目约定；本仓常用 `--no-check` 跳过 runner）。
@@ -138,7 +159,7 @@ agent 在 propose 阶段遇到可执行行为场景时会主动询问是否启�
 
 - **改 validate 的 `--check`/`--no-check` 语义** → 同步 `validate-check.feature`（runner
   触发条件、降级行为）。
-- **改 change 生命周期命令**（`new` / `delta` 嵌套 / `change archive`、BDD-on 拒绝 delta）→ 同步
+- **改 change 生命周期命令**（`new` / `change archive` 等）→ 同步
   `git-binding.feature`、skills、`tests/sdd_bdd_compat_tests.rs` smoke 列表。
 - **改 Partitioned 门禁**（`@req`、双写、合并前 docs-only archive）→ 同步 `sdd-bdd-mode-compat`
   相关 `.feature` 与 `tests/sdd_bdd_compat_tests.rs`。

@@ -5,8 +5,12 @@
 /// deterministic across commands (see cli spec r112).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrefixOutcome<'a> {
-    /// Exactly one candidate matched (exact or unique prefix).
-    Single(&'a str),
+    /// Exactly one candidate matched.
+    ///
+    /// `via_prefix` is `false` for an exact match and `true` when the input was
+    /// a unique prefix of the candidate. Callers use this flag to emit the
+    /// "'input' -> 'resolved' (prefix match)" hint mandated by cli spec r112.
+    Single { id: &'a str, via_prefix: bool },
     /// Multiple candidates matched by prefix; caller decides whether that is
     /// an error (discovery) or a legitimate multi-match (status).
     Multiple(Vec<&'a str>),
@@ -27,7 +31,10 @@ pub fn prefix_resolve<'a>(input: &str, candidates: &'a [String]) -> PrefixOutcom
 
     // 1) Exact match
     if let Some(c) = candidates.iter().find(|c| c.as_str() == input) {
-        return PrefixOutcome::Single(c);
+        return PrefixOutcome::Single {
+            id: c,
+            via_prefix: false,
+        };
     }
 
     // 2) Prefix match
@@ -39,7 +46,10 @@ pub fn prefix_resolve<'a>(input: &str, candidates: &'a [String]) -> PrefixOutcom
 
     match prefix_matches.len() {
         0 => PrefixOutcome::None,
-        1 => PrefixOutcome::Single(prefix_matches[0]),
+        1 => PrefixOutcome::Single {
+            id: prefix_matches[0],
+            via_prefix: true,
+        },
         _ => PrefixOutcome::Multiple(prefix_matches),
     }
 }
@@ -99,7 +109,10 @@ mod tests {
         // Exact "c123" must win even though "c123-foo" also starts with "c123".
         assert_eq!(
             prefix_resolve("c123", &candidates),
-            PrefixOutcome::Single("c123")
+            PrefixOutcome::Single {
+                id: "c123",
+                via_prefix: false,
+            }
         );
     }
 
@@ -108,7 +121,10 @@ mod tests {
         let candidates = ids(&["c123-foo", "c456-bar"]);
         assert_eq!(
             prefix_resolve("c123", &candidates),
-            PrefixOutcome::Single("c123-foo")
+            PrefixOutcome::Single {
+                id: "c123-foo",
+                via_prefix: true,
+            }
         );
     }
 
@@ -138,7 +154,31 @@ mod tests {
         assert_eq!(prefix_resolve("c123", &candidates), PrefixOutcome::None);
         assert_eq!(
             prefix_resolve("C123", &candidates),
-            PrefixOutcome::Single("C123-foo")
+            PrefixOutcome::Single {
+                id: "C123-foo",
+                via_prefix: true,
+            }
+        );
+    }
+
+    #[test]
+    fn prefix_resolve_via_prefix_flag_distinguishes_exact_from_prefix() {
+        // The via_prefix flag is the single source of truth for the r112 hint:
+        // exact match -> false, unique prefix -> true.
+        let candidates = ids(&["c123-fix-bug"]);
+        assert_eq!(
+            prefix_resolve("c123-fix-bug", &candidates),
+            PrefixOutcome::Single {
+                id: "c123-fix-bug",
+                via_prefix: false,
+            }
+        );
+        assert_eq!(
+            prefix_resolve("c123", &candidates),
+            PrefixOutcome::Single {
+                id: "c123-fix-bug",
+                via_prefix: true,
+            }
         );
     }
 
