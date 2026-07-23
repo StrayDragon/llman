@@ -94,7 +94,8 @@ Boundary: if the description involves MUST/SHALL behavioral contract changes, mu
 {% endif %}
    - Flesh out `proposal.md` (Why / What Changes / Capabilities / Impact)
    - `design.md` only when tradeoffs/migrations matter
-   - `tasks.md` as an ordered checklist (include validation commands)
+   - **Confirm seams before writing tasks.md**: list the seams to be tested and confirm with the user. A seam = the public boundary driven by `*.feature` GWT steps (CLI subprocess or public interface) — MUST reuse existing harness seams, MUST NOT invent seams detached from `.feature`. BDD-off without `.feature`: seam = the CLI subcommand or public function boundary under test.
+   - `tasks.md`: split into **vertical slices** (each task cuts a narrow but complete path through schema→API→UI→tests, independently verifiable), with `[blocked-by: <task-id>]` dependency markers. **Wide-refactor exception** (one mechanical change sweeping the codebase, single edit breaks many call sites): sequence as expand-contract (add new beside old → migrate call sites in batches → delete old), don't force into a vertical slice.
    - **BDD-off**: also create `specs/<capability>/spec.toon` deltas (standalone TOON, one per file):
      - Prefer authoring helpers: `llman sdd change delta skeleton` / `add-req` / `add-scenario`
      - Include at least one `add_requirement`/`modify_requirement` op (statement MUST contain MUST/SHALL) and at least one matching op scenario row

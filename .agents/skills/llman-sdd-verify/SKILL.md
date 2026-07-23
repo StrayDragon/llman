@@ -68,10 +68,10 @@ flowchart LR
    - 归档：**优先** `llman sdd change finalize <id>`（可不要求干净树；随后一次 `git commit`）；需要严格 `checkpoint_sha` 时再走 `checkpoint` → `archive`。
    - 检查：可执行 GWT 只在 live `.feature`；`morphology.dualWriteCount` 应为 0；若已有活跃 `*.feature.delta.toon` 则先迁移（不要自创 solidify/找补步骤）。
 
-7. 输出简短报告（双轴分离呈现）：
-   - **Spec 轴**：CRITICAL（归档前必须修复）/ WARNING / SUGGESTION
-   - **Standards 轴**：CRITICAL（仅 `AGENTS.md` 文档标准硬违规）/ SUGGESTION（smell 判断性启发，可选优化）
-   - 结尾一行总结：每轴发现总数 + 各轴最严重项；MUST NOT 跨轴选「最严重」。
+7. 输出简短报告：
+   - **CRITICAL**（归档前必须修复）
+   - **WARNING**（建议修复）
+   - **SUGGESTION**（可选优化）
 8. 若存在 CRITICAL，建议用 `llman-sdd-apply` 修复；若通过则建议归档：`llman sdd change finalize <id>`（推荐）或 fallback `checkpoint` + `archive`。
 
 > 💡 验证通过 → 下一步 `llman-sdd-archive`（归档）；有 CRITICAL → 回到 `llman-sdd-apply`（修复）
