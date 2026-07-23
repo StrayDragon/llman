@@ -36,7 +36,8 @@ pub struct FinalizeArgs {
 ///    the BDD runner), then write `checkpointed=true` + `checkpoint_sha=base_sha`.
 /// 5. Docs-only archive rename.
 pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
-    validate_sdd_id(&args.change, "change")?;
+    let change_name = crate::sdd::shared::discovery::resolve_change_id(root, &args.change)?;
+    validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
     let config = load_required_config(&llmanspec)?;
     if config.bdd.is_none() {
@@ -46,13 +47,13 @@ pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
     // Relaxed gates enforce attach/branch/default/feature_delta but skip
     // clean-tree and `checkpointed` (finalize itself writes the latter).
     let mut binding =
-        crate::sdd::change::git_native::enforce_bdd_archive_gates_relaxed(root, &args.change)?;
+        crate::sdd::change::git_native::enforce_bdd_archive_gates_relaxed(root, &change_name)?;
 
     let already_checkpointed = binding.checkpointed && binding.checkpoint_sha.is_some();
     if already_checkpointed {
         eprintln!(
             "change `{}` already checkpointed (checkpoint_sha={}); proceeding to archive rename",
-            args.change,
+            change_name,
             binding.checkpoint_sha.as_deref().unwrap_or(""),
         );
     } else {
@@ -79,7 +80,7 @@ pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         crate::sdd::shared::validate::run(
             root,
             crate::sdd::shared::validate::ValidateArgs {
-                item: Some(args.change.clone()),
+                item: Some(change_name.clone()),
                 all: false,
                 changes: false,
                 specs: false,
@@ -98,20 +99,20 @@ pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         // the implementation commit has not happened yet so HEAD would be stale).
         binding.checkpointed = true;
         binding.checkpoint_sha = Some(binding.base_sha.clone());
-        crate::sdd::change::git_native::write_binding(root, &args.change, &binding)?;
+        crate::sdd::change::git_native::write_binding(root, &change_name, &binding)?;
     }
 
     // Docs-only archive rename. Same naming as `archive` so the on-disk layout
     // is indistinguishable regardless of which path produced it.
     let changes_dir = root.join(LLMANSPEC_DIR_NAME).join("changes");
-    let change_dir = changes_dir.join(&args.change);
+    let change_dir = changes_dir.join(&change_name);
     let archive_dir = changes_dir.join("archive");
-    let archive_name = archive_name_for(&args.change);
+    let archive_name = archive_name_for(&change_name);
     do_archive_rename(&change_dir, &archive_dir, &archive_name)?;
 
     println!(
         "finalized change `{}` → archive `{archive_name}` on branch `{}` (checkpoint_sha=base_sha=`{}`)",
-        args.change, binding.branch, binding.base_sha,
+        change_name, binding.branch, binding.base_sha,
     );
     // Next-step hint: BDD-on close-out defaults to a LOCAL merge into the
     // default branch (r98 contract). push / hosting PR are optional.

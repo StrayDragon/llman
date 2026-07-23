@@ -2,10 +2,12 @@ kind: llman.sdd.spec
 name: cli
 purpose: "规范 llman CLI 的全局配置目录守卫（仅全局配置命令需要 config-dir）、status 输出，以及 context/index 命令。"
 valid_scope[1]: llmanspec/specs/cli
-requirements[5]{req_id,title,statement}:
+requirements[6]{req_id,title,statement}:
   r13,配置守卫范围与命令结构,"Only subcommands that need global config MUST enforce the dev-project config-dir guard. Authoring commands MUST use unified names (add-req/remove-req/rename-req) with deprecated aliases. Non-core commands MUST live under `sdd project`. Archive MUST require an explicit subcommand. Show MUST support combined output options."
-  r42,status 命令 TOON 输出与 target 解析,"`llman sdd status` MUST emit pure TOON with kind `llman.sdd.status` including counts/changes/tasks/ops/next. Target resolution MUST follow exact match > unique fuzzy > multi-match summary > not-found error. Incomplete tasks and pending ops MUST be shown; changes MUST sort by `c<N>-` priority prefix; `--json` MUST remain compatible."
+  r42,status 命令 TOON 输出与 target 解析,"`llman sdd status` MUST emit pure TOON with kind `llman.sdd.status` including counts/changes/tasks/ops/next. Target resolution MUST follow exact match > prefix match (active first) > multi-match summary > not-found error. Incomplete tasks and pending ops MUST be shown; changes MUST sort by `c<N>-` priority prefix; `--json` MUST remain compatible."
   r8,Context Command,"System MUST provide a context subcommand for agent consumption. The command MUST accept --task natural language and/or --paths comma-separated file paths. The command MUST return single JSON with status ok quality qualityNote and spec arrays direct with zScore matchReqs and related. At least one of --task or --paths MUST be required. If embedding index unavailable the command MUST return quality=unavailable with clear error."
   r9,Index Rebuild Command,"System MUST provide an index rebuild subcommand. It MUST read all spec files extract per-requirement chunks call embedding API and write index to llmanspec/.context/. It MUST also provide --check flag for freshness check without rebuilding."
   r10,Context Index Freshness Protocol,"The context command MUST check index freshness. Read spec_hash from metadata.toml compute current spec hash. If hash matches use semantic retrieval else use keyword with quality=keyword. If index missing return quality=unavailable with rebuild instruction. Context MUST be read-only."
-scenarios[0]:
+  r112,Change 名参数前缀匹配,"llman sdd show/validate/graph/change 等所有接收 change 名的命令，在解析 change id 时 MUST 遵循前缀匹配解析：1) 精确匹配活跃 changes（input 即为完整 id）；2) 前缀匹配活跃 changes（目录名前缀匹配）；3) 前缀匹配归档 changes。精确优先生效。MUST NOT 使用 substring contains 模糊匹配（避免意外命中子串）。"
+scenarios[1]{req_id,id,given,when,then,feature}:
+  r112,baseline,"已存在多个 active change 和 archived change","使用 change id 的前缀运行 llman sdd show/validate/status/graph/change archive","对应的完整 change 被找到且输出正确",true

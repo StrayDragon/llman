@@ -50,13 +50,14 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
     let config = load_required_config(&llmanspec_dir)?;
     let archive_config = config.archive_config();
 
-    let change_name = args
+    let raw_name = args
         .change
         .as_ref()
         .ok_or_else(|| anyhow!(t!("sdd.archive.change_required")))?;
-    validate_sdd_id(change_name, "change")?;
+    let change_name = crate::sdd::shared::discovery::resolve_change_id(root, raw_name)?;
+    validate_sdd_id(&change_name, "change")?;
     let changes_dir = root.join(LLMANSPEC_DIR_NAME).join("changes");
-    let change_dir = changes_dir.join(change_name);
+    let change_dir = changes_dir.join(&change_name);
 
     if !change_dir.exists() {
         return Err(anyhow!(t!(
@@ -104,7 +105,7 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
     if bdd_on {
         // Git-native BDD-on: specs/features already live on the feature branch.
         // Archive only seals change documentation after checkpoint gates.
-        crate::sdd::change::git_native::enforce_bdd_archive_gates(root, change_name)?;
+        crate::sdd::change::git_native::enforce_bdd_archive_gates(root, &change_name)?;
         if !args.skip_specs {
             // Ignore leftover change TOON deltas — they are not the SSOT under BDD-on.
             let leftover = find_spec_updates(&change_dir, root)?;
@@ -121,7 +122,7 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
         let updates = find_spec_updates(&change_dir, root)?;
         if !updates.is_empty() {
             let prepared =
-                prepare_updates(&updates, change_name, root, validate_specs, interactive)?;
+                prepare_updates(&updates, &change_name, root, validate_specs, interactive)?;
             if args.dry_run {
                 print_dry_run_specs(&prepared);
             } else {
@@ -131,7 +132,7 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
     }
 
     let archive_dir = changes_dir.join("archive");
-    let archive_name = archive_name_for(change_name);
+    let archive_name = archive_name_for(&change_name);
     let archive_path = archive_dir.join(&archive_name);
 
     if args.dry_run {
