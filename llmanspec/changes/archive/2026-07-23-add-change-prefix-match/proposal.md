@@ -2,8 +2,8 @@
 depends_on: []
 branch: sdd/add-change-prefix-match
 base_sha: 7c3e95692372740f17b87d65ebba52b894b687b6
-checkpointed: false
-checkpoint_sha: null
+checkpointed: true
+checkpoint_sha: 7c3e95692372740f17b87d65ebba52b894b687b6
 ---
 
 ## Why
