@@ -2,7 +2,7 @@ kind: llman.sdd.spec
 name: "sdd-workflow"
 purpose: 定义 llman SDD 规范驱动开发工作流及其 `llmanspec/` 行为合约。
 valid_scope[1]: "llmanspec/specs/sdd-workflow"
-requirements[23]{req_id,title,statement}:
+requirements[24]{req_id,title,statement}:
   r39,SDD list JSON 含 morphology,"llman sdd list --specs --json output MUST include purpose validScope health staleness 以及 morphology 对象。morphology MUST 含 constraintsReqCount harnessScenarioCount reqLinkCoverage dualWriteCount（数值；BDD-off 时 harness 相关可为 0）。purpose 仍来自 spec；health 与 staleness 在质量检测未实现前可为 null。"
   r47,Context JSON semantic protocol,"llman sdd context output JSON MUST follow: direct array contains z-score greater than 0.60 specs agent MUST read full spec. related array contains z-score greater than -0.20 and at most 0.60 specs agent MAY read on demand. remaining specs are irrelevant. summary MUST include readRecommended and staleWarnings fields."
   r48,变更规模分类与路径选择（Triage）,"SDD 工作流 MUST 在提案阶段前引入变更规模分类步骤，帮助 agent 选择合适的工作路径。分类规则 MUST 包含：- 行为合约变更：修改 MUST/SHALL 定义的外部可观测行为 → 走完整 SDD 流程（proposal + delta specs + tasks + archive）- 实现变更：不改变外部行为只改变内部实现 → 走快速路径（直接改代码，无需 change 目录）- 治理/工具变更：修改 CI/工具配置 → 仅创建 proposal.md 记录 why- 元规范变更：修改 SDD 规范/模板/流程本身 → 走完整 SDD 流程（自举）当变更性质不明确时 agent MUST 升级为完整 SDD 流程而非猜测。"
@@ -19,14 +19,15 @@ requirements[23]{req_id,title,statement}:
   r101,propose seam 前置确认与垂直切片 tasks,"llman-sdd-propose 技能在写 tasks.md 前 MUST 先列出将测试的 seam 并与用户确认：seam 定义为 *.feature 的 GWT 步骤所驱动的公共边界（CLI 子进程或 public interface），MUST NOT 另行发明脱离已有 harness 的 seam。tasks.md MUST 按 tracer-bullet 垂直切片组织（每个 task 切穿 schema→API→UI→tests 的完整窄路径且可独立验证），并 MUST 支持 [blocked-by: <task-id>] 依赖标记。wide refactor 例外 MUST 按 expand-contract 顺序排列。"
   r102,apply diagnose 紧反馈升级路径,"llman-sdd-apply 技能在自修复循环失败时 MUST 升级到 diagnose 子流程：MUST 先构造一个 red-capable 命令（紧、确定、快、agent 可运行，且能在此 bug 上转红），然后最小化 repro，再生成 3-5 个排序假设并单变量验证。MUST NOT 在无 red-capable 命令前进入假设阶段。判定为非 hard bug 时 MUST 保持现有最小修复逻辑不变。"
   r103,verify 双轴审查,"llman-sdd-verify 技能的审查 MUST 分两轴分离呈现且互不污染：Spec 轴（实现是否满足 spec.toon 的 MUST/SHALL 与 *.feature 的 GWT，含缺失/部分/scope creep/错误实现）与 Standards 轴（代码是否符合 AGENTS.md coding style 加 Fowler smell baseline：Mysterious Name/Duplicated Code/Feature Envy/Data Clumps/Primitive Obsession/Repeated Switches/Shotgun Surgery/Divergent Change/Speculative Generality/Message Chains/Middle Man/Refused Bequest）。Standards 轴的权威优先级 MUST 为 AGENTS.md 文档标准高于 smell baseline，且 MUST 跳过 tooling 已强制项。smell 标记 MUST 为判断性启发而非硬违规。"
-  r104,arch-review 独立 skill,"系统 MUST 提供 llman-sdd-arch-review 技能（model-invoked，metadata.llman_sdd.skill_set 为 optional，metadata.llman_sdd.bdd_mode 与 config 一致）：扫描 codebase 的 shallow module 产出 deepening 候选，每候选含 files/problem/solution/benefits/recommendation strength。MUST 复用 codebase-design 词汇（module/interface/depth/seam/adapter/leverage/locality）。触发词 MUST 含『架构审查』『deepening』『shallow module』。"
+  r104,"arch-review 独立 skill","系统 MUST 提供 llman-sdd-arch-review 技能（model-invoked，metadata.llman_sdd.skill_set 为 optional，metadata.llman_sdd.bdd_mode 与 config 一致）：扫描 codebase 的 shallow module 产出 deepening 候选，每候选含 files/problem/solution/benefits/recommendation strength。MUST 复用 codebase-design 词汇（module/interface/depth/seam/adapter/leverage/locality）。触发词 MUST 含『架构审查』『deepening』『shallow module』。"
   r105,wayfinder 独立 skill,"系统 MUST 提供 llman-sdd-wayfinder 技能（user-invoked，disable-model-invocation 为 true）：将大型雾状工作规划为 decision ticket map，每个 ticket 解决一个决策而非交付一个切片。MUST 与 llman 的 change 与 graph 命令结合表达 frontier/blocking。MUST 支持 fog-of-war（Not yet specified 段）与 out-of-scope 区分。"
   r106,research 独立 skill,"系统 MUST 提供 llman-sdd-research 技能（model-invoked，metadata.llman_sdd.skill_set 为 optional，metadata.llman_sdd.bdd_mode 与 config 一致）：以后台 agent 委托外部文献调研，针对 primary sources（官方文档/源码/第一方 API）而非二手转述，产出 cited markdown 回写到该 change proposal 的 Further Notes 段。"
   r107,领域语言治理回写 spec.toon,"llman-sdd-explore 的 grilling 分支与领域语言治理 MUST 在遇到术语冲突或模糊词时挑战并 sharpening：解决后 MUST 更新对应 spec.toon 的 requirement statement（BDD-on 在 feature 分支编辑 live 文件）。MUST NOT 另建 CONTEXT.md glossary 作为第二权威。ADR 记录 MUST 仅当『难逆转 + 无上下文会困惑 + 真实权衡』三者皆满足时建议，记入 design.md。"
   r108,AGENTS.md 增强能力路由,"AGENTS.md 的 SDD 段 MUST 含『可选增强能力』小节，索引 r100-r106 增强能力的触发条件（grilling/diagnose/双轴 verify/arch-review/wayfinder/research）。MUST 固化 seam 与 depth 等借自 codebase-design 的词汇定义，避免与 llman 已有词汇双轨。MUST NOT 另建 ask-matt 式 router skill。"
-  r109,config 命令总览,"llman sdd config（无子命令时）MUST 打印当前项目 config 摘要：schema、locale、extra_skills 启用数量与列表、bdd 是否启用（on/off）、archive 配置状态。作为只读快速查看入口，MUST NOT 修改 config.yaml。"
+  r109,config 命令总览,llman sdd config（无子命令时）MUST 打印当前项目 config 摘要：schema、locale、extra_skills 启用数量与列表、bdd 是否启用（on/off）、archive 配置状态。作为只读快速查看入口，MUST NOT 修改 config.yaml。
   r110,config skills 交互式管理,"llman sdd config skills MUST 以交互式多选展示全部 OPTIONAL_SKILL_NAMES 候选（每项附一行描述），以当前 extra_skills 为默认勾选项；确认后原子写回 config.yaml 的 extra_skills 字段（接受丢注释）。MUST 仅允许 OPTIONAL_SKILL_NAMES 中的条目。--no-interactive 时 MUST 降级为打印当前启用列表与可选未启用列表（不修改文件）。--json 时 MUST 输出含 enabled 与 available 数组的 JSON。用户取消（ESC/Ctrl-C）MUST 为安全 no-op（不写文件）。写回后 MUST 提示运行 llman sdd init --update 以落地 skill 文件。"
-scenarios[21]{req_id,id,given,when,then,feature}:
+  r111,Change 名前缀匹配解析契约,llman sdd show/validate/status/graph/change 等所有接收 change 名参数的命令，在根据参数解析 change id 时 MUST 遵循以下优先级：1) 精确匹配活跃 changes（changes/<input>/proposal.md 存在）；2) 前缀匹配活跃 changes（changes/ 下目录名以 input 开头）；3) 前缀匹配归档 changes（archive/ 下目录名的 change id 部分以 input 开头）。唯一匹配时自动解析为完整 change id；多匹配时 MUST 报错列出所有候选；无匹配时 MUST 报错。精确优先于前缀；活跃优先于归档。
+scenarios[23]{req_id,id,given,when,then,feature}:
   r39,"list-json-morphology",llman 二进制已构建,"运行 llman sdd list --specs --json",输出含 morphology 且含 constraintsReqCount,false
   r60,"show-spec-sections",llman 二进制已构建,"运行 llman sdd show errors-exit --type spec",输出含 Constraints 与 Harness 分段或等价标题,false
   r61,"pipeline-git-native-aware",变更已 attach 到 feature 分支,"运行 validate 该 change --strict",校验通过或明确报告 Git binding / legacy feature_delta 错误,false
@@ -37,14 +38,16 @@ scenarios[21]{req_id,id,given,when,then,feature}:
   r92,"freeze-list-note",约束层说明,"运行 llman sdd archive freeze --list","枚举冻结条目且只读；可执行见 archive-freeze-and-gates feature",false
   r93,"bdd-on-stage-note",约束层说明,"BDD-on 已 attach 且含 proposal/design/tasks","show stage 为 full；可执行见 validate-staleness-and-stage feature",false
   r95,"skill-bdd-mode-guard-note",约束层说明,"validate 或 init --update 遇到 bdd_mode 不一致的托管 skill","非零退出并提示 init --update；可执行见 skills-template feature",false
-  r100,"explore-grilling-branch-note",约束层说明,"阅读生成的 llman-sdd-explore SKILL.md","含 grilling 分支触发条件与逐问循环；可执行由 skill prompt 驱动",false
+  r100,"explore-grilling-branch-note",约束层说明,"阅读生成的 llman-sdd-explore SKILL.md",含 grilling 分支触发条件与逐问循环；可执行由 skill prompt 驱动,false
   r101,"propose-seam-vertical-slice-note",约束层说明,"阅读生成的 llman-sdd-propose SKILL.md","含 seam 前置确认与 [blocked-by] 垂直切片 tasks；可执行由 skill prompt 驱动",false
   r102,"apply-diagnose-upgrade-note",约束层说明,"阅读生成的 llman-sdd-apply SKILL.md","含失败升级 diagnose 子流程与 red-capable 门禁；可执行由 skill prompt 驱动",false
-  r103,"verify-dual-axis-note",约束层说明,"阅读生成的 llman-sdd-verify SKILL.md","含 Standards 与 Spec 双轴分离及 smell baseline；可执行由 skill prompt 驱动",false
+  r103,"verify-dual-axis-note",约束层说明,"阅读生成的 llman-sdd-verify SKILL.md",含 Standards 与 Spec 双轴分离及 smell baseline；可执行由 skill prompt 驱动,false
   r104,"arch-review-skill-note",约束层说明,"检查 .agents/skills/llman-sdd-arch-review/SKILL.md","存在且 model-invoked 且 skill_set 为 optional；可执行由 skill prompt 驱动",false
   r105,"wayfinder-skill-note",约束层说明,"检查 .agents/skills/llman-sdd-wayfinder/SKILL.md","存在且 user-invoked；可执行由 skill prompt 驱动",false
   r106,"research-skill-note",约束层说明,"检查 .agents/skills/llman-sdd-research/SKILL.md","存在且 model-invoked 且 skill_set 为 optional；可执行由 skill prompt 驱动",false
-  r107,"domain-language-toon-note",约束层说明,"阅读 explore/grilling 的领域语言治理段","回写 spec.toon 且不建 CONTEXT.md；可执行由 skill prompt 驱动",false
-  r108,"agents-md-routing-note",约束层说明,"阅读 AGENTS.md 的 SDD 段","含可选增强能力小节与 seam/depth 词汇定义；可执行由文档驱动",false
-  r109,"config-overview-note",约束层说明,"运行 llman sdd config（无子命令）","打印 schema/locale/extra_skills/bdd/archive 摘要且不修改文件；可执行见 config-skills feature",false
-  r110,"config-skills-interactive-note",约束层说明,"运行 llman sdd config skills","交互式多选 OPTIONAL_SKILL_NAMES 并写回；--no-interactive/--json 降级；取消为 no-op；可执行见 config-skills feature",false
+  r107,"domain-language-toon-note",约束层说明,阅读 explore/grilling 的领域语言治理段,回写 spec.toon 且不建 CONTEXT.md；可执行由 skill prompt 驱动,false
+  r108,"agents-md-routing-note",约束层说明,阅读 AGENTS.md 的 SDD 段,含可选增强能力小节与 seam/depth 词汇定义；可执行由文档驱动,false
+  r109,"config-overview-note",约束层说明,运行 llman sdd config（无子命令）,"打印 schema/locale/extra_skills/bdd/archive 摘要且不修改文件；可执行见 config-skills feature",false
+  r110,"config-skills-interactive-note",约束层说明,运行 llman sdd config skills,"交互式多选 OPTIONAL_SKILL_NAMES 并写回；--no-interactive/--json 降级；取消为 no-op；可执行见 config-skills feature",false
+  r111,baseline,"","TODO: describe the trigger","TODO: describe the expected result",true
+  r111,"prefix-match","llman 项目已存在多个 change（如 c123-foo 和 c456-bar）",用前缀 c123 运行 llman sdd show,"输出 c123-foo 的内容",true

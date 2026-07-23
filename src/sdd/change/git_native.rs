@@ -268,26 +268,27 @@ pub(crate) fn write_binding(
 
 /// Attach the current non-default branch + merge-base SHA to a change.
 pub fn run_attach(root: &Path, args: AttachArgs) -> Result<()> {
-    validate_sdd_id(&args.change, "change")?;
+    let change_name = crate::sdd::shared::discovery::resolve_change_id(root, &args.change)?;
+    validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
     let config = load_required_config(&llmanspec)?;
     if config.bdd.is_none() {
         bail!("`sdd change attach` requires BDD-on (`bdd:` in config.yaml)");
     }
-    let dir = change_dir(root, &args.change);
+    let dir = change_dir(root, &change_name);
     if !dir.exists() {
-        bail!("change `{}` not found", args.change);
+        bail!("change `{}` not found", change_name);
     }
-    if !proposal_path(root, &args.change).exists() {
-        bail!("change `{}` is missing proposal.md", args.change);
+    if !proposal_path(root, &change_name).exists() {
+        bail!("change `{}` is missing proposal.md", change_name);
     }
 
-    if let Some(existing) = read_binding(root, &args.change)?
+    if let Some(existing) = read_binding(root, &change_name)?
         && !args.force
     {
         bail!(
             "change `{}` already attached to branch `{}` (base {}); pass --force to rebind",
-            args.change,
+            change_name,
             existing.branch,
             existing.base_sha
         );
@@ -307,28 +308,28 @@ pub fn run_attach(root: &Path, args: AttachArgs) -> Result<()> {
         checkpointed: false,
         checkpoint_sha: None,
     };
-    write_binding(root, &args.change, &binding)?;
+    write_binding(root, &change_name, &binding)?;
     println!(
         "attached change `{}` → branch `{branch}` base `{base_sha}`",
-        args.change
+        change_name
     );
     Ok(())
 }
 
 /// Require a clean tree, matching branch binding, and (optionally) full BDD check.
 pub fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
-    validate_sdd_id(&args.change, "change")?;
+    let change_name = crate::sdd::shared::discovery::resolve_change_id(root, &args.change)?;
+    validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
     let config = load_required_config(&llmanspec)?;
     if config.bdd.is_none() {
         bail!("`sdd change checkpoint` requires BDD-on (`bdd:` in config.yaml)");
     }
 
-    let Some(mut binding) = read_binding(root, &args.change)? else {
+    let Some(mut binding) = read_binding(root, &change_name)? else {
         bail!(
             "change `{}` has no Git binding; run `llman sdd change attach {}` first",
-            args.change,
-            args.change
+            change_name, change_name
         );
     };
 
@@ -375,7 +376,7 @@ pub fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
     crate::sdd::shared::validate::run(
         root,
         crate::sdd::shared::validate::ValidateArgs {
-            item: Some(args.change.clone()),
+            item: Some(change_name.clone()),
             all: false,
             changes: false,
             specs: false,
@@ -393,21 +394,21 @@ pub fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
     let head = current_head_sha(root)?;
     binding.checkpointed = true;
     binding.checkpoint_sha = Some(head.clone());
-    write_binding(root, &args.change, &binding)?;
+    write_binding(root, &change_name, &binding)?;
     println!(
         "checkpointed change `{}` at `{head}` on branch `{}`",
-        args.change, binding.branch
+        change_name, binding.branch
     );
     Ok(())
 }
 
 pub fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
-    validate_sdd_id(&args.change, "change")?;
-    let Some(binding) = read_binding(root, &args.change)? else {
+    let change_name = crate::sdd::shared::discovery::resolve_change_id(root, &args.change)?;
+    validate_sdd_id(&change_name, "change")?;
+    let Some(binding) = read_binding(root, &change_name)? else {
         bail!(
             "change `{}` has no Git binding; run `llman sdd change attach {}` first",
-            args.change,
-            args.change
+            change_name, change_name
         );
     };
     let branch = current_branch(root)?;

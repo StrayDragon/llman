@@ -326,31 +326,39 @@ fn validate_direct(
     check_mode: bool,
     check_deprecated: bool,
 ) -> Result<()> {
-    let changes = list_changes(root)?;
     let specs = list_specs(root)?;
-    let archived_changes = list_archived_changes(root).unwrap_or_default();
-    let is_change = changes.contains(&item.to_string());
     let is_spec = specs.contains(&item.to_string());
+    let mut resolved_change_id: Option<String> = None;
 
-    // When --type change is specified, also accept directories that physically exist
-    // even if not discovered (e.g., missing proposal.md — validation will report that).
-    let change_dir_physical = root.join(LLMANSPEC_DIR_NAME).join("changes").join(item);
-    let is_change_or_dir = is_change || change_dir_physical.is_dir();
-
-    if let Some(ItemType::Change) = type_override
-        && !is_change_or_dir
-    {
-        let suggestions = nearest_matches(item, &changes, 5);
-        return Err(anyhow!(unknown_item_message(item, &suggestions)));
+    // When --type change is specified, use prefix-aware resolution.
+    // When no type, try prefix-aware change resolution first, fall back to exact spec.
+    match type_override {
+        Some(ItemType::Change) => {
+            resolved_change_id =
+                Some(crate::sdd::shared::discovery::resolve_change_id(root, item)?);
+        }
+        Some(ItemType::Spec) => {}
+        None => {
+            if let Ok(id) =
+                crate::sdd::shared::discovery::resolve_change_id(root, item)
+            {
+                resolved_change_id = Some(id);
+            }
+        }
     }
-    if let Some(ItemType::Spec) = type_override
-        && !is_spec
-    {
-        let suggestions = nearest_matches(item, &specs, 5);
-        return Err(anyhow!(unknown_item_message(item, &suggestions)));
+
+    let archived_changes = list_archived_changes(root).unwrap_or_default();
+    let is_change = resolved_change_id.is_some();
+
+    // Spec type-override: still do exact match
+    if let Some(ItemType::Spec) = type_override {
+        if !is_spec {
+            let suggestions = nearest_matches(item, &specs, 5);
+            return Err(anyhow!(unknown_item_message(item, &suggestions)));
+        }
     }
 
-    let resolved_type = type_override.or(if is_change_or_dir {
+    let resolved_type = type_override.or(if is_change {
         Some(ItemType::Change)
     } else if is_spec {
         Some(ItemType::Spec)
@@ -359,11 +367,14 @@ fn validate_direct(
     });
 
     let Some(resolved_type) = resolved_type else {
-        let suggestions = nearest_matches(item, &[changes, specs].concat(), 5);
+        let mut candidates = Vec::new();
+        candidates.extend(list_changes(root)?);
+        candidates.extend(specs);
+        let suggestions = nearest_matches(item, &candidates, 5);
         return Err(anyhow!(unknown_item_message(item, &suggestions)));
     };
 
-    if type_override.is_none() && is_change_or_dir && is_spec {
+    if type_override.is_none() && is_change && is_spec {
         return Err(anyhow!(
             "{}\n{}",
             t!("sdd.validate.ambiguous_item", item = item),
@@ -371,10 +382,11 @@ fn validate_direct(
         ));
     }
 
+    let resolved_id = resolved_change_id.as_deref().unwrap_or(item);
     validate_by_type(
         root,
         resolved_type,
-        item,
+        resolved_id,
         strict,
         json,
         compact_json,

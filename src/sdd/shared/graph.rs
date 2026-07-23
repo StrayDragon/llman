@@ -231,19 +231,24 @@ fn build_relation_maps(root: &Path, all_nodes: &[GraphNode]) -> RelationMaps {
 }
 
 fn build_seed_neighborhood(root: &Path, seed_id: &str, max_depth: usize) -> Result<Vec<GraphNode>> {
+    // Use prefix-aware resolution to expand user input to canonical change id
+    let resolved_id =
+        crate::sdd::shared::discovery::resolve_change_id(root, seed_id)?;
+
     let all_nodes = collect_nodes_for_scope(root, &[ScopeKind::Active, ScopeKind::Archived]);
     let node_map: HashMap<&str, &GraphNode> =
         all_nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
-    if !node_map.contains_key(seed_id) {
+    if !node_map.contains_key(resolved_id.as_str()) {
         let suggestions: Vec<&str> = node_map
             .keys()
-            .filter(|k| k.starts_with(seed_id.split('-').next().unwrap_or("")))
+            .filter(|k| k.starts_with(resolved_id.split('-').next().unwrap_or("")))
             .copied()
             .collect();
         return Err(anyhow!(
-            "Change '{}' not found.{}",
+            "Change '{}' not found in active or archived changes. Resolution yielded '{}'.{}",
             seed_id,
+            resolved_id,
             if suggestions.is_empty() {
                 String::new()
             } else {
@@ -257,8 +262,8 @@ fn build_seed_neighborhood(root: &Path, seed_id: &str, max_depth: usize) -> Resu
     let mut visited: HashSet<String> = HashSet::new();
     let mut queue: VecDeque<(String, usize)> = VecDeque::new();
 
-    visited.insert(seed_id.to_string());
-    queue.push_back((seed_id.to_string(), 0));
+    visited.insert(resolved_id.clone());
+    queue.push_back((resolved_id.clone(), 0));
 
     while let Some((node_id, depth)) = queue.pop_front() {
         if depth >= max_depth {

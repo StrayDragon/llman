@@ -193,8 +193,38 @@ fn resolve_target(root: &Path, target: &str) -> TargetResult {
         return TargetResult::Single(ci.clone());
     }
 
-    // 3. Fuzzy / date-prefix match against all (active + archived)
+    // 3. Prefix match against active changes (name or dir_name)
     let lower = target.to_lowercase();
+    let active_prefix_matches: Vec<ChangeInfo> = active
+        .clone()
+        .into_iter()
+        .filter(|c| c.name.to_lowercase().starts_with(&lower))
+        .collect();
+    if active_prefix_matches.len() == 1 {
+        return TargetResult::Single(active_prefix_matches.into_iter().next().unwrap());
+    }
+    if active_prefix_matches.len() > 1 {
+        let mut m = active_prefix_matches;
+        m.sort_by_key(|c| c.priority);
+        return TargetResult::Multiple(m);
+    }
+
+    // 4. Prefix match against archived changes (name portion after date prefix)
+    let archived_prefix_matches: Vec<ChangeInfo> = archived
+        .clone()
+        .into_iter()
+        .filter(|c| c.name.to_lowercase().starts_with(&lower) || c.dir_name.to_lowercase().starts_with(&lower))
+        .collect();
+    if archived_prefix_matches.len() == 1 {
+        return TargetResult::Single(archived_prefix_matches.into_iter().next().unwrap());
+    }
+    if archived_prefix_matches.len() > 1 {
+        let mut m = archived_prefix_matches;
+        m.sort_by_key(|c| c.priority);
+        return TargetResult::Multiple(m);
+    }
+
+    // 5. Fallback: fuzzy / date-prefix substring match (kept for backward compat)
     let mut matches: Vec<ChangeInfo> = active
         .into_iter()
         .chain(archived)

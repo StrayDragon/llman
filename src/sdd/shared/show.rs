@@ -111,25 +111,31 @@ fn show_direct(
     type_override: Option<ItemType>,
     args: &ShowArgs,
 ) -> Result<()> {
-    let mut changes: Vec<String> = Vec::new();
-    let mut specs: Vec<String> = Vec::new();
     let mut is_change = false;
     let mut is_spec = false;
+    let mut resolved_change_id: Option<String> = None;
 
     match type_override {
         Some(ItemType::Change) => {
-            changes = list_changes(root)?;
-            is_change = changes.contains(&item.to_string());
+            // Use prefix-aware resolution
+            resolved_change_id = Some(crate::sdd::shared::discovery::resolve_change_id(root, item)?);
+            is_change = true;
         }
         Some(ItemType::Spec) => {
-            specs = list_specs(root)?;
+            let specs = list_specs(root)?;
             is_spec = specs.contains(&item.to_string());
         }
         None => {
-            changes = list_changes(root)?;
-            specs = list_specs(root)?;
-            is_change = changes.contains(&item.to_string());
-            is_spec = specs.contains(&item.to_string());
+            // Try prefix-aware change resolution first, fall back to exact spec
+            if let Ok(id) =
+                crate::sdd::shared::discovery::resolve_change_id(root, item)
+            {
+                resolved_change_id = Some(id);
+                is_change = true;
+            } else {
+                let specs = list_specs(root)?;
+                is_spec = specs.contains(&item.to_string());
+            }
         }
     }
 
@@ -143,13 +149,8 @@ fn show_direct(
 
     let Some(resolved_type) = resolved_type else {
         let mut candidates = Vec::new();
-        if changes.is_empty() && specs.is_empty() {
-            candidates.extend(list_changes(root)?);
-            candidates.extend(list_specs(root)?);
-        } else {
-            candidates.extend(changes);
-            candidates.extend(specs);
-        }
+        candidates.extend(list_changes(root)?);
+        candidates.extend(list_specs(root)?);
         let suggestions = nearest_matches(item, &candidates, 5);
 
         let mut msg = t!("sdd.show.unknown_item", item = item).to_string();
@@ -170,7 +171,10 @@ fn show_direct(
     warn_irrelevant_flags(resolved_type, args);
 
     match resolved_type {
-        ItemType::Change => show_change(root, item, args),
+        ItemType::Change => {
+            let change_id = resolved_change_id.as_deref().unwrap_or(item);
+            show_change(root, change_id, args)
+        }
         ItemType::Spec => show_spec(root, item, args),
     }
 }

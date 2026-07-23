@@ -50,14 +50,20 @@ fn reject_when_bdd_on(root: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Resolve a user-provided change name to a canonical change id for BDD-off delta authoring.
+fn resolve_delta_change(root: &Path, input: &str) -> Result<String> {
+    crate::sdd::shared::discovery::resolve_change_id(root, input)
+}
+
 pub fn run_skeleton(root: &Path, args: DeltaSkeletonArgs) -> Result<()> {
-    validate_sdd_id(&args.change_id, "change")?;
+    let change_id = resolve_delta_change(root, &args.change_id)?;
+    validate_sdd_id(&change_id, "change")?;
     validate_sdd_id(&args.capability, "spec")?;
     reject_when_bdd_on(root)?;
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let _config = load_required_config(&llmanspec_dir)?;
 
-    let delta_path = delta_path(root, &args.change_id, &args.capability);
+    let delta_path = delta_path(root, &change_id, &args.capability);
     if delta_path.exists() && !args.force {
         return Err(anyhow!(
             "delta spec skeleton target already exists: {} (pass --force to overwrite)",
@@ -80,14 +86,15 @@ pub fn run_skeleton(root: &Path, args: DeltaSkeletonArgs) -> Result<()> {
 }
 
 pub fn run_add_op(root: &Path, args: DeltaAddOpArgs) -> Result<()> {
-    validate_sdd_id(&args.change_id, "change")?;
+    let change_id = resolve_delta_change(root, &args.change_id)?;
+    validate_sdd_id(&change_id, "change")?;
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
     reject_when_bdd_on(root)?;
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let _config = load_required_config(&llmanspec_dir)?;
 
-    let delta_path = delta_path(root, &args.change_id, &args.capability);
+    let delta_path = delta_path(root, &change_id, &args.capability);
     let content = fs::read_to_string(&delta_path).map_err(|err| {
         anyhow!(
             "failed to read delta spec: {} ({})",
@@ -98,7 +105,7 @@ pub fn run_add_op(root: &Path, args: DeltaAddOpArgs) -> Result<()> {
 
     let context = format!(
         "delta spec `{}` for change `{}`",
-        args.capability, args.change_id
+        args.capability, change_id
     );
     let old_doc = BACKEND.parse_delta_spec(&content, &context)?;
     let mut delta = old_doc.clone();
@@ -123,7 +130,8 @@ pub fn run_add_op(root: &Path, args: DeltaAddOpArgs) -> Result<()> {
 }
 
 pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs) -> Result<()> {
-    validate_sdd_id(&args.change_id, "change")?;
+    let change_id = resolve_delta_change(root, &args.change_id)?;
+    validate_sdd_id(&change_id, "change")?;
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
     validate_sdd_id(&args.scenario_id, "scenario")?;
@@ -137,7 +145,7 @@ pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs) -> Result<()> {
         return Err(anyhow!("--then must not be empty"));
     }
 
-    let delta_path = delta_path(root, &args.change_id, &args.capability);
+    let delta_path = delta_path(root, &change_id, &args.capability);
     let content = fs::read_to_string(&delta_path).map_err(|err| {
         anyhow!(
             "failed to read delta spec: {} ({})",
@@ -148,7 +156,7 @@ pub fn run_add_scenario(root: &Path, args: DeltaAddScenarioArgs) -> Result<()> {
 
     let context = format!(
         "delta spec `{}` for change `{}`",
-        args.capability, args.change_id
+        args.capability, change_id
     );
     let old_doc = BACKEND.parse_delta_spec(&content, &context)?;
     let mut delta = old_doc.clone();

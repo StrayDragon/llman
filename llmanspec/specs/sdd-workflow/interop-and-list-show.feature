@@ -71,6 +71,19 @@
     而且 那么返回错误
     而且 而且不移动或修改任何文件
 
+  @req:r111
+  场景: show 接受 change 名前缀匹配
+    假如 项目活跃 change 中有 c123-foo 和 c456-bar 两个变更
+    当 用前缀 "c123" 运行 llman sdd show
+    那么 输出匹配变更 c123-foo 的内容
+    而且 不输出 c456-bar 的内容
+
+  @req:r112
+  场景: show 前缀多匹配时报错
+    假如 活跃 change 中有 c123-foo 和 c123-bar 两个以 "c123" 开头的变更
+    当 用前缀 "c123" 运行 llman sdd show
+    那么 命令报错并列出两个候选项
+
   场景: 同时传入 specs 与 changes 报错
     假如 用户运行 llman sdd list --specs --changes
     当 命令执行
