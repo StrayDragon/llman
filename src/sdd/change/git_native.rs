@@ -1,8 +1,8 @@
-//! Git-native BDD-on change binding: branch + base SHA as the change delta.
+//! Unified Git-native change binding: branch + base SHA as the change anchor.
 //!
-//! BDD-on changes attach to a non-canonical Git branch. The only delta is
-//! `git diff <base>...HEAD`. Archive seals documentation only; Git merge
-//! promotes the real specs/features to the default branch.
+//! Changes attach to a non-default Git branch via `change start` or `change attach`.
+//! The only delta is `git diff <base>...HEAD`. Archive seals documentation
+//! and fast-forward merges into the default branch.
 
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::config::load_required_config;
@@ -15,7 +15,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Git binding recorded in `proposal.md` frontmatter for BDD-on changes.
+/// Git binding recorded in `proposal.md` frontmatter (unified flow).
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ChangeGitBinding {
@@ -44,6 +44,16 @@ pub struct DiffArgs {
     pub export_patch: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone)]
+pub struct StartArgs {
+    pub change: String,
+    /// Create a linked worktree instead of switching branches in-place (r116).
+    pub worktree: bool,
+    /// Accepted and ignored; start has no interactive mode. Keeps the flag
+    /// matrix uniform across change subcommands.
+    pub no_interactive: bool,
+}
+
 fn change_dir(root: &Path, change_id: &str) -> PathBuf {
     root.join(LLMANSPEC_DIR_NAME)
         .join("changes")
@@ -54,7 +64,7 @@ fn proposal_path(root: &Path, change_id: &str) -> PathBuf {
     change_dir(root, change_id).join("proposal.md")
 }
 
-fn run_git(root: &Path, args: &[&str]) -> Result<String> {
+pub(crate) fn run_git(root: &Path, args: &[&str]) -> Result<String> {
     let output = Command::new("git")
         .args(args)
         .current_dir(root)
@@ -73,7 +83,7 @@ fn run_git(root: &Path, args: &[&str]) -> Result<String> {
 pub fn current_branch(root: &Path) -> Result<String> {
     let branch = run_git(root, &["rev-parse", "--abbrev-ref", "HEAD"])?;
     if branch.is_empty() || branch == "HEAD" {
-        bail!("detached HEAD is not allowed for BDD-on change binding");
+        bail!("detached HEAD is not allowed for change binding");
     }
     Ok(branch)
 }
@@ -267,14 +277,16 @@ pub(crate) fn write_binding(
 }
 
 /// Attach the current non-default branch + merge-base SHA to a change.
+///
+/// Coexists with `change start` (which auto-creates the branch). Use `attach`
+/// when the user has already manually `git switch -c`'d to a branch, or wants
+/// to bind a non-`sdd/` prefixed branch. Unified flow (r57): works regardless
+/// of whether `bdd:` is configured.
 pub fn run_attach(root: &Path, args: AttachArgs) -> Result<()> {
-    let change_name = crate::sdd::shared::discovery::resolve_change_id(root, &args.change)?;
+    let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
     validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
-    let config = load_required_config(&llmanspec)?;
-    if config.bdd.is_none() {
-        bail!("`sdd change attach` requires BDD-on (`bdd:` in config.yaml)");
-    }
+    let _config = load_required_config(&llmanspec)?;
     let dir = change_dir(root, &change_name);
     if !dir.exists() {
         bail!("change `{}` not found", change_name);
@@ -297,7 +309,7 @@ pub fn run_attach(root: &Path, args: AttachArgs) -> Result<()> {
     let branch = current_branch(root)?;
     if is_default_branch(root, &branch)? {
         bail!(
-            "BDD-on changes must not attach on the default branch (`{branch}`); create/switch to a feature branch first"
+            "changes must not attach on the default branch (`{branch}`); create/switch to a feature branch first (or use `change start`)"
         );
     }
     let default_ref = resolve_default_branch_ref(root)?;
@@ -316,16 +328,94 @@ pub fn run_attach(root: &Path, args: AttachArgs) -> Result<()> {
     Ok(())
 }
 
-/// Require a clean tree, matching branch binding, and (optionally) full BDD check.
-pub fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
-    let change_name = crate::sdd::shared::discovery::resolve_change_id(root, &args.change)?;
+/// Count uncommitted entries in the working tree (`git status --porcelain`).
+fn dirty_tree_count(root: &Path) -> Result<usize> {
+    let status = run_git(root, &["status", "--porcelain"])?;
+    Ok(status.lines().filter(|l| !l.trim().is_empty()).count())
+}
+
+/// Build the feature branch name for a change.
+///
+/// Format: `<prefix><change-id>` where prefix defaults to `sdd/` and can be
+/// overridden via `sdd.branch_prefix` in config.yaml. Slice 2 default only;
+/// worktree naming (r116) is handled separately in `start.rs`.
+fn feature_branch_name(change_id: &str, config: &crate::sdd::project::config::SddConfig) -> String {
+    let prefix = config
+        .sdd
+        .as_ref()
+        .and_then(|s| s.branch_prefix.as_deref())
+        .unwrap_or("sdd/");
+    format!("{prefix}{change_id}")
+}
+
+/// `change start <id>`: the recommended Designed → Full entry point (r111).
+///
+/// Single-process: clean-tree gate → create feature branch → write attach
+/// binding. Errors are terse and token-friendly (no stack traces, no advice
+/// lists). `--worktree` (r116) routes to worktree creation (slice 3).
+pub fn run_start(root: &Path, args: StartArgs) -> Result<()> {
+    let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
     validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
     let config = load_required_config(&llmanspec)?;
-    if config.bdd.is_none() {
-        bail!("`sdd change checkpoint` requires BDD-on (`bdd:` in config.yaml)");
+    let dir = change_dir(root, &change_name);
+    if !dir.exists() {
+        bail!("change `{}` not found", change_name);
     }
+    if !proposal_path(root, &change_name).exists() {
+        bail!("change `{}` is missing proposal.md", change_name);
+    }
+    if let Some(existing) = read_binding(root, &change_name)? {
+        bail!(
+            "change `{}` already attached to branch `{}` (base {}); pass --force to rebind via `change attach`",
+            change_name,
+            existing.branch,
+            existing.base_sha
+        );
+    }
+    // clean-tree gate (r111): terse, token-friendly error.
+    let dirty = dirty_tree_count(root)?;
+    if dirty > 0 {
+        bail!("dirty tree: {dirty} uncommitted files; commit/stash before `change start`");
+    }
+    // Reject if already on a non-default branch the user may want to keep.
+    let current = current_branch(root)?;
+    if !is_default_branch(root, &current)? {
+        bail!(
+            "already on non-default branch `{current}`; use `change attach` to bind it, or switch to the default branch before `change start`"
+        );
+    }
+    let branch = feature_branch_name(&change_name, &config);
+    let default_ref = resolve_default_branch_ref(root)?;
+    let base_sha = merge_base_sha(root, &default_ref)?;
+    if args.worktree {
+        crate::sdd::change::start::run_start_worktree(
+            root,
+            &change_name,
+            &branch,
+            &base_sha,
+            &config,
+        )?;
+    } else {
+        // Create and switch to the feature branch from the default branch.
+        run_git(root, &["checkout", "-b", &branch])?;
+    }
+    let binding = ChangeGitBinding {
+        branch: branch.clone(),
+        base_sha: base_sha.clone(),
+        checkpointed: false,
+        checkpoint_sha: None,
+    };
+    write_binding(root, &change_name, &binding)?;
+    println!("started change `{change_name}` → branch `{branch}` base `{base_sha}`");
+    Ok(())
+}
 
+/// Require a clean tree, matching branch binding, and (optionally) full BDD check.
+pub fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
+    let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
+    validate_sdd_id(&change_name, "change")?;
+    let _llmanspec = root.join(LLMANSPEC_DIR_NAME);
     let Some(mut binding) = read_binding(root, &change_name)? else {
         bail!(
             "change `{}` has no Git binding; run `llman sdd change attach {}` first",
@@ -404,7 +494,7 @@ pub fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
 }
 
 pub fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
-    let change_name = crate::sdd::shared::discovery::resolve_change_id(root, &args.change)?;
+    let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
     validate_sdd_id(&change_name, "change")?;
     let Some(binding) = read_binding(root, &change_name)? else {
         bail!(
@@ -436,7 +526,7 @@ pub fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
     Ok(())
 }
 
-/// Enforce BDD-on archive preconditions: attached, checkpointed, clean, on branch.
+/// Enforce archive preconditions: attached, checkpointed, clean, on branch (strict variant for `change archive`).
 ///
 /// This is the strict variant used by `change archive` — it requires a clean
 /// working tree (because archive itself does not write the checkpoint frontmatter,
@@ -460,7 +550,7 @@ pub fn enforce_bdd_archive_gates(root: &Path, change_id: &str) -> Result<ChangeG
 pub fn enforce_bdd_archive_gates_relaxed(root: &Path, change_id: &str) -> Result<ChangeGitBinding> {
     let Some(binding) = read_binding(root, change_id)? else {
         bail!(
-            "BDD-on archive requires Git binding; run `llman sdd change attach {change_id}` then checkpoint"
+            "archive requires Git binding; run `llman sdd change attach {change_id}` then checkpoint"
         );
     };
     let branch = current_branch(root)?;
@@ -471,30 +561,10 @@ pub fn enforce_bdd_archive_gates_relaxed(root: &Path, change_id: &str) -> Result
         );
     }
     if is_default_branch(root, &branch)? {
-        bail!("BDD-on archive must not run on the default branch");
+        bail!("archive must not run on the default branch");
     }
     if shared_mode_required() && !branch_has_upstream(root)? {
         bail!("shared mode requires an upstream before archive");
-    }
-    // Reject leftover feature_delta files (legacy model).
-    let change_specs = change_dir(root, change_id).join("specs");
-    if change_specs.exists() {
-        for entry in fs::read_dir(&change_specs)? {
-            let entry = entry?;
-            if !entry.file_type()?.is_dir() {
-                continue;
-            }
-            for file in fs::read_dir(entry.path())? {
-                let file = file?;
-                let name = file.file_name().to_string_lossy().to_string();
-                if name.ends_with(".feature.delta.toon") || name == "feature.delta.toon" {
-                    bail!(
-                        "legacy feature_delta found at {}; migrate to branch-local .feature files before archive",
-                        file.path().display()
-                    );
-                }
-            }
-        }
     }
     Ok(binding)
 }
@@ -506,7 +576,7 @@ fn enforce_bdd_archive_gates_inner(
 ) -> Result<ChangeGitBinding> {
     let Some(binding) = read_binding(root, change_id)? else {
         bail!(
-            "BDD-on archive requires Git binding; run `llman sdd change attach {change_id}` then checkpoint"
+            "archive requires Git binding; run `llman sdd change attach {change_id}` then checkpoint"
         );
     };
     let branch = current_branch(root)?;
@@ -517,10 +587,10 @@ fn enforce_bdd_archive_gates_inner(
         );
     }
     if is_default_branch(root, &branch)? {
-        bail!("BDD-on archive must not run on the default branch");
+        bail!("archive must not run on the default branch");
     }
     if require_clean_tree && !working_tree_clean(root)? {
-        bail!("working tree must be clean before BDD-on archive");
+        bail!("working tree must be clean before archive");
     }
     if !binding.checkpointed {
         bail!(
@@ -529,26 +599,6 @@ fn enforce_bdd_archive_gates_inner(
     }
     if shared_mode_required() && !branch_has_upstream(root)? {
         bail!("shared mode requires an upstream before archive");
-    }
-    // Reject leftover feature_delta files (legacy model).
-    let change_specs = change_dir(root, change_id).join("specs");
-    if change_specs.exists() {
-        for entry in fs::read_dir(&change_specs)? {
-            let entry = entry?;
-            if !entry.file_type()?.is_dir() {
-                continue;
-            }
-            for file in fs::read_dir(entry.path())? {
-                let file = file?;
-                let name = file.file_name().to_string_lossy().to_string();
-                if name.ends_with(".feature.delta.toon") || name == "feature.delta.toon" {
-                    bail!(
-                        "legacy feature_delta found at {}; migrate to branch-local .feature files before archive",
-                        file.path().display()
-                    );
-                }
-            }
-        }
     }
     Ok(binding)
 }
@@ -602,6 +652,109 @@ mod tests {
         .unwrap_err()
         .to_string();
         assert!(err.contains("default branch"), "got: {err}");
+    }
+
+    #[test]
+    fn start_rejects_dirty_tree() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        init_repo(root);
+        fs::create_dir_all(root.join("llmanspec/changes/c1")).unwrap();
+        fs::write(
+            root.join("llmanspec/config.yaml"),
+            "schema: spec-driven\nlocale: en\n",
+        )
+        .unwrap();
+        fs::write(root.join("llmanspec/changes/c1/proposal.md"), "## Why\nx\n").unwrap();
+        // Uncommitted file → dirty tree gate (r111).
+        fs::write(root.join("uncommitted"), "x").unwrap();
+        let err = run_start(
+            root,
+            StartArgs {
+                change: "c1".into(),
+                worktree: false,
+                no_interactive: false,
+            },
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("dirty tree"), "got: {err}");
+        // Must NOT be verbose: token-friendly.
+        assert!(!err.contains("\n"), "error must be single-line: {err}");
+    }
+
+    #[test]
+    fn start_creates_branch_and_binding_on_clean_tree() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        init_repo(root);
+        fs::create_dir_all(root.join("llmanspec/changes/c1")).unwrap();
+        fs::write(
+            root.join("llmanspec/config.yaml"),
+            "schema: spec-driven\nlocale: en\n",
+        )
+        .unwrap();
+        fs::write(root.join("llmanspec/changes/c1/proposal.md"), "## Why\nx\n").unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-qm", "seed"]);
+        run_start(
+            root,
+            StartArgs {
+                change: "c1".into(),
+                worktree: false,
+                no_interactive: false,
+            },
+        )
+        .expect("start on clean tree");
+        // Branch created.
+        let branch = current_branch(root).unwrap();
+        assert_eq!(branch, "sdd/c1");
+        // Binding written.
+        let binding = read_binding(root, "c1").unwrap().unwrap();
+        assert_eq!(binding.branch, "sdd/c1");
+        assert!(!binding.base_sha.is_empty());
+    }
+
+    #[test]
+    fn start_rejects_already_attached() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        init_repo(root);
+        fs::create_dir_all(root.join("llmanspec/changes/c1")).unwrap();
+        fs::write(
+            root.join("llmanspec/config.yaml"),
+            "schema: spec-driven\nlocale: en\n",
+        )
+        .unwrap();
+        fs::write(root.join("llmanspec/changes/c1/proposal.md"), "## Why\nx\n").unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-qm", "seed"]);
+        run_start(
+            root,
+            StartArgs {
+                change: "c1".into(),
+                worktree: false,
+                no_interactive: false,
+            },
+        )
+        .expect("first start");
+        git(root, &["checkout", "main"]);
+        git(root, &["branch", "-D", "sdd/c1"]);
+        git(root, &["add", "."]);
+        git(root, &["commit", "-qm", "post-start"]);
+        // Already attached → reject without --force (start has no --force;
+        // rebind goes via `change attach --force`).
+        let err = run_start(
+            root,
+            StartArgs {
+                change: "c1".into(),
+                worktree: false,
+                no_interactive: false,
+            },
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("already attached"), "got: {err}");
     }
 
     #[test]

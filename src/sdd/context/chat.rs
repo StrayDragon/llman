@@ -10,13 +10,14 @@ use crate::sdd::context::retrieve::{ChatInvoker, ChatTurn, Msg, ToolCall, ToolSc
 use anyhow::{Context as _, Result};
 use async_openai::Client;
 use async_openai::config::OpenAIConfig;
-use async_openai::types::{
-    ChatCompletionMessageToolCall, ChatCompletionRequestAssistantMessage,
-    ChatCompletionRequestAssistantMessageContent, ChatCompletionRequestMessage,
-    ChatCompletionRequestSystemMessage, ChatCompletionRequestSystemMessageContent,
-    ChatCompletionRequestToolMessage, ChatCompletionRequestToolMessageContent,
-    ChatCompletionRequestUserMessage, ChatCompletionRequestUserMessageContent, ChatCompletionTool,
-    ChatCompletionToolType, CreateChatCompletionRequestArgs, FunctionCall, FunctionObject,
+use async_openai::types::chat::{
+    ChatCompletionMessageToolCall, ChatCompletionMessageToolCalls,
+    ChatCompletionRequestAssistantMessage, ChatCompletionRequestAssistantMessageContent,
+    ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
+    ChatCompletionRequestSystemMessageContent, ChatCompletionRequestToolMessage,
+    ChatCompletionRequestToolMessageContent, ChatCompletionRequestUserMessage,
+    ChatCompletionRequestUserMessageContent, ChatCompletionTool, ChatCompletionTools,
+    CreateChatCompletionRequestArgs, FunctionCall, FunctionObject,
 };
 
 /// Configuration for the chat model used by pageindex retrieval.
@@ -93,16 +94,17 @@ impl ChatInvoker for OpenAiInvoker {
             .map(convert_message)
             .collect::<Result<_>>()?;
 
-        let tools_aoi: Vec<ChatCompletionTool> = tools
+        let tools_aoi: Vec<ChatCompletionTools> = tools
             .iter()
-            .map(|t| ChatCompletionTool {
-                r#type: ChatCompletionToolType::Function,
-                function: FunctionObject {
-                    name: t.name.to_string(),
-                    description: Some(t.description.to_string()),
-                    parameters: Some(t.parameters.clone()),
-                    strict: None,
-                },
+            .map(|t| {
+                ChatCompletionTools::Function(ChatCompletionTool {
+                    function: FunctionObject {
+                        name: t.name.to_string(),
+                        description: Some(t.description.to_string()),
+                        parameters: Some(t.parameters.clone()),
+                        strict: None,
+                    },
+                })
             })
             .collect();
 
@@ -131,10 +133,13 @@ impl ChatInvoker for OpenAiInvoker {
             .tool_calls
             .unwrap_or_default()
             .into_iter()
-            .map(|tc| ToolCall {
-                id: tc.id,
-                name: tc.function.name,
-                arguments: tc.function.arguments,
+            .filter_map(|tc| match tc {
+                ChatCompletionMessageToolCalls::Function(f) => Some(ToolCall {
+                    id: f.id,
+                    name: f.function.name,
+                    arguments: f.function.arguments,
+                }),
+                _ => None,
             })
             .collect();
 
@@ -171,13 +176,16 @@ fn convert_message(msg: &Msg) -> Result<ChatCompletionRequestMessage> {
                 Some(
                     tool_calls
                         .iter()
-                        .map(|tc| ChatCompletionMessageToolCall {
-                            id: tc.id.clone(),
-                            r#type: ChatCompletionToolType::Function,
-                            function: FunctionCall {
-                                name: tc.name.clone(),
-                                arguments: tc.arguments.clone(),
-                            },
+                        .map(|tc| {
+                            ChatCompletionMessageToolCalls::Function(
+                                ChatCompletionMessageToolCall {
+                                    id: tc.id.clone(),
+                                    function: FunctionCall {
+                                        name: tc.name.clone(),
+                                        arguments: tc.arguments.clone(),
+                                    },
+                                },
+                            )
                         })
                         .collect(),
                 )

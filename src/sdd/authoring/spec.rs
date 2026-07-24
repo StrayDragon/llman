@@ -35,21 +35,24 @@ pub struct SpecAddScenarioArgs {
 pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    let _config = load_required_config(&llmanspec_dir)?;
+    let config = load_required_config(&llmanspec_dir)?;
 
-    let spec_path = spec_path(root, &args.capability);
-    if spec_path.exists() && !args.force {
+    let spec_dir = root
+        .join(LLMANSPEC_DIR_NAME)
+        .join("specs")
+        .join(&args.capability);
+    if spec_dir.exists() && !args.force {
         return Err(anyhow!(
-            "spec skeleton target already exists: {} (pass --force to overwrite)",
-            spec_path.display()
+            "spec skeleton target `{}` already exists (pass --force to overwrite)",
+            spec_dir.display()
         ));
     }
-    if let Some(parent) = spec_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
+    fs::create_dir_all(&spec_dir)?;
 
-    // Standalone `.toon` file: validation scope (valid_scope) lives inside the
-    // TOON document, not a YAML frontmatter.
+    // Allocate first req_id; printed as a hint for the next `add-requirement`.
+    let first_req_id =
+        crate::sdd::spec::req_registry::next_req_id(root).unwrap_or_else(|_| "r1".to_string());
+
     let spec = MainSpecDoc {
         kind: "llman.sdd.spec".to_string(),
         name: args.capability.clone(),
@@ -58,10 +61,32 @@ pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
         requirements: Vec::new(),
         scenarios: Vec::new(),
     };
+    let spec_path = spec_dir.join(SPEC_FILE);
     let payload = BACKEND.dump_main_spec(&spec)?;
-
     atomic_write_with_mode(&spec_path, payload.as_bytes(), None)?;
-    println!("{}", spec_path.display());
+    println!("wrote {}", spec_path.display());
+    println!(
+        "next-req-id: {first_req_id} (use `llman sdd spec add-requirement {name} {first_req_id} --title ... --statement ...`)",
+        name = args.capability,
+    );
+
+    // BDD-on: also scaffold a .feature harness file.
+    if config.bdd.is_some() {
+        let lang = crate::sdd::spec::validation::locale_to_gherkin_lang(
+            Some(&config.locale),
+            config.bdd.as_ref(),
+        );
+        let feature_path = spec_dir.join(format!("{}.feature", args.capability));
+        let feature_contents = format!(
+            "# language: {lang}\n\n@req:{req_id}\nFeature: {name}\n  # Replace with real GWT scenarios after `add-requirement`.\n  # See: `llman sdd validate {name} --strict` for format guidance.\n",
+            lang = lang,
+            req_id = first_req_id,
+            name = args.capability,
+        );
+        fs::write(&feature_path, feature_contents)?;
+        println!("wrote {}", feature_path.display());
+    }
+
     Ok(())
 }
 

@@ -22,7 +22,14 @@ pub struct SddSpecArgs {
 
 #[derive(Subcommand)]
 pub enum SddSpecCommands {
-    /// Generate a main spec skeleton for a capability
+    /// Generate a main spec skeleton for a capability.
+    ///
+    /// Produces `llmanspec/specs/<cap>/spec.toon` with empty requirements/scenarios
+    /// tables and a pre-allocated next-req-id hint. When `bdd:` is configured,
+    /// also writes `<cap>.feature` with `# language` + `@req:` placeholder.
+    ///
+    /// Use `add-requirement` / `add-scenario` to fill content.
+    #[command(verbatim_doc_comment)]
     Skeleton {
         /// Capability / spec id
         capability: String,
@@ -75,102 +82,6 @@ pub enum SddSpecCommands {
         /// Emit JSON
         #[arg(long)]
         json: bool,
-    },
-}
-
-#[derive(Args)]
-pub struct SddDeltaArgs {
-    #[command(subcommand)]
-    pub command: SddDeltaCommands,
-}
-
-#[derive(Subcommand)]
-pub enum SddDeltaCommands {
-    /// Generate a delta spec skeleton for a change + capability (no YAML frontmatter)
-    Skeleton {
-        /// Change id
-        change_id: String,
-        /// Capability / spec id
-        capability: String,
-        /// Overwrite existing files
-        #[arg(long)]
-        force: bool,
-    },
-    /// Add a new requirement (extracted from add-op)
-    #[command(alias = "add-op")]
-    AddReq {
-        /// Change id
-        change_id: String,
-        /// Capability / spec id
-        capability: String,
-        /// Requirement id (req_id)
-        req_id: String,
-        /// Requirement title
-        #[arg(long)]
-        title: String,
-        /// Requirement statement (MUST/SHALL)
-        #[arg(long)]
-        statement: String,
-    },
-    /// Modify an existing requirement
-    ModifyReq {
-        /// Change id
-        change_id: String,
-        /// Capability / spec id
-        capability: String,
-        /// Requirement id (req_id)
-        req_id: String,
-        /// New title
-        #[arg(long)]
-        title: Option<String>,
-        /// New statement (MUST/SHALL)
-        #[arg(long)]
-        statement: Option<String>,
-    },
-    /// Remove a requirement
-    RemoveReq {
-        /// Change id
-        change_id: String,
-        /// Capability / spec id
-        capability: String,
-        /// Requirement id (req_id)
-        req_id: String,
-        /// Name hint
-        #[arg(long)]
-        name: Option<String>,
-    },
-    /// Rename a requirement
-    RenameReq {
-        /// Change id
-        change_id: String,
-        /// Capability / spec id
-        capability: String,
-        /// Source requirement id
-        #[arg(long)]
-        from: String,
-        /// Target requirement id
-        #[arg(long)]
-        to: String,
-    },
-    /// Add a delta op scenario row (add/modify ops only)
-    AddScenario {
-        /// Change id
-        change_id: String,
-        /// Capability / spec id
-        capability: String,
-        /// Requirement id (req_id)
-        req_id: String,
-        /// Scenario id
-        scenario_id: String,
-        /// GIVEN (optional)
-        #[arg(long, default_value = "")]
-        given: String,
-        /// WHEN (required)
-        #[arg(long = "when")]
-        when_: String,
-        /// THEN (required)
-        #[arg(long = "then")]
-        then_: String,
     },
 }
 
@@ -291,6 +202,8 @@ pub enum SddCommands {
         /// Seed change ID to center the graph on
         change: Option<String>,
     },
+    /// Worktree management commands
+    Worktree(SddWorktreeArgs),
     /// Show project status overview (compact TOON by default, agent-oriented)
     Status {
         /// Target change name, archive date prefix, or fuzzy name
@@ -349,6 +262,18 @@ pub enum IndexSubcommand {
     },
     /// Check index freshness without rebuilding
     Check {},
+}
+
+#[derive(Args)]
+pub struct SddWorktreeArgs {
+    #[command(subcommand)]
+    pub command: SddWorktreeCommands,
+}
+
+#[derive(Subcommand)]
+pub enum SddWorktreeCommands {
+    /// Prune stale worktrees (whose change is archived or missing)
+    Prune {},
 }
 
 /// SDD project configuration commands
@@ -423,6 +348,14 @@ pub enum SddProjectCommands {
     },
 }
 
+/// Stub args for `change delta` — the command is removed (r115).
+#[derive(Debug, Args)]
+pub struct DeltaStubArgs {
+    /// Trailing args captured for the reject message
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    pub args: Vec<String>,
+}
+
 #[derive(Args)]
 pub struct SddChangeArgs {
     #[command(subcommand)]
@@ -446,13 +379,30 @@ pub enum SddChangeCommands {
         #[arg(long)]
         force: bool,
     },
-    /// Attach the current feature branch + base SHA to a BDD-on change
+    /// Attach the current feature branch + base SHA to a change (manual binding).
+    /// Unified flow (r57): works regardless of `bdd:` config. Use when the
+    /// user has already `git switch -c`'d, or wants a non-`sdd/` branch prefix.
     Attach {
         /// Change id
         change: String,
         /// Rebind even if already attached
         #[arg(long)]
         force: bool,
+    },
+    /// Designed → Full entry point (r111): clean-tree gate + auto-create
+    /// `sdd/<change-id>` feature branch + write attach binding, in one process.
+    /// Recommended over manual attach+branch. Use `--worktree` (r116) for
+    /// parallel changes via a linked worktree.
+    Start {
+        /// Change id
+        change: String,
+        /// Create a linked worktree instead of switching in-place (r116)
+        #[arg(long)]
+        worktree: bool,
+        /// Accepted and ignored; start has no interactive mode. Keeps the flag
+        /// matrix uniform across change subcommands.
+        #[arg(long)]
+        no_interactive: bool,
     },
     /// Checkpoint a clean, validated feature branch for archive
     Checkpoint {
@@ -496,8 +446,10 @@ pub enum SddChangeCommands {
         #[arg(long)]
         export_patch: Option<PathBuf>,
     },
-    /// BDD-off TOON delta authoring helpers (rejected when BDD-on)
-    Delta(SddDeltaArgs),
+
+    /// (removed) `change delta` is no longer supported; edit live specs on a feature branch
+    #[command(hide = true)]
+    Delta(DeltaStubArgs),
     /// Seal a change: BDD-on docs-only after checkpoint; BDD-off merge TOON deltas
     Archive {
         /// Change id
@@ -677,6 +629,18 @@ pub fn run(args: &SddArgs) -> Result<()> {
                     force: *force,
                 },
             ),
+            SddChangeCommands::Start {
+                change,
+                worktree,
+                no_interactive: _,
+            } => git_native::run_start(
+                std::path::Path::new("."),
+                git_native::StartArgs {
+                    change: change.clone(),
+                    worktree: *worktree,
+                    no_interactive: false,
+                },
+            ),
             SddChangeCommands::Checkpoint {
                 change,
                 no_check,
@@ -709,7 +673,10 @@ pub fn run(args: &SddArgs) -> Result<()> {
                     export_patch: export_patch.clone(),
                 },
             ),
-            SddChangeCommands::Delta(delta_args) => dispatch_delta(delta_args),
+
+            SddChangeCommands::Delta(_) => {
+                anyhow::bail!("change delta is removed; edit live specs on a feature branch");
+            }
             SddChangeCommands::Archive {
                 change,
                 skip_specs,
@@ -829,6 +796,13 @@ pub fn run(args: &SddArgs) -> Result<()> {
                 ))
             }
         },
+        SddCommands::Worktree(args) => match &args.command {
+            SddWorktreeCommands::Prune {} => {
+                let llmanspec_dir = std::path::Path::new(".").join("llmanspec");
+                let config = crate::sdd::project::config::load_required_config(&llmanspec_dir)?;
+                crate::sdd::change::start::run_worktree_prune(std::path::Path::new("."), &config)
+            }
+        },
         SddCommands::Config(args) => dispatch_config(args),
         SddCommands::Project(args) => match &args.command {
             SddProjectCommands::Import {
@@ -881,120 +855,5 @@ fn dispatch_config(args: &SddConfigArgs) -> Result<()> {
             json,
         }) => crate::sdd::project::config_skills::run(*no_interactive, *json, root),
         None => crate::sdd::project::config_skills::run_overview(root),
-    }
-}
-
-fn dispatch_delta(args: &SddDeltaArgs) -> Result<()> {
-    match &args.command {
-        SddDeltaCommands::Skeleton {
-            change_id,
-            capability,
-            force,
-        } => authoring::delta::run_skeleton(
-            std::path::Path::new("."),
-            authoring::delta::DeltaSkeletonArgs {
-                change_id: change_id.clone(),
-                capability: capability.clone(),
-                force: *force,
-            },
-        ),
-        SddDeltaCommands::AddReq {
-            change_id,
-            capability,
-            req_id,
-            title,
-            statement,
-        } => authoring::delta::run_add_op(
-            std::path::Path::new("."),
-            authoring::delta::DeltaAddOpArgs {
-                change_id: change_id.clone(),
-                capability: capability.clone(),
-                op: "add_requirement".to_string(),
-                req_id: req_id.clone(),
-                title: Some(title.clone()),
-                statement: Some(statement.clone()),
-                from: None,
-                to: None,
-                name: None,
-            },
-        ),
-        SddDeltaCommands::ModifyReq {
-            change_id,
-            capability,
-            req_id,
-            title,
-            statement,
-        } => authoring::delta::run_add_op(
-            std::path::Path::new("."),
-            authoring::delta::DeltaAddOpArgs {
-                change_id: change_id.clone(),
-                capability: capability.clone(),
-                op: "modify_requirement".to_string(),
-                req_id: req_id.clone(),
-                title: title.clone(),
-                statement: statement.clone(),
-                from: None,
-                to: None,
-                name: None,
-            },
-        ),
-        SddDeltaCommands::RemoveReq {
-            change_id,
-            capability,
-            req_id,
-            name,
-        } => authoring::delta::run_add_op(
-            std::path::Path::new("."),
-            authoring::delta::DeltaAddOpArgs {
-                change_id: change_id.clone(),
-                capability: capability.clone(),
-                op: "remove_requirement".to_string(),
-                req_id: req_id.clone(),
-                title: None,
-                statement: None,
-                from: None,
-                to: None,
-                name: name.clone(),
-            },
-        ),
-        SddDeltaCommands::RenameReq {
-            change_id,
-            capability,
-            from,
-            to,
-        } => authoring::delta::run_add_op(
-            std::path::Path::new("."),
-            authoring::delta::DeltaAddOpArgs {
-                change_id: change_id.clone(),
-                capability: capability.clone(),
-                op: "rename_requirement".to_string(),
-                req_id: from.clone(),
-                title: None,
-                statement: None,
-                from: Some(from.clone()),
-                to: Some(to.clone()),
-                name: None,
-            },
-        ),
-        SddDeltaCommands::AddScenario {
-            change_id,
-            capability,
-            req_id,
-            scenario_id,
-            given,
-            when_,
-            then_,
-        } => authoring::delta::run_add_scenario(
-            std::path::Path::new("."),
-            authoring::delta::DeltaAddScenarioArgs {
-                change_id: change_id.clone(),
-                capability: capability.clone(),
-                req_id: req_id.clone(),
-                scenario_id: scenario_id.clone(),
-                given: given.clone(),
-                when_: when_.clone(),
-                then_: then_.clone(),
-            },
-        ),
     }
 }

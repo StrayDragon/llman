@@ -15,7 +15,6 @@ pub(crate) const OPTIONAL_SKILL_NAMES: &[&str] = &[
     "llman-sdd-new-change",
     "llman-sdd-continue",
     "llman-sdd-ff",
-    "llman-sdd-sync",
     "llman-sdd-validate",
     "llman-sdd-arch-review",
     "llman-sdd-wayfinder",
@@ -36,7 +35,6 @@ locale: en
 #   - llman-sdd-new-change
 #   - llman-sdd-continue
 #   - llman-sdd-ff
-#   - llman-sdd-sync
 #   - llman-sdd-validate
 #   - llman-sdd-arch-review
 #   - llman-sdd-wayfinder
@@ -68,7 +66,6 @@ locale: zh-Hans
 #   - llman-sdd-new-change
 #   - llman-sdd-continue
 #   - llman-sdd-ff
-#   - llman-sdd-sync
 #   - llman-sdd-validate
 #   - llman-sdd-arch-review
 #   - llman-sdd-wayfinder
@@ -187,7 +184,7 @@ pub struct SddConfig {
         On init --update / update-skills, candidates = default workflow skills + this list; \
         then `.agents/skills/llman-sdd-*` not in candidates are removed before rewrite. \
         Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, \
-        llman-sdd-sync, llman-sdd-validate, llman-sdd-arch-review, \
+        llman-sdd-validate, llman-sdd-arch-review, \
         llman-sdd-wayfinder, llman-sdd-research."
     )]
     pub extra_skills: Option<Vec<String>>,
@@ -203,6 +200,39 @@ pub struct SddConfig {
         description = "BDD integration settings. When defined, enables feature-as-spec mode (directory-based .feature validation) and BDD-aware verify prompts."
     )]
     pub bdd: Option<BddConfig>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(description = "Unified Git-native flow tuning (branch prefix, worktree).")]
+    pub sdd: Option<FlowConfig>,
+}
+
+/// Unified Git-native flow tuning (r111/r116).
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
+#[schemars(description = "Unified Git-native flow settings.")]
+pub struct FlowConfig {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Prefix for feature branches created by `change start`. Default: \"sdd/\"."
+    )]
+    pub branch_prefix: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Root directory for worktrees created by `change start --worktree`. \
+        Default: <repo>/.git/sdd/worktrees/."
+    )]
+    pub worktree_root: Option<PathBuf>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Worktree directory naming: \"id\" (default, = change-id) or \
+        \"hash\" (deterministic base32(sha256(change_id))[:8], letters only)."
+    )]
+    pub worktree_naming: Option<String>,
 }
 
 impl Default for SddConfig {
@@ -213,6 +243,7 @@ impl Default for SddConfig {
             extra_skills: None,
             archive: None,
             bdd: None,
+            sdd: None,
         }
     }
 }
@@ -259,7 +290,7 @@ pub fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
             error = error
         )));
     }
-    let config: SddConfig = serde_yaml::from_value(yaml_value)
+    let mut config: SddConfig = serde_yaml::from_value(yaml_value)
         .map_err(|err| anyhow!(t!("sdd.config.parse_failed", error = err)))?;
 
     if config.schema.trim() != EXPECTED_SCHEMA {
@@ -283,13 +314,9 @@ pub fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
         }
     }
 
-    Ok(Some(SddConfig {
-        schema: EXPECTED_SCHEMA.to_string(),
-        locale: normalize_locale(&config.locale),
-        extra_skills: config.extra_skills,
-        archive: config.archive,
-        bdd: config.bdd,
-    }))
+    config.locale = normalize_locale(&config.locale);
+    config.schema = EXPECTED_SCHEMA.to_string();
+    Ok(Some(config))
 }
 
 fn reject_old_format(value: &serde_yaml::Value, path: &Path) -> Result<()> {
@@ -549,15 +576,12 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let llmanspec_dir = dir.path();
         let path = config_path(llmanspec_dir);
-        let content = "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-sync\n  - llman-sdd-new-change\n";
+        let content = "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-new-change\n";
         fs::write(&path, content).expect("write config");
         let config = load_config(llmanspec_dir).expect("load").expect("config");
         assert_eq!(
             config.extra_skills,
-            Some(vec![
-                "llman-sdd-sync".to_string(),
-                "llman-sdd-new-change".to_string(),
-            ])
+            Some(vec!["llman-sdd-new-change".to_string(),])
         );
     }
 }

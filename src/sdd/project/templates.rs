@@ -28,7 +28,6 @@ const OPTIONAL_SKILL_FILES: &[&str] = &[
     "llman-sdd-new-change.md",
     "llman-sdd-continue.md",
     "llman-sdd-ff.md",
-    "llman-sdd-sync.md",
     "llman-sdd-validate.md",
     "llman-sdd-arch-review.md",
     "llman-sdd-wayfinder.md",
@@ -310,10 +309,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             "/templates/sdd/en/skills/llman-sdd-apply.md"
         ))),
 
-        "templates/sdd/en/skills/llman-sdd-sync.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/skills/llman-sdd-sync.md"
-        ))),
         "templates/sdd/en/skills/llman-sdd-validate.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/llman-sdd-validate.md"
@@ -390,10 +385,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             "/templates/sdd/zh-Hans/skills/llman-sdd-apply.md"
         ))),
 
-        "templates/sdd/zh-Hans/skills/llman-sdd-sync.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/zh-Hans/skills/llman-sdd-sync.md"
-        ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-validate.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/skills/llman-sdd-validate.md"

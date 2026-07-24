@@ -108,6 +108,58 @@ pub fn list_specs(root: &Path) -> Result<Vec<String>> {
     Ok(result)
 }
 
+/// Outcome of resolving a user-provided change name to a canonical change id.
+///
+/// Carries the `via_prefix` flag (sourced from `prefix_resolve`, the single
+/// source of truth for the "exact > prefix" rule) so callers can emit the
+/// "'input' -> 'resolved' (prefix match)" hint mandated by cli spec r112
+/// without re-deriving it (which would re-introduce the parallel-logic smell
+/// that the r112 refactor removed).
+#[derive(Debug, Clone)]
+pub struct ResolvedChange {
+    /// The canonical change id that the user's input resolved to.
+    pub id: String,
+    /// The (trimmed) user-provided input, kept for hint formatting.
+    pub input: String,
+    /// `false` for an exact match, `true` when `input` was a unique prefix of `id`.
+    pub via_prefix: bool,
+}
+
+impl ResolvedChange {
+    /// Returns the "'input' -> 'resolved' (prefix match)" hint when this was a
+    /// prefix match, or `None` for an exact match (no hint is emitted then).
+    pub fn prefix_hint(&self) -> Option<String> {
+        if self.via_prefix {
+            Some(format!(
+                "{}\n",
+                t!(
+                    "sdd.prefix_match_hint",
+                    input = self.input,
+                    resolved = self.id
+                )
+            ))
+        } else {
+            None
+        }
+    }
+}
+
+/// Resolve a change name and emit the prefix-match hint to stderr (human output)
+/// when the input was a prefix rather than an exact match. Returns the canonical
+/// change id.
+///
+/// Convenience wrapper for commands that only produce human-readable output and
+/// do not need the `via_prefix` flag for a JSON field. Commands that emit JSON
+/// (`show`/`validate`/`status`) resolve directly so they can populate
+/// `matchedViaPrefix`.
+pub fn resolve_change_id_human(root: &Path, input: &str) -> Result<String> {
+    let resolved = resolve_change_id(root, input)?;
+    if let Some(hint) = resolved.prefix_hint() {
+        eprint!("{hint}");
+    }
+    Ok(resolved.id)
+}
+
 /// Resolve a user-provided change name input to a canonical change id.
 ///
 /// Resolution priority:
@@ -115,9 +167,10 @@ pub fn list_specs(root: &Path) -> Result<Vec<String>> {
 /// 2. Prefix match against active changes (directory name starts with `input`)
 /// 3. Prefix match against archived changes (change id portion starts with `input`)
 ///
-/// Returns the resolved change id on success. Errors with a descriptive message on
-/// multi-match (lists all candidates) or no-match.
-pub fn resolve_change_id(root: &Path, input: &str) -> Result<String> {
+/// Returns the resolved change id (plus the `via_prefix` flag for the r112 hint)
+/// on success. Errors with a descriptive message on multi-match (lists all
+/// candidates) or no-match.
+pub fn resolve_change_id(root: &Path, input: &str) -> Result<ResolvedChange> {
     use crate::sdd::shared::match_utils::{PrefixOutcome, prefix_resolve};
 
     let input = input.trim();
@@ -130,7 +183,13 @@ pub fn resolve_change_id(root: &Path, input: &str) -> Result<String> {
 
     // 1) Exact / prefix match against active changes (active takes priority)
     match prefix_resolve(input, &active) {
-        PrefixOutcome::Single(id) => return Ok(id.to_string()),
+        PrefixOutcome::Single { id, via_prefix } => {
+            return Ok(ResolvedChange {
+                id: id.to_string(),
+                input: input.to_string(),
+                via_prefix,
+            });
+        }
         PrefixOutcome::Multiple(matches) => {
             let candidates = matches
                 .iter()
@@ -146,7 +205,13 @@ pub fn resolve_change_id(root: &Path, input: &str) -> Result<String> {
 
     // 2) Prefix match against archived changes (only when active had no match)
     match prefix_resolve(input, &archived) {
-        PrefixOutcome::Single(id) => return Ok(id.to_string()),
+        PrefixOutcome::Single { id, via_prefix } => {
+            return Ok(ResolvedChange {
+                id: id.to_string(),
+                input: input.to_string(),
+                via_prefix,
+            });
+        }
         PrefixOutcome::Multiple(matches) => {
             let candidates = matches
                 .iter()

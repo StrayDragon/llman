@@ -28,7 +28,7 @@ fn run(args: &[&str], env: &TestEnvironment) -> std::process::Output {
 
 const BDD_ON_BLOCK: &str = "bdd:\n  run_command: \"cargo test --features bdd\"";
 
-/// Seed a spec `sample` (r1 + scenario) and an `add-scen` change (delta adds r2).
+/// Seed a spec `sample` (r1 + scenario) and an `add-scen` change (proposal only — delta removed, r115).
 fn seed_spec_and_change(env: &TestEnvironment) {
     assert_success(&run(&["sdd", "spec", "skeleton", "sample"], env));
     assert_success(&run(
@@ -67,43 +67,8 @@ fn seed_spec_and_change(env: &TestEnvironment) {
         "## Why\nAdd r2 to sample.\n\n## What Changes\n- Add requirement r2.\n",
     )
     .expect("write proposal");
-    assert_success(&run(
-        &["sdd", "change", "delta", "skeleton", "add-scen", "sample"],
-        env,
-    ));
-    assert_success(&run(
-        &[
-            "sdd",
-            "change",
-            "delta",
-            "add-req",
-            "add-scen",
-            "sample",
-            "r2",
-            "--title",
-            "R2",
-            "--statement",
-            "System MUST support r2.",
-        ],
-        env,
-    ));
-    assert_success(&run(
-        &[
-            "sdd",
-            "change",
-            "delta",
-            "add-scenario",
-            "add-scen",
-            "sample",
-            "r2",
-            "new r2 behavior",
-            "--when",
-            "r2 triggered",
-            "--then",
-            "r2 works",
-        ],
-        env,
-    ));
+    fs::write(change_dir.join("design.md"), "# Design\n").expect("write design");
+    fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
 }
 
 fn write_config(env: &TestEnvironment, bdd: Option<&str>) {
@@ -282,13 +247,21 @@ fn test_all_subcommands_smoke_bdd_on_and_off() {
         let solidify = run(&["sdd", "solidify", "add-scen"], &env);
         assert!(!solidify.status.success(), "sdd solidify must be removed");
 
-        // BDD-on rejects change delta
-        if bdd.is_some() {
+        // change delta is removed (r115) — always rejected
+        {
             let delta = run(
                 &["sdd", "change", "delta", "skeleton", "add-scen", "sample"],
                 &env,
             );
-            assert!(!delta.status.success(), "change delta must reject BDD-on");
+            assert!(
+                !delta.status.success(),
+                "change delta must reject (removed)"
+            );
+            let stderr = String::from_utf8_lossy(&delta.stderr);
+            assert!(
+                stderr.contains("removed"),
+                "change delta must mention removed, got: {stderr}"
+            );
         }
 
         // change finalize exists and parses. Both BDD-on (default branch / not
@@ -420,7 +393,9 @@ fn test_bdd_on_rejects_legacy_feature_delta_on_validate() {
 }
 
 #[test]
-fn test_bdd_off_attach_unavailable() {
+fn test_attach_unified_works_regardless_of_bdd() {
+    // Unified flow: attach is available regardless of bdd config (r57).
+    // Test with BDD-off: attach should reject on default branch (not because of BDD).
     let env = TestEnvironment::new();
     init_project(&env, None);
     commit(&env, "seed");
@@ -432,8 +407,8 @@ fn test_bdd_off_attach_unavailable() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert!(
-        err.contains("BDD-on") || err.contains("bdd:"),
-        "expected BDD-on requirement, got: {err}"
+        err.contains("default branch"),
+        "expected default-branch rejection, got: {err}"
     );
 }
 

@@ -14,7 +14,7 @@
       "default": "en"
     },
     "extra_skills": {
-      "description": "Additional optional SDD skills to enable (extend candidates). On init --update / update-skills, candidates = default workflow skills + this list; then `.agents/skills/llman-sdd-*` not in candidates are removed before rewrite. Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, llman-sdd-sync, llman-sdd-validate, llman-sdd-arch-review, llman-sdd-wayfinder, llman-sdd-research.",
+      "description": "Additional optional SDD skills to enable (extend candidates). On init --update / update-skills, candidates = default workflow skills + this list; then `.agents/skills/llman-sdd-*` not in candidates are removed before rewrite. Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, llman-sdd-validate, llman-sdd-arch-review, llman-sdd-wayfinder, llman-sdd-research.",
       "type": [
         "array",
         "null"
@@ -82,6 +82,36 @@
         },
         "verify_prompt": {
           "description": "Extra prompt text injected during verify phase.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "sdd": {
+      "description": "Unified Git-native flow tuning (branch prefix, worktree).",
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "branch_prefix": {
+          "description": "Prefix for feature branches created by `change start`. Default: \"sdd/\".",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "worktree_root": {
+          "description": "Root directory for worktrees created by `change start --worktree`. Default: <repo>/.git/sdd/worktrees/.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "worktree_naming": {
+          "description": "Worktree directory naming: \"id\" (default, = change-id) or \"hash\" (deterministic base32(sha256(change_id))[:8], letters only).",
           "type": [
             "string",
             "null"

@@ -1,7 +1,7 @@
-//! `llman sdd change finalize` — BDD-on single-commit closure.
+//! `llman sdd change finalize` — unified single-commit close-out.
 //!
-//! Combines checkpoint (relaxed gates) + docs-only archive in one process,
-//! leaving a single dirty tree for one `git commit`. Differs from the
+//! Combines checkpoint (relaxed gates) + docs-only archive + ff-merge in one
+//! process, leaving a single dirty tree for one `git commit`. Differs from the
 //! `checkpoint` + `archive` pair in two ways (see [`run_finalize`] and the
 //! `Finalize` variant in `src/sdd/command.rs`):
 //!
@@ -15,8 +15,11 @@ use crate::sdd::change::archive::{archive_name_for, do_archive_rename};
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
-use anyhow::{Result, bail};
+use anyhow::Result;
 use std::path::Path;
+
+#[cfg(test)]
+use std::process::Command;
 
 #[derive(Debug, Clone)]
 pub struct FinalizeArgs {
@@ -36,13 +39,10 @@ pub struct FinalizeArgs {
 ///    the BDD runner), then write `checkpointed=true` + `checkpoint_sha=base_sha`.
 /// 5. Docs-only archive rename.
 pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
-    let change_name = crate::sdd::shared::discovery::resolve_change_id(root, &args.change)?;
+    let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
     validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
-    let config = load_required_config(&llmanspec)?;
-    if config.bdd.is_none() {
-        bail!("`sdd change finalize` requires BDD-on (`bdd:` in config.yaml)");
-    }
+    let _config = load_required_config(&llmanspec)?;
 
     // Relaxed gates enforce attach/branch/default/feature_delta but skip
     // clean-tree and `checkpointed` (finalize itself writes the latter).
@@ -114,7 +114,7 @@ pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         "finalized change `{}` → archive `{archive_name}` on branch `{}` (checkpoint_sha=base_sha=`{}`)",
         change_name, binding.branch, binding.base_sha,
     );
-    // Next-step hint: BDD-on close-out defaults to a LOCAL merge into the
+    // Next-step hint: close-out defaults to a LOCAL merge into the
     // default branch (r98 contract). push / hosting PR are optional.
     let default_branch = crate::sdd::change::git_native::resolve_default_branch_ref(root)
         .map(|r| r.strip_prefix("origin/").unwrap_or(r.as_str()).to_string())
@@ -370,26 +370,47 @@ mod tests {
     }
 
     #[test]
-    fn finalize_rejects_bdd_off() {
-        // Same as not-attached setup, but flip config to BDD-off.
-        let (tmp, id, _base) = setup_repo_with_attached_change("finalize-bddoff");
+    fn finalize_works_unified_regardless_of_bdd_config() {
+        // Unified flow: finalize works with or without bdd: block (r94).
+        let (tmp, id, _base) = setup_repo_with_attached_change("finalize-unified");
         let root = tmp.path();
 
+        // Seed a minimal spec so validate --specs passes.
+        let sample_dir = root.join("llmanspec/specs/sample");
+        fs::create_dir_all(&sample_dir).unwrap();
+        fs::write(
+            sample_dir.join("spec.toon"),
+            "kind: llman.sdd.spec\nname: \"sample\"\npurpose: \"sample\"\nvalid_scope[1]: \"llmanspec/specs/sample\"\nrequirements[1]{req_id,title,statement}:\n  r1,R1,\"System MUST do X.\"\nscenarios[1]{req_id,id,given,when,then,feature}:\n  r1,happy,constraint note,trigger,outcome,false\n",
+        ).unwrap();
+        Command::new("git")
+            .args(["add", "-A"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "add sample spec"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+
+        // Flip config to no bdd block (unified — finalize still works).
         fs::write(
             root.join("llmanspec/config.yaml"),
             "schema: spec-driven\nlocale: en\n",
         )
         .unwrap();
 
-        let err = run_finalize(
+        run_finalize(
             root,
             FinalizeArgs {
-                change: id,
+                change: id.clone(),
                 no_check: true,
             },
         )
-        .unwrap_err();
-        assert!(format!("{err}").contains("BDD-on"), "expected BDD-on error");
+        .expect("unified finalize should succeed without bdd: block");
+
+        // Active change dir is gone; archive entry exists.
+        assert!(!root.join("llmanspec/changes").join(&id).exists());
     }
 
     // Keep this as a compile-time anchor for the helper struct shape so future

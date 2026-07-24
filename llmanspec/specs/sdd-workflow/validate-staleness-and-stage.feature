@@ -40,17 +40,22 @@
     而且 那么返回轻量元数据
 
   场景: 仅有 proposal 时阶段为 draft
-    假如 变更目录仅含 proposal.md
+    假如 变更目录仅含 proposal.md（无 design/tasks，未进分支）
     当 用户执行 llman sdd validate <change-id>
     而且 那么输出含阶段标识 draft
 
-  场景: 完整变更阶段为 full
-    假如 变更目录含 proposal.md + specs/ + design.md + tasks.md
+  场景: 含 design/tasks 但未进分支时阶段为 designed
+    假如 变更目录含 proposal.md + design.md + tasks.md（未 attach 分支）
+    当 用户执行 llman sdd validate <change-id>
+    而且 那么输出含阶段标识 designed
+
+  场景: 完整变更阶段为 full（已进分支）
+    假如 变更目录含 proposal.md + design.md + tasks.md 且已 change start/attach
     当 用户执行 llman sdd validate <change-id>
     而且 那么输出含阶段标识 full
 
   场景: tasks 无 design 报 ERROR
-    假如 变更目录含 proposal.md、specs/、tasks.md 但缺 design.md
+    假如 变更目录含 proposal.md、tasks.md 但缺 design.md
     当 用户执行 llman sdd validate <change-id>
     而且 那么校验失败并输出 ERROR 级别消息
 
@@ -67,10 +72,10 @@
     而且 而且readyToImplement 在 stage 非 full 时为 false
 
   @executable @req:r93
-  场景: bdd-on-attached-full-without-change-specs
+  场景: attached-full-unified-bdd-on
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
     而且 变更 r93-attached 含 proposal design tasks 且 attach 状态为 "yes"
-    当 在非交互终端运行 llman sdd show r93-attached --json --type change
+    当 在非交互终端运行 llman sdd show r93-attached --type change --output json
     那么 退出码为零
     而且 stdout 为合法 JSON
     而且 stdout 的 JSON 键 stage 为 "full"
@@ -78,22 +83,21 @@
     而且 stdout 的 JSON 键 attached 为 "true"
 
   @executable @req:r93
-  场景: bdd-on-unattached-stays-draft
+  场景: unattached-designed-stays-not-full
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
     而且 变更 r93-bare 含 proposal design tasks 且 attach 状态为 "no"
-    当 在非交互终端运行 llman sdd show r93-bare --json --type change
+    当 在非交互终端运行 llman sdd show r93-bare --type change --output json
     那么 退出码为零
     而且 stdout 为合法 JSON
-    而且 stdout 的 JSON 键 stage 为 "draft"
+    而且 stdout 的 JSON 键 stage 为 "designed"
     而且 stdout 的 JSON 键 readyToImplement 为 "false"
 
   @executable @req:r93
-  场景: bdd-off-still-needs-change-specs
+  场景: attached-full-unified-bdd-off
     假如 已初始化 sdd 项目且 bdd 配置为 "off"
     而且 变更 r93-off 含 proposal design tasks 且 attach 状态为 "yes"
-    当 在非交互终端运行 llman sdd show r93-off --json --type change
+    当 在非交互终端运行 llman sdd show r93-off --type change --output json
     那么 退出码为零
     而且 stdout 为合法 JSON
-    而且 stdout 的 JSON 键 stage 为 "draft"
-    而且 stdout 的 JSON 键 readyToImplement 为 "false"
-
+    而且 stdout 的 JSON 键 stage 为 "full"
+    而且 stdout 的 JSON 键 readyToImplement 为 "true"

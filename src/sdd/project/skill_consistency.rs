@@ -199,6 +199,7 @@ mod tests {
             }),
             extra_skills: None,
             archive: None,
+            sdd: None,
         }
     }
 
@@ -209,6 +210,7 @@ mod tests {
             bdd: None,
             extra_skills: None,
             archive: None,
+            sdd: None,
         }
     }
 

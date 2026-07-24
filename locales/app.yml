@@ -1318,6 +1318,10 @@ codex:
 
 # SDD workflow
 sdd:
+  # r112: emitted to stderr (human) / surfaced as `matchedViaPrefix` (JSON) when
+  # a change name is resolved via a unique prefix rather than an exact match.
+  prefix_match_hint:
+    en: "'%{input}' -> '%{resolved}' (prefix match)"
   config:
     read_failed:
       en: "Failed to read llmanspec config: %{error}"
@@ -1596,11 +1600,11 @@ sdd:
     stage_draft_hint:
       en: "Change is in 'draft' stage (next: add specs/)"
     stage_draft_hint_bdd_on:
-      en: "Change is in 'draft' stage (next: `llman sdd change attach <id>` on a non-default feature branch; BDD-on specs live on the branch, not under changes/<id>/specs)"
+      en: "Change is in 'draft' stage (next: add design.md + tasks.md, then `llman sdd change start <id>` to enter a feature branch)"
     stage_specified_hint:
       en: "Change is in 'specified' stage (next: add design.md)"
     stage_designed_hint:
-      en: "Change is in 'designed' stage (next: add tasks.md)"
+      en: "Change is in 'designed' stage (next: `llman sdd change start` to enter feature branch and reach 'full')"
     next_steps:
       en: "Next steps:"
     change_step_1:

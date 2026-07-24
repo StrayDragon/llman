@@ -231,8 +231,9 @@ fn build_relation_maps(root: &Path, all_nodes: &[GraphNode]) -> RelationMaps {
 }
 
 fn build_seed_neighborhood(root: &Path, seed_id: &str, max_depth: usize) -> Result<Vec<GraphNode>> {
-    // Use prefix-aware resolution to expand user input to canonical change id
-    let resolved_id = crate::sdd::shared::discovery::resolve_change_id(root, seed_id)?;
+    // Use prefix-aware resolution to expand user input to canonical change id;
+    // emits the r112 prefix-match hint to stderr when `seed_id` was a prefix.
+    let resolved_id = crate::sdd::shared::discovery::resolve_change_id_human(root, seed_id)?;
 
     let all_nodes = collect_nodes_for_scope(root, &[ScopeKind::Active, ScopeKind::Archived]);
     let node_map: HashMap<&str, &GraphNode> =

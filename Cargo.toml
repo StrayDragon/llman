@@ -45,7 +45,7 @@ crossterm = "0.29.0"
 ratatui = "0.30.0"
 comfy-table = "7.2.2"
 thiserror = "2.0.18"
-rust-i18n = "3.1.5"
+rust-i18n = "4.2.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 toml = "1.0.3"
@@ -55,8 +55,8 @@ glob = "0.3.3"
 ignore = "0.4.26"
 tokio = { version = "1.49.0", features = ["rt-multi-thread", "time", "process", "io-std"] }
 tempfile = "3.26.0"
-sha2 = "0.10.9"
-async-openai = { version = "0.28", default-features = false, features = ["rustls"] }
+sha2 = "0.11.0"
+async-openai = { version = "0.41", default-features = false, features = ["rustls", "chat-completion"] }
 
 # Comment processing and parsing
 tree-sitter = "0.26.6"
@@ -69,7 +69,7 @@ tree-sitter-go = "0.25.0"
 
 # Configuration and validation
 schemars = { version = "1.2.1", features = ["derive", "indexmap2"] }
-jsonschema = "0.46.5"
+jsonschema = "0.48.5"
 
 # JSON parsing and repair
 llm_json = "1.0.2"
@@ -79,7 +79,7 @@ regex = "1.12.3"
 serde_yaml = "0.9.34"
 toon-format = { version = "0.5.0", default-features = false }
 gherkin = "0.16"
-sevenz-rust2 = "0.20.2"
+sevenz-rust2 = "0.21.3"
 
 [features]
 # BDD feature-as-spec testing via rstest-bdd. Opt-in: `cargo test --features bdd`.

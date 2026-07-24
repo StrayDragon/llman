@@ -16,6 +16,20 @@
     那么 输出包含对应变更的内容
 
   @req:r112
+  场景: 前缀命中时输出命中提示
+    假如 活跃 change 中有一个名为 c123-fix-bug 的变更
+    当 用前缀 "c123" 运行 llman sdd show
+    那么 stderr 包含 "'c123' -> 'c123-fix-bug' (prefix match)" 提示
+    而且 用前缀 "c123" 运行 llman sdd show --json 时输出含 matchedViaPrefix 为 true
+
+  @req:r112
+  场景: 精确命中时不输出命中提示
+    假如 活跃 change 中有一个名为 c123-fix-bug 的变更
+    当 用完整 id "c123-fix-bug" 运行 llman sdd show
+    那么 stderr 不包含 "(prefix match)" 提示
+    而且 用完整 id "c123-fix-bug" 运行 llman sdd show --json 时输出含 matchedViaPrefix 为 false
+
+  @req:r112
   场景: 前缀匹配归档 change（活跃无匹配时）
     假如 活跃 change 中无 "fix" 开头的变更
     而且 归档 change 中有一个以 "fix" 开头的变更

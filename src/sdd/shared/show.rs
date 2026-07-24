@@ -92,7 +92,7 @@ fn run_interactive_by_type(root: &Path, item_type: ItemType, args: &ShowArgs) ->
                 return Err(anyhow!(t!("sdd.show.no_changes_found")));
             }
             let picked = Select::new(&t!("sdd.show.pick_change"), changes).prompt()?;
-            show_change(root, &picked, args)
+            show_change(root, &picked, false, args)
         }
         ItemType::Spec => {
             let specs = list_specs(root)?;
@@ -114,13 +114,16 @@ fn show_direct(
     let mut is_change = false;
     let mut is_spec = false;
     let mut resolved_change_id: Option<String> = None;
+    // Whether the change id was resolved via a prefix match (for the r112 hint
+    // + JSON `matchedViaPrefix` field). Only meaningful when is_change.
+    let mut matched_via_prefix = false;
 
     match type_override {
         Some(ItemType::Change) => {
             // Use prefix-aware resolution
-            resolved_change_id = Some(crate::sdd::shared::discovery::resolve_change_id(
-                root, item,
-            )?);
+            let resolved = crate::sdd::shared::discovery::resolve_change_id(root, item)?;
+            matched_via_prefix = resolved.via_prefix;
+            resolved_change_id = Some(resolved.id);
             is_change = true;
         }
         Some(ItemType::Spec) => {
@@ -134,8 +137,11 @@ fn show_direct(
             let specs = list_specs(root)?;
             if specs.contains(&item.to_string()) {
                 is_spec = true;
-            } else if let Ok(id) = crate::sdd::shared::discovery::resolve_change_id(root, item) {
-                resolved_change_id = Some(id);
+            } else if let Ok(resolved) =
+                crate::sdd::shared::discovery::resolve_change_id(root, item)
+            {
+                matched_via_prefix = resolved.via_prefix;
+                resolved_change_id = Some(resolved.id);
                 is_change = true;
             }
         }
@@ -175,13 +181,26 @@ fn show_direct(
     match resolved_type {
         ItemType::Change => {
             let change_id = resolved_change_id.as_deref().unwrap_or(item);
-            show_change(root, change_id, args)
+            // r112: emit the "'input' -> 'resolved' (prefix match)" hint to stderr
+            // for human output when the change id was resolved via a prefix.
+            if matched_via_prefix && !args.json {
+                eprintln!(
+                    "{}",
+                    t!("sdd.prefix_match_hint", input = item, resolved = change_id)
+                );
+            }
+            show_change(root, change_id, matched_via_prefix, args)
         }
         ItemType::Spec => show_spec(root, item, args),
     }
 }
 
-fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
+fn show_change(
+    root: &Path,
+    change_id: &str,
+    matched_via_prefix: bool,
+    args: &ShowArgs,
+) -> Result<()> {
     validate_sdd_id(change_id, "change")?;
     let change_dir = root
         .join(LLMANSPEC_DIR_NAME)
@@ -193,10 +212,6 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
     }
 
     if args.json {
-        let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-        let config = load_required_config(&llmanspec_dir)?;
-        let bdd_on = config.bdd.is_some();
-
         let content = fs::read_to_string(&proposal_path)?;
         let change = parse_change(&content, change_id, &change_dir)?;
         let title = extract_title(&content, change_id);
@@ -204,18 +219,12 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
         if args.requirements_only {
             eprintln!("{}", t!("sdd.show.requirements_only_deprecated"));
         }
-        let stage = determine_stage(&change_dir, bdd_on);
+        let stage = determine_stage(&change_dir);
         let artifacts = list_change_artifacts(&change_dir);
         let ready_to_implement = stage == ChangeStage::Full;
-        // BDD-on: surface the attach binding so consumers can tell stage=full
-        // comes from Git-native attach (not change/specs/).
-        let attached = if bdd_on {
-            Some(crate::sdd::spec::validation::has_attach_binding(
-                &change_dir,
-            ))
-        } else {
-            None
-        };
+        // Unified Git-native flow: always surface the attach binding (no longer
+        // BDD-on only). stage=full comes from Git-native attach.
+        let attached = crate::sdd::spec::validation::has_attach_binding(&change_dir);
         let output = serde_json::json!({
             "id": change_id,
             "title": title,
@@ -224,17 +233,16 @@ fn show_change(root: &Path, change_id: &str, args: &ShowArgs) -> Result<()> {
             "readyToImplement": ready_to_implement,
             "attached": attached,
             "deltaCount": deltas.len(),
-            "deltas": deltas
+            "deltas": deltas,
+            // r112: surface whether the change id came from a prefix match.
+            "matchedViaPrefix": matched_via_prefix
         });
         print_json(&output, args.compact_json)?;
         return Ok(());
     }
 
-    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    let config = load_required_config(&llmanspec_dir).ok();
-    let bdd_on = config.as_ref().map(|c| c.bdd.is_some()).unwrap_or(false);
     let content = fs::read_to_string(&proposal_path)?;
-    let stage = determine_stage(&change_dir, bdd_on);
+    let stage = determine_stage(&change_dir);
     println!("{}", t!("sdd.show.change_stage", stage = stage.as_str()));
     print!("{content}");
     Ok(())
