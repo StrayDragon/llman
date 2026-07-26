@@ -48,8 +48,8 @@ flowchart LR
 3. **Grilling branch (optional, only when the user explicitly triggers)**: triggers on "deep-dig" / "grill" / "one at a time" / "nail it down". Walks the decision tree one question at a time:
    - **Ask one question at a time**, with your recommended answer, waiting for feedback before the next.
    - **Facts vs decisions**: look up anything verifiable by reading `spec.toon`/code/running commands yourself — **don't ask** the user; only **decisions** (tradeoffs, preferences, scope boundaries) go to the user.
-   - **Terminology sharpening (r107)**: when a term conflicts or is fuzzy, call it out immediately ("your spec.toon defines 'X' as A, but you just said B — which is it?"); on resolution, update the corresponding `spec.toon` requirement statement (BDD-on: edit the live file on the feature branch); MUST NOT create a `CONTEXT.md` glossary as a second authority.
-   - **Write decisions back**: resolved decisions go into the change's `proposal.md` "Open Questions" section (BDD-on: on the feature branch).
+   - **Terminology sharpening (r107)**: when a term conflicts or is fuzzy, call it out immediately ("your spec.toon defines 'X' as A, but you just said B — which is it?"); on resolution, update the corresponding `spec.toon` requirement statement on the feature branch; MUST NOT create a `CONTEXT.md` glossary as a second authority.
+   - **Write decisions back**: resolved decisions go into the change's `proposal.md` "Open Questions" section on the feature branch.
    - **Completion criterion**: every pending decision is resolved or explicitly deferred. When not triggered, the default (ask 1–3 questions) behavior is unchanged.
 4. If a change id is relevant, read its artifacts under `llmanspec/changes/<id>/`.
    - When diagnosing validation errors, prefer `llman sdd validate <spec> --strict --no-check` (fast mode, skips the potentially slow `bdd.run_command`); resolve structural gates first (Gherkin / `@req` linkage / dual-write / req_id uniqueness), then run full mode (`--check` or `cargo test --features bdd`). The `FAIL <item_type>/<id>` lines in the output pin down each failing item.
@@ -57,13 +57,12 @@ flowchart LR
 6. Assess change scale (triage) to determine if full SDD is needed.
 7. When something crystallizes, offer to capture it (don't auto-write):
    - Scope changes → `proposal.md`
-   - BDD-off constraints/scenarios → `llmanspec/changes/<id>/specs/<capability>/spec.toon` (TOON deltas)
-   - BDD-on constraints → live `llmanspec/specs/<capability>/spec.toon` on a feature branch
-   - BDD-on executable harness → live `llmanspec/specs/<capability>/*.feature` (`@req`); never `*.feature.delta.toon`
+   - Constraints → live `llmanspec/specs/<capability>/spec.toon` on a feature branch
+   - Executable harness (when `bdd:` configured) → live `llmanspec/specs/<capability>/*.feature` (`@req`); never `*.feature.delta.toon`
    - Design decisions → `design.md`
    - Work items → `tasks.md`
 
-> BDD-on (Git-native Partitioned): feature branch + live `.feature`/`spec.toon` are SSOT; bind with `change attach`; no solidify / feature_delta.
+> Git-native: feature branch + live `.feature`/`spec.toon` are SSOT; enter Full with `change start` (or `change attach`); no `change delta` / solidify / feature_delta.
 
 ## Exiting explore mode
 When the user is ready to implement, choose based on change scale:

@@ -265,7 +265,7 @@ pub fn validate_partitioned(
             level,
             path: format!("{spec_name}/dual-write"),
             message: format!(
-                "dual-write: {dual} executable scenario(s) still have GWT in both spec.toon and .feature: [{pairs_formatted}]; run `llman sdd project migrate --kind partitioned`"
+                "dual-write: {dual} executable scenario(s) still have GWT in both spec.toon and .feature: [{pairs_formatted}]; remove the executable GWT from spec.toon (keep constraints there; keep GWT only in .feature with @req)"
             ),
         });
     }

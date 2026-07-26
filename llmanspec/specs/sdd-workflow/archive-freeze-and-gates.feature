@@ -1,6 +1,6 @@
 # language: zh-CN
 # 对应 spec: sdd-workflow r16-r20,r113 + sdd-bdd-mode-compat r7 — archive 子命令组
-# （统一流程：docs rename + 自动 ff-merge 回分叉点；不再合并 TOON delta）；
+# （统一流程：先 auto ff-merge 回分叉点，再 docs rename；不再合并 TOON delta）；
 # archive gate 基于 pending 阻塞；dry-run 预览；freeze/thaw 冷备；模板版本；
 # 归档前置校验；--force 隐藏；--skip-specs；staleness 警告视为失败。
 功能: 归档流程、前置校验与冻结解冻
@@ -13,12 +13,12 @@
     假如 tasks.md 全部 completed 且 change 已 start/attach
     当 执行 archive
     而且 那么归档成功
-    而且 那么docs rename 后自动 ff-merge feature 分支回分叉点分支
+    而且 那么先自动 ff-merge feature 分支回分叉点分支，再 docs rename
 
   场景: archive ff-merge 失败时降级为提示且不回滚
     假如 ff-merge 因非 fast-forward 而失败
     当 执行 archive
-    而且 那么docs rename 已完成（不回滚）
+    而且 那么docs rename 仍完成（不因 merge 失败而回滚）
     而且 那么输出 token 友好提示让用户手动 merge
 
   场景: completion ratio 计入全部 task

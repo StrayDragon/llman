@@ -1,7 +1,7 @@
 # language: zh-CN
 # 对应 spec: sdd-workflow r30-r36,r42 — 各 llman-sdd-* skill 的行为合约：
 # archive 批量、explore 探索模式、continue 长大、apply 阶段守卫、ff 快速创建、verify 阶段守卫、
-# sync 手动同步、propose 一次性创建工件。
+# propose 一次性创建工件（live specs on feature branch；无 sync / change delta）。
 功能: SDD skills 行为合约
   场景: 批量归档多个变更
     假如 用户调用 llman-sdd-archive 并提供多个 change IDs
@@ -53,13 +53,7 @@
     而且 那么skill 通过 show 读取 stage 后拒绝验证并 STOP
     而且 而且引导使用 llman-sdd-continue 长大到 full 或先 attach
 
-  场景: sync 同步 delta specs 后验证
-    假如 用户调用 llman-sdd-sync <change-name>
-    当 skill 执行
-    而且 那么提供可复现步骤指导手动同步 delta 到主 specs
-    而且 而且合并后运行 llman sdd validate --specs 验证
-
   场景: propose 创建变更与工件
     假如 用户带变更描述（和/或 change id）调用 llman-sdd-propose
     当 skill 执行
-    而且 那么助手创建 llmanspec/changes/<change-id>/，含 proposal.md、specs/**、tasks.md（需要时含 design.md）
+    而且 那么助手创建 llmanspec/changes/<change-id>/，含 proposal.md、tasks.md（需要时含 design.md），并在 feature 分支编辑 live llmanspec/specs/**

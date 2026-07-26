@@ -163,8 +163,8 @@ BFD-on（`bdd:` 段存在）时 `.feature` harness 为 SSOT：
   `git-binding.feature`、skills、`tests/sdd_bdd_compat_tests.rs` smoke 列表。
 - **改 Partitioned 门禁**（`@req`、双写、合并前 docs-only archive）→ 同步 `sdd-bdd-mode-compat`
   相关 `.feature` 与 `tests/sdd_bdd_compat_tests.rs`。
-- **改 project migrate 统一入口**（`--kind format|partitioned|legacy-bdd|auto`）→ 同步
-  `sdd-bdd-mode-compat` 与兼容别名 `partition-migrate` / `solidify-migrate`。
+- **改 project migrate**（当前仅 `--kind spec-md2toon`；`partitioned` 已移除）→ 同步
+  `sdd-bdd-mode-compat` 相关 `.feature` / `spec.toon`（r85）。
 - **改 index rebuild 的 `.feature` embed 逻辑** → 同步 `index-embed.feature` +
   `tests/sdd_bdd_compat_tests.rs::test_index_rebuild_backward_compat_old_tree_loads`。
 - **新增/移除 sdd 子命令** → 更新 `tests/sdd_bdd_compat_tests.rs::test_all_subcommands_smoke_bdd_on_and_off`

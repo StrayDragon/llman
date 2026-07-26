@@ -183,7 +183,7 @@ pub enum SddCommands {
         #[command(subcommand)]
         command: ArchiveSubcommand,
     },
-    /// Change lifecycle: new / Git-native bind / BDD-off delta / archive
+    /// Change lifecycle: new / start / attach / finalize / archive
     Change(SddChangeArgs),
     /// Spec authoring helpers
     Spec(SddSpecArgs),
@@ -450,11 +450,11 @@ pub enum SddChangeCommands {
     /// (removed) `change delta` is no longer supported; edit live specs on a feature branch
     #[command(hide = true)]
     Delta(DeltaStubArgs),
-    /// Seal a change: BDD-on docs-only after checkpoint; BDD-off merge TOON deltas
+    /// Seal a change: auto ff-merge into default branch, then rename docs to archive/
     Archive {
         /// Change id
         change: Option<String>,
-        /// Skip updating specs (BDD-off) / ignore leftover deltas (BDD-on)
+        /// Skip spec validation gates (legacy flag; archive no longer merges deltas)
         #[arg(long)]
         skip_specs: bool,
         /// Dry run mode

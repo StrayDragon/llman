@@ -105,6 +105,22 @@ fn author_sample_change(work_dir: &Path, change_id: &str) {
     fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
 }
 
+/// Designed → Full → checkpointed, ready for `change archive` (strict gates).
+fn prepare_change_for_archive(work_dir: &Path, change_id: &str) {
+    assert_success(&run_llman(
+        &["sdd", "change", "start", change_id],
+        work_dir,
+        work_dir,
+    ));
+    git_commit_all(work_dir, "change start binding");
+    assert_success(&run_llman(
+        &["sdd", "change", "checkpoint", change_id, "--no-check"],
+        work_dir,
+        work_dir,
+    ));
+    git_commit_all(work_dir, "checkpoint");
+}
+
 #[test]
 fn test_sdd_init_and_list_specs_json() {
     let env = TestEnvironment::new();
@@ -172,8 +188,7 @@ fn test_sdd_show_validate_archive_flow() {
     fs::write(spec_dir.join("spec.toon"), spec_content).expect("write spec");
 
     let change_dir = llmanspec_dir.join("changes").join("add-sample");
-    let change_specs_dir = change_dir.join("specs").join("sample");
-    fs::create_dir_all(&change_specs_dir).expect("create change spec dir");
+    fs::create_dir_all(&change_dir).expect("create change dir");
     let proposal = r#"## Why
 Need a sample change.
 
@@ -181,13 +196,12 @@ Need a sample change.
 - Add a requirement to sample spec.
 "#;
     fs::write(change_dir.join("proposal.md"), proposal).expect("write proposal");
+    fs::write(change_dir.join("design.md"), "# Design\n").expect("write design");
     fs::write(
         change_dir.join("tasks.md"),
         "## 1. Done\n- [x] 1.1 Completed\n",
     )
     .expect("write tasks");
-    let delta_spec = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  added,added,,a new action is taken,the new behavior happens\n";
-    fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
 
     git_commit_all(work_dir, "init sdd sample");
 
@@ -222,6 +236,8 @@ Need a sample change.
         serde_json::from_slice(&validate_output.stdout).expect("validate json");
     assert_eq!(validate_json["items"][0]["valid"], true);
 
+    prepare_change_for_archive(work_dir, "add-sample");
+
     let archive_output = run_llman(
         &["sdd", "change", "archive", "add-sample"],
         work_dir,
@@ -240,8 +256,7 @@ Need a sample change.
     assert!(archive_name.ends_with("-add-sample"));
 
     let updated_spec = fs::read_to_string(spec_dir.join("spec.toon")).expect("read updated spec");
-    // Unified flow: archive does docs rename only, no TOON delta merge (r113).
-    // The main spec is unchanged.
+    // Unified flow: archive does docs rename + ff-merge, no TOON delta merge (r113).
     assert!(updated_spec.contains("requirements["));
     assert!(updated_spec.contains("existing"));
     assert!(updated_spec.contains("Existing behavior"));
@@ -261,7 +276,7 @@ fn test_sdd_archive_flow_works_in_toon_project() {
     // Seed existing main spec.
     author_sample_spec(work_dir);
 
-    // Seed change deltas.
+    // Seed change docs (no change/specs delta — unified Git-native).
     author_sample_change(work_dir, "add-sample");
     git_commit_all(work_dir, "seed toon spec and change");
 
@@ -280,6 +295,8 @@ fn test_sdd_archive_flow_works_in_toon_project() {
     );
     assert_success(&validate_spec);
 
+    prepare_change_for_archive(work_dir, "add-sample");
+
     let archive_output = run_llman(
         &["sdd", "change", "archive", "add-sample"],
         work_dir,
@@ -287,14 +304,11 @@ fn test_sdd_archive_flow_works_in_toon_project() {
     );
     assert_success(&archive_output);
 
-    // Unified flow: archive does docs rename only, no TOON delta merge (r113).
-    // The main spec is unchanged; change docs are moved to archive/.
+    // Unified flow: archive does ff-merge + docs rename, no TOON delta merge (r113).
     let updated = fs::read_to_string(work_dir.join("llmanspec/specs/sample/spec.toon"))
         .expect("read updated spec");
     assert!(updated.contains("valid_scope"));
-    // r2 was in the delta, not merged to main spec; only r1 remains.
     assert!(updated.contains("r1"));
-    assert!(!updated.contains("r2"));
     assert!(
         !work_dir.join("llmanspec/changes/add-sample").exists(),
         "active change dir must be moved"

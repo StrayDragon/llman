@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-continue"
-description: "继续一个 llman SDD change：创建下一个缺失的 artifact。"
+description: "继续已有 llman SDD 变更，创建下一个缺失工件。"
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
@@ -10,35 +10,35 @@ metadata:
 
 # LLMAN SDD Continue
 
-使用此 skill 继续一个已存在的 change，并创建下一个缺失的 artifact。
+使用此 skill 继续已有变更，创建下一个缺失的 artifact。
 
 ## 步骤
 1. 确定 change id：
-   - 如果用户已提供，直接使用。
-   - 否则运行 `llman sdd list --json` 并询问用户要继续哪个 change。
+   - 若用户已提供，直接使用。
+   - 否则运行 `llman sdd list --json` 并询问要继续哪个 change。
    - 始终说明："使用变更：<id>"。
-2. 阅读 change 目录：`llmanspec/changes/<id>/`。
-   - 权威地确定当前阶段：
+2. 阅读变更目录：`llmanspec/changes/<id>/`。
+   - 权威判定阶段：
      ```bash
      stage=$(llman sdd show <id> --json --type change | jq -r .stage)
      ```
-     （若无 `jq`，可用任意工具从 JSON 中解析 `stage` 值。）
-   - 若 `stage` 为 `draft`（仅 proposal.md），明确告知用户："这是一个 draft 提案。需要把它长大到 `full`（specs → design → tasks）后才能实现；draft 不能直接被 apply 或 verify。"{% if bdd_enabled %} BDD-on 下，已有 proposal+design+tasks 仍是 `draft` 意味着变更**未 attach** —— 下一步是 `llman sdd change attach <id>`（在非默认 feature 分支上；BDD-on specs 位于分支，**不要**新增 `changes/<id>/specs/`）。{% endif %}
-3. 找出下一个需要创建的 artifact（按顺序）：
+     （若无 `jq`，用任意工具从 JSON 解析 `stage` 值。）
+   - 若 `stage` 为 `draft`（仅 proposal.md），明确告知用户：「这是 draft 提案。需长大到 `full`（design → tasks → live specs → `change start`）才能实施；draft 不能直接 apply 或 verify。」若已有 proposal+design+tasks 仍是 `draft`，下一步是在非默认 feature 分支上运行 `llman sdd change start <id>`（或 `change attach`）——不要创建 `changes/<id>/specs/`。
+3. 确定下一个要创建的 artifact（按顺序）：
    1) `proposal.md`
-   2) BDD-off：change 下 `specs/<capability>/spec.toon` delta；BDD-on：在 feature 分支上编辑 live `llmanspec/specs/<capability>/spec.toon` + `*.feature`（未绑定时再 `llman sdd change attach <id>`）
-   3) `design.md`（仅当需要讨论设计权衡时）
+   2) 在 feature 分支上编辑 live `llmanspec/specs/<capability>/spec.toon`（配置了 `bdd:` 时再加 `*.feature`）
+   3) `design.md`（仅当涉及设计权衡时）
    4) `tasks.md`
-4. 在 `llmanspec/changes/<id>/` 下创建且只创建 ONE 个缺失 artifact（或完成一次 BDD-on live spec/feature 编辑）。
-   - continue 模式不要实现应用代码。
-   - **禁止**创建 `*.feature.delta.toon`（BDD-on 下为遗留迁移阻断项）。
-5. 如果所有 artifacts 都已存在，建议下一步：
+   5) `llman sdd change start <id>`（或分支已存在时用 `change attach <id>`）
+4. 只创建**一个**缺失 artifact（或在分支上做一次 live spec/feature 编辑）。
+   - continue 模式**不要**实现应用代码。
+   - **不要**创建 `*.feature.delta.toon` 或 `changes/<id>/specs/` 下的文件。
+5. 若所有 artifact 已齐全，建议下一步：
    - 实施：`llman-sdd-apply`
    - 校验：`llman sdd validate <id> --strict --no-interactive`
-   - BDD-on 审查：`llman sdd change diff <id>`（只读）
-   - BDD-on 收尾（推荐）：`llman sdd change finalize <id>`（不要求干净工作区；随后一次 `git commit`）
-   - BDD-on fallback：`llman sdd change checkpoint <id>`（要求干净工作区）→ `llman sdd change archive <id>`
-   - 归档（BDD-off / 或已 checkpoint）：`llman sdd change archive <id>`
+   - 审查：`llman sdd change diff <id>`（只读）
+   - 收尾（推荐）：`llman sdd change finalize <id>`（工作区可脏；然后一次 `git commit`）
+   - Fallback：`llman sdd change checkpoint <id>`（需干净树）→ `llman sdd change archive <id>`
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}

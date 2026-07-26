@@ -1,42 +1,17 @@
-# SDD Pipeline — BDD-off
+# SDD Pipeline — BDD-off（已废弃）
 
-前提：`llmanspec/config.yaml` **不含** `bdd:` 段。约束与场景写在 change 内 TOON delta；archive 合并进主 `spec.toon`。
+> **Superseded.** 本项目已统一为 Git-native 单轨流程，不再区分 BDD-on / BDD-off 生命周期。
+>
+> 请参阅：
+> - [docs/sdd/README.md](./README.md) — 统一流程概览
+> - [docs/sdd/pipeline-bdd-on.md](./pipeline-bdd-on.md) — Git-native 闭环（现适用于所有项目）
 
-## Agent 如何选 skill
+## 历史说明（仅供迁移参考）
 
-```mermaid
-flowchart TD
-  U[用户请求] --> A{意图清晰?}
-  A -->|否| E[llman-sdd-explore]
-  A -->|是| T{改 MUST/SHALL 或外部行为?}
-  T -->|否| Q[llman-sdd-quick]
-  T -->|是/不确定| P[llman-sdd-propose]
-  E --> T
-  P --> AP[llman-sdd-apply]
-  AP --> V[llman-sdd-verify]
-  V -->|CRITICAL| AP
-  V -->|全绿| AR[llman-sdd-archive<br/>合并 TOON delta]
-  AR --> C[git commit]
-  Q --> C
-  G[llman-sdd-graph] -.-> AP
-  SC[llman-sdd-specs-compact] -.-> AR
-```
+旧 BDD-off 流程曾在 `changes/<id>/specs/` 下编写 TOON delta，由 `change archive` 合并进主 `spec.toon`。该路径已于统一生命周期变更中**移除**：
 
-## Delta / archive 闭环
+- `change delta` 子命令 → 拒绝（编辑 live specs）
+- archive TOON delta merge → 替换为 ff-merge + docs rename
+- `specified` 阶段 → 合并为 Draft / Designed / Full 三态
 
-```mermaid
-flowchart LR
-  N[change new] --> D[change delta<br/>skeleton / add-req / …]
-  D --> IMP[实现代码 + tasks]
-  IMP --> V[validate]
-  V --> AR[change archive<br/>合并进主 spec.toon]
-  AR --> GC[git commit]
-```
-
-不需要：feature 分支、`attach`、`checkpoint`、`finalize`、`.feature` harness（文件若存在，validate 在 BDD-off 下忽略）。
-
-## 关键约束
-
-- Delta 至少含一个 op + 匹配 scenario（含 MUST/SHALL）
-- 托管 skill 的 `metadata.llman_sdd.bdd_mode` MUST 为 `off`
-- Optional skills 默认不装；需 `extra_skills` 显式启用
+`bdd:` 段保留为 **runner-only** 开关，不影响变更阶段判定。

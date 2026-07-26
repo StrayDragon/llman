@@ -2145,7 +2145,7 @@ pub fn check_completeness_stage(
             issues.push(ValidationIssue {
                 level: ValidationLevel::Info,
                 path: "completeness".to_string(),
-                message: t!("sdd.validate.stage_draft_hint_bdd_on").to_string(),
+                message: t!("sdd.validate.stage_draft_hint").to_string(),
             });
         }
     }
