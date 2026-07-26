@@ -11,7 +11,7 @@
 //!    HEAD commit carrying the implementation. For the strict sha semantics,
 //!    use `change checkpoint` then `change archive`.
 
-use crate::sdd::change::archive::{archive_name_for, do_archive_rename};
+use crate::sdd::change::archive::{archive_name_for, do_archive_rename, do_ff_merge};
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
@@ -102,20 +102,27 @@ pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         crate::sdd::change::git_native::write_binding(root, &change_name, &binding)?;
     }
 
-    // Docs-only archive rename. Same naming as `archive` so the on-disk layout
-    // is indistinguishable regardless of which path produced it.
+    // Docs-only archive rename + auto ff-merge (r94 / r113).
+    //
+    // Order is ff-merge THEN rename: merging after a dirty rename restores
+    // `changes/<id>/` from the feature tip. Merge first (dirty frontmatter /
+    // impl carry across), then rename on the default branch so one follow-up
+    // commit lands the archive move. On merge failure, still rename (no
+    // rollback) — `do_ff_merge` restores the feature branch best-effort.
     let changes_dir = root.join(LLMANSPEC_DIR_NAME).join("changes");
     let change_dir = changes_dir.join(&change_name);
     let archive_dir = changes_dir.join("archive");
     let archive_name = archive_name_for(&change_name);
+    let feature_branch = binding.branch.clone();
+
+    do_ff_merge(root, &feature_branch, &change_name);
     do_archive_rename(&change_dir, &archive_dir, &archive_name)?;
 
     println!(
         "finalized change `{}` → archive `{archive_name}` on branch `{}` (checkpoint_sha=base_sha=`{}`)",
-        change_name, binding.branch, binding.base_sha,
+        change_name, feature_branch, binding.base_sha,
     );
-    // Next-step hint: close-out defaults to a LOCAL merge into the
-    // default branch (r98 contract). push / hosting PR are optional.
+
     let default_branch = crate::sdd::change::git_native::resolve_default_branch_ref(root)
         .map(|r| r.strip_prefix("origin/").unwrap_or(r.as_str()).to_string())
         .unwrap_or_else(|_| "<default>".to_string());
@@ -299,6 +306,10 @@ mod tests {
             proposal.contains(&format!("checkpoint_sha: {base_sha}")),
             "expected checkpoint_sha == base_sha in:\n{proposal}"
         );
+
+        // r94: auto ff-merge leaves us on the default branch.
+        let branch = crate::sdd::change::git_native::current_branch(root).unwrap();
+        assert_eq!(branch, "main");
     }
 
     #[test]

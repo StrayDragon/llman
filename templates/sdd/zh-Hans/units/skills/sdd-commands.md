@@ -10,16 +10,12 @@
 - `llman sdd index rebuild`（重建 pageindex 树索引——不需要模型）
 - `llman sdd index check`（检查索引新鲜度）
 - `llman sdd change new <id>`（创建草稿 `changes/<id>/proposal.md`）
-{% if bdd_enabled %}
-- `llman sdd change attach <id> [--force]`（BDD-on：绑定 feature 分支 + base SHA）
-- `llman sdd change finalize <id> [--no-check]`（BDD-on：**推荐单 commit 路径**——不要求干净树；同进程 checkpoint + docs-only archive；写 `checkpoint_sha = base_sha`）
-- `llman sdd change checkpoint <id> [--no-check]`（BDD-on：干净工作区 + 归档前门禁；严格 sha = HEAD）
-- `llman sdd change diff <id> [--export-patch <path>]`（BDD-on：只读 `base...HEAD` 审查/导出）
-{% endif %}
-{% if not bdd_enabled %}
-- `llman sdd change delta …`（仅 BDD-off：TOON delta 作者工具；BDD-on 会拒绝）
-{% endif %}
-- `llman sdd change archive <id>`（封存变更；BDD-on：checkpoint 后仅文档 / 或作 finalize fallback；BDD-off：合并 TOON delta）
+- `llman sdd change start <id> [--worktree]`（Designed→Full：干净树 → 创建 `sdd/<id>` 分支 + attach 绑定）
+- `llman sdd change attach <id> [--force]`（绑定已有 feature 分支 + base SHA）
+- `llman sdd change finalize <id> [--no-check]`（**推荐单 commit 路径**——不要求干净树；门禁 + 自动 ff-merge + 文档改名）
+- `llman sdd change checkpoint <id> [--no-check]`（干净工作区 + 归档前门禁；严格 sha = HEAD）
+- `llman sdd change diff <id> [--export-patch <path>]`（只读 `base...HEAD` 审查/导出）
+- `llman sdd change archive <id>`（封存变更：自动 ff-merge 到默认分支，再将文档改名到 `changes/archive/`；单 commit 收尾优先用 `finalize`）
 - `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（冻结已归档目录）
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备份恢复）
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图）

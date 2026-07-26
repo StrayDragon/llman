@@ -87,6 +87,24 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
         return Ok(());
     }
 
+    // Capture feature branch / gates before any mutation.
+    // Strict gates (attach / branch / clean / checkpointed) unless `--force`.
+    let feature_branch = if args.force {
+        match crate::sdd::change::git_native::read_binding(root, &change_name) {
+            Ok(Some(b)) => Some(b.branch),
+            _ => None,
+        }
+    } else {
+        Some(crate::sdd::change::git_native::enforce_bdd_archive_gates(root, &change_name)?.branch)
+    };
+
+    // r113 outcomes: docs archived + best-effort ff-merge; rename is never rolled
+    // back. Order is ff-merge THEN rename: a dirty rename before merge is restored
+    // from the feature tip (committed tree still has changes/<id>/).
+    if let Some(ref branch) = feature_branch {
+        do_ff_merge(root, branch, &change_name);
+    }
+
     do_archive_rename(&change_dir, &archive_dir, &archive_name)?;
 
     println!(
@@ -98,17 +116,19 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
         )
     );
 
-    // r113: auto ff-merge if an attach binding exists.
-    if let Ok(Some(binding)) = crate::sdd::change::git_native::read_binding(root, &change_name) {
-        do_ff_merge(root, &binding.branch, &change_name);
-    }
-
     Ok(())
 }
 
 /// Try `git merge --ff-only <feature>` into the default branch.
-/// On failure, print a token-friendly hint but do NOT roll back the rename.
-fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) {
+///
+/// On success: stay on the default branch so the caller can rename docs and
+/// commit once (r94/r113). On failure: print a token-friendly hint and
+/// best-effort restore the original branch (rename still proceeds afterward).
+///
+/// When the working tree is dirty (finalize's intentional single-commit path),
+/// local changes are stashed across checkout/merge and popped afterward so
+/// they land on the default branch.
+pub(crate) fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) {
     let default_ref = match crate::sdd::change::git_native::resolve_default_branch_ref(root) {
         Ok(r) => r,
         Err(e) => {
@@ -120,7 +140,8 @@ fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) {
     };
     let default_name = default_ref
         .strip_prefix("origin/")
-        .unwrap_or(default_ref.as_str());
+        .unwrap_or(default_ref.as_str())
+        .to_string();
 
     let original = match crate::sdd::change::git_native::current_branch(root) {
         Ok(b) => b,
@@ -132,19 +153,21 @@ fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) {
         }
     };
 
+    let stashed = stash_if_dirty(root);
+
     // Switch to default branch.
-    let status = Command::new("git")
-        .args(["checkout", default_name])
+    let checkout_ok = Command::new("git")
+        .args(["checkout", &default_name])
         .current_dir(root)
-        .output();
-    match status {
-        Ok(o) if o.status.success() => {}
-        _ => {
-            eprintln!(
-                "ff-merge: failed to checkout `{default_name}`; run manually: git switch {default_name} && git merge --ff-only {feature_branch}"
-            );
-            return;
-        }
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !checkout_ok {
+        eprintln!(
+            "ff-merge: failed to checkout `{default_name}`; run manually: git switch {default_name} && git merge --ff-only {feature_branch}"
+        );
+        pop_stash_if(root, stashed);
+        return;
     }
 
     // Attempt ff-only merge.
@@ -155,6 +178,8 @@ fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) {
     match merge {
         Ok(o) if o.status.success() => {
             println!("ff-merged `{feature_branch}` into `{default_name}` ({change_name})");
+            pop_stash_if(root, stashed);
+            // Stay on default — caller renames docs and commits once (r94).
         }
         Ok(o) => {
             let reason = String::from_utf8_lossy(&o.stderr).trim().to_string();
@@ -164,19 +189,64 @@ fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) {
                 reason
             };
             eprintln!(
-                "ff-merge failed: {reason}; run manually: git merge --ff-only {feature_branch}"
+                "ff-merge failed: {reason}; run manually: git switch {default_name} && git merge --ff-only {feature_branch}"
             );
+            let _ = Command::new("git")
+                .args(["checkout", &original])
+                .current_dir(root)
+                .output();
+            pop_stash_if(root, stashed);
         }
         Err(e) => {
-            eprintln!("ff-merge failed: {e}; run manually: git merge --ff-only {feature_branch}");
+            eprintln!(
+                "ff-merge failed: {e}; run manually: git switch {default_name} && git merge --ff-only {feature_branch}"
+            );
+            let _ = Command::new("git")
+                .args(["checkout", &original])
+                .current_dir(root)
+                .output();
+            pop_stash_if(root, stashed);
         }
     }
+}
 
-    // Restore original branch (best-effort).
-    let _ = Command::new("git")
-        .args(["checkout", &original])
+fn stash_if_dirty(root: &Path) -> bool {
+    let dirty = Command::new("git")
+        .args(["status", "--porcelain"])
         .current_dir(root)
-        .output();
+        .output()
+        .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
+        .unwrap_or(false);
+    if !dirty {
+        return false;
+    }
+    Command::new("git")
+        .args([
+            "stash",
+            "push",
+            "--include-untracked",
+            "-m",
+            "llman-sdd-ff-merge",
+        ])
+        .current_dir(root)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+fn pop_stash_if(root: &Path, stashed: bool) {
+    if !stashed {
+        return;
+    }
+    let ok = Command::new("git")
+        .args(["stash", "pop"])
+        .current_dir(root)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !ok {
+        eprintln!("ff-merge: stash pop failed; your changes are in `git stash` — resolve manually");
+    }
 }
 
 /// Perform the final rename of `change_dir` into `archive_dir/<archive_name>`,
@@ -335,11 +405,26 @@ mod tests {
     fn archive_passes_with_all_completed() {
         let dir = tempdir().expect("tempdir");
         let root = dir.path();
-        let config_path = root.join("llmanspec/config.yaml");
-        write_file(&config_path, "schema: spec-driven\nlocale: en\n");
+        init_repo(root);
+        write_file(
+            &root.join("llmanspec/config.yaml"),
+            "schema: spec-driven\nlocale: en\n",
+        );
         let change_dir = root.join("llmanspec/changes/test-change");
         write_file(&change_dir.join("proposal.md"), "## Why\nAll done");
         write_file(&change_dir.join("tasks.md"), "- [x] Done1\n- [x] Done2\n");
+        git(root, &["add", "."]);
+        git(root, &["commit", "-m", "seed change"]);
+        git(root, &["checkout", "-b", "feat/x"]);
+        let binding = crate::sdd::change::git_native::ChangeGitBinding {
+            branch: "feat/x".to_string(),
+            base_sha: "abc".to_string(),
+            checkpointed: true,
+            checkpoint_sha: Some("abc".into()),
+        };
+        crate::sdd::change::git_native::write_binding(root, "test-change", &binding).unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-m", "checkpoint binding"]);
         let args = ArchiveArgs {
             change: Some("test-change".to_string()),
             skip_specs: true,
@@ -423,6 +508,8 @@ mod tests {
             "---\nbranch: feat/x\nbase_sha: abc123\n---\n## Why\nTest",
         );
         write_file(&change_dir.join("tasks.md"), "- [x] done\n");
+        git(root, &["add", "."]);
+        git(root, &["commit", "-m", "seed change"]);
 
         // Create feature branch and commit on it.
         git(root, &["checkout", "-b", "feat/x"]);
@@ -430,14 +517,16 @@ mod tests {
         git(root, &["add", "new-file"]);
         git(root, &["commit", "-m", "feat commit"]);
 
-        // Write attach binding.
+        // Write attach binding and commit so clean-tree gate passes.
         let binding = crate::sdd::change::git_native::ChangeGitBinding {
             branch: "feat/x".to_string(),
             base_sha: "abc123".to_string(),
             checkpointed: true,
-            checkpoint_sha: None,
+            checkpoint_sha: Some("abc123".into()),
         };
         crate::sdd::change::git_native::write_binding(root, "test-change", &binding).unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-m", "checkpoint"]);
 
         let args = ArchiveArgs {
             change: Some("test-change".to_string()),
@@ -449,6 +538,13 @@ mod tests {
         assert!(run_with_root(root, args).is_ok());
         // Docs renamed to archive, active dir gone.
         assert!(!root.join("llmanspec/changes/test-change").exists());
+        // ff-merge brought feature tip onto main; stay on default.
+        let branch = crate::sdd::change::git_native::current_branch(root).unwrap();
+        assert_eq!(branch, "main");
+        assert!(
+            root.join("new-file").exists(),
+            "ff-merge must bring feature commits onto default"
+        );
     }
 
     #[test]
@@ -466,6 +562,8 @@ mod tests {
             "---\nbranch: feat/y\nbase_sha: abc123\n---\n## Why\nTest",
         );
         write_file(&change_dir.join("tasks.md"), "- [x] done\n");
+        git(root, &["add", "."]);
+        git(root, &["commit", "-m", "seed change"]);
 
         // Create feature branch and commit diverging history.
         git(root, &["checkout", "-b", "feat/y"]);
@@ -479,16 +577,18 @@ mod tests {
         git(root, &["add", "main-file"]);
         git(root, &["commit", "-m", "main-only"]);
 
-        // Switch to feat/y for archive (simulating BDD-on checkpoint flow).
+        // Switch to feat/y for archive (simulating checkpoint flow).
         git(root, &["checkout", "feat/y"]);
 
         let binding = crate::sdd::change::git_native::ChangeGitBinding {
             branch: "feat/y".to_string(),
             base_sha: "abc123".to_string(),
             checkpointed: true,
-            checkpoint_sha: None,
+            checkpoint_sha: Some("abc123".into()),
         };
         crate::sdd::change::git_native::write_binding(root, "test-change", &binding).unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-m", "checkpoint"]);
 
         let args = ArchiveArgs {
             change: Some("test-change".to_string()),
@@ -509,11 +609,8 @@ mod tests {
             }
         }
         assert!(found, "archive entry not found");
-        // We end up back on the feature branch (best-effort restore).
+        // On ff-merge failure, restore to the feature branch (best-effort).
         let branch = crate::sdd::change::git_native::current_branch(root).unwrap();
-        assert!(
-            branch == "feat/y" || branch == "main",
-            "expected feat/y or main, got {branch}"
-        );
+        assert_eq!(branch, "feat/y");
     }
 }

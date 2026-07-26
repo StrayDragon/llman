@@ -62,7 +62,7 @@
   场景: 仅生成 workflow commands
     假如 用户执行 update-skills --no-interactive --tool claude --commands-only
     当 生成完成
-    而且 那么仅存在命令文件（new/continue/ff/apply/verify/sync/archive/explore/onboard）
+    而且 那么仅存在命令文件（new/continue/ff/apply/verify/archive/explore/onboard）
 
   场景: codex 不生成 command prompts
     假如 用户执行 update-skills --no-interactive --tool codex
@@ -84,10 +84,10 @@
   @executable @req:r90
   场景: extra_skills 扩展候选不被清理
     假如 已初始化 sdd 项目且 bdd 配置为 "off"
-    假如 项目 extra_skills 包含 llman-sdd-sync
+    假如 项目 extra_skills 包含 llman-sdd-continue
     当 在非交互终端运行 llman sdd init --update
     那么 退出码为零
-    那么 相对路径 .agents/skills/llman-sdd-sync 存在
+    那么 相对路径 .agents/skills/llman-sdd-continue 存在
 
   @executable @req:r95
   场景: validate 拒绝缺少 llman_sdd 元信息的托管 skill

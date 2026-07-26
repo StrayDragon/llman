@@ -10,16 +10,12 @@ Common commands:
 - `llman sdd index rebuild` (rebuild the pageindex tree index — no model needed)
 - `llman sdd index check` (check index freshness)
 - `llman sdd change new <id>` (create draft `changes/<id>/proposal.md`)
-{% if bdd_enabled %}
-- `llman sdd change attach <id> [--force]` (BDD-on: bind feature branch + base SHA)
-- `llman sdd change finalize <id> [--no-check]` (BDD-on: **recommended single-commit path** — dirty tree OK; same-process checkpoint + docs-only archive; writes `checkpoint_sha = base_sha`)
-- `llman sdd change checkpoint <id> [--no-check]` (BDD-on: clean tree + gates before archive; strict sha = HEAD)
-- `llman sdd change diff <id> [--export-patch <path>]` (BDD-on: read-only `base...HEAD` review/export)
-{% endif %}
-{% if not bdd_enabled %}
-- `llman sdd change delta …` (BDD-off only: TOON delta authoring; rejected when BDD-on)
-{% endif %}
-- `llman sdd change archive <id>` (seal a change; BDD-on: docs only after checkpoint / finalize fallback; BDD-off: merge TOON deltas)
+- `llman sdd change start <id> [--worktree]` (Designed→Full: clean tree → create `sdd/<id>` branch + attach binding)
+- `llman sdd change attach <id> [--force]` (bind an existing feature branch + base SHA)
+- `llman sdd change finalize <id> [--no-check]` (**recommended single-commit path** — dirty tree OK; gates + auto ff-merge + docs rename)
+- `llman sdd change checkpoint <id> [--no-check]` (clean tree + gates before archive; strict sha = HEAD)
+- `llman sdd change diff <id> [--export-patch <path>]` (read-only `base...HEAD` review/export)
+- `llman sdd change archive <id>` (seal a change: auto ff-merge into default branch, then rename docs to `changes/archive/`; prefer `finalize` for single-commit close-out)
 - `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]` (freeze archived dirs)
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]` (restore from cold-backup)
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]` (generate change dependency graph)

@@ -388,25 +388,28 @@ pub fn run_start(root: &Path, args: StartArgs) -> Result<()> {
     let branch = feature_branch_name(&change_name, &config);
     let default_ref = resolve_default_branch_ref(root)?;
     let base_sha = merge_base_sha(root, &default_ref)?;
-    if args.worktree {
-        crate::sdd::change::start::run_start_worktree(
-            root,
-            &change_name,
-            &branch,
-            &base_sha,
-            &config,
-        )?;
-    } else {
-        // Create and switch to the feature branch from the default branch.
-        run_git(root, &["checkout", "-b", &branch])?;
-    }
     let binding = ChangeGitBinding {
         branch: branch.clone(),
         base_sha: base_sha.clone(),
         checkpointed: false,
         checkpoint_sha: None,
     };
-    write_binding(root, &change_name, &binding)?;
+    if args.worktree {
+        let wt_path = crate::sdd::change::start::run_start_worktree(
+            root,
+            &change_name,
+            &branch,
+            &base_sha,
+            &config,
+        )?;
+        // Binding must land in the linked worktree checkout, not the main tree
+        // (main stays on the default branch after `worktree add`).
+        write_binding(&wt_path, &change_name, &binding)?;
+    } else {
+        // Create and switch to the feature branch from the default branch.
+        run_git(root, &["checkout", "-b", &branch])?;
+        write_binding(root, &change_name, &binding)?;
+    }
     println!("started change `{change_name}` → branch `{branch}` base `{base_sha}`");
     Ok(())
 }
@@ -713,6 +716,48 @@ mod tests {
         let binding = read_binding(root, "c1").unwrap().unwrap();
         assert_eq!(binding.branch, "sdd/c1");
         assert!(!binding.base_sha.is_empty());
+    }
+
+    #[test]
+    fn start_worktree_writes_binding_into_linked_tree_not_main() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        init_repo(root);
+        fs::create_dir_all(root.join("llmanspec/changes/c1")).unwrap();
+        fs::write(
+            root.join("llmanspec/config.yaml"),
+            "schema: spec-driven\nlocale: en\n",
+        )
+        .unwrap();
+        fs::write(root.join("llmanspec/changes/c1/proposal.md"), "## Why\nx\n").unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-qm", "seed"]);
+        run_start(
+            root,
+            StartArgs {
+                change: "c1".into(),
+                worktree: true,
+                no_interactive: false,
+            },
+        )
+        .expect("start --worktree");
+
+        // Main worktree stays on default and must NOT carry the binding.
+        assert_eq!(current_branch(root).unwrap(), "main");
+        let main_proposal =
+            fs::read_to_string(root.join("llmanspec/changes/c1/proposal.md")).unwrap();
+        assert!(
+            !main_proposal.contains("branch:"),
+            "main tree must not get binding: {main_proposal}"
+        );
+
+        let wt = root.join(".git/sdd/worktrees/c1");
+        assert!(wt.exists(), "worktree path missing");
+        let wt_binding = read_binding(&wt, "c1")
+            .unwrap()
+            .expect("binding in worktree");
+        assert_eq!(wt_binding.branch, "sdd/c1");
+        assert!(!wt_binding.base_sha.is_empty());
     }
 
     #[test]

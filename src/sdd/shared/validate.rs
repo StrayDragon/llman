@@ -835,19 +835,11 @@ fn print_single_report(
     print_next_steps(item_type, &report.issues, bdd_on);
 }
 
-fn print_next_steps(item_type: ItemType, issues: &[ValidationIssue], bdd_on: bool) {
+fn print_next_steps(item_type: ItemType, issues: &[ValidationIssue], _bdd_on: bool) {
     eprintln!("{}", t!("sdd.validate.next_steps"));
     match item_type {
         ItemType::Change => {
-            // BDD-on: change-scoped TOON deltas are ignored (live specs on the
-            // feature branch are SSOT), so the "Ensure change has deltas" hint
-            // is misleading — point at live specs + attach/finalize instead.
-            // BDD-off: keep the classic delta-authoring hint (r98 contract).
-            if bdd_on {
-                eprintln!("{}", t!("sdd.validate.change_step_1_bdd_on"));
-            } else {
-                eprintln!("{}", t!("sdd.validate.change_step_1"));
-            }
+            eprintln!("{}", t!("sdd.validate.change_step_1"));
             eprintln!("{}", t!("sdd.validate.change_step_2"));
             eprintln!("{}", t!("sdd.validate.change_step_3"));
         }

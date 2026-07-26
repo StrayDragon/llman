@@ -23,22 +23,22 @@ Use this skill to continue an existing change and create the next missing artifa
      stage=$(llman sdd show <id> --json --type change | jq -r .stage)
      ```
      (If `jq` is unavailable, parse the `stage` value from the JSON with any tool.)
-   - If `stage` is `draft` (proposal.md only), explicitly tell the user: "This is a draft proposal. Grow it to `full` (specs → design → tasks) before it can be implemented; a draft cannot be applied or verified directly."{% if bdd_enabled %} Under BDD-on, `draft` with proposal+design+tasks already present means the change is **not attached** — the next step is `llman sdd change attach <id>` on a non-default feature branch (BDD-on specs live on the branch; do NOT create `changes/<id>/specs/`).{% endif %}
+   - If `stage` is `draft` (proposal.md only), explicitly tell the user: "This is a draft proposal. Grow it to `full` (design → tasks → live specs → `change start`) before it can be implemented; a draft cannot be applied or verified directly." If proposal+design+tasks already exist but stage is still `draft`, the next step is `llman sdd change start <id>` (or `change attach`) on a non-default feature branch — do NOT create `changes/<id>/specs/`.
 3. Determine the next artifact to create (in order):
    1) `proposal.md`
-   2) BDD-off: `specs/<capability>/spec.toon` deltas under the change; BDD-on: live edits to `llmanspec/specs/<capability>/spec.toon` + `*.feature` on the feature branch (then `llman sdd change attach <id>` if unbound)
+   2) live edits to `llmanspec/specs/<capability>/spec.toon` (+ `*.feature` when `bdd:` configured) on a feature branch
    3) `design.md` (only if design tradeoffs matter)
    4) `tasks.md`
-4. Create exactly ONE missing artifact under `llmanspec/changes/<id>/` (or one live BDD-on spec/feature edit on the branch).
+   5) `llman sdd change start <id>` (or `change attach <id>` if the branch already exists)
+4. Create exactly ONE missing artifact (or one live spec/feature edit on the branch).
    - Do NOT implement application code in continue mode.
-   - Do NOT create `*.feature.delta.toon` (legacy migration blocker under BDD-on).
+   - Do NOT create `*.feature.delta.toon` or files under `changes/<id>/specs/`.
 5. If all artifacts already exist, suggest next actions:
    - Implement: `llman-sdd-apply`
    - Validate: `llman sdd validate <id> --strict --no-interactive`
-   - BDD-on review: `llman sdd change diff <id>` (read-only)
-   - BDD-on close (recommended): `llman sdd change finalize <id>` (dirty tree OK; then one `git commit`)
-   - BDD-on fallback: `llman sdd change checkpoint <id>` (clean tree required) → `llman sdd change archive <id>`
-   - Archive (BDD-off / or already checkpointed): `llman sdd change archive <id>`
+   - Review: `llman sdd change diff <id>` (read-only)
+   - Close (recommended): `llman sdd change finalize <id>` (dirty tree OK; then one `git commit`)
+   - Fallback: `llman sdd change checkpoint <id>` (clean tree required) → `llman sdd change archive <id>`
 
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}

@@ -26,7 +26,7 @@
   @req:r65
   场景: BDD-on 收尾叙事不默认导向 PR/push
     假如 项目 config 含 bdd 段
-    当 检查生成的 llman-sdd-archive 与 llman-sdd-sync 与 llman-sdd-apply-cycle 的 SKILL.md
+    当 检查生成的 llman-sdd-archive 与 llman-sdd-apply-cycle 的 SKILL.md
     那么 收尾步骤以本地 git merge 进默认分支为默认路径
     而且 不将 git push 或 gh pr create/merge 表述为必经步骤
     而且 push / hosting PR 仅作为可选出现在明确要求远程审查时

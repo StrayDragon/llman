@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-propose"
-description: "{% if bdd_enabled %}Create an llman SDD change proposal with planning artifacts (proposal/tasks; edit live specs/features on a feature branch and attach). Use for MUST/SHALL behavioral contract changes.{% else %}Create a new llman SDD change proposal with planning artifacts (proposal, delta specs, tasks) in one pass. Use when the user asks to define a formal change — especially for behavioral contract changes that modify MUST/SHALL requirements.{% endif %}"
+description: "Create an llman SDD change proposal with planning artifacts (proposal/tasks; edit live specs/features on a feature branch and `change start`). Use for MUST/SHALL behavioral contract changes."
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
@@ -10,11 +10,7 @@ metadata:
 
 # LLMAN SDD Propose
 
-{% if bdd_enabled %}
-Create a new change with planning artifacts (proposal + tasks; design optional), edit live `spec.toon` / `*.feature` on a feature branch, `change attach`, validate, and suggest next actions.
-{% else %}
-Create a new change and generate all planning artifacts in one pass (proposal + delta specs + tasks; design optional), then validate and suggest next actions.
-{% endif %}
+Create a new change with planning artifacts (proposal + tasks; design optional), edit live `spec.toon` / `*.feature` on a feature branch, `change start` (or `attach`), validate, and suggest next actions.
 
 ## Pipeline Position
 
@@ -35,7 +31,7 @@ flowchart LR
 ## Hard Constraints
 
 - **Must confirm change id with user before writing files**: change boundaries must stay clear. **Exception**: when the user requests the lightweight draft path (see "Lightweight draft path" below), MUST NOT ask for an id — derive it via `change new --from` and announce it.
-- **BDD-off delta specs must have at least one op + one scenario**: otherwise validation fails. (BDD-on uses live specs on the feature branch instead.)
+- **Live specs on the feature branch are SSOT**: edit `llmanspec/specs/**` directly — do **not** author under `changes/<id>/specs/` or use `change delta` (removed).
 - **Don't ask "should I continue?"**: execute the full propose phase in one pass, generate artifacts and validate.
 {% if extra_skill_continue %}
 - **If change already exists**: STOP and suggest `llman-sdd-continue` or `llman-sdd-apply`.
@@ -55,9 +51,9 @@ When the user's intent is to **quickly capture a proposal** (e.g. "draft a propo
    ```bash
    llman sdd change new --from "<user description>"
    ```
-   This creates only `proposal.md` (draft skeleton) under `llmanspec/changes/<derived id>/` — no tasks/design/specs/attach required.
+   This creates only `proposal.md` (draft skeleton) under `llmanspec/changes/<derived id>/` — no tasks/design/attach required.
 4. **MUST announce the derived id to the user** (e.g. "Created draft change `<id>`; flesh it out at `llmanspec/changes/<id>/proposal.md`"). The user may rename or promote it to a formal change on request.
-5. Full propose (triage + tasks + specs + attach) starts only when the user **explicitly asks to formalize**.
+5. Full propose (triage + tasks + live specs + `change start`) starts only when the user **explicitly asks to formalize**.
 
 Boundary: if the description involves MUST/SHALL behavioral contract changes, multi-file impact, or needs triage, suggest upgrading to full propose rather than stopping at a draft.
 
@@ -94,12 +90,9 @@ Boundary: if the description involves MUST/SHALL behavioral contract changes, mu
 {% endif %}
    - Flesh out `proposal.md` (Why / What Changes / Capabilities / Impact)
    - `design.md` only when tradeoffs/migrations matter
-   - **Confirm seams before writing tasks.md**: list the seams to be tested and confirm with the user. A seam = the public boundary driven by `*.feature` GWT steps (CLI subprocess or public interface) — MUST reuse existing harness seams, MUST NOT invent seams detached from `.feature`. BDD-off without `.feature`: seam = the CLI subcommand or public function boundary under test.
+   - **Confirm seams before writing tasks.md**: list the seams to be tested and confirm with the user. A seam = the public boundary driven by `*.feature` GWT steps (CLI subprocess or public interface) — MUST reuse existing harness seams, MUST NOT invent seams detached from `.feature`. Without `.feature`, seam = the CLI subcommand or public function boundary under test.
    - `tasks.md`: split into **vertical slices** (each task cuts a narrow but complete path through schema→API→UI→tests, independently verifiable), with `[blocked-by: <task-id>]` dependency markers. **Wide-refactor exception** (one mechanical change sweeping the codebase, single edit breaks many call sites): sequence as expand-contract (add new beside old → migrate call sites in batches → delete old), don't force into a vertical slice.
-   - **BDD-off**: also create `specs/<capability>/spec.toon` deltas (standalone TOON, one per file):
-     - Prefer authoring helpers: `llman sdd change delta skeleton` / `add-req` / `add-scenario`
-     - Include at least one `add_requirement`/`modify_requirement` op (statement MUST contain MUST/SHALL) and at least one matching op scenario row
-   - **BDD-on**: do **not** use `change delta` (CLI rejects it) — edit live `llmanspec/specs/**` on the feature branch (see 4b); then `llman sdd change attach <change-id>`
+   - Edit live `llmanspec/specs/<capability>/spec.toon` (+ `*.feature` when `bdd:` is configured) on a non-default feature branch — then `llman sdd change start <change-id>` (recommended) or `change attach <change-id>` to reach Full stage.
 
 ### 4) Validate:
    ```bash
@@ -108,17 +101,17 @@ Boundary: if the description involves MUST/SHALL behavioral contract changes, mu
    This MUST pass before proceeding. If TOON parse errors appear, fix quoting:
    values containing commas/colons/brackets must be double-quoted in tabular rows.
 
-### 4a) BDD mode check — before deciding scenario authoring style
+### 4a) Optional BDD runner (`bdd:` block)
 - Read `llmanspec/config.yaml`. Is there a `bdd:` block?
-  - **Yes (BDD-on)**: follow section 4b below for BDD-on authoring rules.
-  - **No (BDD-off)**: if this change involves executable behavior scenarios (Given/When/Then the user will want to run), ask **once, up front**: "This change looks like it has executable behavior. Enable BDD-on mode so scenarios can be validated as `.feature` files? (adds a `bdd:` block to `config.yaml`.)"
+  - **Yes**: follow section 4b for Partitioned SSOT authoring (`validate --check` runs the harness).
+  - **No**: if this change involves executable behavior scenarios (Given/When/Then the user will want to run), ask **once, up front**: "This change looks like it has executable behavior. Enable a `bdd:` runner block so scenarios can be validated as `.feature` files? (adds a `bdd:` block to `config.yaml` — runner only, does not change the lifecycle.)"
     - If **yes**: show the exact `bdd:` block to add (pick a `run_command` matching the project's test framework — `cargo test --features bdd` for rstest-bdd, `pytest {feature_dir} -k {feature_name} -v` for pytest-bdd). Let the user confirm or edit it, write it to `config.yaml`, then proceed with 4b rules.
-    - If **no**: proceed with BDD-off authoring (scenarios stay in TOON as documentation; the `feature` field is ignored).
-- **Do NOT silently add the `bdd:` block** — always ask first. Adding it changes how `validate`/`index` behave project-wide.
+    - If **no**: keep scenarios in `spec.toon` as documentation-only rows.
+- **Do NOT silently add the `bdd:` block** — always ask first. Adding it changes how `validate --check` behaves project-wide.
 
-### 4b) BDD-on mode — only when `config.yaml` has a `bdd:` block (Git-native)
-- Work on a **non-default Git feature branch** (never propose/implement BDD-on changes on main/master).
-- **Partitioned SSOT**: edit live `spec.toon` (constraints) and `*.feature` (executable GWT + `@req`); never dual-write the same scenario id. Dual-write shape reference:
+### 4b) Git-native spec authoring (Partitioned SSOT when `bdd:` is configured)
+- Work on a **non-default Git feature branch** (never propose/implement on main/master).
+- **Partitioned SSOT** (when `bdd:` exists): edit live `spec.toon` (constraints) and `*.feature` (executable GWT + `@req`); never dual-write the same scenario id.
 
   | Scenario type | `spec.toon` `scenarios[]` | `*.feature` |
   |---|---|---|
@@ -126,14 +119,8 @@ Boundary: if the description involves MUST/SHALL behavioral contract changes, mu
   | Non-executable (doc-only) | `feature: false` + GWT ok | n/a (do not place) |
 
   Key point: under Partitioned SSOT, do **not** write `feature: true` rows in toon at all; requirement statements live in toon, executable examples live in `.feature` linked back via `@req:<req_id>`.
-- Change shell: `llman sdd change new <change-id>` → fill proposal/tasks → `llman sdd change attach <change-id>`.
-- Do **not** run solidify / use `change delta` / create feature_delta; if an active `*.feature.delta.toon` already exists, migrate first.
-- **BDD-off** (no `bdd:`): use `change delta …`; no feature branch / attach / checkpoint.
-
-### 4c) BDD-off delta authoring (no `bdd:` block)
-- Create the change shell: `llman sdd change new <change-id>`.
-- Constraints and scenarios stay in change-scoped TOON via `llman sdd change delta skeleton|add-req|…`.
-- Archive later: `llman sdd change archive <id>` merges those deltas into main `spec.toon`.
+- Change shell: `llman sdd change new <change-id>` → fill proposal/design/tasks → edit live specs on the branch → `llman sdd change start <change-id>` (or `change attach`).
+- Do **not** use `change delta` / solidify / `*.feature.delta.toon`; if an active `*.feature.delta.toon` already exists, migrate first.
 
 ### 5) Summarize and suggest next step:
    - Enter implementation phase: `llman-sdd-apply`.

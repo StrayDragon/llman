@@ -21,11 +21,11 @@
     那么 stdout 包含 rebuilt
 
   @executable @req:r85
-  场景: partition-migrate --dry-run 只打印计划
+  场景: migrate --kind partitioned 已移除
     假如 已初始化含可执行双写的 sdd 项目且 bdd 配置为 on
     当 在非交互终端运行 llman sdd project migrate --kind partitioned --dry-run
-    那么 stdout 包含 dry-run
-    那么 stdout 不含 migrated
+    那么 退出码非零
+    那么 stderr 包含 spec-md2toon
 
   @executable @req:r5
   场景: 双写可执行 GWT 时 validate --strict 失败

@@ -38,7 +38,7 @@ Risks and mitigations:
 
 Milestones:
 - M1: consistent config path resolution and error/exit handling.
-- M2: cursor export correctness and safer tool behavior.
+- M2: cursor prompts / sync-ignore correctness and safer tool behavior (stats/export removed).
 - M3: quality gates (fmt/clippy) and message consistency.
 
 Acceptance overview:

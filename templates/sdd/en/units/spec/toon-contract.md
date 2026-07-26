@@ -1,6 +1,6 @@
 ## Canonical TOON Spec Contract
 
-SDD main specs and delta specs are authored as **standalone `.toon` files** — one TOON document per file, with no Markdown shell and no fenced code block. All structured information, including the validation proof-metadata (formerly a YAML frontmatter), lives inside the TOON document.
+SDD main specs are authored as **standalone `.toon` files** — one TOON document per file, with no Markdown shell and no fenced code block. All structured information, including the validation proof-metadata (formerly a YAML frontmatter), lives inside the TOON document.
 
 ### Main spec (`llmanspec/specs/<feature-id>/spec.toon`)
 
@@ -19,9 +19,9 @@ scenarios[1]{req_id,id,given,when,then}:
 - `name` SHOULD match the spec directory name.
 - `valid_scope` is the validation scope (drives the staleness check). It MUST be present and non-empty, as a flat single-column tabular array (e.g. `valid_scope[2]: src/,tests/`). (`valid_commands` and `evidence` were dropped — only `valid_scope` is functionally consumed.)
 
-### Main spec with BDD-on (Partitioned SSOT)
+### Partitioned SSOT (when `bdd:` is configured)
 
-When `config.yaml` defines a `bdd` block, use **Partitioned SSOT**:
+When `config.yaml` defines a `bdd` block, the `bdd:` section is a **runner-only** switch (`validate --check` runs `bdd.run_command`); it does **not** fork the change lifecycle. Use **Partitioned SSOT** for executable scenarios:
 
 | Layer | Authority | Contents |
 |---|---|---|
@@ -49,23 +49,9 @@ Feature: sample
     Then exit code 0
 ```
 
-- **BDD-on (Git-native)**: edit live `.feature` and `spec.toon` on a non-default feature branch; bind with `llman sdd change attach`; prefer `change finalize` for single-commit close (or fallback: `checkpoint` then `change archive` before merge); `diff` is read-only review/export. Pre-merge archive/finalize moves change docs only — a local merge promotes specs (`git switch <default> && git merge --ff-only <feature>`; push / hosting PR optional). Do **not** author `*.feature.delta.toon` (legacy active feature_delta is a migration blocker). There is no solidify command.
-- **BDD-off**: use change-scoped TOON deltas (`ops` / `op_scenarios`) and archive merge as in the Delta section below — no attach/checkpoint/harness requirements.
-- Downstream upgrade: `llman sdd project migrate --kind partitioned`.
-- BDD enabled with empty `requirements` and no `.feature` is an ERROR.
-
-### Delta spec (`llmanspec/changes/<change-id>/specs/<feature-id>/spec.toon`) — BDD-off / classic
-
-```toon
-kind: llman.sdd.delta
-ops[1]{op,req_id,title,statement,from,to,name}:
-  add_requirement,r1,New requirement,System MUST do the new thing.,null,null,null
-op_scenarios[1]{req_id,id,given,when,then}:
-  r1,happy,"",the new trigger happens,the new outcome is observed
-```
-
-- `kind` MUST be `llman.sdd.delta`.
-- Delta specs carry no validation meta (only main specs do).
+- **Git-native lifecycle**: edit live `.feature` and `spec.toon` on a non-default feature branch; enter Full stage with `llman sdd change start <id>` (recommended) or `change attach`; prefer `change finalize` for single-commit close-out (or fallback: `checkpoint` then `change archive`). Archive/finalize auto ff-merges the feature branch into the default branch, then renames change docs to `changes/archive/` (one follow-up `git commit` for the dirty rename). `diff` is read-only review/export. Do **not** author under `changes/<id>/specs/` or create `*.feature.delta.toon`. There is no `change delta`, solidify, or `llman-sdd-sync`.
+- Downstream upgrade: manually remove leftover `change/specs/` or `*.feature.delta.toon` (`partitioned` migrate removed).
+- `bdd:` enabled with empty `requirements` and no `.feature` is an ERROR.
 
 ### Quoting Rules for Tabular Rows
 

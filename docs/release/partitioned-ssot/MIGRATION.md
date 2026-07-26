@@ -1,43 +1,48 @@
-# Partitioned SSOT → Git-native BDD migration
+# Partitioned SSOT → unified Git-native migration
 
 ## What changed
 
 | Before | After |
 |---|---|
 | `spec.toon` scenarios (`feature:true`) projected / dual-written with `.feature` | **Partitioned**: `.feature` = harness SSOT; `spec.toon` = constraints + non-executable scenarios |
-| `llman sdd solidify` consistency gate / stubs / feature_delta | **Removed**. Edit live `.feature` on a feature branch |
-| Change archives apply `*.feature.delta.toon` | **BDD-on**: archive moves change docs only; Git merge promotes specs |
-| Executable changes authored as `feature_delta` | Edit branch-local `llmanspec/specs/**/*.feature` (+ `@req`) |
+| `llman sdd solidify` / `change delta` / `change/specs/` TOON deltas | **Removed**. Edit live specs on a feature branch |
+| BDD-on vs BDD-off as two lifecycles | **One** Git-native lifecycle; `bdd:` only toggles the validate runner |
+| Archive merges TOON deltas (BDD-off) or docs-only (BDD-on) | **Unified**: ff-merge then docs rename; no TOON merge |
+| `project migrate --kind partitioned` | **Removed**. Manually clear dual-writes / leftover deltas |
 
-## BDD-on Git-native loop
+## Unified Git-native loop
 
-1. Create/switch to a **non-default** feature branch
-2. Author change docs under `llmanspec/changes/<id>/`
-3. Edit live `spec.toon` + `*.feature` on the branch
-4. `llman sdd change attach <id>`
-5. Implement + `llman sdd validate --specs` / `--check` as needed
-6. Clean tree → `llman sdd change checkpoint <id>`
-7. `llman sdd change archive <id>` (docs only)
-8. Open PR / merge the branch to the default branch
+1. `llman sdd change new <id>` (draft) → fill proposal / design / tasks (designed)
+2. On the **default** branch with a clean tree: `llman sdd change start <id>` (or manually create a feature branch and `change attach`)
+3. Edit live `llmanspec/specs/**` (`spec.toon` + `*.feature` when using harnesses) on the feature branch
+4. Implement + `llman sdd validate --specs` / `--check` as needed
+5. Close-out (prefer one commit):
+   ```bash
+   llman sdd change finalize <id> --no-check
+   git commit   # implementation + frontmatter + archive rename on default after ff-merge
+   ```
+   Strict fallback: clean tree → `change checkpoint` → commit → `change archive` → commit rename.
 
 `llman sdd change diff <id>` is read-only review/export — never an input to validate/archive.
 
-## Legacy feature_delta
+## Legacy leftovers
 
-Active `*.feature.delta.toon` under a change is a **migration blocker** (`validate` / `archive` ERROR). Convert those ops into live `.feature` edits on the feature branch, then delete the delta files.
+| Leftover | Action |
+|---|---|
+| Active `*.feature.delta.toon` | Materialize into live `.feature`, delete the delta (`validate` / `archive` ERROR until gone) |
+| `changes/<id>/specs/` TOON deltas | Move useful requirements into live `llmanspec/specs/**`, delete the change-scoped specs dir |
+| Dual-write executable GWT in both toon and `.feature` | Keep GWT only in `.feature` with `@req`; keep constraints in `spec.toon` |
 
-Archived historical feature_delta under `changes/archive/` remains readable and frozen.
+Archived history under `changes/archive/` stays frozen/readable.
 
 ## Commands
 
 ```bash
-llman sdd project migrate --kind partitioned   # split remaining toon dual-writes
-llman sdd change attach <id>
+llman sdd change start <id> [--worktree]
+llman sdd change attach <id> [--force]
 llman sdd change checkpoint <id> [--no-check]
+llman sdd change finalize <id> [--no-check]
 llman sdd change diff <id> [--export-patch path]
 llman sdd change archive <id>
+llman sdd project migrate --kind spec-md2toon [--dry-run]   # legacy spec.md → spec.toon only
 ```
-
-BDD-off projects keep the classic TOON delta archive path via `llman sdd change delta …` then `llman sdd change archive`, and must not use attach/checkpoint.
-
-Draft a change shell with `llman sdd change new <id>` (both modes).

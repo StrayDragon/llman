@@ -31,13 +31,13 @@ flowchart LR
 
 ## Hard Constraints
 
-- **SSOT-driven**: `proposal.md` / `design.md` / `tasks.md` / `specs/` are the single source of truth; every MUST/SHALL in specs must be fulfilled.
+- **SSOT-driven**: `proposal.md` / `design.md` / `tasks.md` and live `llmanspec/specs/**` on the feature branch are the single source of truth; every MUST/SHALL in specs must be fulfilled.
 - **Scope-locked**: Only implement what's in the current change; don't fix "unrelated issues" on the side.
 - **Minimal changes**: Keep changes minimal and strictly scoped to current tasks.
 - **No guessing**: If requirements are unclear, or specs contradict reality, STOP and report — don't assume behavior.
 - **No legacy compatibility layers**: If a change requires new behavior, upgrade all call sites directly, unless tasks/proposal explicitly require compatibility.
 - **Don't ask "should I continue?"**: Execute to loop closure unless you hit an unresolvable blocker.
-- **BDD-on close**: after self-tests pass, prefer `llman sdd change finalize <id>` (dirty tree OK) → one `git commit`; do not default to the checkpoint/archive three-commit sequence.
+- **Close-out**: after self-tests pass, prefer `llman sdd change finalize <id>` (dirty tree OK) → one `git commit`; do not default to the checkpoint/archive three-commit sequence.
 
 ## Steps
 
@@ -53,15 +53,13 @@ flowchart LR
 - If a change id is provided, use it directly.
 - Otherwise infer from context; if ambiguous, run `llman sdd list --json` and let user pick.
 - Always announce: "Using change: <id>" and how to override.
-{% if bdd_enabled %}
-- BDD-on: confirm you are on the non-default feature branch bound via `llman sdd change attach <id>` (attach with `--force` only to rebind). Specs/features on the branch are SSOT — do not invent change-scoped `feature_delta`.
-{% endif %}
+- Confirm you are on the non-default feature branch bound via `llman sdd change start <id>` or `change attach <id>` (`--force` only to rebind). Specs/features on the branch are SSOT — do not author under `changes/<id>/specs/`.
 - Check the stage gate:
   ```bash
   llman sdd show <id> --json --type change
   ```
-  - `draft`: change not ready to implement → STOP, suggest using `llman-sdd-propose` to grow to at least `spec` stage.{% if bdd_enabled %} Under BDD-on, a change with proposal+design+tasks but `stage: draft` means it is **not attached** — run `llman sdd change attach <id>` on a non-default feature branch (do NOT add `changes/<id>/specs/`; BDD-on specs live on the branch). After attach the stage becomes `full`.{% endif %}
-  - `specified` / `designed` / `full`: proceed.{% if bdd_enabled %} Under BDD-on, `full` reflects attach + complete artifacts; `changes/<id>/specs/` is expected to be **absent** — do not treat that as missing.{% endif %}
+  - `draft`: change not ready to implement → STOP, suggest using `llman-sdd-propose` to grow to Designed, then `llman sdd change start <id>`. If proposal+design+tasks exist but stage is still `draft`, the change is **not started/attached** — run `change start` or `change attach` on a non-default feature branch (do NOT add `changes/<id>/specs/`).
+  - `designed` / `full`: proceed. Under `full`, attach binding + complete artifacts are present; `changes/<id>/specs/` is expected to be **absent** — do not treat that as missing.
 - Use `llman sdd context --task "<goal from proposal>" --paths "<scope from specs>"` to get relevant specs.
   - If context is unavailable, run `llman sdd index rebuild` and retry.
 
@@ -70,12 +68,7 @@ You must read through:
 - `llmanspec/changes/<id>/proposal.md`
 - `llmanspec/changes/<id>/design.md` (if present)
 - `llmanspec/changes/<id>/tasks.md`
-{% if bdd_enabled %}
-- Live specs on the feature branch: `llmanspec/specs/**` (`spec.toon` + `*.feature`) — these are SSOT under BDD-on
-- Change-scoped `llmanspec/changes/<id>/specs/**` only if leftover docs exist (ignored by BDD-on archive; prefer live specs)
-{% else %}
-- `llmanspec/changes/<id>/specs/**`
-{% endif %}
+- Live specs on the feature branch: `llmanspec/specs/**` (`spec.toon` + `*.feature` when `bdd:` configured) — this is SSOT
 
 Extract hard constraints from proposal.md and design.md decisions. Convert tasks.md into a minimal executable step sequence (preserving original order).
 
@@ -95,9 +88,7 @@ For each unchecked task:
 Run project gate commands (adapt to the actual project):
 - Relevant test suite: `just test` or `cargo test --all`
 - Format/lint: `just check` or `just lint` + `just fmt`
-{% if bdd_enabled %}
-- BDD-on (Git-native Partitioned SSOT): stay on the attached feature branch; edit live `spec.toon` (constraints) and `*.feature` (`@req`); implement steps; after `llman sdd validate --specs` passes, prefer `change finalize` after verify (dirty tree OK); do not run `checkpoint` after every task. Do not run solidify or create feature_delta.
-{% endif %}
+- Git-native: stay on the attached feature branch; edit live `spec.toon` (constraints) and `*.feature` (`@req` when `bdd:` configured); after `llman sdd validate --specs` passes, prefer `change finalize` after verify (dirty tree OK); do not run `checkpoint` after every task. Do not use `change delta` / solidify / feature_delta.
 - SDD validation: `llman sdd validate <id> --strict --no-interactive`
 
 **On failure → enter self-healing loop (don't ask "should I continue?"):**

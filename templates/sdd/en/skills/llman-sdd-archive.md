@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-archive"
-description: "Archive completed llman SDD changes. BDD-off merges TOON deltas into main specs; BDD-on seals change docs only after attach/checkpoint, then a local merge promotes live specs. Use after verify reports all-clear."
+description: "Archive completed llman SDD changes. Auto ff-merge into the default branch, then rename change docs to archive/. Use after verify reports all-clear."
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
@@ -10,7 +10,7 @@ metadata:
 
 # LLMAN SDD Archive
 
-Use this skill to archive completed changes. **BDD-off**: merge delta specs into main specs. **BDD-on**: move change docs only (specs already live on the feature branch), then promote via a local merge into the default branch (`git push` / hosting PR are optional).
+Use this skill to archive completed changes. Live specs are already on the feature branch; archive/finalize **auto ff-merges** into the default branch, then **renames** change docs to `changes/archive/` (one follow-up `git commit` for the dirty rename). `git push` / hosting PR are optional.
 
 ## Pipeline Position
 
@@ -31,7 +31,7 @@ flowchart LR
 - **Must pass verify phase all-green first**: don't archive changes that haven't passed verification.
 - **SSOT validation**: every change must pass `llman sdd validate <id> --strict --no-interactive` before archiving.
 - **Don't ask "should I continue?"**: execute the full batch to completion unless you hit an unresolvable error.
-- **BDD-on close-out MUST NOT default to PR/push**: after docs archive, default to merging the feature branch into the default branch **locally** (e.g. `git switch <default> && git merge --ff-only <feature>`). `git push` / hosting PR (`gh pr create`/`gh pr merge`) are optional — only when the user or project explicitly requires remote review. **Agent MUST NOT** push or open a PR by default on this skill's account.
+- **Close-out MUST NOT default to PR/push**: after archive/finalize, default to a local ff-merge (handled by the CLI) and one `git commit` for the docs rename. `git push` / hosting PR are optional — only when the user or project explicitly requires remote review. **Agent MUST NOT** push or open a PR by default on this skill's account.
 
 ## Steps
 
@@ -52,15 +52,14 @@ flowchart LR
   - default: `llman sdd change archive <id>`
   - tooling-only: `llman sdd change archive <id> --skip-specs`
   - **stop immediately on first failure**, report remaining unprocessed IDs.
-- **BDD-on (Git-native Partitioned SSOT)**:
-  - Prerequisites: `llman sdd change attach <id>` done, still on the feature branch.
-  - `change archive` / `change finalize` move **change documentation only** into `changes/archive/` — they do **not** merge TOON deltas as SSOT and never apply `feature_delta`.
+- **Git-native close-out**:
+  - Prerequisites: `llman sdd change start <id>` or `change attach <id>` done; still on the feature branch (or default branch after auto ff-merge).
+  - `change archive` / `change finalize` run **auto ff-merge** (`git merge --ff-only <feature>` into default), **then** rename change docs into `changes/archive/` — rename is never rolled back on merge failure.
   - Legacy active `*.feature.delta.toon` under the change is a migration blocker — remove/migrate before archive.
-  - After archive, promote live `llmanspec/specs/**` via a local merge of the feature branch into the default branch (`git switch <default> && git merge --ff-only <feature>`; push / hosting PR optional).
-  - **Recommended: single-commit close (`change finalize`)** — same process runs gates → writes frontmatter (`checkpointed` / `checkpoint_sha = base_sha`) → docs-only archive; leaves the tree dirty once for **one `git commit`**:
+  - **Recommended: single-commit close (`change finalize`)** — same process runs gates → auto ff-merge → docs rename; leaves the tree dirty once for **one `git commit`**:
     ```text
     1. Implement live specs + code (working tree may stay dirty)
-    2. llman sdd change finalize <id>   # gates + frontmatter + move change docs
+    2. llman sdd change finalize <id>   # gates + ff-merge + rename change docs
     3. git commit                       # one commit: impl + frontmatter + archive rename
     ```
     **`checkpoint_sha` semantics**: finalize writes attach-time `base_sha`, not the implementation HEAD (under single-commit mode that commit has not happened yet). For a strict implementation SHA, use the fallback below.
@@ -69,20 +68,17 @@ flowchart LR
     1. git commit   # commit live specs + code (clean tree required for checkpoint)
     2. llman sdd change checkpoint <id>   # writes checkpointed / checkpoint_sha (implementation HEAD)
     3. git commit   # commit proposal.md checkpoint metadata
-    4. llman sdd change archive <id>      # moves change docs only
+    4. llman sdd change archive <id>      # ff-merge + rename change docs
     5. git commit   # commit archive rename
     ```
-- **BDD-off**:
-  - `change archive` merges change-scoped TOON deltas into main `spec.toon` as today.
-  - No attach / checkpoint / feature-branch / harness requirements.
 
 ### 3) Full validation
 - After all archives complete: `llman sdd validate --all --strict --no-interactive`.
 - Confirm post-archive spec artifacts are consistent.
 
-### 4) Commit / merge guidance
-- BDD-off: suggest commit message (format: `feat(sdd): archive <id1>, <id2> - <short summary>`), then `git add -A && git commit -m "..."`.
-- BDD-on: after docs archive, merge the feature branch into the default branch locally (`git switch <default> && git merge --ff-only <feature>`; optional `git branch -d <feature>`). push / hosting PR only when the user or project explicitly requires remote review.
+### 4) Commit guidance
+- Suggest commit message (format: `feat(sdd): archive <id1>, <id2> - <short summary>`), then `git add -A && git commit -m "..."` if not already committed.
+- Optional: `git branch -d <feature>` after ff-merge. push / hosting PR only when the user or project explicitly requires remote review.
 - If user requests auto-commit of the archive docs commit, execute and output commit hash.
 - **Archived `depends_on`**: archive renames the change dir to `archive/YYYY-MM-DD-<id>`, but validate recognizes `depends_on` pointing to archived/frozen ids as INFO (not ERROR), so you do **not** need to manually update other changes' `depends_on` frontmatter after archive.
 
