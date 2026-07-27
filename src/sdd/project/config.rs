@@ -24,7 +24,7 @@ const DEFAULT_CONFIG_EN: &str = r#"schema: spec-driven
 locale: en
 
 # Optional extra skills (disabled by default, uncomment to enable).
-# On `llman sdd init --update` / `update-skills`, managed candidates are:
+# On `llman sdd init --update`, managed candidates are:
 #   default workflow skills + entries listed here (extra_skills extend).
 # Then `.agents/skills/llman-sdd-*` is scanned: anything not in that candidate
 # set is removed first, then candidates are written/updated. Only the
@@ -55,7 +55,7 @@ const DEFAULT_CONFIG_ZH_HANS: &str = r#"schema: spec-driven
 locale: zh-Hans
 
 # 可选额外技能（默认禁用，取消注释以启用）。
-# 运行 `llman sdd init --update` / `update-skills` 时，管理候选集为：
+# 运行 `llman sdd init --update` 时，管理候选集为：
 #   默认 workflow 技能 + 本列表（extra_skills 扩展）。
 # 然后扫描 `.agents/skills/llman-sdd-*`：不在候选集中的先删除，再写入/更新候选。
 # 仅处理 `llman-sdd-` 前缀（无此前缀的自定义技能不会被删）。
@@ -178,7 +178,7 @@ pub struct SddConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(
         description = "Additional optional SDD skills to enable (extend candidates). \
-        On init --update / update-skills, candidates = default workflow skills + this list; \
+        On init --update, candidates = default workflow skills + this list; \
         then `.agents/skills/llman-sdd-*` not in candidates are removed before rewrite. \
         Valid values: llman-sdd-continue, llman-sdd-ff, \
         llman-sdd-validate, llman-sdd-arch-review, \

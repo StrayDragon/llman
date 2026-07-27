@@ -5,7 +5,7 @@
   @req:r96
   场景: BDD-on 渲染不以 delta specs 为 propose 主产物
     假如 项目 config 含 bdd 段
-    当 运行 update-skills 生成 llman-sdd-propose/SKILL.md
+    当 运行 llman sdd init --update 生成 llman-sdd-propose/SKILL.md
     那么 frontmatter description 不将 delta specs 表述为唯一主产物
     而且 正文保留 mermaid pipeline 图
     而且 metadata.llman_sdd.bdd_mode 为 on
@@ -13,7 +13,7 @@
   @req:r96
   场景: BDD-off 渲染不以 finalize 为必经
     假如 项目 config 不含 bdd 段
-    当 运行 update-skills 生成 llman-sdd-archive/SKILL.md
+    当 运行 llman sdd init --update 生成 llman-sdd-archive/SKILL.md
     那么 正文不将 attach/checkpoint/finalize 表述为必经路径
     而且 metadata.llman_sdd.bdd_mode 为 off
 

@@ -27,7 +27,7 @@ Use this skill to onboard to llman SDD in a repository.
 ## Notes
 - `llmanspec/config.yaml` holds project context, rules, locale, and skills paths.
 - Locale affects templates/skills only; CLI stays English.
-- Refresh skills with `llman sdd update-skills`.
+- Refresh skills with `llman sdd init --update`.
 
 {{ unit("skills/validation-hints-toon") }}
 

@@ -1,6 +1,6 @@
 # language: zh-CN
 # 对应 spec: skills-management — Skills 模板含 metadata.version（与生成它的 CLI 版本一致）；
-# init 与 update-skills 自动填充当前 CLI 版本；缺失 version 不阻断加载；主版本不匹配输出警告但不阻断。
+# init 与 init --update 自动填充当前 CLI 版本；缺失 version 不阻断加载；主版本不匹配输出警告但不阻断。
 # 另见 sdd-workflow r90：init --update 对 llman-sdd-* 先删再写（可执行场景在 skills-template-and-commands）。
 功能: 技能版本元数据与不匹配警告
   @req:r84
@@ -10,8 +10,8 @@
     那么 metadata.version 为当前 CLI 版本
 
   @req:r84
-  场景: update-skills 同步版本
-    假如 用户运行 llman sdd update-skills
+  场景: init --update 同步版本
+    假如 用户运行 llman sdd init --update
     当 更新完成
     而且 那么更新后的 skills 的 metadata.version 为当前 CLI 版本
 
