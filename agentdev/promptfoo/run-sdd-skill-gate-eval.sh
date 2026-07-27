@@ -35,7 +35,8 @@ usage() {
 
 常用选项：
   --skill <id>                    默认：llman-sdd-apply（要评测的 skill 模板名）
-  --baseline-skill <path>         可选；上一版 SKILL.md 快照路径（baseline workspace 用它覆盖）
+  --baseline-skill <path>         可选；上一版 SKILL.md 快照路径（baseline provider 用它渲染 prompt）
+                                  默认指向 agentdev/promptfoo/baselines/ 下的人工快照
                                   不指定时 baseline == candidate（退化为单版本评测）
   --model <alias>                 默认：sonnet（Claude Code SDK 模型别名）
   --max-turns <N>                 默认：18
@@ -945,13 +946,17 @@ PY
   # NOTE: both variants share the same promptfoo_dir, but promptfoo drives
   # each provider with the SAME prompts/agent_task.md. For skill-gate we need
   # per-variant SKILL.md. Since promptfoo does not support per-provider prompt
-  # files easily, and the hard gate (validate) is variant-scoped via env, we
-  # use the CANDIDATE skill in the shared prompt. Baseline-vs-candidate
-  # comparison of the *skill text* therefore requires two separate eval runs
-  # when --baseline-skill is set (see batch loop below).
-  # For P1 (single shared prompt), we compose with the candidate skill.
-  local composed_agent_task="$promptfoo_dir/prompts/agent_task.md"
-  compose_agent_task "$skill_prompt_candidate" "$task_prompt_file" "$composed_agent_task"
+  # P3: per-provider prompt override. Generate two distinct prompt files so the
+  # baseline provider sees the baseline-skill text and the candidate provider
+  # sees the candidate-skill text — a true A/B in one eval run. The shared
+  # agent_task.md is kept as a fallback (promptfoo requires a top-level prompts
+  # entry even when all providers override it); we point it at the candidate.
+  local composed_baseline="$promptfoo_dir/prompts/agent_task_baseline.md"
+  local composed_candidate="$promptfoo_dir/prompts/agent_task_candidate.md"
+  compose_agent_task "$skill_prompt_baseline" "$task_prompt_file" "$composed_baseline"
+  compose_agent_task "$skill_prompt_candidate" "$task_prompt_file" "$composed_candidate"
+  # Shared fallback (identical to candidate).
+  cp "$composed_candidate" "$promptfoo_dir/prompts/agent_task.md"
 
   patch_promptfoo_fixture "$promptfoo_dir" "$ws_baseline" "$ws_candidate" "$cfg_baseline" "$cfg_candidate" "$path_baseline" "$path_candidate"
 

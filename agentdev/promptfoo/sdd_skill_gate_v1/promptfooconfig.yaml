@@ -30,6 +30,8 @@ providers:
       env:
         LLMAN_CONFIG_DIR: "__CONFIGDIR_BASELINE__"
         PATH: "__PATH_BASELINE__"
+      # per-provider prompt override (P3): baseline sees the baseline-skill snapshot.
+      prompt: file://prompts/agent_task_baseline.md
   - anthropic:claude-agent-sdk:
       id: anthropic:claude_agent_candidate
       label: claude-agent (candidate)
@@ -52,6 +54,8 @@ providers:
       env:
         LLMAN_CONFIG_DIR: "__CONFIGDIR_CANDIDATE__"
         PATH: "__PATH_CANDIDATE__"
+      # per-provider prompt override (P3): candidate sees the current workspace skill.
+      prompt: file://prompts/agent_task_candidate.md
 
 prompts:
   - file://prompts/agent_task.md
