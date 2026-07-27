@@ -212,7 +212,7 @@ seed_change_shell() {
   local workspace_dir="$1"
   local config_dir="$2"
 
-  echo "== seed change shell: $workspace_dir"
+  echo "== seed change shell (apply): $workspace_dir"
   (
     cd "$workspace_dir"
     LLMAN_CONFIG_DIR="$config_dir" "$LLMAN_BIN" sdd change new add-sample >/dev/null
@@ -234,7 +234,7 @@ EOF
     cat >"llmanspec/changes/add-sample/tasks.md" <<'EOF'
 # Tasks: add-sample
 
-- [ ] 1.1 Add requirement `REQ_SAMPLE_1` to capability `sdd-workflow` via `llman sdd spec add-requirement`
+- [ ] 1.1 Add requirement `REQ_SAMPLE_1` to capability `sdd-workflow` via `llman sdd spec add-req`
   - 验证：`llman sdd validate sdd-workflow --strict --no-interactive` 通过
 - [ ] 1.2 Add a scenario for `REQ_SAMPLE_1` via `llman sdd spec add-scenario`
   - 验证：`llman sdd validate --all --strict --no-interactive` 通过
@@ -243,6 +243,45 @@ EOF
     git add -A
     git commit -qm "seed: add-sample change shell"
   )
+}
+
+seed_propose_shell() {
+  # Pre-seed an empty capability spec skeleton so the propose skill has a
+  # legitimate live spec to edit. No change is created (that's the agent's job).
+  local workspace_dir="$1"
+  local config_dir="$2"
+
+  echo "== seed spec skeleton (propose): $workspace_dir"
+  (
+    cd "$workspace_dir"
+    LLMAN_CONFIG_DIR="$config_dir" "$LLMAN_BIN" sdd spec skeleton eval-propose-cap --force >/dev/null
+    git add -A
+    git commit -qm "seed: eval-propose-cap skeleton" || true
+  )
+}
+
+# Dispatch sandbox seeding by skill id.
+# Args: skill_id  workspace_dir  config_dir
+seed_for_skill() {
+  local skill_id="$1"
+  local workspace_dir="$2"
+  local config_dir="$3"
+
+  case "$skill_id" in
+    llman-sdd-apply)
+      seed_change_shell "$workspace_dir" "$config_dir"
+      ;;
+    llman-sdd-draft)
+      # Draft needs only an empty initialized project (already done by init_workspace).
+      echo "== seed (draft): no-op (empty project sufficient): $workspace_dir"
+      ;;
+    llman-sdd-propose)
+      seed_propose_shell "$workspace_dir" "$config_dir"
+      ;;
+    *)
+      echo "== seed (unknown skill '$skill_id'): no seeding (default to empty project)"
+      ;;
+  esac
 }
 
 resolve_promptfoo_anthropic_key_source_env() {
@@ -825,8 +864,8 @@ PY
   init_workspace "baseline" "$ws_baseline" "$cfg_baseline"
   init_workspace "candidate" "$ws_candidate" "$cfg_candidate"
 
-  seed_change_shell "$ws_baseline" "$cfg_baseline"
-  seed_change_shell "$ws_candidate" "$cfg_candidate"
+  seed_for_skill "$SKILL_ID" "$ws_baseline" "$cfg_baseline"
+  seed_for_skill "$SKILL_ID" "$ws_candidate" "$cfg_candidate"
 
   local baseline_sha_baseline
   local baseline_sha_candidate
@@ -877,18 +916,28 @@ PY
     ln -s "$REPO_ROOT/agentdev/promptfoo/node_modules" "$promptfoo_dir/node_modules"
   fi
 
-  # Extract task_prompt from tests.yaml (first occurrence) into a temp file.
+  # Extract task_prompt from tests.yaml matching the target skill into a temp file.
   local task_prompt_file="$meta_dir/task_prompt.txt"
-  python3 - "$promptfoo_dir/tests.yaml" "$task_prompt_file" <<'PY'
+  python3 - "$promptfoo_dir/tests.yaml" "$task_prompt_file" "$SKILL_ID" <<'PY'
 import sys
 import yaml
-path, out = sys.argv[1], sys.argv[2]
+path, out, skill = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path, "r", encoding="utf-8") as f:
     tests = yaml.safe_load(f)
 task = ""
-if isinstance(tests, list) and tests:
-    vars_ = tests[0].get("vars") or {}
-    task = vars_.get("task_prompt") or ""
+if isinstance(tests, list):
+    # Prefer the test case whose vars.skill matches; fall back to the first case.
+    matched = None
+    for t in tests:
+        vars_ = (t.get("vars") if isinstance(t, dict) else None) or {}
+        if vars_.get("skill") == skill:
+            matched = t
+            break
+    if matched is None and tests:
+        matched = tests[0]
+    if matched is not None:
+        vars_ = matched.get("vars") or {}
+        task = vars_.get("task_prompt") or ""
 with open(out, "w", encoding="utf-8") as f:
     f.write(task)
 PY
