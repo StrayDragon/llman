@@ -21,7 +21,7 @@
 
 - 同一套模板 + MiniJinja `{% if bdd_enabled %}` 条件渲染（逐步收敛为统一文案）
 - 产物带 `metadata.llman_sdd.bdd_mode` / `skill_set`
-- `validate` / `init --update` / `update-skills` 不一致则 ERROR，并提示刷新
+- `validate` / `init --update` 不一致则 ERROR，并提示刷新
 
 **后续方向（draft `add-meta-skill-dynamic-prompts`）**
 
