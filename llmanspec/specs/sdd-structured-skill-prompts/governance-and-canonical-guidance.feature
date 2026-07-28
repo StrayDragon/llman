@@ -17,7 +17,7 @@
 
   @req:r32
   场景: 生成产物无占位块
-    假如 维护者运行 llman sdd update-skills --no-interactive --tool {tool}
+    假如 维护者运行 llman sdd init --update
     当 检查生成的任意 SKILL.md
     而且 那么不包含子串 Options: 或 <option
 
@@ -29,7 +29,7 @@
 
   @req:r32
   场景: 生成的 skills 含 TOON 编辑指引
-    假如 用户执行 llman sdd update-skills --no-interactive --all
+    假如 用户执行 llman sdd init --update
     当 检查 SKILL.md
     而且 那么在适用处包含 canonical TOON 编辑指引
 

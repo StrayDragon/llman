@@ -16,7 +16,7 @@ const REQUIRED_ETHICS_KEYS: &[&str] = &[
 ];
 
 /// Prefix for managed SDD skills. Only directories under this prefix are
-/// candidates for remove-then-refresh during `update-skills` / `init --update`.
+/// candidates for remove-then-refresh during `init --update`.
 const MANAGED_SKILL_PREFIX: &str = "llman-sdd-";
 
 pub fn run() -> Result<()> {

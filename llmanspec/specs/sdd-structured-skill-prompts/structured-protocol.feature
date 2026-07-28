@@ -12,13 +12,13 @@
 
   @req:r32
   场景: 注入后结构化章节完整可见
-    假如 用户执行 llman sdd update-skills --no-interactive --all
+    假如 用户执行 llman sdd init --update
     当 生成完成
     那么 生成产物中可见完整结构化章节
     而且 而且顺序一致
 
   @req:r32
   场景: 生成内容不引用外部技能作为必需步骤
-    假如 用户执行 llman sdd update-skills --all
+    假如 用户执行 llman sdd init --update
     当 检查生成的 SKILL.md
     而且 那么不包含先调用外部技能再执行的硬依赖指令

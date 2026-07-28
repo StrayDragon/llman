@@ -4,7 +4,7 @@
 # status 作为 agent 抓手。
 功能: Apply-Cycle 补充技能与 status 抓手
   场景: apply-cycle 含 disable-invocation
-    假如 用户运行 update-skills --all --no-interactive
+    假如 用户运行 llman sdd init --update
     当 生成完成
     而且 那么生成的 SKILL.md 含 frontmatter disable-model-invocation: true
 
@@ -14,7 +14,7 @@
     而且 那么该 skill 不在 available_skills 中
 
   场景: apply-cycle 不在 Claude commands
-    假如 用户运行 update-skills --tool claude
+    假如 用户运行 llman sdd init --update
     当 生成完成
     那么 .claude/commands/ 下无 llman-sdd-apply-cycle.md
 

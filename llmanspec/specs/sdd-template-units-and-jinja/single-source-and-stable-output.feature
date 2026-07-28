@@ -11,7 +11,7 @@
 
   @req:r33
   场景: 生成的 SKILL.md 自包含且无未解析注入标记
-    假如 用户运行 llman sdd update-skills --no-interactive --tool {tool}
+    假如 用户运行 llman sdd init --update
     当 生成完成
     那么 生成的 SKILL.md 包含完全渲染的内容
     而且 而且不存在未解析的注入标记（如 {{ unit(）
