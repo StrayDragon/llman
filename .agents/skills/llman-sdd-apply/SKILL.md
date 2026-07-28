@@ -53,9 +53,7 @@ flowchart LR
 - 若已提供 change id，直接使用。
 - 否则从上下文推断；若不明确，运行 `llman sdd list --json` 并让用户选择。
 - 始终说明："使用变更：<id>"，并告知如何覆盖。
-
 - 确认已在经 `llman sdd change start <id>` 或 `change attach <id>` 绑定的非默认 feature 分支上（仅在需要重绑时用 `--force`）。分支上的 specs/features 即 SSOT——不要在 `changes/<id>/specs/` 下编写。
-
 - 检查阶段守卫：
   ```bash
   llman sdd show <id> --json --type change
@@ -70,9 +68,7 @@ flowchart LR
 - `llmanspec/changes/<id>/proposal.md`
 - `llmanspec/changes/<id>/design.md`（如存在）
 - `llmanspec/changes/<id>/tasks.md`
-
 - feature 分支上的 live specs：`llmanspec/specs/**`（`spec.toon` + 配置了 `bdd:` 时的 `*.feature`）——这是 SSOT
-
 
 将 `proposal.md` 和 `design.md` 中的决策整理为不可违反的硬约束清单。把 `tasks.md` 转成可执行的最小步骤序列（保持原顺序）。
 
@@ -92,9 +88,7 @@ flowchart LR
 运行项目门禁命令（根据项目实际选择）：
 - 相关测试集：`just test` 或 `cargo test --all`
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
-
 - Git-native：留在已 attach 的 feature 分支；编辑 live `spec.toon`（约束）与 `*.feature`（配置了 `bdd:` 时的 `@req`）；`llman sdd validate --specs` 通过后，verify 阶段结束优先 `change finalize`（工作区可脏）；勿在每个 task 后跑 `checkpoint`。勿使用 `change delta` / solidify / feature_delta。
-
 - SDD 校验：`llman sdd validate <id> --strict --no-interactive`
 
 **若失败 → 进入自修复循环（不要问要不要继续）：**
@@ -130,14 +124,11 @@ flowchart LR
 - `llman sdd index rebuild`（重建 pageindex 树索引——不需要模型）
 - `llman sdd index check`（检查索引新鲜度）
 - `llman sdd change new <id>`（创建草稿 `changes/<id>/proposal.md`）
-
 - `llman sdd change start <id> [--worktree]`（Designed→Full：干净树 → 创建 `sdd/<id>` 分支 + attach 绑定）
 - `llman sdd change attach <id> [--force]`（绑定已有 feature 分支 + base SHA）
 - `llman sdd change finalize <id> [--no-check]`（**推荐单 commit 路径**——不要求干净树；门禁 + 自动 ff-merge + 文档改名）
 - `llman sdd change checkpoint <id> [--no-check]`（干净工作区 + 归档前门禁；严格 sha = HEAD）
 - `llman sdd change diff <id> [--export-patch <path>]`（只读 `base...HEAD` 审查/导出）
-
-
 - `llman sdd change archive <id>`（封存变更：自动 ff-merge 到默认分支，再将文档改名到 `changes/archive/`；单 commit 收尾优先用 `finalize`）
 - `llman sdd archive freeze [--before YYYY-MM-DD] [--keep-recent N] [--dry-run]`（冻结已归档目录）
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备份恢复）
