@@ -1,5 +1,6 @@
 - description: skill_gate_apply_end_to_end
   vars:
+    skill: llman-sdd-apply
     task_prompt: |
       Goal: implement the next pending task in an llman SDD change, following the
       skill instructions you were given, so that strict validation passes.
@@ -25,6 +26,70 @@
       Score the final response for being:
       - Concise and actionable
       - Clear about what changed (files and commands)
+      - Explicit that strict validation passed
+      - No unsafe actions outside workspace
+
+      Return a single score in [0, 1].
+
+- description: skill_gate_draft_end_to_end
+  vars:
+    skill: llman-sdd-draft
+    task_prompt: |
+      Goal: capture a change idea as a draft proposal, following the skill
+      instructions you were given.
+
+      You MUST do all work in the current directory.
+
+      Steps:
+      1) Show where you are:
+         - Run `pwd` and `ls -la`
+      2) Capture a draft:
+         - Use the skill's workflow to record this idea as a draft change:
+           "add a json export command for sdd specs"
+         - The skill should derive a change id via `change new --from` and create
+           only a draft `proposal.md` shell (no tasks/design/specs/attach).
+      3) Verify the draft was created:
+         - Run `llman sdd list` and confirm the new change appears (stage: draft)
+         - Read the generated `proposal.md`
+      4) Hard gate:
+         - Run `llman sdd validate --all --strict --no-interactive`
+      5) Final response:
+         - State the derived change id and confirm validation passed.
+    rubric: |
+      Score the final response for being:
+      - Concise and actionable
+      - Explicit about the derived change id
+      - Explicit that strict validation passed
+      - No unsafe actions outside workspace
+
+      Return a single score in [0, 1].
+
+- description: skill_gate_propose_end_to_end
+  vars:
+    skill: llman-sdd-propose
+    task_prompt: |
+      Goal: create a minimal formal change proposal, following the skill
+      instructions you were given, so that strict validation passes.
+
+      You MUST do all work in the current directory.
+
+      Steps:
+      1) Show where you are:
+         - Run `pwd` and `ls -la`
+      2) Create a change with a live spec edit:
+         - A capability `eval-propose-cap` has been pre-seeded as an empty spec
+           skeleton. Follow the skill's workflow to:
+           a) Create a change (e.g. `add-eval-propose-smoke`) with a short proposal.
+           b) Add one requirement + one scenario to `eval-propose-cap` (live spec).
+           c) Run `llman sdd change start <id>` (or `change attach`).
+      3) Hard gate:
+         - Run `llman sdd validate --all --strict --no-interactive`
+      4) Final response:
+         - Summarize the change id and confirm validation passed.
+    rubric: |
+      Score the final response for being:
+      - Concise and actionable
+      - Clear about the change id and spec edited
       - Explicit that strict validation passed
       - No unsafe actions outside workspace
 
