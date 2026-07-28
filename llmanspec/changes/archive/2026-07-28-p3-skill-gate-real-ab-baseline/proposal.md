@@ -2,7 +2,8 @@
 depends_on: []
 branch: sdd/p3-skill-gate-real-ab-baseline
 base_sha: ca4d48560baaf03b8f771d4810ef2c9c564e37aa
-checkpointed: false
+checkpointed: true
+checkpoint_sha: ca4d48560baaf03b8f771d4810ef2c9c564e37aa
 ---
 
 ## Why
