@@ -30,7 +30,7 @@ flowchart LR
 
 ## Hard Constraints
 
-- **Must confirm change id with user before writing files**: change boundaries must stay clear. **Exception**: when the user requests the lightweight draft path (see "Lightweight draft path" below), MUST NOT ask for an id — derive it via `change new --from` and announce it.
+- **Must confirm change id with user before writing files**: change boundaries must stay clear. **Exception**: when the user wants to quickly capture an idea (draft only, no id needed), route them to `llman-sdd-draft` instead of running full propose.
 - **Live specs on the feature branch are SSOT**: edit `llmanspec/specs/**` directly — do **not** author under `changes/<id>/specs/` or use `change delta` (removed).
 - **Don't ask "should I continue?"**: execute the full propose phase in one pass, generate artifacts and validate.
 {% if extra_skill_continue %}
@@ -39,23 +39,9 @@ flowchart LR
 - **If change already exists**: STOP and suggest `llman-sdd-apply`; to fill missing artifacts, edit `llmanspec/changes/<id>/` directly (or enable `extra_skills: [llman-sdd-continue]`).
 {% endif %}
 
-## Lightweight draft path (draft proposal only)
+## Quick-capture routing
 
-When the user's intent is to **quickly capture a proposal** (e.g. "draft a proposal", "draft a change", "note down X") and no change id is provided, take this lightweight path — do **not** run the full propose flow:
-
-1. **MUST NOT ask the user for a change id.**
-2. Generate a legal, meaningful change id directly from the user's description:
-   - Prefer naming conventions declared in the repo's `llmanspec/AGENTS.md` (if any).
-   - With no explicit convention, name by the description's semantics (CLI `--from` does kebab-case sanitizing + legality checks).
-3. Call the CLI scaffolding to create the draft shell:
-   ```bash
-   llman sdd change new --from "<user description>"
-   ```
-   This creates only `proposal.md` (draft skeleton) under `llmanspec/changes/<derived id>/` — no tasks/design/attach required.
-4. **MUST announce the derived id to the user** (e.g. "Created draft change `<id>`; flesh it out at `llmanspec/changes/<id>/proposal.md`"). The user may rename or promote it to a formal change on request.
-5. Full propose (triage + tasks + live specs + `change start`) starts only when the user **explicitly asks to formalize**.
-
-Boundary: if the description involves MUST/SHALL behavioral contract changes, multi-file impact, or needs triage, suggest upgrading to full propose rather than stopping at a draft.
+If the user just wants to **capture an idea** (e.g. "draft a proposal", "note down X", "remember to do Y later") without full planning, route them to the `llman-sdd-draft` skill — it creates a `proposal.md`-only draft shell via `change new --from` (no id asked, no tasks/specs/attach). Full propose (triage + tasks + live specs + `change start`) starts here.
 
 ## Steps
 

@@ -1488,7 +1488,7 @@ fn test_sdd_config_skills_non_interactive() {
         "overview should show bdd status, got: {overview_stdout}"
     );
 
-    // Non-interactive state (r110): lists all 8 candidates.
+    // Non-interactive state (r110): lists all optional candidates.
     let state = run_llman(
         &["sdd", "config", "skills", "--no-interactive"],
         work_dir,
@@ -1516,7 +1516,7 @@ fn test_sdd_config_skills_non_interactive() {
     let available = json["available"].as_array().unwrap();
     assert_eq!(
         available.len(),
-        7,
-        "should list all 8 optional skills as available (none enabled yet), got: {available:?}"
+        6,
+        "should list all optional skills as available (none enabled yet), got: {available:?}"
     );
 }

@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 const EXPECTED_SCHEMA: &str = "spec-driven";
 
 pub(crate) const OPTIONAL_SKILL_NAMES: &[&str] = &[
-    "llman-sdd-new-change",
     "llman-sdd-continue",
     "llman-sdd-ff",
     "llman-sdd-validate",
@@ -32,7 +31,6 @@ locale: en
 # `llman-sdd-` prefix is touched (custom skills without that prefix are kept).
 # Deprecated shipped skills (e.g. removed from defaults) are cleaned this way.
 # extra_skills:
-#   - llman-sdd-new-change
 #   - llman-sdd-continue
 #   - llman-sdd-ff
 #   - llman-sdd-validate
@@ -63,7 +61,6 @@ locale: zh-Hans
 # 仅处理 `llman-sdd-` 前缀（无此前缀的自定义技能不会被删）。
 # 已废弃的内置技能（从默认集移除后）会因此被正确清理。
 # extra_skills:
-#   - llman-sdd-new-change
 #   - llman-sdd-continue
 #   - llman-sdd-ff
 #   - llman-sdd-validate
@@ -183,7 +180,7 @@ pub struct SddConfig {
         description = "Additional optional SDD skills to enable (extend candidates). \
         On init --update / update-skills, candidates = default workflow skills + this list; \
         then `.agents/skills/llman-sdd-*` not in candidates are removed before rewrite. \
-        Valid values: llman-sdd-new-change, llman-sdd-continue, llman-sdd-ff, \
+        Valid values: llman-sdd-continue, llman-sdd-ff, \
         llman-sdd-validate, llman-sdd-arch-review, \
         llman-sdd-wayfinder, llman-sdd-research."
     )]
@@ -576,12 +573,12 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let llmanspec_dir = dir.path();
         let path = config_path(llmanspec_dir);
-        let content = "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-new-change\n";
+        let content = "schema: spec-driven\nlocale: en\nextra_skills:\n  - llman-sdd-continue\n";
         fs::write(&path, content).expect("write config");
         let config = load_config(llmanspec_dir).expect("load").expect("config");
         assert_eq!(
             config.extra_skills,
-            Some(vec!["llman-sdd-new-change".to_string(),])
+            Some(vec!["llman-sdd-continue".to_string(),])
         );
     }
 }

@@ -20,7 +20,6 @@ use std::path::Path;
 /// Keep in sync with `OPTIONAL_SKILL_NAMES` and the template frontmatter `description`.
 fn skill_description(name: &str) -> &'static str {
     match name {
-        "llman-sdd-new-change" => "Lightweight draft proposal path (`change new --from`)",
         "llman-sdd-continue" => "Fill in missing change artifacts",
         "llman-sdd-ff" => "Alias for `change finalize` (single-commit close-out)",
         "llman-sdd-validate" => "Standalone validation skill",

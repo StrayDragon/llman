@@ -15,6 +15,7 @@ pub struct SkillTemplate {
 const DEFAULT_SKILL_FILES: &[&str] = &[
     "llman-sdd-explore.md",
     "llman-sdd-propose.md",
+    "llman-sdd-draft.md",
     "llman-sdd-apply.md",
     "llman-sdd-verify.md",
     "llman-sdd-quick.md",
@@ -25,7 +26,6 @@ const DEFAULT_SKILL_FILES: &[&str] = &[
 ];
 
 const OPTIONAL_SKILL_FILES: &[&str] = &[
-    "llman-sdd-new-change.md",
     "llman-sdd-continue.md",
     "llman-sdd-ff.md",
     "llman-sdd-validate.md",
@@ -288,9 +288,9 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/skills/llman-sdd-propose.md"
         ))),
-        "templates/sdd/en/skills/llman-sdd-new-change.md" => Some(include_str!(concat!(
+        "templates/sdd/en/skills/llman-sdd-draft.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/skills/llman-sdd-new-change.md"
+            "/templates/sdd/en/skills/llman-sdd-draft.md"
         ))),
         "templates/sdd/en/skills/llman-sdd-explore.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -364,9 +364,9 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/skills/llman-sdd-propose.md"
         ))),
-        "templates/sdd/zh-Hans/skills/llman-sdd-new-change.md" => Some(include_str!(concat!(
+        "templates/sdd/zh-Hans/skills/llman-sdd-draft.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/zh-Hans/skills/llman-sdd-new-change.md"
+            "/templates/sdd/zh-Hans/skills/llman-sdd-draft.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-explore.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
