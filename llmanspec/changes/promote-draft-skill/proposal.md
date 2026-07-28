@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/promote-draft-skill
+base_sha: ca4d48560baaf03b8f771d4810ef2c9c564e37aa
+checkpointed: false
 ---
 
 ## Why
