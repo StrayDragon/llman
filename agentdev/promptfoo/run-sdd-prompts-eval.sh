@@ -149,7 +149,7 @@ strip_frontmatter() {
 render_skill_prompt() {
   local style="$1"
   local out_path="$2"
-  local skill_path="$project_dir/.codex/skills/$SKILL_ID/SKILL.md"
+  local skill_path="$project_dir/.agents/skills/$SKILL_ID/SKILL.md"
 
   local cmd="sdd"
   if [[ "$style" == "legacy" ]]; then
@@ -160,12 +160,11 @@ render_skill_prompt() {
     die "未知 style：$style（应为 new）"
   fi
 
-  if ! run_llman "$project_dir" "$cmd" update-skills \
-    --tool codex \
-    --no-interactive \
-    --skills-only \
+  # NOTE: `sdd update-skills` was never a real CLI subcommand; `init --update`
+  # is the only skill-refresh surface (it triggers update_skills::run_with_root).
+  if ! run_llman "$project_dir" "$cmd" init --update \
     2>&1 | tee "$meta_dir/update-skills-${style}.txt" >/dev/null; then
-    echo "Error: $cmd update-skills failed. Log:" >&2
+    echo "Error: $cmd init --update failed. Log:" >&2
     cat "$meta_dir/update-skills-${style}.txt" >&2
     exit 1
   fi
