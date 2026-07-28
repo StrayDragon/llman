@@ -3,8 +3,9 @@
 This folder contains Promptfoo fixtures + runner scripts used to evaluate llman SDD prompts and agentic workflows.
 
 Entry points:
-- `agentdev/promptfoo/run-sdd-prompts-eval.sh`: baseline vs candidate prompt A/B evaluation (chat-style)
+- `agentdev/promptfoo/run-sdd-prompts-eval.sh`: baseline vs candidate prompt A/B evaluation (chat-style; applies skill only)
 - `agentdev/promptfoo/run-sdd-claude-style-eval.sh`: Claude Code agentic multi-style eval (ison/toon/yaml, with hard gate; supports `--fixture v1|v2`)
+- `agentdev/promptfoo/run-sdd-skill-gate-eval.sh`: skill-gate eval — renders a SKILL.md into the agent prompt + drives a sandbox task with a hard `validate` gate; compares baseline (previous template snapshot, `--baseline-skill`) vs candidate (current workspace). P1 covers the apply skill.
 
 Notes:
 - Runner scripts create an isolated temp work directory under `./.tmp/` and use an isolated `LLMAN_CONFIG_DIR` to avoid touching real user config.
