@@ -707,6 +707,87 @@ tool:
       gitignore_parse_warning:
         en: "Warning: failed to fully parse %{path}: %{error}"
 
+  agents_md:
+    scan:
+      start:
+        en: "Scanning project for agent init files"
+      names:
+        en: "Scan names: %{names}"
+      found_title:
+        en: "Discovered agent init files:"
+      none:
+        en: "(none found)"
+      upsert_done:
+        en: "Wrote manifest to %{path}"
+
+    clean:
+      start:
+        en: "Cleaning agent init files"
+      empty_manifest:
+        en: "No agents-md manifest in project config; nothing to clean. Run `llman tool agents-md scan --upsert-project-configs` first."
+      manifest:
+        en: "Manifest: %{paths}"
+      no_targets:
+        en: "No tracked files match the manifest; nothing to clean."
+      preview_title:
+        en: "Files to remove:"
+      dry_run_hint:
+        en: "Dry run only — pass --yes or --commit to apply."
+      deleted_count:
+        en: "Removed %{count} file(s)."
+      committed:
+        en: "Changes committed."
+      error:
+        default_branch:
+          en: "Refusing to commit clean on the default branch (`%{branch}`); pass --force to override."
+
+    revert:
+      start:
+        en: "Restoring agent init files from default branch"
+      empty_manifest:
+        en: "No agents-md manifest in project config; nothing to revert."
+      no_targets:
+        en: "No tracked files match the manifest; nothing to revert."
+      from_ref:
+        en: "Restoring from %{ref}"
+      preview_title:
+        en: "Files to restore:"
+      dry_run_hint:
+        en: "Dry run only — pass --yes or --commit to apply."
+      restored_count:
+        en: "Restored %{count} file(s)."
+      committed:
+        en: "Restoration committed."
+      branch_created:
+        en: "Created recovery branch `%{branch}`."
+      skip_missing:
+        en: "Skip %{path} (not on default branch): %{error}"
+
+    preview:
+      header:
+        path:
+          en: "Path"
+        exists:
+          en: "Exists"
+        ref:
+          en: "Ref"
+      yes:
+        en: "yes"
+      no:
+        en: "no"
+
+    error:
+      no_git_repo:
+        en: "Not inside a git repository; cd into the project root or use a git-tracked project."
+      create_dir:
+        en: "Failed to create directory %{path}"
+      write_failed:
+        en: "Failed to write %{path}"
+      delete_failed:
+        en: "Failed to delete %{path}"
+      serialize:
+        en: "Failed to serialize config: %{error}"
+
 # Extensions
 x:
   about:

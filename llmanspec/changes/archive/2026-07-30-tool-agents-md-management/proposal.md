@@ -1,5 +1,9 @@
 ---
 depends_on: []
+branch: sdd/tool-agents-md-management
+base_sha: da7c8179667ddbddb70436b02648e739024dd290
+checkpointed: true
+checkpoint_sha: da7c8179667ddbddb70436b02648e739024dd290
 ---
 
 ## Why
