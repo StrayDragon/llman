@@ -229,6 +229,16 @@ mod tests {
         // internal validate::run exercised against the TempDir root (no chdir).
         // This is the coverage gap flagged in the parent change's verify report
         // (W1); it became possible once validate::run accepted a root parameter.
+
+        // validate's staleness check reads the process-wide LLMANSPEC_BASE_REF
+        // env. Another unit test (staleness::invalid_llmanspec_base_ref...)
+        // temporarily sets it under ENV_MUTEX; hold the same lock for the whole
+        // test so this test's validate can't observe the leaked value. Under
+        // `cargo test` (threaded, the CI path) this race otherwise fails ~1/3.
+        let _env_lock = crate::test_utils::lock_env();
+        // Safety: env mutation only during tests, never in shipped binaries.
+        unsafe { std::env::remove_var("LLMANSPEC_BASE_REF") };
+
         let (tmp, id, base_sha) = setup_repo_with_attached_change("finalize-happy");
         let root = tmp.path();
 
@@ -384,6 +394,14 @@ mod tests {
     #[test]
     fn finalize_works_unified_regardless_of_bdd_config() {
         // Unified flow: finalize works with or without bdd: block (r94).
+
+        // Same LLMANSPEC_BASE_REF env-race guard as the happy-path test above:
+        // hold ENV_MUTEX so validate's staleness check can't read a value leaked
+        // by a concurrent staleness unit test under `cargo test` (CI path).
+        let _env_lock = crate::test_utils::lock_env();
+        // Safety: env mutation only during tests, never in shipped binaries.
+        unsafe { std::env::remove_var("LLMANSPEC_BASE_REF") };
+
         let (tmp, id, _base) = setup_repo_with_attached_change("finalize-unified");
         let root = tmp.path();
 

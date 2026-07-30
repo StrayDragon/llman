@@ -388,17 +388,32 @@ fn agents_md_subcommand_dispatches() {
     });
 }
 
-/// Helper to temporarily change cwd into `root` and restore on drop.
+/// Serialize tests that mutate the process-wide cwd.
+///
+/// `std::env::set_current_dir` is process-global, not thread-local. When
+/// nextest runs multiple tests from this binary in one process, concurrent
+/// chdir calls race: one test finishes and its `TempDir` is dropped (deleted)
+/// while another test's `current_dir()` still points at it, producing
+/// `cwd: Os { code: 2, NotFound }` (CI failure, run 30551746073). Holding this
+/// mutex for the whole test forces cwd-touching tests to run one at a time.
+/// See AGENTS.md "Avoid parallel test collisions".
+static CWD_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Helper to temporarily change cwd into `root` and restore on drop, while
+/// holding `CWD_MUTEX` so parallel tests can't race on the process cwd.
 struct CwdGuard {
+    _lock: std::sync::MutexGuard<'static, ()>,
     prev: PathBuf,
 }
 impl Drop for CwdGuard {
     fn drop(&mut self) {
+        // Restore cwd first, then release the mutex (field order: prev, then _lock).
         let _ = std::env::set_current_dir(&self.prev);
     }
 }
 fn cwd_guard(root: &std::path::Path) -> CwdGuard {
+    let lock = CWD_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
     let prev = std::env::current_dir().expect("cwd");
     std::env::set_current_dir(root).expect("chdir root");
-    CwdGuard { prev }
+    CwdGuard { _lock: lock, prev }
 }

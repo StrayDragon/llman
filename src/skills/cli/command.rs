@@ -1844,7 +1844,6 @@ mod tests {
             skill_dir: PathBuf::from(format!("/tmp/{skill_id}")),
             repo_id: repo_id.map(str::to_string),
             repo_name: repo_name.map(str::to_string),
-            ..Default::default()
         }
     }
 
@@ -1937,9 +1936,9 @@ mod tests {
         // The repo-group preset label embeds the repo name "TeamAlpha".
         let labels: Vec<String> = options
             .iter()
-            .filter_map(|opt| match opt {
-                SkillOption::Preset(p) => Some(p.label.clone()),
-                SkillOption::Skill { label, .. } => Some(label.clone()),
+            .map(|opt| match opt {
+                SkillOption::Preset(p) => p.label.clone(),
+                SkillOption::Skill { label, .. } => label.clone(),
             })
             .collect();
         assert!(
