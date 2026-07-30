@@ -2,10 +2,12 @@
 depends_on: []
 ---
 
+# 多技能仓库源支持与 TUI 按来源筛选
+
 ## Why
 
 用户目前只能有一个 skills 根目录（`~/.config/llman/skills/`），通过 `LLMAN_SKILLS_DIR`、
-`--skills-dir` 或 `skills.dir` 配置。所有技能都平铺在这个单一日录下，无法区分技能来自哪个
+`--skills-dir` 或 `skills.dir` 配置。所有技能都平铺在这个单一目录下，无法区分技能来自哪个
 仓库源。
 
 社区和组织有多个技能仓库需要隔离管理：
@@ -40,9 +42,20 @@ skills:
 - `name` 可选，省略时 fallback 为 `path` 的相对短路径名（最后一个路径分量或相对于
   `$LLMAN_CONFIG_DIR` 的简写）。
 - 向后兼容：检测到旧的 `skills.dir` 字段时，自动转为单 repo `[{path: <原值>}]`。
-- 向后兼容：`skills.dir` 与 `skills.repo` 同时存在时，`repo` 优先（`dir` 被忽略，可 emit
+- 向后兼容：`skills.dir` 与 `skills.repo` 同时存在时，`repo` 优先（`dir` 被忽略，emit
   deprecation warning）。
 - 未来考虑：`path` 支持 git URL（当前仅本地路径，clone/update 机制不在本变更范围内）。
+
+### Override 语义（决策）
+
+`--skills-dir` / `LLMAN_SKILLS_DIR` 在多 repo 场景下保持**全盘替代**语义：override 存在
+时，整个 repo 列表被该单一目录替代（即变成 `[{path: <override>}]`）。这与现有单目录
+override 优先级链 `CLI > ENV > config > default` 完全一致，迁移无惊讶。
+
+### 跨 repo 同名 skill_id 去重（决策）
+
+多个 repo 下出现相同 `skill_id` 时，**按 repo 在配置列表中的顺序，首个生效，其余记录
+冲突警告**（复用现有 `dedupe_skills` 的冲突提示通道）。与现有 r34 单源去重行为一致。
 
 ### TUI picker 分组改造
 
@@ -67,5 +80,23 @@ skills:
   与安装机制。
 - 不引入 git clone/update 能力（仅本地路径引用）。
 - `--skills-dir` CLI flag 和 `LLMAN_SKILLS_DIR` 环境变量保持不变，仍可覆盖整个 skills 根
-  （当有 `skills.repo` 配置时，CLI/env 覆盖行为需明确：是全盘替代 repo 列表，还是仅追加？
-  待 propose 阶段决定）。
+  （当有 `skills.repo` 配置时，override 行为为**全盘替代** repo 列表，见上文 Override 语义）。
+
+## Capabilities
+
+- `config-schemas`（r125）：全局配置 schema 新增 `skills.repo[]`（`name`/`path`）；
+  `skills.dir` 向后兼容读取与 deprecation warning；`repo` 优先于 `dir`。属 CLI 驱动的
+  可执行合约（`llman self schema check` 可触发）。
+- `skills-management`（r126）：技能发现按 repo 记录来源元数据；TUI 默认分组维度改为 repo
+  源、目录名前缀降为次级维度；搜索匹配 `name`/路径简称；跨 repo 同名按列表顺序首个生效。
+
+## Impact
+
+- **受影响代码**：`src/skills/config/mod.rs`（多 repo 解析 + override 全盘替代）、
+  `src/skills/catalog/scan.rs`（携带 repo 元数据）、`src/skills/catalog/types.rs`
+  （`SkillCandidate` 增字段）、`src/skills/cli/command.rs`（TUI 分组改造）、
+  `src/config_schema.rs`（`GlobalSkillsConfig` schema 扩展）。
+- **向后兼容**：现有 `skills.dir` 配置零改动可用（自动转单 repo）。
+- **full mode 判定**：`config-schemas`（r125）场景可由 CLI 子进程驱动，标 `@executable`；
+  `skills-management`（r126）的 TUI 分组为内部行为 + 交互流程，保持 fast mode（单元测试
+  覆盖），不标 `@executable`。
