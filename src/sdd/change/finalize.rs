@@ -157,11 +157,12 @@ mod tests {
             "schema: spec-driven\nlocale: en\nbdd:\n  run_command: \"cargo test --features bdd\"\n",
         )
         .unwrap();
+        // r124: proposal.md frontmatter must not carry lifecycle fields (id,
+        // stage) — stage is inferred from on-disk artifacts. Mirror the format
+        // produced by `change new` (depends_on only) so the schema guard passes.
         fs::write(
             changes.join("proposal.md"),
-            format!(
-                "---\nid: {change_id}\nstage: full\n---\n\n# Proposal\n\n## Why\n\nx\n\n## What Changes\n\nx\n"
-            ),
+            "---\ndepends_on: []\n---\n\n# Proposal\n\n## Why\n\nx\n\n## What Changes\n\nx\n",
         )
         .unwrap();
         // tasks.md all-checked so archive tasks-gate does not interfere.
@@ -318,11 +319,11 @@ mod tests {
         let (tmp, id, _base) = setup_repo_with_attached_change("finalize-noattach");
         let root = tmp.path();
 
-        // Strip binding fields from proposal.md frontmatter.
+        // Strip binding fields from proposal.md frontmatter. Keep the r124-legal
+        // shape (no id/stage lifecycle fields) so the schema guard stays happy.
         let proposal_path = root.join("llmanspec/changes").join(&id).join("proposal.md");
-        let stripped = format!(
-            "---\nid: {id}\nstage: full\n---\n\n# Proposal\n\n## Why\n\nx\n\n## What Changes\n\nx\n"
-        );
+        let stripped =
+            "---\ndepends_on: []\n---\n\n# Proposal\n\n## Why\n\nx\n\n## What Changes\n\nx\n";
         fs::write(&proposal_path, stripped).unwrap();
 
         // Commit so the tree is clean-ish (doesn't matter; finalize doesn't check).
