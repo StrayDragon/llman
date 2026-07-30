@@ -33,6 +33,7 @@ flowchart LR
 - **MUST NOT create tasks/design/specs/attach**: this skill creates only the `proposal.md` draft shell. Full planning artifacts belong to `llman-sdd-propose`.
 - **MUST NOT run triage or assess change scale**: that is propose's job. If the user wants to start implementing, suggest `llman-sdd-propose`.
 - **Scope boundary**: if the description clearly involves MUST/SHALL behavioral contract changes or multi-file impact, suggest `llman-sdd-propose` instead of stopping at a draft — but still create the draft shell first so the idea isn't lost.
+- **Frontmatter has a fixed schema (r124)**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted (`depends_on`, `blocks`, `branch`, `base_sha`/`baseSha`, `checkpointed`, `checkpoint_sha`/`checkpointSha`). `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR. Lifecycle stage is inferred (r93) — query it via `llman sdd status`/`show`, never store it in frontmatter. Do not re-declare frontmatter fields in the prose body (no `## Status` block); the body H1 is a human-readable title, not a repeat of the change id.
 
 ## Steps
 

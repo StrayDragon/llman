@@ -1,5 +1,9 @@
 ---
 depends_on: []
+branch: sdd/add-proposal-frontmatter-schema-guard
+base_sha: da7c8179667ddbddb70436b02648e739024dd290
+checkpointed: true
+checkpoint_sha: da7c8179667ddbddb70436b02648e739024dd290
 ---
 
 # 为 proposal frontmatter 增加 schema 守卫（未知字段报 ERROR）

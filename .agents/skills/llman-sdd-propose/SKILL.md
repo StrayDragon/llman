@@ -35,6 +35,7 @@ flowchart LR
 - **不要问「要不要继续」**：在 propose 阶段内一路执行到底，生成工件并校验。
 
 - **若变更已存在**：STOP 并建议用户使用 `llman-sdd-apply`；若需补齐缺失 artifact，直接编辑 `llmanspec/changes/<id>/`（或启用 `extra_skills: [llman-sdd-continue]` 后使用 continue）。
+- **frontmatter 有固定 schema（r124）**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（r93，用 `llman sdd status`/`show` 查看），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 用人类可读标题，不要复读 change id。
 
 
 ## 快速记录路由

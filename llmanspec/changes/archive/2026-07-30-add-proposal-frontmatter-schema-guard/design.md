@@ -16,7 +16,7 @@
 
 **理由**：archived 是只读历史记录，零迁移成本，不改动历史归档。校验仅作用于 active changes。已与用户确认。
 
-**实现**：校验入口遍历 changes 时，对路径含 `changes/archive/` 的 proposal 跳过未知字段检测（其他 frontmatter 校验如 depends_on 仍保留现有行为）。
+**实现（已由现有架构天然满足）**：`list_changes`（`src/sdd/shared/discovery.rs`）在枚举 active changes 时**显式跳过 `archive` 目录**（第 23 行 `name == "archive"` continue）。因此 `check_proposal_frontmatter` 只会被 active changes 调用；archived 的 id 仅作为依赖参考传入 `archived_change_ids`，永不作为被校验的 `change_dir`。`validate_by_type` 直接用 `changes/<id>` 拼路径，archived 的日期前缀目录不会被定位到。故未知字段检测天然不会作用于 archived——无需额外条件判断，零代码即可满足 r124 的 archived 免检要求。
 
 ### D3: 合法字段集来源
 
