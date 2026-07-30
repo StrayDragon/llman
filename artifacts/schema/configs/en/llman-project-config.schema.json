@@ -621,6 +621,23 @@
               }
             }
           }
+        },
+        "agents-md": {
+          "description": "Settings for the agents-md (agent init files) tool.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "files": {
+              "description": "Agent init file/directory names to scan for (relative to project root).",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            }
+          }
         }
       }
     }

@@ -709,6 +709,7 @@ mod tests {
             version: "0.1".to_string(),
             tools: ToolsConfig {
                 rm_useless_dirs: None,
+                agents_md: None,
                 clean_useless_comments: Some(CleanUselessCommentsConfig {
                     scope: ScopeConfig {
                         include: vec!["**/*.py".to_string()],
@@ -777,6 +778,7 @@ mod tests {
             version: "0.1".to_string(),
             tools: ToolsConfig {
                 rm_useless_dirs: None,
+                agents_md: None,
                 clean_useless_comments: Some(CleanUselessCommentsConfig {
                     scope: ScopeConfig {
                         include: vec!["**/*.py".to_string()],

@@ -17,6 +17,81 @@ pub enum ToolCommands {
     /// Sync ignore rules across OpenCode/Cursor/Claude Code
     #[command(alias = "si")]
     SyncIgnore(SyncIgnoreArgs),
+    /// Manage agent init files (AGENTS.md / CLAUDE.md / .cursor/ etc.)
+    AgentsMd(AgentsMdArgs),
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct AgentsMdArgs {
+    #[command(subcommand)]
+    pub command: AgentsMdCommands,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentsMdCommands {
+    /// Scan the project for agent init files and list their relative paths
+    Scan(AgentsMdScanArgs),
+    /// Delete agent init files recorded in project config
+    Clean(AgentsMdCleanArgs),
+    /// Restore agent init files from the default branch
+    Revert(AgentsMdRevertArgs),
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct AgentsMdScanArgs {
+    /// Write discovered paths into the project `.llman/config.yaml` (create if missing)
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub upsert_project_configs: bool,
+
+    /// Configuration file path (default: project `.llman/config.yaml`, then global)
+    #[arg(long, short = 'c')]
+    pub config: Option<PathBuf>,
+
+    /// Verbose output
+    #[arg(long, short = 'v', action = clap::ArgAction::SetTrue)]
+    pub verbose: bool,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct AgentsMdCleanArgs {
+    /// Apply changes (default: dry-run preview)
+    #[arg(short = 'y', long, action = clap::ArgAction::SetTrue)]
+    pub yes: bool,
+
+    /// `git add` the removed files and commit on the current branch
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub commit: bool,
+
+    /// Force `--commit` even on the default branch (main/master)
+    #[arg(long, short = 'f', action = clap::ArgAction::SetTrue)]
+    pub force: bool,
+
+    /// Configuration file path (default: project `.llman/config.yaml`, then global)
+    #[arg(long, short = 'c')]
+    pub config: Option<PathBuf>,
+
+    /// Verbose output
+    #[arg(long, short = 'v', action = clap::ArgAction::SetTrue)]
+    pub verbose: bool,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct AgentsMdRevertArgs {
+    /// Apply changes (default: dry-run preview)
+    #[arg(short = 'y', long, action = clap::ArgAction::SetTrue)]
+    pub yes: bool,
+
+    /// Create a branch and commit the restored files
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub commit: bool,
+
+    /// Configuration file path (default: project `.llman/config.yaml`, then global)
+    #[arg(long, short = 'c')]
+    pub config: Option<PathBuf>,
+
+    /// Verbose output
+    #[arg(long, short = 'v', action = clap::ArgAction::SetTrue)]
+    pub verbose: bool,
 }
 
 #[derive(Parser, Debug, Clone)]

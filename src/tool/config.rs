@@ -27,6 +27,32 @@ pub struct ToolsConfig {
     #[serde(rename = "rm-useless-dirs")]
     #[schemars(description = "Settings for the rm-useless-dirs tool.")]
     pub rm_useless_dirs: Option<RmUselessDirsConfig>,
+    #[serde(rename = "agents-md")]
+    #[schemars(description = "Settings for the agents-md (agent init files) tool.")]
+    pub agents_md: Option<AgentsMdConfig>,
+}
+
+/// Built-in default agent init file/directory names to scan for.
+///
+/// Overridable as a whole (not unioned) via the global config `tools.agents-md`.
+pub fn default_agent_init_names() -> Vec<String> {
+    vec![
+        "AGENTS.md".to_string(),
+        "CLAUDE.md".to_string(),
+        "GEMINI.md".to_string(),
+        ".cursorrules".to_string(),
+        ".github/copilot-instructions.md".to_string(),
+    ]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[schemars(description = "Settings for the agents-md tool.")]
+pub struct AgentsMdConfig {
+    #[schemars(
+        description = "Agent init file/directory names to scan for (relative to project root)."
+    )]
+    #[serde(default)]
+    pub files: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -340,6 +366,10 @@ impl ToolConfig {
         self.tools.rm_useless_dirs.as_ref()
     }
 
+    pub fn get_agents_md_config(&self) -> Option<&AgentsMdConfig> {
+        self.tools.agents_md.as_ref()
+    }
+
     pub fn generate_schema() -> Result<String> {
         let schema = schema_for!(ToolConfig);
         serde_json::to_string_pretty(&schema)
@@ -353,6 +383,7 @@ impl Default for ToolConfig {
             version: "0.1".to_string(),
             tools: ToolsConfig {
                 rm_useless_dirs: None,
+                agents_md: None,
                 clean_useless_comments: Some(CleanUselessCommentsConfig {
                     scope: ScopeConfig::default(),
                     lang_rules: LanguageRules {
@@ -494,5 +525,46 @@ tools:
 
         let regex = regex::Regex::new(&patterns[0]).unwrap();
         assert!(regex.is_match("# TODO: check this"));
+    }
+
+    #[test]
+    fn test_agents_md_config_optional_and_default_none() {
+        let config = ToolConfig::default();
+        assert!(config.tools.agents_md.is_none());
+        assert!(config.get_agents_md_config().is_none());
+    }
+
+    #[test]
+    fn test_agents_md_config_from_yaml() {
+        let yaml = r#"
+version: "0.1"
+tools:
+  agents-md:
+    files:
+      - AGENTS.md
+      - .cursor/
+"#;
+        let mut temp_file = NamedTempFile::new().unwrap();
+        write!(temp_file, "{}", yaml).unwrap();
+        // Write into a `.llman/config.yaml`-named path so schema validation
+        // treats it as a project config (which permits `agents-md`).
+        let dir = tempfile::tempdir().unwrap();
+        let llman_dir = dir.path().join(".llman");
+        fs::create_dir_all(&llman_dir).unwrap();
+        let project_path = llman_dir.join("config.yaml");
+        fs::write(&project_path, yaml).unwrap();
+        let config = ToolConfig::load(&project_path).unwrap();
+        let agents = config.get_agents_md_config().expect("agents-md present");
+        assert_eq!(agents.files, vec!["AGENTS.md", ".cursor/"]);
+    }
+
+    #[test]
+    fn test_default_agent_init_names_includes_common() {
+        let names = default_agent_init_names();
+        assert!(names.contains(&"AGENTS.md".to_string()));
+        assert!(names.contains(&"CLAUDE.md".to_string()));
+        assert!(names.contains(&"GEMINI.md".to_string()));
+        assert!(names.contains(&".cursorrules".to_string()));
+        assert!(names.contains(&".github/copilot-instructions.md".to_string()));
     }
 }

@@ -4,7 +4,7 @@ use crate::sdd::command::SddArgs;
 use crate::self_command::SelfArgs;
 use crate::skills::cli::command::SkillsArgs;
 use crate::skills::cli::interactive::is_interactive;
-use crate::tool::command::{ToolArgs, ToolCommands};
+use crate::tool::command::{AgentsMdCommands, ToolArgs, ToolCommands};
 use crate::x::claude_code::command::ClaudeCodeArgs;
 use crate::x::codex::command::CodexArgs;
 use crate::x::cursor::command::CursorArgs;
@@ -245,6 +245,13 @@ fn handle_tool_command(args: &ToolArgs) -> Result<()> {
         ToolCommands::CleanUselessComments(args) => crate::tool::clean_comments::run(args),
         ToolCommands::RmUselessDirs(args) => crate::tool::rm_empty_dirs::run(args),
         ToolCommands::SyncIgnore(args) => crate::tool::sync_ignore::run(args),
+        ToolCommands::AgentsMd(args) => match &args.command {
+            AgentsMdCommands::Scan(scan_args) => crate::tool::agents_md::run_scan(scan_args),
+            AgentsMdCommands::Clean(clean_args) => crate::tool::agents_md::run_clean(clean_args),
+            AgentsMdCommands::Revert(revert_args) => {
+                crate::tool::agents_md::run_revert(revert_args)
+            }
+        },
     }
 }
 

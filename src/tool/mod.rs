@@ -1,3 +1,4 @@
+pub mod agents_md;
 pub mod clean_comments;
 pub mod command;
 pub mod config;
