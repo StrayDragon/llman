@@ -41,6 +41,9 @@ pub fn default_agent_init_names() -> Vec<String> {
         "CLAUDE.md".to_string(),
         "GEMINI.md".to_string(),
         ".cursorrules".to_string(),
+        ".cursor/".to_string(),
+        ".claude/".to_string(),
+        ".windsurfrules".to_string(),
         ".github/copilot-instructions.md".to_string(),
     ]
 }
@@ -565,6 +568,11 @@ tools:
         assert!(names.contains(&"CLAUDE.md".to_string()));
         assert!(names.contains(&"GEMINI.md".to_string()));
         assert!(names.contains(&".cursorrules".to_string()));
+        // .cursorrules is deprecated but kept for legacy projects; the modern
+        // .cursor/rules/*.mdc form is covered via the .cursor/ directory entry.
+        assert!(names.contains(&".cursor/".to_string()));
+        assert!(names.contains(&".claude/".to_string()));
+        assert!(names.contains(&".windsurfrules".to_string()));
         assert!(names.contains(&".github/copilot-instructions.md".to_string()));
     }
 }
