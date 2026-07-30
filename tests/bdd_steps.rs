@@ -500,7 +500,7 @@ fn given_skill_dir(name: String) {
 
 /// Plant a global config.yaml with one of three `skills` shapes into a fresh
 /// temp dir, then point `LLMAN_CONFIG_DIR` at it. Used by config-schemas r125
-/// executable scenarios (multi-repo / legacy-dir / dir-and-repo). The temp dir
+/// executable scenarios (multi-repo / legacy-dir / missing-path). The temp dir
 /// is owned by the world so it survives until the scenario's When/Then.
 #[given("全局 config.yaml 含 {kind} skills 配置")]
 fn given_global_skills_config(kind: String) {
@@ -510,10 +510,19 @@ fn given_global_skills_config(kind: String) {
     let skills_yaml = match kind.trim() {
         "multi-repo" => {
             "skills:\n  repo:\n    - name: Team\n      path: /tmp/team-skills\n    - path: /tmp/personal-skills\n"
+                .to_string()
         }
-        "legacy-dir" => "skills:\n  dir: /tmp/skills\n",
-        "dir-and-repo" => {
-            "skills:\n  dir: /tmp/legacy-skills\n  repo:\n    - path: /tmp/repo-skills\n"
+        "legacy-dir" => "skills:\n  dir: /tmp/skills\n".to_string(),
+        "missing-path" => {
+            // One present dir so resolve still succeeds; one missing to trigger warn+filter.
+            let present = dir.join("present-skills");
+            std::fs::create_dir_all(&present).expect("create present skills dir");
+            let missing = dir.join("missing-skills");
+            format!(
+                "skills:\n  repo:\n    - name: gone\n      path: {}\n    - name: ok\n      path: {}\n",
+                missing.display(),
+                present.display()
+            )
         }
         other => panic!("unknown skills config kind: {other}"),
     };
