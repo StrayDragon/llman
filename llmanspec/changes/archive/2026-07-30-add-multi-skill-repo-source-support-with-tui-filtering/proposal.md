@@ -1,5 +1,9 @@
 ---
 depends_on: []
+branch: sdd/add-multi-skill-repo-source-support-with-tui-filtering
+base_sha: da7c8179667ddbddb70436b02648e739024dd290
+checkpointed: true
+checkpoint_sha: da7c8179667ddbddb70436b02648e739024dd290
 ---
 
 # 多技能仓库源支持与 TUI 按来源筛选

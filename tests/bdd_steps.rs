@@ -498,6 +498,39 @@ fn given_skill_dir(name: String) {
     std::fs::write(skill_dir.join("SKILL.md"), "planted\n").expect("write planted skill");
 }
 
+/// Plant a global config.yaml with one of three `skills` shapes into a fresh
+/// temp dir, then point `LLMAN_CONFIG_DIR` at it. Used by config-schemas r125
+/// executable scenarios (multi-repo / legacy-dir / dir-and-repo). The temp dir
+/// is owned by the world so it survives until the scenario's When/Then.
+#[given("全局 config.yaml 含 {kind} skills 配置")]
+fn given_global_skills_config(kind: String) {
+    reset_world();
+    let temp = TempDir::new().expect("create skills-config tempdir");
+    let dir = temp.path().to_path_buf();
+    let skills_yaml = match kind.trim() {
+        "multi-repo" => {
+            "skills:\n  repo:\n    - name: Team\n      path: /tmp/team-skills\n    - path: /tmp/personal-skills\n"
+        }
+        "legacy-dir" => "skills:\n  dir: /tmp/skills\n",
+        "dir-and-repo" => {
+            "skills:\n  dir: /tmp/legacy-skills\n  repo:\n    - path: /tmp/repo-skills\n"
+        }
+        other => panic!("unknown skills config kind: {other}"),
+    };
+    let config = format!("version: \"0.1\"\ntools: {{}}\n{skills_yaml}");
+    std::fs::write(dir.join("config.yaml"), config).expect("write global config");
+
+    WORLD.with(|w| {
+        let mut guard = w.borrow_mut();
+        let world = guard.as_mut().expect("world not initialized");
+        world.fixture_dir = Some(temp);
+        world.env_overrides.insert(
+            "LLMAN_CONFIG_DIR".to_string(),
+            dir.to_string_lossy().to_string(),
+        );
+    });
+}
+
 #[given("项目 extra_skills 包含 {name}")]
 fn given_extra_skills(name: String) {
     let dir = fixture_cwd();

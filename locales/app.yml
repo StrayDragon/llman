@@ -2029,6 +2029,10 @@ skills:
       en: "Invalid skills directory in LLMAN_SKILLS_DIR: %{error}"
     skills_dir_invalid_config:
       en: "Invalid skills directory in config.yaml: %{error}"
+    skills_dir_deprecated:
+      en: "skills.dir is deprecated; using skills.repo instead (skills.dir ignored)."
+    repo_path_invalid:
+      en: "Invalid skills repo path in config.yaml: %{error}"
     home_missing:
       en: "Unable to resolve home directory for path expansion."
   registry:

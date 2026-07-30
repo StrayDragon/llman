@@ -1,4 +1,4 @@
-use crate::skills::catalog::types::SkillCandidate;
+use crate::skills::catalog::types::{RepoSource, SkillCandidate};
 use anyhow::Result;
 use ignore::WalkBuilder;
 use serde_yaml::Value;
@@ -10,16 +10,51 @@ pub fn discover_skills(root: &Path) -> Result<Vec<SkillCandidate>> {
     discover_skills_with_global_ignore(root, None)
 }
 
+/// Discover skills across multiple repo sources, tagging each candidate with
+/// its originating repo's `repo_id`/`repo_name`. Within a single repo the
+/// canonical-directory dedup is preserved; cross-repo `skill_id` collisions are
+/// resolved later by the caller (see `dedupe_skills`), which keeps the first
+/// occurrence in repo list order (D2).
+pub fn discover_skills_from_repos(repos: &[RepoSource]) -> Result<Vec<SkillCandidate>> {
+    let mut candidates = Vec::new();
+    let mut seen_dirs: HashSet<PathBuf> = HashSet::new();
+    for repo in repos {
+        let mut repo_candidates = Vec::new();
+        discover_skills_with_global_ignore_into(
+            &repo.path,
+            None,
+            &mut seen_dirs,
+            &mut repo_candidates,
+        )?;
+        for mut candidate in repo_candidates {
+            candidate.repo_id = Some(repo.id.clone());
+            candidate.repo_name = repo.name.clone();
+            candidates.push(candidate);
+        }
+    }
+    Ok(candidates)
+}
+
 fn discover_skills_with_global_ignore(
     root: &Path,
     global_ignore: Option<&Path>,
 ) -> Result<Vec<SkillCandidate>> {
     let mut candidates = Vec::new();
+    let mut seen_dirs: HashSet<PathBuf> = HashSet::new();
+    discover_skills_with_global_ignore_into(root, global_ignore, &mut seen_dirs, &mut candidates)?;
+    Ok(candidates)
+}
+
+fn discover_skills_with_global_ignore_into(
+    root: &Path,
+    global_ignore: Option<&Path>,
+    seen_dirs: &mut HashSet<PathBuf>,
+    candidates: &mut Vec<SkillCandidate>,
+) -> Result<()> {
     if !root.exists() {
-        return Ok(candidates);
+        return Ok(());
     }
 
-    let mut seen_dirs: HashSet<PathBuf> = HashSet::new();
     let store_dir = root.join("store");
     let mut builder = WalkBuilder::new(root);
     builder
@@ -49,7 +84,7 @@ fn discover_skills_with_global_ignore(
             let Some(skill_dir) = path.parent() else {
                 continue;
             };
-            record_skill_dir(skill_dir, path, &mut seen_dirs, &mut candidates);
+            record_skill_dir(skill_dir, path, seen_dirs, candidates);
             continue;
         }
         if entry
@@ -58,11 +93,11 @@ fn discover_skills_with_global_ignore(
             && is_symlink_dir(path)
             && let Some(skill_file) = resolve_symlink_skill_file(path)
         {
-            record_skill_dir(path, &skill_file, &mut seen_dirs, &mut candidates);
+            record_skill_dir(path, &skill_file, seen_dirs, candidates);
         }
     }
 
-    Ok(candidates)
+    Ok(())
 }
 
 fn record_skill_dir(
@@ -82,6 +117,8 @@ fn record_skill_dir(
     candidates.push(SkillCandidate {
         skill_id,
         skill_dir: skill_dir.to_path_buf(),
+        repo_id: None,
+        repo_name: None,
     });
 }
 
@@ -404,5 +441,77 @@ mod tests {
 
         let warning = check_skill_version_compat(&skill_file);
         assert_eq!(warning, None);
+    }
+
+    fn make_repo(index: usize, name: Option<&str>, path: PathBuf) -> RepoSource {
+        RepoSource::from_index(index, name.map(str::to_string), path)
+    }
+
+    fn plant_skill(repo_root: &Path, dir_name: &str, skill_name: Option<&str>) {
+        let dir = repo_root.join(dir_name);
+        fs::create_dir_all(&dir).expect("create skill dir");
+        let body = match skill_name {
+            Some(name) => format!("---\nname: {name}\n---\n# body"),
+            None => "# no frontmatter".to_string(),
+        };
+        fs::write(dir.join("SKILL.md"), body).expect("write skill");
+    }
+
+    #[test]
+    fn test_discover_from_repos_tags_repo_metadata() {
+        let temp = TempDir::new().expect("temp dir");
+        let repo_a = temp.path().join("repo-a");
+        let repo_b = temp.path().join("repo-b");
+        fs::create_dir_all(&repo_a).expect("mkdir a");
+        fs::create_dir_all(&repo_b).expect("mkdir b");
+        plant_skill(&repo_a, "alpha", Some("Alpha"));
+        plant_skill(&repo_b, "beta", Some("Beta"));
+
+        let repos = vec![
+            make_repo(0, Some("Team"), repo_a.clone()),
+            make_repo(1, None, repo_b.clone()),
+        ];
+        let mut found = discover_skills_from_repos(&repos).expect("discover");
+        found.sort_by(|a, b| a.skill_id.cmp(&b.skill_id));
+
+        assert_eq!(found.len(), 2);
+        assert_eq!(found[0].skill_id, "alpha");
+        assert_eq!(found[0].repo_id.as_deref(), Some("Team"));
+        assert_eq!(found[0].repo_name.as_deref(), Some("Team"));
+        assert_eq!(found[1].skill_id, "beta");
+        // Second repo has no name → id is the positional index string.
+        assert_eq!(found[1].repo_id.as_deref(), Some("1"));
+        assert!(found[1].repo_name.is_none());
+    }
+
+    #[test]
+    fn test_discover_from_repos_keeps_first_on_cross_repo_collision() {
+        let temp = TempDir::new().expect("temp dir");
+        let repo_a = temp.path().join("repo-a");
+        let repo_b = temp.path().join("repo-b");
+        fs::create_dir_all(&repo_a).expect("mkdir a");
+        fs::create_dir_all(&repo_b).expect("mkdir b");
+        // Same skill_id "shared" in both repos.
+        plant_skill(&repo_a, "first", Some("Shared"));
+        plant_skill(&repo_b, "second", Some("Shared"));
+
+        let repos = vec![
+            make_repo(0, Some("A"), repo_a.clone()),
+            make_repo(1, Some("B"), repo_b.clone()),
+        ];
+        // Discovery itself surfaces both (canonical-dedup is per-filesystem path);
+        // the cross-repo "first in list order wins" contract (D2) is enforced by
+        // `dedupe_skills` in the caller. Here we assert both carry distinct repo
+        // provenance so the caller can dedupe deterministically.
+        let found = discover_skills_from_repos(&repos).expect("discover");
+        assert_eq!(found.len(), 2);
+        let ids: HashSet<&str> = found
+            .iter()
+            .map(|c| c.repo_id.as_deref().unwrap())
+            .collect();
+        assert!(ids.contains("A"));
+        assert!(ids.contains("B"));
+        // Both resolve to the same skill_id.
+        assert!(found.iter().all(|c| c.skill_id == "shared"));
     }
 }

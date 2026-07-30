@@ -28,6 +28,8 @@ fn test_link_target_points_to_skill_dir() {
     let skill = SkillCandidate {
         skill_id: "example-skill".to_string(),
         skill_dir: skill_dir.clone(),
+
+        ..Default::default()
     };
     let config = SkillsConfig {
         targets: vec![ConfigEntry {
