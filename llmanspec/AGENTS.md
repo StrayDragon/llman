@@ -3,6 +3,27 @@
 This file is referenced by the root `AGENTS.md`. Use it to add project-specific
 rules, context, or conventions that AI agents should follow.
 
+## Change Proposal Frontmatter SSOT
+
+`llmanspec/changes/<id>/proposal.md` 的 frontmatter（YAML）是**变更元信息的唯一权威**。
+正文 MUST NOT 重复声明已在 frontmatter 中声明的字段，否则 SSOT 失效。
+
+### 最小 schema
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `depends_on` | 是（CLI 骨架默认 `[]`） | 依赖的其他 change id 列表 |
+| `status` | 否 | 生命周期 / 阶段标记（如 `purpose-draft`）。**积极变动的处理元信息**，有即有意义 |
+
+> 其他字段（`title`、`priority`、`author` 等）不强制。除非有明确消费方，不要发明字段。
+
+### 正文写作约束
+
+- **MUST NOT** 在正文复读 frontmatter 字段：例如已写 `status: purpose-draft`，正文就不要再贴 `> 草案（purpose-draft）` 横幅或 `## Status: purpose-draft` 段。
+- **MUST NOT** 把 `change_id` 当作 H1 重复（目录名已是 id）。正文 H1 用人类可读标题或省略。
+- 正文横幅留给**非元信息**：如「本草案不实现」「前置 change 是 X」「与 Y 案的区别」等叙事说明。
+- 需要表达状态变化时，**改 frontmatter 的 `status` 字段**，不要在正文另起 status 段。
+
 ## Project Context
 
 Project: llman CLI quality uplift
