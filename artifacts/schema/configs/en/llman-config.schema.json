@@ -17,11 +17,36 @@
       ],
       "properties": {
         "dir": {
-          "description": "Override skills root directory. Supports ~ and env vars.",
+          "description": "Override skills root directory. Supports ~ and env vars. Deprecated: prefer `repo` for multi-source skills.",
           "type": [
             "string",
             "null"
           ]
+        },
+        "repo": {
+          "description": "Multiple skills repository sources. When present, takes precedence over the legacy `dir`. Each entry declares a local path (and optional display name).",
+          "type": "array",
+          "items": {
+            "title": "llman Skills Repo Source",
+            "description": "A single skills repository source under skills.repo[].",
+            "type": "object",
+            "properties": {
+              "name": {
+                "description": "Optional human-readable label used in the TUI. When omitted, the positional index is used as the stable id.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "path": {
+                "description": "Local filesystem path to the skills repository root. Supports ~ and env vars.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "path"
+            ]
+          }
         }
       }
     },

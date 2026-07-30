@@ -1,4 +1,4 @@
-use crate::skills::catalog::scan::discover_skills;
+use crate::skills::catalog::scan::discover_skills_from_repos;
 use crate::skills::catalog::types::{
     ConfigEntry, SkillCandidate, SkillsConfig, SkillsPaths, TargetConflictStrategy, TargetMode,
 };
@@ -89,7 +89,7 @@ pub fn run(args: &SkillsArgs) -> Result<()> {
     }
     let config = load_config(&paths)?;
     let target_conflict = args.target_conflict.map(TargetConflictStrategy::from);
-    let skills = dedupe_skills(discover_skills(&paths.root)?);
+    let skills = dedupe_skills(discover_skills_from_repos(&paths.repos)?);
     let skill_dir_catalog = build_skill_dir_catalog(&paths.root, &skills)?;
     let runtime_presets = infer_runtime_presets_from_catalog(&skill_dir_catalog);
 
@@ -590,13 +590,33 @@ fn grouped_skill_options(
     skill_dir_catalog: &SkillDirCatalog,
     runtime_presets: &HashMap<String, RuntimePreset>,
 ) -> Result<Vec<SkillOption>> {
-    let mut out = preset_options_from_skills(skills, skill_dir_catalog, runtime_presets)?;
+    // D3/D4: when more than one distinct repo source is present, the default
+    // grouping dimension becomes the repo source (top level). With a single
+    // repo (or no repo metadata — single-source discovery) we keep the legacy
+    // directory-prefix grouping unchanged (no repo group headers).
+    let multi_repo = distinct_repo_count(skills) > 1;
+
+    let mut out = if multi_repo {
+        repo_source_preset_options(skills)
+    } else {
+        preset_options_from_skills(skills, skill_dir_catalog, runtime_presets)?
+    };
 
     let mut entries: Vec<(String, String)> = skills
         .iter()
         .map(|skill| {
             let dir_name = display_dir_name_for_skill(skill, skill_dir_catalog);
-            let label = format!("{} ({})", skill.skill_id, dir_name);
+            // In multi-repo mode the skill row shows its repo source label too.
+            let label = if multi_repo {
+                let repo = skill
+                    .repo_name
+                    .clone()
+                    .or_else(|| skill.repo_id.clone())
+                    .unwrap_or_default();
+                format!("{} ({}) [{}]", skill.skill_id, dir_name, repo)
+            } else {
+                format!("{} ({})", skill.skill_id, dir_name)
+            };
             (skill.skill_id.clone(), label)
         })
         .collect();
@@ -606,6 +626,55 @@ fn grouped_skill_options(
     }
 
     Ok(out)
+}
+
+/// Count distinct repo sources among the discovered skills. Skills with no repo
+/// metadata (single-source discovery) all share a single implicit source.
+fn distinct_repo_count(skills: &[SkillCandidate]) -> usize {
+    let mut ids: HashSet<&str> = HashSet::new();
+    for skill in skills {
+        ids.insert(skill.repo_id.as_deref().unwrap_or(""));
+    }
+    ids.len()
+}
+
+/// Build top-level preset options grouped by repo source. Each repo becomes a
+/// selectable preset (toggle selects all of its skills). Repo order follows
+/// first appearance in `skills` (callers pass them in repo-list order).
+fn repo_source_preset_options(skills: &[SkillCandidate]) -> Vec<SkillOption> {
+    let mut order: Vec<String> = Vec::new();
+    let mut display: HashMap<String, String> = HashMap::new();
+    let mut members: HashMap<String, Vec<String>> = HashMap::new();
+    for skill in skills {
+        let id = skill.repo_id.clone().unwrap_or_else(|| "".to_string());
+        let label = skill
+            .repo_name
+            .clone()
+            .or_else(|| skill.repo_id.clone())
+            .unwrap_or_else(|| "skills".to_string());
+        if !display.contains_key(&id) {
+            order.push(id.clone());
+            display.insert(id.clone(), label);
+        }
+        members.entry(id).or_default().push(skill.skill_id.clone());
+    }
+
+    let mut out = Vec::new();
+    for id in order {
+        let mut skill_ids = members.remove(&id).unwrap_or_default();
+        skill_ids.sort();
+        skill_ids.dedup();
+        if skill_ids.is_empty() {
+            continue;
+        }
+        let label = preset_display_label(&display[&id], skill_ids.len());
+        out.push(SkillOption::Preset(PresetOption {
+            name: display[&id].clone(),
+            skill_ids,
+            label,
+        }));
+    }
+    out
 }
 
 fn default_indexes_with_preset_state(
@@ -1045,10 +1114,14 @@ mod tests {
             SkillCandidate {
                 skill_id: "alpha".to_string(),
                 skill_dir: PathBuf::from("/tmp/alpha"),
+
+                ..Default::default()
             },
             SkillCandidate {
                 skill_id: "beta".to_string(),
                 skill_dir: PathBuf::from("/tmp/beta"),
+
+                ..Default::default()
             },
         ];
 
@@ -1110,10 +1183,14 @@ mod tests {
             SkillCandidate {
                 skill_id: "alpha".to_string(),
                 skill_dir: alpha_dir,
+
+                ..Default::default()
             },
             SkillCandidate {
                 skill_id: "beta".to_string(),
                 skill_dir: beta_dir,
+
+                ..Default::default()
             },
         ];
 
@@ -1384,10 +1461,14 @@ mod tests {
             SkillCandidate {
                 skill_id: "superpowers.brainstorming".to_string(),
                 skill_dir: PathBuf::from("/tmp/superpowers.brainstorming"),
+
+                ..Default::default()
             },
             SkillCandidate {
                 skill_id: "mermaid-expert".to_string(),
                 skill_dir: PathBuf::from("/tmp/mermaid-expert"),
+
+                ..Default::default()
             },
         ];
 
@@ -1437,6 +1518,8 @@ mod tests {
         let skills = vec![SkillCandidate {
             skill_id: "brainstorming".to_string(),
             skill_dir: PathBuf::from("/tmp/__submodules__/op7418.Humanizer-zh"),
+
+            ..Default::default()
         }];
         let catalog = SkillDirCatalog {
             dir_to_skill_id: HashMap::from([(
@@ -1501,10 +1584,14 @@ mod tests {
             SkillCandidate {
                 skill_id: "brainstorming".to_string(),
                 skill_dir: PathBuf::from("/tmp/superpowers.brainstorming"),
+
+                ..Default::default()
             },
             SkillCandidate {
                 skill_id: "mermaid-expert".to_string(),
                 skill_dir: PathBuf::from("/tmp/mermaid-expert"),
+
+                ..Default::default()
             },
         ];
         let catalog = SkillDirCatalog {
@@ -1557,10 +1644,14 @@ mod tests {
             SkillCandidate {
                 skill_id: "brainstorming".to_string(),
                 skill_dir: PathBuf::from("/tmp/superpowers.brainstorming"),
+
+                ..Default::default()
             },
             SkillCandidate {
                 skill_id: "mermaid-expert".to_string(),
                 skill_dir: PathBuf::from("/tmp/mermaid-expert"),
+
+                ..Default::default()
             },
         ];
         let catalog = SkillDirCatalog {
@@ -1632,10 +1723,14 @@ mod tests {
             SkillCandidate {
                 skill_id: "alpha".to_string(),
                 skill_dir: alpha_dir,
+
+                ..Default::default()
             },
             SkillCandidate {
                 skill_id: "beta".to_string(),
                 skill_dir: beta_dir,
+
+                ..Default::default()
             },
         ];
 
@@ -1696,10 +1791,14 @@ mod tests {
             SkillCandidate {
                 skill_id: "alpha".to_string(),
                 skill_dir: alpha_dir,
+
+                ..Default::default()
             },
             SkillCandidate {
                 skill_id: "beta".to_string(),
                 skill_dir: beta_dir,
+
+                ..Default::default()
             },
         ];
 
@@ -1733,5 +1832,138 @@ mod tests {
         let visible = visible_skills_for_target(&skills, target, &config);
         let visible_ids: Vec<String> = visible.iter().map(|skill| skill.skill_id.clone()).collect();
         assert_eq!(visible_ids, vec!["alpha".to_string(), "beta".to_string()]);
+    }
+
+    fn skill_with_repo(
+        skill_id: &str,
+        repo_id: Option<&str>,
+        repo_name: Option<&str>,
+    ) -> SkillCandidate {
+        SkillCandidate {
+            skill_id: skill_id.to_string(),
+            skill_dir: PathBuf::from(format!("/tmp/{skill_id}")),
+            repo_id: repo_id.map(str::to_string),
+            repo_name: repo_name.map(str::to_string),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_distinct_repo_count_single_source_is_one() {
+        // No repo metadata (single-source discovery) → one implicit source.
+        let skills = vec![
+            skill_with_repo("alpha", None, None),
+            skill_with_repo("beta", None, None),
+        ];
+        assert_eq!(distinct_repo_count(&skills), 1);
+    }
+
+    #[test]
+    fn test_distinct_repo_count_multi_source() {
+        let skills = vec![
+            skill_with_repo("alpha", Some("Team"), Some("Team")),
+            skill_with_repo("beta", Some("1"), None),
+        ];
+        assert_eq!(distinct_repo_count(&skills), 2);
+    }
+
+    #[test]
+    fn test_grouped_options_multi_repo_emits_repo_group_presets() {
+        let skills = vec![
+            skill_with_repo("alpha", Some("Team"), Some("Team")),
+            skill_with_repo("beta", Some("Team"), Some("Team")),
+            skill_with_repo("gamma", Some("1"), None),
+        ];
+        let catalog = SkillDirCatalog::default();
+        let options = grouped_options_for(&skills, &catalog, &HashMap::new());
+
+        // First options are the repo-group presets.
+        let preset_labels: Vec<String> = options
+            .iter()
+            .filter_map(|opt| match opt {
+                SkillOption::Preset(p) => Some(p.label.clone()),
+                SkillOption::Skill { .. } => None,
+            })
+            .collect();
+        assert!(
+            preset_labels.iter().any(|label| label == "Team (2 skills)"),
+            "expected Team repo group preset, got {preset_labels:?}"
+        );
+
+        // Multi-repo mode decorates skill rows with the repo source label.
+        let alpha_label = options.iter().find_map(|opt| match opt {
+            SkillOption::Skill { skill_id, label } if skill_id == "alpha" => Some(label.clone()),
+            _ => None,
+        });
+        assert_eq!(
+            alpha_label.as_deref(),
+            Some("alpha (alpha) [Team]"),
+            "multi-repo skill row should carry repo label"
+        );
+    }
+
+    #[test]
+    fn test_grouped_options_single_repo_no_repo_group_headers() {
+        // D4: single source → legacy directory-prefix grouping, no repo headers.
+        let skills = vec![
+            skill_with_repo("alpha", None, None),
+            skill_with_repo("beta", None, None),
+        ];
+        let catalog = SkillDirCatalog::default();
+        let options = grouped_options_for(&skills, &catalog, &HashMap::new());
+
+        // Skill rows do NOT carry the [repo] decoration in single-repo mode.
+        let alpha_label = options.iter().find_map(|opt| match opt {
+            SkillOption::Skill { skill_id, label } if skill_id == "alpha" => Some(label.clone()),
+            _ => None,
+        });
+        assert_eq!(alpha_label.as_deref(), Some("alpha (alpha)"));
+    }
+
+    #[test]
+    fn test_search_matches_repo_name_in_multi_repo_mode() {
+        // r126: `/` search must match the repo name / path short name. The
+        // tui_picker matches against preset & skill labels, so the repo-group
+        // preset label (which carries the repo name) and the decorated skill
+        // rows both make a repo-name query match. Here we assert the labels
+        // embed the repo name so `text_matches_query` can find them.
+        let skills = vec![
+            skill_with_repo("alpha", Some("TeamAlpha"), Some("TeamAlpha")),
+            skill_with_repo("beta", Some("1"), None),
+        ];
+        let catalog = SkillDirCatalog::default();
+        let options = grouped_options_for(&skills, &catalog, &HashMap::new());
+
+        // The repo-group preset label embeds the repo name "TeamAlpha".
+        let labels: Vec<String> = options
+            .iter()
+            .filter_map(|opt| match opt {
+                SkillOption::Preset(p) => Some(p.label.clone()),
+                SkillOption::Skill { label, .. } => Some(label.clone()),
+            })
+            .collect();
+        assert!(
+            labels
+                .iter()
+                .any(|label| label.to_lowercase().contains("teamalpha")),
+            "expected a label containing the repo name for search, got {labels:?}"
+        );
+    }
+
+    #[test]
+    fn test_dedupe_keeps_first_on_cross_repo_collision() {
+        // D2: cross-repo same skill_id → first in repo-list order wins, others
+        // emit a conflict warning via the existing duplicate_skill_id channel.
+        // `dedupe_skills` receives candidates in repo-list order (callers append
+        // repos in declared order), so the first occurrence is kept.
+        let skills = vec![
+            skill_with_repo("shared", Some("A"), Some("A")),
+            skill_with_repo("shared", Some("B"), Some("B")),
+        ];
+        let deduped = dedupe_skills(skills);
+        assert_eq!(deduped.len(), 1);
+        assert_eq!(deduped[0].skill_id, "shared");
+        // First in order (repo A) wins.
+        assert_eq!(deduped[0].repo_id.as_deref(), Some("A"));
     }
 }

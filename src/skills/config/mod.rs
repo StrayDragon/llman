@@ -1,7 +1,9 @@
 use crate::config::{ENV_CONFIG_DIR, resolve_config_dir};
 use crate::config_schema::{ConfigSchemaKind, validate_yaml_value};
 use crate::path_utils::validate_path_str;
-use crate::skills::catalog::types::{ConfigEntry, SkillsConfig, SkillsPaths, TargetMode};
+use crate::skills::catalog::types::{
+    ConfigEntry, RepoSource, SkillsConfig, SkillsPaths, TargetMode,
+};
 use crate::skills::shared::git::find_git_root;
 use anyhow::{Result, anyhow};
 use regex::Regex;
@@ -40,9 +42,17 @@ struct LlmanConfig {
     skills: Option<LlmanSkillsConfig>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 struct LlmanSkillsConfig {
     dir: Option<String>,
+    #[serde(default)]
+    repo: Vec<LlmanRepoEntry>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct LlmanRepoEntry {
+    name: Option<String>,
+    path: String,
 }
 
 fn default_true() -> bool {
@@ -55,10 +65,15 @@ impl SkillsPaths {
     }
 
     pub fn resolve_with_override(cli_override: Option<&Path>) -> Result<Self> {
-        let root = resolve_skills_root(cli_override)?;
+        let (repos, config_root) = resolve_skill_repos_and_root(cli_override)?;
+        // `root` mirrors the first repo's path for backward compatibility with
+        // single-source callers; `config_path` points at the first repo's
+        // config.toml (the legacy location).
+        let root = config_root;
         Ok(Self {
-            root: root.clone(),
             config_path: root.join(CONFIG_FILE),
+            root,
+            repos,
         })
     }
 
@@ -68,38 +83,105 @@ impl SkillsPaths {
     }
 }
 
-fn resolve_skills_root(cli_override: Option<&Path>) -> Result<PathBuf> {
-    if let Some(path) = cli_override {
-        return resolve_skills_root_from_cli(path);
-    }
-
-    if let Ok(env_skills_dir) = env::var(ENV_SKILLS_DIR) {
-        return resolve_skills_root_from_env(&env_skills_dir);
-    }
-
+/// Resolve the list of skill repo sources plus the legacy single `root` path.
+///
+/// Override semantics (D1): when `cli_override` or `LLMAN_SKILLS_DIR` is set,
+/// the entire repo list is replaced by a single-element list rooted at the
+/// override path — matching the legacy single-directory override behavior.
+///
+/// Otherwise the repo list is built from `skills.repo[]` (preferred) or the
+/// legacy `skills.dir` (auto-converted to a single repo). When both are present,
+/// `repo` wins and a deprecation warning is emitted for `dir`.
+fn resolve_skill_repos_and_root(cli_override: Option<&Path>) -> Result<(Vec<RepoSource>, PathBuf)> {
+    let env_skills_dir = env::var(ENV_SKILLS_DIR).ok();
     let config_dir = resolve_config_dir(None)?;
-    resolve_skills_root_with(None, None, &config_dir)
+    resolve_skill_repos_with(cli_override, env_skills_dir.as_deref(), &config_dir)
 }
 
-fn resolve_skills_root_with(
+/// Testable core of [`resolve_skill_repos_and_root`]: all inputs explicit so
+/// tests can exercise the override chain without touching process env.
+fn resolve_skill_repos_with(
     cli_override: Option<&Path>,
     env_skills_dir: Option<&str>,
     config_dir: &Path,
-) -> Result<PathBuf> {
+) -> Result<(Vec<RepoSource>, PathBuf)> {
+    // Override (CLI / env) → single-element repo list, full replacement (D1).
     if let Some(path) = cli_override {
-        return resolve_skills_root_from_cli(path);
+        let root = resolve_skills_root_from_cli(path)?;
+        return Ok((vec![RepoSource::from_index(0, None, root.clone())], root));
     }
-
     if let Some(env_skills_dir) = env_skills_dir {
-        return resolve_skills_root_from_env(env_skills_dir);
+        let root = resolve_skills_root_from_env(env_skills_dir)?;
+        return Ok((vec![RepoSource::from_index(0, None, root.clone())], root));
     }
 
     let global_config = config_dir.join(LLMAN_CONFIG_FILE);
-    if let Some(skills_root) = load_skills_root_from_config_path(&global_config, config_dir)? {
-        return Ok(skills_root);
+    let parsed = load_llman_skills_config(&global_config)?;
+
+    let repos = build_repos_from_config(parsed, config_dir)?;
+    let root = repos
+        .first()
+        .map(|repo| repo.path.clone())
+        .unwrap_or_else(|| config_dir.join(SKILLS_DIR));
+    Ok((repos, root))
+}
+
+/// Load and schema-validate the global llman config, returning just the
+/// `skills` section (None when the file is absent or has no skills section).
+fn load_llman_skills_config(path: &Path) -> Result<Option<LlmanSkillsConfig>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(path)
+        .map_err(|e| anyhow!(t!("skills.config.llman_read_failed", error = e)))?;
+    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
+        .map_err(|e| anyhow!(t!("skills.config.llman_parse_failed", error = e)))?;
+    if let Err(error) = validate_yaml_value(ConfigSchemaKind::Global, &yaml_value) {
+        return Err(anyhow!(t!(
+            "skills.config.llman_schema_invalid",
+            path = path.display(),
+            error = error
+        )));
+    }
+    let parsed: LlmanConfig = serde_yaml::from_value(yaml_value)
+        .map_err(|e| anyhow!(t!("skills.config.llman_parse_failed", error = e)))?;
+    Ok(parsed.skills)
+}
+
+/// Turn a parsed `skills` section into `Vec<RepoSource>`. `repo[]` is preferred
+/// (D2); legacy `dir` auto-converts to a single repo; when both are present,
+/// `repo` wins and a deprecation warning is printed for `dir`.
+fn build_repos_from_config(
+    skills: Option<LlmanSkillsConfig>,
+    config_dir: &Path,
+) -> Result<Vec<RepoSource>> {
+    let Some(skills) = skills else {
+        // No skills section: default single root (resolved by caller fallback).
+        return Ok(Vec::new());
+    };
+
+    if !skills.repo.is_empty() {
+        if skills.dir.is_some() {
+            eprintln!("{}", t!("skills.config.skills_dir_deprecated"));
+        }
+        return skills
+            .repo
+            .into_iter()
+            .enumerate()
+            .map(|(index, entry)| {
+                let path = resolve_skills_root_from_config(&entry.path, config_dir)?;
+                Ok(RepoSource::from_index(index, entry.name, path))
+            })
+            .collect();
     }
 
-    Ok(config_dir.join(SKILLS_DIR))
+    // Legacy single `dir` → single repo, behavior unchanged.
+    if let Some(dir) = skills.dir {
+        let path = resolve_skills_root_from_config(&dir, config_dir)?;
+        return Ok(vec![RepoSource::from_index(0, None, path)]);
+    }
+
+    Ok(Vec::new())
 }
 
 fn resolve_skills_root_from_cli(path: &Path) -> Result<PathBuf> {
@@ -125,33 +207,6 @@ fn resolve_skills_root_from_config(raw: &str, config_dir: &Path) -> Result<PathB
             env::var(key).ok()
         }
     })
-}
-
-fn load_skills_root_from_config_path(path: &Path, config_dir: &Path) -> Result<Option<PathBuf>> {
-    if !path.exists() {
-        return Ok(None);
-    }
-
-    let content = fs::read_to_string(path)
-        .map_err(|e| anyhow!(t!("skills.config.llman_read_failed", error = e)))?;
-    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
-        .map_err(|e| anyhow!(t!("skills.config.llman_parse_failed", error = e)))?;
-    if let Err(error) = validate_yaml_value(ConfigSchemaKind::Global, &yaml_value) {
-        return Err(anyhow!(t!(
-            "skills.config.llman_schema_invalid",
-            path = path.display(),
-            error = error
-        )));
-    }
-    let parsed: LlmanConfig = serde_yaml::from_value(yaml_value)
-        .map_err(|e| anyhow!(t!("skills.config.llman_parse_failed", error = e)))?;
-    if let Some(skills) = parsed.skills
-        && let Some(dir) = skills.dir
-    {
-        return Ok(Some(resolve_skills_root_from_config(&dir, config_dir)?));
-    }
-
-    Ok(None)
 }
 
 pub fn load_config(paths: &SkillsPaths) -> Result<SkillsConfig> {
@@ -328,12 +383,16 @@ mod tests {
         let temp = TempDir::new().expect("temp dir");
         let config_dir = temp.path().join("config");
         fs::create_dir_all(&config_dir).expect("create config dir");
-        let root = resolve_skills_root_with(None, None, &config_dir).expect("paths");
+        let (repos, root) = resolve_skill_repos_with(None, None, &config_dir).expect("paths");
+        assert_eq!(root, config_dir.join("skills"));
+        // Default fallback produces an empty repo list; the root mirrors the
+        // default skills dir.
+        assert!(repos.is_empty());
         let paths = SkillsPaths {
             root: root.clone(),
             config_path: root.join(CONFIG_FILE),
+            repos,
         };
-        assert_eq!(paths.root, config_dir.join("skills"));
         let config = load_config(&paths).expect("config");
         assert!(!config.targets.is_empty());
     }
@@ -345,13 +404,16 @@ mod tests {
         let env_root = temp.path().join("env-root");
         let config_dir = temp.path().join("config");
 
-        let resolved = resolve_skills_root_with(
+        let (repos, root) = resolve_skill_repos_with(
             Some(cli_root.as_path()),
             Some(env_root.to_str().unwrap()),
             &config_dir,
         )
         .expect("paths");
-        assert_eq!(resolved, cli_root);
+        assert_eq!(root, cli_root);
+        // D1: override → single-element repo list full replacement.
+        assert_eq!(repos.len(), 1);
+        assert_eq!(repos[0].path, cli_root);
     }
 
     #[test]
@@ -370,14 +432,16 @@ mod tests {
             ),
         )
         .expect("write global config");
-        let resolved =
-            resolve_skills_root_with(None, Some(env_root.to_str().unwrap()), &config_dir)
+        let (repos, root) =
+            resolve_skill_repos_with(None, Some(env_root.to_str().unwrap()), &config_dir)
                 .expect("paths");
-        assert_eq!(resolved, env_root);
+        assert_eq!(root, env_root);
+        assert_eq!(repos.len(), 1);
+        assert_eq!(repos[0].path, env_root);
     }
 
     #[test]
-    fn test_resolve_skills_root_local_config_ignored() {
+    fn test_resolve_skills_root_legacy_dir_single_repo() {
         let temp = TempDir::new().expect("temp dir");
         let global_root = temp.path().join("global-root");
         let config_dir = temp.path().join("config");
@@ -391,8 +455,12 @@ mod tests {
             ),
         )
         .expect("write global config");
-        let resolved = resolve_skills_root_with(None, None, &config_dir).expect("paths");
-        assert_eq!(resolved, global_root);
+        let (repos, root) = resolve_skill_repos_with(None, None, &config_dir).expect("paths");
+        assert_eq!(root, global_root);
+        // Legacy `dir` auto-converts to a single repo (backward compatible).
+        assert_eq!(repos.len(), 1);
+        assert_eq!(repos[0].path, global_root);
+        assert!(repos[0].name.is_none());
     }
 
     #[test]
@@ -407,8 +475,10 @@ mod tests {
         )
         .expect("write global config");
 
-        let resolved = resolve_skills_root_with(None, None, &config_dir).expect("paths");
-        assert_eq!(resolved, config_dir.join("skills"));
+        let (repos, root) = resolve_skill_repos_with(None, None, &config_dir).expect("paths");
+        assert_eq!(root, config_dir.join("skills"));
+        assert_eq!(repos.len(), 1);
+        assert_eq!(repos[0].path, config_dir.join("skills"));
     }
 
     #[test]
@@ -425,8 +495,8 @@ mod tests {
             ),
         )
         .expect("write global config");
-        let resolved = resolve_skills_root_with(None, None, &config_dir).expect("paths");
-        assert_eq!(resolved, global_root);
+        let (_repos, root) = resolve_skill_repos_with(None, None, &config_dir).expect("paths");
+        assert_eq!(root, global_root);
     }
 
     #[test]
@@ -442,6 +512,8 @@ mod tests {
         let paths = SkillsPaths {
             root: skills_root.clone(),
             config_path: skills_root.join("config.toml"),
+
+            repos: Vec::new(),
         };
         let err = load_config(&paths).expect_err("should reject v1");
         assert!(
@@ -463,6 +535,8 @@ mod tests {
         let paths = SkillsPaths {
             root: skills_root.clone(),
             config_path: skills_root.join("config.toml"),
+
+            repos: Vec::new(),
         };
         let err = load_config(&paths).expect_err("should reject sources");
         assert!(err.to_string().contains("[[source]]"));
@@ -481,6 +555,8 @@ mod tests {
         let paths = SkillsPaths {
             root: skills_root.clone(),
             config_path: skills_root.join("config.toml"),
+
+            repos: Vec::new(),
         };
         let config = load_config(&paths).expect("config");
         assert_eq!(config.targets.len(), 1);
@@ -536,5 +612,106 @@ mod tests {
             .find(|target| target.id == "agents_project")
             .expect("agents_project target");
         assert_eq!(agents_project.mode, TargetMode::Skip);
+    }
+
+    fn write_global_config(config_dir: &Path, body: &str) {
+        fs::create_dir_all(config_dir).expect("create config dir");
+        fs::write(config_dir.join(LLMAN_CONFIG_FILE), body).expect("write global config");
+    }
+
+    #[test]
+    fn test_resolve_multi_repo_list() {
+        let temp = TempDir::new().expect("temp dir");
+        let repo_a = temp.path().join("repo-a");
+        let repo_b = temp.path().join("repo-b");
+        let config_dir = temp.path().join("config");
+        write_global_config(
+            &config_dir,
+            &format!(
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  repo:\n    - name: Team\n      path: {a}\n    - path: {b}\n",
+                a = repo_a.display(),
+                b = repo_b.display()
+            ),
+        );
+
+        let (repos, root) = resolve_skill_repos_with(None, None, &config_dir).expect("paths");
+        assert_eq!(repos.len(), 2);
+        // First repo keeps its declared name; id mirrors the name.
+        assert_eq!(repos[0].name.as_deref(), Some("Team"));
+        assert_eq!(repos[0].id, "Team");
+        assert_eq!(repos[0].path, repo_a);
+        // Second repo has no name → id falls back to positional index string.
+        assert!(repos[1].name.is_none());
+        assert_eq!(repos[1].id, "1");
+        assert_eq!(repos[1].path, repo_b);
+        // root mirrors the first repo (backward compatibility).
+        assert_eq!(root, repo_a);
+    }
+
+    #[test]
+    fn test_repo_takes_precedence_over_dir() {
+        let temp = TempDir::new().expect("temp dir");
+        let dir_root = temp.path().join("dir-root");
+        let repo_root = temp.path().join("repo-root");
+        let config_dir = temp.path().join("config");
+        write_global_config(
+            &config_dir,
+            &format!(
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  dir: {d}\n  repo:\n    - path: {r}\n",
+                d = dir_root.display(),
+                r = repo_root.display()
+            ),
+        );
+
+        let (repos, root) = resolve_skill_repos_with(None, None, &config_dir).expect("paths");
+        // repo wins over dir.
+        assert_eq!(repos.len(), 1);
+        assert_eq!(repos[0].path, repo_root);
+        assert_eq!(root, repo_root);
+        assert_ne!(root, dir_root);
+    }
+
+    #[test]
+    fn test_name_fallback_uses_index_when_absent() {
+        let temp = TempDir::new().expect("temp dir");
+        let repo_root = temp.path().join("solo");
+        let config_dir = temp.path().join("config");
+        write_global_config(
+            &config_dir,
+            &format!(
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  repo:\n    - path: {r}\n",
+                r = repo_root.display()
+            ),
+        );
+
+        let (repos, _root) = resolve_skill_repos_with(None, None, &config_dir).expect("paths");
+        assert_eq!(repos.len(), 1);
+        assert!(repos[0].name.is_none());
+        assert_eq!(repos[0].id, "0");
+    }
+
+    #[test]
+    fn test_override_full_replacement_over_multi_repo() {
+        let temp = TempDir::new().expect("temp dir");
+        let repo_a = temp.path().join("repo-a");
+        let repo_b = temp.path().join("repo-b");
+        let override_root = temp.path().join("override");
+        let config_dir = temp.path().join("config");
+        write_global_config(
+            &config_dir,
+            &format!(
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  repo:\n    - path: {a}\n    - path: {b}\n",
+                a = repo_a.display(),
+                b = repo_b.display()
+            ),
+        );
+
+        // CLI override (D1): whole multi-repo list replaced by single override.
+        let (repos, root) =
+            resolve_skill_repos_with(Some(override_root.as_path()), None, &config_dir)
+                .expect("paths");
+        assert_eq!(repos.len(), 1);
+        assert_eq!(repos[0].path, override_root);
+        assert_eq!(root, override_root);
     }
 }

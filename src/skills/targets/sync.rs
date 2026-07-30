@@ -930,6 +930,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "claude_user".to_string(),
@@ -966,6 +968,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "claude_user".to_string(),
@@ -1014,6 +1018,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "claude_user".to_string(),
@@ -1063,6 +1069,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "claude_user".to_string(),
@@ -1098,6 +1106,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "claude_user".to_string(),
@@ -1146,6 +1156,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "claude_project".to_string(),
@@ -1188,6 +1200,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "claude_user".to_string(),
@@ -1238,6 +1252,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "claude_user".to_string(),
@@ -1280,6 +1296,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "repo".to_string(),
@@ -1326,6 +1344,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "repo".to_string(),
@@ -1372,6 +1392,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "repo".to_string(),
@@ -1411,6 +1433,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "claude_project".to_string(),
@@ -1466,6 +1490,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "repo".to_string(),
@@ -1504,6 +1530,8 @@ mod tests {
         let skill = SkillCandidate {
             skill_id: "skill".to_string(),
             skill_dir: skill_dir.clone(),
+
+            ..Default::default()
         };
         let target = ConfigEntry {
             id: "repo".to_string(),

@@ -41,6 +41,8 @@ fn test_copy_mode_does_not_write_vendored_metadata_file() {
     let skill = SkillCandidate {
         skill_id: "skill".to_string(),
         skill_dir: skill_dir.clone(),
+
+        ..Default::default()
     };
     let target = ConfigEntry {
         id: "project".to_string(),
