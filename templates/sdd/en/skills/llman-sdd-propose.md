@@ -38,6 +38,7 @@ flowchart LR
 {% else %}
 - **If change already exists**: STOP and suggest `llman-sdd-apply`; to fill missing artifacts, edit `llmanspec/changes/<id>/` directly (or enable `extra_skills: [llman-sdd-continue]`).
 {% endif %}
+- **Frontmatter has a fixed schema (r124)**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted. `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR; lifecycle stage is inferred (r93, query via `llman sdd status`/`show`), never stored in frontmatter. Do not re-declare frontmatter fields in the prose body; the body H1 is a human-readable title, not a repeat of the change id.
 
 ## Quick-capture routing
 

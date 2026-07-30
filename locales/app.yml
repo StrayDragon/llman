@@ -1650,6 +1650,8 @@ sdd:
       en: "Change is missing proposal.md."
     proposal_frontmatter_invalid_yaml:
       en: "proposal.md frontmatter YAML parse error: %{error}"
+    proposal_frontmatter_unknown_field:
+      en: "proposal.md frontmatter has unknown field '%{field}'; allowed fields are: %{allowed}. Stage is inferred from on-disk artifacts (run `llman sdd status`); do not store lifecycle state in frontmatter."
     proposal_depends_on_unknown:
       en: "proposal.md depends_on references unknown change: %{id}"
     proposal_depends_on_format:

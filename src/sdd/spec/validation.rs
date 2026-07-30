@@ -388,6 +388,62 @@ mod tests {
     }
 
     #[test]
+    fn proposal_frontmatter_unknown_field_status_reports_error() {
+        // r124: `status` is a spurious field that crept in via example imitation;
+        // the lifecycle stage is inferred (r93), not stored in frontmatter.
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[(
+                "proposal.md",
+                "---\nstatus: purpose-draft\ndepends_on: []\n---\n## Why\nTest",
+            )],
+        );
+        let (issues, _) = check_proposal_frontmatter(&change_dir, &["x".to_string()], &[], false);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].level, ValidationLevel::Error);
+        assert!(issues[0].message.contains("status"));
+        assert!(issues[0].message.contains("depends_on"));
+    }
+
+    #[test]
+    fn proposal_frontmatter_unknown_field_title_reports_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[(
+                "proposal.md",
+                "---\ntitle: Some Title\npriority: 5\nauthor: agent\n---\n## Why\nTest",
+            )],
+        );
+        let (issues, _) = check_proposal_frontmatter(&change_dir, &["x".to_string()], &[], false);
+        // three unknown fields: title, priority, author
+        assert_eq!(issues.len(), 3);
+        assert!(issues.iter().all(|i| i.level == ValidationLevel::Error));
+        assert!(issues.iter().any(|i| i.message.contains("title")));
+        assert!(issues.iter().any(|i| i.message.contains("priority")));
+        assert!(issues.iter().any(|i| i.message.contains("author")));
+    }
+
+    #[test]
+    fn proposal_frontmatter_allowed_fields_no_unknown_error() {
+        // All recognized keys (incl. camelCase attach/checkpoint aliases) are accepted.
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[(
+                "proposal.md",
+                "---\ndepends_on: []\nblocks: []\nbranch: sdd/x\nbaseSha: abc123\ncheckpointed: true\ncheckpointSha: def456\n---\n## Why\nTest",
+            )],
+        );
+        let (issues, _) = check_proposal_frontmatter(&change_dir, &["x".to_string()], &[], false);
+        assert!(
+            issues.is_empty(),
+            "expected no issues for allowed fields, got: {issues:?}"
+        );
+    }
+
+    #[test]
     fn tasks_missing_is_warning() {
         let tmp = tempfile::tempdir().unwrap();
         let change_dir = setup_change_dir(&tmp, &[("proposal.md", "## Why\nTest")]);
@@ -1691,6 +1747,22 @@ pub fn check_proposal_exists(change_dir: &Path) -> Vec<ValidationIssue> {
     }]
 }
 
+/// Allowed top-level keys in a change `proposal.md` frontmatter (r124). Any
+/// other key (e.g. `status`, `title`, `priority`, `author`) is rejected as an
+/// ERROR by [`check_proposal_frontmatter`] to keep frontmatter the single
+/// source of truth for change metadata. `baseSha` / `checkpointSha` are
+/// accepted camelCase aliases of the snake_case attach/checkpoint bindings.
+const PROPOSAL_FRONTMATTER_ALLOWED_FIELDS: &[&str] = &[
+    "depends_on",
+    "blocks",
+    "branch",
+    "base_sha",
+    "baseSha",
+    "checkpointed",
+    "checkpoint_sha",
+    "checkpointSha",
+];
+
 pub fn check_proposal_frontmatter(
     change_dir: &Path,
     all_change_ids: &[String],
@@ -1739,6 +1811,29 @@ pub fn check_proposal_frontmatter(
     let checkpointed = parse_yaml_optional_bool(&parsed, "checkpointed");
     let checkpoint_sha = parse_yaml_optional_string(&parsed, "checkpoint_sha")
         .or_else(|| parse_yaml_optional_string(&parsed, "checkpointSha"));
+
+    // r124: reject unknown frontmatter fields (e.g. `status`, `title`,
+    // `priority`, `author`). The allowed set is exactly the keys this parser
+    // already recognizes; anything else is a spurious field that crept in via
+    // example imitation and would undermine frontmatter as the metadata SSOT.
+    if let Some(mapping) = parsed.as_mapping() {
+        for key in mapping.keys() {
+            if let serde_yaml::Value::String(name) = key
+                && !PROPOSAL_FRONTMATTER_ALLOWED_FIELDS.contains(&name.as_str())
+            {
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Error,
+                    path: format!("proposal.md/frontmatter.{name}"),
+                    message: t!(
+                        "sdd.validate.proposal_frontmatter_unknown_field",
+                        field = name,
+                        allowed = PROPOSAL_FRONTMATTER_ALLOWED_FIELDS.join(", ")
+                    )
+                    .to_string(),
+                });
+            }
+        }
+    }
 
     for id in &depends_on {
         if active_ids.contains(id.as_str()) {

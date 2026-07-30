@@ -8,21 +8,27 @@ rules, context, or conventions that AI agents should follow.
 `llmanspec/changes/<id>/proposal.md` 的 frontmatter（YAML）是**变更元信息的唯一权威**。
 正文 MUST NOT 重复声明已在 frontmatter 中声明的字段，否则 SSOT 失效。
 
-### 最小 schema
+### 合法字段集（r124 强制）
 
-| 字段 | 必填 | 说明 |
-|------|------|------|
-| `depends_on` | 是（CLI 骨架默认 `[]`） | 依赖的其他 change id 列表 |
-| `status` | 否 | 生命周期 / 阶段标记（如 `purpose-draft`）。**积极变动的处理元信息**，有即有意义 |
+`llman sdd validate` 对 frontmatter 做未知字段检测：只接受下表字段，其余（如 `status`、`title`、`priority`、`author`）报 **ERROR**。
 
-> 其他字段（`title`、`priority`、`author` 等）不强制。除非有明确消费方，不要发明字段。
+| 字段 | 必填 | 谁写入 | 说明 |
+|------|------|--------|------|
+| `depends_on` | 是（CLI 骨架默认 `[]`） | agent | 依赖的其他 change id 列表 |
+| `blocks` | 否 | agent | 反向依赖（阻塞哪些 change） |
+| `branch` | 否 | **CLI**（`change start`/`attach`） | attach binding 的 feature 分支 |
+| `base_sha`（或 `baseSha`） | 否 | **CLI** | attach binding 的 base SHA |
+| `checkpointed` | 否 | **CLI**（`checkpoint`） | 是否已 checkpoint |
+| `checkpoint_sha`（或 `checkpointSha`） | 否 | **CLI** | checkpoint 的 SHA |
+
+> **生命周期阶段不是 frontmatter 字段**：它由 `determine_stage`（r93）实时从磁盘 artifacts 推断（Draft/Designed/Full），用 `llman sdd status` / `llman sdd show` 查看。`status` 字段已废弃——不要再写进 frontmatter，CLI 会拒绝。
 
 ### 正文写作约束
 
-- **MUST NOT** 在正文复读 frontmatter 字段：例如已写 `status: purpose-draft`，正文就不要再贴 `> 草案（purpose-draft）` 横幅或 `## Status: purpose-draft` 段。
+- **MUST NOT** 在正文复读 frontmatter 字段：frontmatter 已声明 `branch`/`depends_on` 等，正文就不要再贴同样信息的横幅或 `## Status` 段。
 - **MUST NOT** 把 `change_id` 当作 H1 重复（目录名已是 id）。正文 H1 用人类可读标题或省略。
 - 正文横幅留给**非元信息**：如「本草案不实现」「前置 change 是 X」「与 Y 案的区别」等叙事说明。
-- 需要表达状态变化时，**改 frontmatter 的 `status` 字段**，不要在正文另起 status 段。
+- 生命周期阶段用 `llman sdd status` / `llman sdd show` 查看推断的 stage（r93），**不要**在正文写 status 段，也**不要**在 frontmatter 写 `status` 字段（已被 CLI 拒绝，见 r124）。
 
 ## Project Context
 
