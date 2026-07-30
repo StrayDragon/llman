@@ -58,8 +58,10 @@ flowchart LR
   ```bash
   llman sdd show <id> --json --type change
   ```
-  - `draft`: change not ready to implement → STOP, suggest using `llman-sdd-propose` to grow to Designed, then `llman sdd change start <id>`. If proposal+design+tasks exist but stage is still `draft`, the change is **not started/attached** — run `change start` or `change attach` on a non-default feature branch (do NOT add `changes/<id>/specs/`).
-  - `designed` / `full`: proceed. Under `full`, attach binding + complete artifacts are present; `changes/<id>/specs/` is expected to be **absent** — do not treat that as missing.
+  - `draft`: change not ready to implement → STOP, suggest using `llman-sdd-propose` to grow to Designed, then `llman sdd change start <id>`. If proposal+design+tasks exist but stage is still `draft`, the change is **not started/attached** — run `change start` on a clean default branch, or create a branch then `change attach` (do NOT add `changes/<id>/specs/`).
+  - `designed`: planning shell only, no binding → STOP; run `change start` / `attach` first.
+  - `full` but `readyToImplement=false` (usually `specsLanded=false` and not `skipSpecsLanding`) → STOP: edit `llmanspec/specs/**` on the **bound branch** and commit (Specs landing); **do not** re-run `change start`. Follow `llman-sdd-propose` Specs landing steps. If specs edits on the branch were lost, checkout/recreate the bound branch and `attach --force` if needed.
+  - `readyToImplement=true`: proceed. `changes/<id>/specs/` is expected to be **absent** — do not treat that as missing.
 - Use `llman sdd context --task "<goal from proposal>" --paths "<scope from specs>"` to get relevant specs.
   - If context is unavailable, run `llman sdd index rebuild` and retry.
 

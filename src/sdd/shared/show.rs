@@ -5,7 +5,7 @@ use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
 use crate::sdd::spec::parser::{Requirement, parse_change, parse_spec};
-use crate::sdd::spec::validation::{ChangeStage, determine_stage};
+use crate::sdd::spec::validation::determine_stage;
 use anyhow::{Result, anyhow};
 use inquire::Select;
 use std::fmt;
@@ -221,7 +221,8 @@ fn show_change(
         }
         let stage = determine_stage(&change_dir);
         let artifacts = list_change_artifacts(&change_dir);
-        let ready_to_implement = stage == ChangeStage::Full;
+        let landing = crate::sdd::change::specs_landing::evaluate_specs_landing(root, &change_dir);
+        let ready_to_implement = landing.ready_to_implement;
         // Unified Git-native flow: always surface the attach binding (no longer
         // BDD-on only). stage=full comes from Git-native attach.
         let attached = crate::sdd::spec::validation::has_attach_binding(&change_dir);
@@ -231,6 +232,8 @@ fn show_change(
             "stage": stage.as_str(),
             "artifacts": artifacts,
             "readyToImplement": ready_to_implement,
+            "specsLanded": landing.specs_landed,
+            "skipSpecsLanding": landing.skip_specs_landing,
             "attached": attached,
             "deltaCount": deltas.len(),
             "deltas": deltas,

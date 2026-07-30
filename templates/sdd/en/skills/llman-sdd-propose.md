@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-propose"
-description: "Create an llman SDD change proposal with planning artifacts (proposal/tasks; edit live specs/features on a feature branch and `change start`). Use for MUST/SHALL behavioral contract changes."
+description: "Create an llman SDD change proposal with planning artifacts (proposal/tasks; `change start`/`attach` first, then edit live specs/features on the bound branch). Use for MUST/SHALL behavioral contract changes."
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
@@ -10,7 +10,7 @@ metadata:
 
 # LLMAN SDD Propose
 
-Create a new change with planning artifacts (proposal + tasks; design optional), edit live `spec.toon` / `*.feature` on a feature branch, `change start` (or `attach`), validate, and suggest next actions.
+Create a new change with planning artifacts (proposal + tasks; design optional), **first** `change start` (or `attach`) for Branch binding, **then** edit live `spec.toon` / `*.feature` on the bound branch (Specs landing), validate, and suggest next actions.
 
 ## Pipeline Position
 
@@ -79,7 +79,9 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
    - `design.md` only when tradeoffs/migrations matter
    - **Confirm seams before writing tasks.md**: list the seams to be tested and confirm with the user. A seam = the public boundary driven by `*.feature` GWT steps (CLI subprocess or public interface) — MUST reuse existing harness seams, MUST NOT invent seams detached from `.feature`. Without `.feature`, seam = the CLI subcommand or public function boundary under test.
    - `tasks.md`: split into **vertical slices** (each task cuts a narrow but complete path through schema→API→UI→tests, independently verifiable), with `[blocked-by: <task-id>]` dependency markers. **Wide-refactor exception** (one mechanical change sweeping the codebase, single edit breaks many call sites): sequence as expand-contract (add new beside old → migrate call sites in batches → delete old), don't force into a vertical slice.
-   - Edit live `llmanspec/specs/<capability>/spec.toon` (+ `*.feature` when `bdd:` is configured) on a non-default feature branch — then `llman sdd change start <change-id>` (recommended) or `change attach <change-id>` to reach Full stage.
+   - **First** `llman sdd change start <change-id>` (recommended; clean tree on the default branch) or manually create a branch then `change attach <change-id>` to reach Full (bound).
+   - **Then** edit live `llmanspec/specs/<capability>/spec.toon` (+ `*.feature` when `bdd:` is configured) on the bound non-default branch and commit (Specs landing). **Do not** edit live specs before start; **do not** commit live specs to the default branch just to satisfy the clean-tree gate. If already attached, do not re-run `start` (recover lost specs by checkout/recreate + `attach --force` if needed).
+   - For changes with no live contract edits, set frontmatter `skip_specs_landing: true`. Enter apply only when `llman sdd show <id> --json` has `readyToImplement=true`.
 
 ### 4) Validate:
    ```bash
@@ -106,7 +108,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
   | Non-executable (doc-only) | `feature: false` + GWT ok | n/a (do not place) |
 
   Key point: under Partitioned SSOT, do **not** write `feature: true` rows in toon at all; requirement statements live in toon, executable examples live in `.feature` linked back via `@req:<req_id>`.
-- Change shell: `llman sdd change new <change-id>` → fill proposal/design/tasks → edit live specs on the branch → `llman sdd change start <change-id>` (or `change attach`).
+- Change shell: `llman sdd change new <change-id>` → fill proposal/design/tasks → `llman sdd change start <change-id>` (or `change attach`) → **then** edit live specs on the bound branch and commit (Specs landing).
 - Do **not** use `change delta` / solidify / `*.feature.delta.toon`; if an active `*.feature.delta.toon` already exists, migrate first.
 
 ### 5) Summarize and suggest next step:

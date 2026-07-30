@@ -1370,8 +1370,8 @@ fn test_sdd_list_shows_stage_column() {
     assert_eq!(stage, "draft", "JSON output should contain stage field");
 }
 
-/// A full change (proposal + specs + design + tasks) MUST report
-/// `stage: full` and `readyToImplement: true` (sdd-workflow r46).
+/// A full change with attach binding MUST report `stage: full`. Without a live
+/// specs diff (or `skip_specs_landing`), `readyToImplement` stays false.
 #[test]
 fn test_sdd_show_change_full_stage_ready_to_implement() {
     let env = TestEnvironment::new();
@@ -1389,7 +1389,7 @@ fn test_sdd_show_change_full_stage_ready_to_implement() {
     fs::create_dir_all(&change_dir).expect("create change dir");
     fs::write(
         change_dir.join("proposal.md"),
-        "---\nbranch: feat/x\nbase_sha: abc123\n---\n# Proposal\n\n## Why\nFull change.\n\n## What Changes\n- Add behavior.\n",
+        "---\nbranch: feat/x\nbase_sha: abc123\nskip_specs_landing: true\n---\n# Proposal\n\n## Why\nFull change.\n\n## What Changes\n- Add behavior.\n",
     )
     .expect("write proposal");
     fs::write(change_dir.join("design.md"), "# Design\nTrivial.\n").expect("write design");
@@ -1411,7 +1411,9 @@ fn test_sdd_show_change_full_stage_ready_to_implement() {
     assert_success(&show_output);
     let show_json: Value = serde_json::from_slice(&show_output.stdout).expect("show change json");
     assert_eq!(show_json["stage"], "full");
+    assert_eq!(show_json["skipSpecsLanding"], true);
     assert_eq!(show_json["readyToImplement"], true);
+    assert_eq!(show_json["specsLanded"], false);
 }
 
 /// A draft change (proposal-only) under non-strict validate MUST surface the

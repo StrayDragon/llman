@@ -57,6 +57,12 @@ struct SingleChangeJson {
     total_tasks: usize,
     #[serde(rename = "nextAction")]
     next_action: String,
+    #[serde(rename = "specsLanded")]
+    specs_landed: bool,
+    #[serde(rename = "skipSpecsLanding")]
+    skip_specs_landing: bool,
+    #[serde(rename = "readyToImplement")]
+    ready_to_implement: bool,
     /// r112: true when the target was resolved via a prefix match.
     #[serde(rename = "matchedViaPrefix")]
     matched_via_prefix: bool,
@@ -73,6 +79,9 @@ struct ChangeInfo {
     tasks_done: usize,
     tasks_total: usize,
     priority: usize, // 0 = no prefix, otherwise parsed from c<N>-
+    specs_landed: bool,
+    skip_specs_landing: bool,
+    ready_to_implement: bool,
 }
 
 fn extract_priority(dir_name: &str) -> usize {
@@ -100,6 +109,7 @@ fn collect_active_changes(root: &Path) -> Vec<ChangeInfo> {
         let change_dir = changes_dir.join(&name);
         let stage = determine_stage(&change_dir);
         let (done, total) = parse_task_counts(&change_dir);
+        let landing = crate::sdd::change::specs_landing::evaluate_specs_landing(root, &change_dir);
         result.push(ChangeInfo {
             dir_name: name.clone(),
             name: name.clone(),
@@ -108,6 +118,9 @@ fn collect_active_changes(root: &Path) -> Vec<ChangeInfo> {
             tasks_done: done,
             tasks_total: total,
             priority: extract_priority(&name),
+            specs_landed: landing.specs_landed,
+            skip_specs_landing: landing.skip_specs_landing,
+            ready_to_implement: landing.ready_to_implement,
         });
     }
 
@@ -150,6 +163,9 @@ fn collect_archived_changes(root: &Path) -> Vec<ChangeInfo> {
             tasks_done: done,
             tasks_total: total,
             priority,
+            specs_landed: false,
+            skip_specs_landing: false,
+            ready_to_implement: false,
         });
     }
 
@@ -463,7 +479,9 @@ fn derive_next_action(ci: &ChangeInfo) -> String {
         ChangeStage::Draft => "propose".to_string(),
         ChangeStage::Designed => "start".to_string(),
         ChangeStage::Full => {
-            if ci.tasks_done < ci.tasks_total {
+            if !ci.ready_to_implement {
+                "land-specs".to_string()
+            } else if ci.tasks_done < ci.tasks_total {
                 format!("impl task {}", ci.tasks_done + 1)
             } else {
                 "archive".to_string()
@@ -565,6 +583,9 @@ fn json_single_change(ci: &ChangeInfo, via_prefix: bool) -> Result<()> {
             completed_tasks: ci.tasks_done,
             total_tasks: ci.tasks_total,
             next_action: next,
+            specs_landed: ci.specs_landed,
+            skip_specs_landing: ci.skip_specs_landing,
+            ready_to_implement: ci.ready_to_implement,
             matched_via_prefix: via_prefix,
         };
         println!("{}", serde_json::to_string_pretty(&out)?);

@@ -58,8 +58,10 @@ flowchart LR
   ```bash
   llman sdd show <id> --json --type change
   ```
-  - `draft`：变更尚未准备好实现 → STOP，提示先用 `llman-sdd-propose` 完善到 Designed，再 `llman sdd change start <id>`。若已有 proposal+design+tasks 仍是 `draft`，说明变更**未 start/attach** —— 在非默认 feature 分支上运行 `change start` 或 `change attach`（不要新增 `changes/<id>/specs/`）。
-  - `designed` / `full`：通过，继续。`full` 表示 attach 绑定 + 工件齐全；`changes/<id>/specs/` 预期为**不存在**，请勿视为缺失。
+  - `draft`：变更尚未准备好实现 → STOP，提示先用 `llman-sdd-propose` 完善到 Designed，再 `llman sdd change start <id>`。若已有 proposal+design+tasks 仍是 `draft`，说明变更**未 start/attach** —— 在默认分支干净树上运行 `change start`，或手动建分支后 `change attach`（不要新增 `changes/<id>/specs/`）。
+  - `designed`：已有规划壳但未 binding → STOP，先 `change start` / `attach`。
+  - `full` 但 `readyToImplement=false`（通常 `specsLanded=false` 且未 `skipSpecsLanding`）→ STOP：在**绑定分支**编辑 `llmanspec/specs/**` 并 commit 完成 Specs landing；**不要**再跑 `change start`。提示使用 `llman-sdd-propose` 的 Specs landing 步骤。丢失分支上的 specs 改动时 checkout/重建绑定分支，必要时 `attach --force`。
+  - `readyToImplement=true`：通过，继续。`changes/<id>/specs/` 预期为**不存在**，请勿视为缺失。
 - 使用 `llman sdd context --task "<proposal 中的目标>" --paths "<specs 中的 scope>"` 获取相关 specs。
   - 若 context 不可用，运行 `llman sdd index rebuild` 后重试。
 

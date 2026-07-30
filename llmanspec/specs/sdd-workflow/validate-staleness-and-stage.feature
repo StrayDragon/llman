@@ -79,8 +79,9 @@
     那么 退出码为零
     而且 stdout 为合法 JSON
     而且 stdout 的 JSON 键 stage 为 "full"
-    而且 stdout 的 JSON 键 readyToImplement 为 "true"
     而且 stdout 的 JSON 键 attached 为 "true"
+    而且 stdout 的 JSON 键 readyToImplement 为 "false"
+    而且 stdout 的 JSON 键 specsLanded 为 "false"
 
   @executable @req:r93
   场景: unattached-designed-stays-not-full
@@ -100,4 +101,17 @@
     那么 退出码为零
     而且 stdout 为合法 JSON
     而且 stdout 的 JSON 键 stage 为 "full"
+    而且 stdout 的 JSON 键 readyToImplement 为 "false"
+    而且 stdout 的 JSON 键 specsLanded 为 "false"
+
+  @executable @req:r1
+  场景: attached-with-skip-specs-landing-is-ready
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 变更 r1-skip 含 proposal design tasks 且 attach 状态为 "skip"
+    当 在非交互终端运行 llman sdd show r1-skip --type change --output json
+    那么 退出码为零
+    而且 stdout 为合法 JSON
+    而且 stdout 的 JSON 键 stage 为 "full"
+    而且 stdout 的 JSON 键 skipSpecsLanding 为 "true"
     而且 stdout 的 JSON 键 readyToImplement 为 "true"
+    而且 stdout 的 JSON 键 specsLanded 为 "false"

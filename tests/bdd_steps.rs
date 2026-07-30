@@ -578,12 +578,18 @@ fn given_change_with_artifacts_and_attach(change: String, attached: String) {
     let change_dir = dir.join("llmanspec/changes").join(&change);
     std::fs::create_dir_all(&change_dir).expect("mkdir attach-stage fixture change");
     let attach_flag = attached.trim().trim_matches('"');
-    let frontmatter = if matches!(attach_flag, "yes" | "true" | "attached" | "on") {
-        format!(
-            "---\nchange_id: {change}\ntitle: {change}\nstatus: full\nbranch: feat/{change}\nbase_sha: 0000000000000000000000000000000000000000\n---\n"
-        )
-    } else {
-        format!("---\nchange_id: {change}\ntitle: {change}\nstatus: full\n---\n")
+    let frontmatter = match attach_flag {
+        "yes" | "true" | "attached" | "on" => {
+            format!(
+                "---\ndepends_on: []\nbranch: feat/{change}\nbase_sha: 0000000000000000000000000000000000000000\n---\n"
+            )
+        }
+        "skip" => {
+            format!(
+                "---\ndepends_on: []\nbranch: feat/{change}\nbase_sha: 0000000000000000000000000000000000000000\nskip_specs_landing: true\n---\n"
+            )
+        }
+        _ => "---\ndepends_on: []\n---\n".to_string(),
     };
     // `parse_change` (used by `show`) requires both `## Why` and `## What Changes`.
     let proposal = format!(

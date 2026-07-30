@@ -61,6 +61,9 @@ pub struct ProposalFrontmatter {
     /// Whether `sdd change checkpoint` has succeeded.
     pub checkpointed: bool,
     pub checkpoint_sha: Option<String>,
+    /// When true, apply-ready does not require a live `llmanspec/specs/**` diff
+    /// on the bound branch (docs/governance changes with no contract edit).
+    pub skip_specs_landing: bool,
 }
 
 pub fn validate_spec_content_with_frontmatter(
@@ -433,7 +436,7 @@ mod tests {
             &tmp,
             &[(
                 "proposal.md",
-                "---\ndepends_on: []\nblocks: []\nbranch: sdd/x\nbaseSha: abc123\ncheckpointed: true\ncheckpointSha: def456\n---\n## Why\nTest",
+                "---\ndepends_on: []\nblocks: []\nbranch: sdd/x\nbaseSha: abc123\ncheckpointed: true\ncheckpointSha: def456\nskip_specs_landing: true\n---\n## Why\nTest",
             )],
         );
         let (issues, _) = check_proposal_frontmatter(&change_dir, &["x".to_string()], &[], false);
@@ -1761,6 +1764,7 @@ const PROPOSAL_FRONTMATTER_ALLOWED_FIELDS: &[&str] = &[
     "checkpointed",
     "checkpoint_sha",
     "checkpointSha",
+    "skip_specs_landing",
 ];
 
 pub fn check_proposal_frontmatter(
@@ -1811,6 +1815,7 @@ pub fn check_proposal_frontmatter(
     let checkpointed = parse_yaml_optional_bool(&parsed, "checkpointed");
     let checkpoint_sha = parse_yaml_optional_string(&parsed, "checkpoint_sha")
         .or_else(|| parse_yaml_optional_string(&parsed, "checkpointSha"));
+    let skip_specs_landing = parse_yaml_optional_bool(&parsed, "skip_specs_landing");
 
     // r124: reject unknown frontmatter fields (e.g. `status`, `title`,
     // `priority`, `author`). The allowed set is exactly the keys this parser
@@ -1892,6 +1897,7 @@ pub fn check_proposal_frontmatter(
             base_sha,
             checkpointed,
             checkpoint_sha,
+            skip_specs_landing,
         },
     )
 }
