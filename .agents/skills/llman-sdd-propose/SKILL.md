@@ -2,7 +2,7 @@
 name: "llman-sdd-propose"
 description: "创建 llman SDD 变更提案与规划工件（proposal/tasks；先 `change start`/`attach`，再在绑定分支编辑 live specs/features）。用于 MUST/SHALL 行为合约变更。"
 metadata:
-  version: "0.0.65"
+  version: "0.0.66"
   llman_sdd:
     bdd_mode: "on"
     skill_set: "default"
