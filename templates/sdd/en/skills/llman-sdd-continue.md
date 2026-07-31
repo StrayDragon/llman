@@ -29,10 +29,10 @@ Use this skill to continue an existing change and create the next missing artifa
    - Do NOT implement application code in continue mode.
    - Do NOT create `*.feature.delta.toon` or files under `changes/<id>/specs/`.
    - Do NOT edit shared `llmanspec/specs/**` before start/attach.
-5. If all artifacts already exist, suggest next actions:
-   - If `llman sdd show <id> --json` has `readyToImplement=false`: finish Specs landing (or `skip_specs_landing`) before apply
-   - Implement: `llman-sdd-apply`
-   - Archive (after verify): `llman-sdd-archive`
+5. If all artifacts already exist, suggest next actions from `llman sdd show <id> --json`:
+   - `readyToImplement=false` → finish Specs landing (or `skip_specs_landing`); do **not** suggest apply yet
+   - `readyToImplement=true` → Implement: `llman-sdd-apply`
+   - After verify → Archive: `llman-sdd-archive`
    - Validate: `llman sdd validate <id> --strict --no-interactive`
    - Review: `llman sdd change diff <id>` (read-only)
 

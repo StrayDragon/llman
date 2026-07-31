@@ -21,7 +21,7 @@ use std::path::Path;
 fn skill_description(name: &str) -> &'static str {
     match name {
         "llman-sdd-continue" => "Fill in missing change artifacts",
-        "llman-sdd-ff" => "Alias for `change finalize` (single-commit close-out)",
+        "llman-sdd-ff" => "Fast-forward propose: planning shell → Branch binding → Specs landing",
         "llman-sdd-validate" => "Standalone validation skill",
         "llman-sdd-arch-review" => "Scan shallow modules for deepening candidates",
         "llman-sdd-wayfinder" => "Plan large foggy work as a decision map",
