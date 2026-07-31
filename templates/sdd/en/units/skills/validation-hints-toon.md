@@ -25,7 +25,7 @@ r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
 3) Git-native guardrail (Partitioned SSOT when `bdd:` configured):
-`spec.toon` = constraints / non-executable scenarios; `*.feature` = executable GWT (`@req`). Edit live files on a non-default branch → `change start` or `change attach` → prefer `change finalize` (single commit) or fallback `checkpoint` → ff-merge + docs rename via `change archive`. Do not use `change delta` / solidify / `*.feature.delta.toon`. Empty requirements with no `.feature` when `bdd:` is set = ERROR.
+`spec.toon` = constraints / non-executable scenarios; `*.feature` = executable GWT (`@req`). First `change start` or `change attach` (Branch binding), then edit live files on the bound non-default branch and commit (Specs landing) → prefer `change finalize` (single commit) or fallback `checkpoint` → ff-merge + docs rename via `change archive`. Do not use `change delta` / solidify / `*.feature.delta.toon`. Empty requirements with no `.feature` when `bdd:` is set = ERROR.
 
 Notes:
 - Each spec is a single standalone `.toon` file; there is no Markdown shell or ```toon fence.

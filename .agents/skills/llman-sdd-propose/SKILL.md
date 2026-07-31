@@ -35,12 +35,12 @@ flowchart LR
 - **不要问「要不要继续」**：在 propose 阶段内一路执行到底，生成工件并校验。
 
 - **若变更已存在**：STOP 并建议用户使用 `llman-sdd-apply`；若需补齐缺失 artifact，直接编辑 `llmanspec/changes/<id>/`（或启用 `extra_skills: [llman-sdd-continue]` 后使用 continue）。
-- **frontmatter 有固定 schema（r124）**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（r93，用 `llman sdd status`/`show` 查看），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 用人类可读标题，不要复读 change id。
 
+- **frontmatter 有固定 schema（r124）**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（r93，用 `llman sdd status`/`show` 查看），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 用人类可读标题，不要复读 change id。
 
 ## 快速记录路由
 
-若用户只想**随手记一个想法**（如「draft 提案」「记一个提案」「先把 X 记下来」）而无需完整规划，引导其使用 `llman-sdd-draft` 技能——它通过 `change new --from` 创建仅含 `proposal.md` 的草案壳（不问 id，不写 tasks/specs/attach）。完整 propose（triage + tasks + live specs + `change start`）从这里开始。
+若用户只想**随手记一个想法**（如「draft 提案」「记一个提案」「先把 X 记下来」）而无需完整规划，引导其使用 `llman-sdd-draft` 技能——它通过 `change new --from` 创建仅含 `proposal.md` 的草案壳（不问 id，不写 tasks/specs/attach）。完整 propose（triage + tasks → `change start`/`attach` → Specs landing）从这里开始。
 
 ## 步骤
 
@@ -161,7 +161,7 @@ r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
 3) Git-native 护栏（配置了 `bdd:` 时采用 Partitioned SSOT）：
-`spec.toon`=约束/不可执行场景；`*.feature`=可执行 GWT（`@req`）。先 `change start` 或 `change attach`，再在非默认绑定分支编辑 live 文件并形成 Specs landing → 优先 `change finalize`（单 commit）或 fallback `checkpoint` → ff-merge + 文档改名 via `change archive`。勿使用 `change delta` / solidify / `*.feature.delta.toon`。配置了 `bdd:` 且空 requirements 又无 `.feature` = ERROR。
+`spec.toon`=约束/不可执行场景；`*.feature`=可执行 GWT（`@req`）。先 `change start` 或 `change attach`（Branch binding），再在绑定的非默认分支编辑 live 文件并 commit（Specs landing）→ 优先 `change finalize`（单 commit）或 fallback `checkpoint` → ff-merge + 文档改名 via `change archive`。勿使用 `change delta` / solidify / `*.feature.delta.toon`。配置了 `bdd:` 且空 requirements 又无 `.feature` = ERROR。
 
 备注：
 - 每个 spec 是一个独立的 `.toon` 文件；没有 Markdown 外壳，也没有 ```toon fence。

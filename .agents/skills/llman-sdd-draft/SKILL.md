@@ -56,7 +56,7 @@ llman sdd change new --from "<用户描述>"
 - **MUST 告知用户已生成的 id**（例如「已创建草案 change `<id>`，路径 `llmanspec/changes/<id>/proposal.md`」）。
 - 建议下一步：
   - 现在或稍后完善 `proposal.md`（Why / What Changes / Capabilities / Impact）。
-  - 准备好落实时，运行 `llman-sdd-propose` 正式化（triage + tasks + live specs + `change start`）。
+  - 准备好落实时，运行 `llman-sdd-propose` 正式化（triage + tasks → `change start`/`attach` → Specs landing）。
 
 > 💡 草案已记 → 下一步：编辑 `proposal.md`，然后 `llman-sdd-propose` 正式化。
 
