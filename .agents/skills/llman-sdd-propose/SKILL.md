@@ -72,10 +72,10 @@ flowchart LR
 ## 硬约束
 
 - **必须与用户确认 change id 后再写文件**：不同变更的边界不能模糊。**例外**：用户只想快速记一个想法（仅草案，不需要 id）时，引导其使用 `llman-sdd-draft` 技能，而非走完整 propose。
-- **feature 分支上的 live specs 为 SSOT**：直接编辑 `llmanspec/specs/**`——**禁止**在 `changes/<id>/specs/` 下编写或使用 `change delta`（已移除）。
+- **Live specs SSOT**：仅在 Branch binding 之后、于**绑定的非默认分支**编辑 `llmanspec/specs/**`（Specs landing）。**禁止**在默认分支改 live specs；**禁止**在 `changes/<id>/specs/` 下编写或使用 `change delta`（已移除）。规划壳可短暂在默认分支。
 - **不要问「要不要继续」**：在 propose 阶段内一路执行到底，生成工件并校验。
 
-- **若变更已存在**：STOP 并建议用户使用 `llman-sdd-apply`；若需补齐缺失 artifact，直接编辑 `llmanspec/changes/<id>/`（或启用 `extra_skills: [llman-sdd-continue]` 后使用 continue）。
+- **若变更已存在**：STOP。若 `readyToImplement=true` 建议 `llman-sdd-apply`；否则补齐规划壳 / Branch binding / Specs landing（可编辑 `llmanspec/changes/<id>/`，或启用 `extra_skills: [llman-sdd-continue]`）。
 
 - **frontmatter 有固定 schema**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段（含 `depends_on`、`blocks`、`branch`、`base_sha`/`baseSha`、`checkpointed`、`checkpoint_sha`/`checkpointSha`、`skip_specs_landing`）。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（用 `llman sdd status`/`show` 查看），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 用人类可读标题，不要复读 change id。
 

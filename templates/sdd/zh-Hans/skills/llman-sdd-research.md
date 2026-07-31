@@ -24,7 +24,8 @@ metadata:
 
 1. 针对**一手资料**调研问题——官方文档、源码、spec、第一方 API——而非对它们的二手转述。把每个论断追溯到拥有它的源头。
 2. 把发现写入单个 Markdown 文件，为每个论断标注来源引用。
-3. 存放位置：优先匹配仓库既有约定（如 `docs/research/`）；若无，放在 `llmanspec/changes/<current-change>/research/<topic>.md` 并说明位置。
+3. 存放位置：优先匹配仓库既有约定（如 `docs/research/`）；若无，放在 `llmanspec/changes/<current-change>/research/<topic>.md` 并说明位置（这是 Change 文档，**不是** live specs）。
+4. **禁止**本 skill 直接编辑 `llmanspec/specs/**`。若调研表明必须改 MUST/SHALL → 建议 `llman-sdd-propose`（Branch binding → Specs landing）。
 
 ## 步骤
 

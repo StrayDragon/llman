@@ -56,10 +56,10 @@ For each candidate:
 ### 3. Grilling (after the user picks a candidate)
 Run `llman-sdd-explore`'s **grilling branch** (trigger "deep-dig") to walk the decision tree — constraints, dependencies, the deepened module's shape, what sits behind the seam, which tests survive.
 
-- A deepened module uses a concept not in `spec.toon`? → update the `spec.toon` requirement statement (BDD-on: edit live file on the feature branch).
+- A deepened module uses a concept not in `spec.toon`? → update live `spec.toon` **only** if the change already has Branch binding and you are on the bound branch (Specs landing); otherwise STOP and route to `llman-sdd-propose` / `change start` — **never** edit live specs on the default branch.
 - User rejects the candidate with a load-bearing reason? → offer an ADR only when "hard to reverse + surprising without context + real trade-off" all hold; record in `design.md`.
 
 ## Output
-Candidate list (text; optional HTML report written to OS temp dir, not the repo) + the grilling decision record after the user picks one (written back to proposal/spec.toon).
+Candidate list (text; optional HTML report written to OS temp dir, not the repo) + the grilling decision record after the user picks one (write back to proposal; contract edits only via Specs landing into live `spec.toon`).
 
 {{ unit("skills/structured-protocol") }}
