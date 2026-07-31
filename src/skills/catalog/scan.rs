@@ -55,6 +55,9 @@ fn discover_skills_with_global_ignore_into(
         return Ok(());
     }
 
+    // One-level discovery only: `<root>/<skill-dir>/SKILL.md` (depth 2). Nested
+    // trees such as `__submodules__/.../skills/X` are intentionally ignored so
+    // each `skills.repo[].path` behaves as a flat skill shelf.
     let store_dir = root.join("store");
     let mut builder = WalkBuilder::new(root);
     builder
@@ -63,6 +66,7 @@ fn discover_skills_with_global_ignore_into(
         .git_ignore(true)
         .git_exclude(true)
         .require_git(false)
+        .max_depth(Some(2))
         .filter_entry(move |entry| entry.path() != store_dir);
     if let Some(ignore_path) = global_ignore {
         builder.git_global(false).current_dir(root);
@@ -84,6 +88,12 @@ fn discover_skills_with_global_ignore_into(
             let Some(skill_dir) = path.parent() else {
                 continue;
             };
+            // Only accept SKILL.md that lives directly under a first-level child
+            // of `root` (not deeper nesting that max_depth might still surface
+            // via unusual layouts).
+            if skill_dir.parent() != Some(root) {
+                continue;
+            }
             record_skill_dir(skill_dir, path, seen_dirs, candidates);
             continue;
         }
@@ -91,6 +101,7 @@ fn discover_skills_with_global_ignore_into(
             .file_type()
             .is_some_and(|file_type| file_type.is_symlink())
             && is_symlink_dir(path)
+            && path.parent() == Some(root)
             && let Some(skill_file) = resolve_symlink_skill_file(path)
         {
             record_skill_dir(path, &skill_file, seen_dirs, candidates);
@@ -330,6 +341,30 @@ mod tests {
         assert_eq!(discovered[0].skill_id, "file-linked");
         assert_eq!(discovered[1].skill_id, "keep-me");
         assert_eq!(discovered[2].skill_id, "linked-skill");
+    }
+
+    #[test]
+    fn test_discover_skips_nested_skill_dirs() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path().join("source");
+        fs::create_dir_all(&root).expect("create source");
+
+        let top = root.join("top-skill");
+        fs::create_dir_all(&top).expect("create top skill");
+        fs::write(top.join("SKILL.md"), "---\nname: Top Skill\n---\n").expect("write top");
+
+        let nested = root
+            .join("__submodules__")
+            .join("vendor")
+            .join(".claude")
+            .join("skills")
+            .join("nested-skill");
+        fs::create_dir_all(&nested).expect("create nested skill");
+        fs::write(nested.join("SKILL.md"), "---\nname: Nested Skill\n---\n").expect("write nested");
+
+        let discovered = discover_skills(&root).expect("discover skills");
+        assert_eq!(discovered.len(), 1);
+        assert_eq!(discovered[0].skill_id, "top-skill");
     }
 
     #[test]
