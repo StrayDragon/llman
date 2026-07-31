@@ -99,7 +99,8 @@ fn author_sample_change(work_dir: &Path, change_id: &str) {
     let llmanspec_dir = work_dir.join("llmanspec");
     let change_dir = llmanspec_dir.join("changes").join(change_id);
     fs::create_dir_all(&change_dir).expect("create change dir");
-    let proposal = "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n";
+    // Docs-only archive fixtures: no live specs edit → skip landing gate (r1).
+    let proposal = "---\ndepends_on: []\nskip_specs_landing: true\n---\n\n## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n";
     fs::write(change_dir.join("proposal.md"), proposal).expect("write proposal");
     fs::write(change_dir.join("design.md"), "# Design\n").expect("write design");
     fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
@@ -189,7 +190,12 @@ fn test_sdd_show_validate_archive_flow() {
 
     let change_dir = llmanspec_dir.join("changes").join("add-sample");
     fs::create_dir_all(&change_dir).expect("create change dir");
-    let proposal = r#"## Why
+    let proposal = r#"---
+depends_on: []
+skip_specs_landing: true
+---
+
+## Why
 Need a sample change.
 
 ## What Changes

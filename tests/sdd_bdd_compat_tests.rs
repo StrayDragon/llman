@@ -64,7 +64,7 @@ fn seed_spec_and_change(env: &TestEnvironment) {
     fs::create_dir_all(&change_dir).expect("mkdir change");
     fs::write(
         change_dir.join("proposal.md"),
-        "## Why\nAdd r2 to sample.\n\n## What Changes\n- Add requirement r2.\n",
+        "---\ndepends_on: []\nskip_specs_landing: true\n---\n\n## Why\nAdd r2 to sample.\n\n## What Changes\n- Add requirement r2.\n",
     )
     .expect("write proposal");
     fs::write(change_dir.join("design.md"), "# Design\n").expect("write design");
