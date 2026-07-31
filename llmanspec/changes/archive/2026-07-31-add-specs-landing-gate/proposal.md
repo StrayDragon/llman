@@ -2,7 +2,8 @@
 depends_on: []
 branch: sdd/add-specs-landing-gate
 base_sha: 0c6ee3167266ff86a62e479978138e0303584799
-checkpointed: false
+checkpointed: true
+checkpoint_sha: 0c6ee3167266ff86a62e479978138e0303584799
 ---
 
 # Specs landing gate：合约只在绑定分支落地
