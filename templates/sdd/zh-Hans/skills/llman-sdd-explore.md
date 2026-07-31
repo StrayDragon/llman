@@ -62,7 +62,7 @@ flowchart LR
    - 设计决策 → `design.md`
    - 新工作项 → `tasks.md`
 
-> Git-native：feature 分支 + live `.feature`/`spec.toon` 为 SSOT；用 `change start`（或 `change attach`）进入 Full；无 `change delta` / solidify / feature_delta。
+> Git-native：先 `change start`/`attach`（Branch binding）进入 Full，再在绑定分支编辑 live `.feature`/`spec.toon`（Specs landing）；无 `change delta` / solidify / feature_delta。
 
 ## 退出探索模式
 当用户准备开始实现时，根据变更规模选择路径：
