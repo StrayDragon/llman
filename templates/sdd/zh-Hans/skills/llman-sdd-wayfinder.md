@@ -76,12 +76,12 @@ metadata:
 
 ### 推进地图
 1. 加载地图（低分辨率视图，不用读每个 ticket 全文）。
-2. 选 ticket（用户指定或取可着手项的第一个），先 `change attach` 占住它。
-3. 解决它——按需深入（读相关 ticket 全文，调用 Notes 指定的 skill）。没把握时用 `llman-sdd-explore` 的逐问深挖。
+2. 选 ticket（用户指定或取可着手项的第一个），先完成 Branch binding（`change start` 或已有分支则 `change attach`）占住它。地图/ticket 的**规划壳**可短暂在默认分支；若 ticket 要改 live specs，须在绑定分支做 Specs landing。
+3. 解决它——按需深入（读相关 ticket 全文，调用 Notes 指定的 skill）。没把握时用 `llman-sdd-explore` 的逐问深挖。**不要**在未 binding 时改 `llmanspec/specs/**`。
 4. 记录解决：把答案作为结论写入该 ticket 的 proposal，关闭它，并在地图的 Decisions-so-far 追加一行要点 + 指针。
 5. 新增 ticket（先建再接线）；把答案让模糊点变清晰、升级成 ticket 的，从尚未清晰区移除。若答案揭示某 ticket 越过目的地，归入范围外而非在路径上解决。
 
 ## 输出
-地图 change + 子决策 change 的依赖图（`llman sdd graph`）。路径清晰后建议进入 `llman-sdd-propose` 把决策收拢为可建计划。
+地图 change + 子决策 change 的依赖图（`llman sdd graph`）。路径清晰后建议进入 `llman-sdd-propose`（含 Branch binding → Specs landing，至 `readyToImplement=true`）把决策收拢为可实施计划。
 
 {{ unit("skills/structured-protocol") }}

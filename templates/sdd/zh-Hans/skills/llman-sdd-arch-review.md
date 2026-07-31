@@ -56,10 +56,10 @@ metadata:
 ### 3. 逐问深挖（用户选定候选后）
 用户从候选中选一个后，运行 `llman-sdd-explore` 的**逐问深挖分支**（触发词「深挖」）逐个走清决策——约束、依赖、加深后的模块形状、接缝后放什么、哪些测试存活。
 
-- 加深后的模块用到了 `spec.toon` 里没有的概念？→ 更新 `spec.toon` requirement statement（BDD-on 在 feature 分支编辑 live 文件）。
+- 加深后的模块用到了 `spec.toon` 里没有的概念？→ 仅在 change 已 Branch binding 且当前在绑定分支上时，更新 live `spec.toon`（Specs landing）；否则 STOP，先走 `llman-sdd-propose` / `change start`，**禁止**在默认分支改 live specs。
 - 用户以关键理由拒绝候选？→ 仅当「难逆转 + 无上下文会困惑 + 真实权衡」三者皆满足时，建议记入 `design.md`。
 
 ## 输出
-候选清单（文本；可选 HTML 报告写 OS temp dir 不落 repo）+ 用户选定后的逐问深挖决策记录（回写 proposal/spec.toon）。
+候选清单（文本；可选 HTML 报告写 OS temp dir 不落 repo）+ 用户选定后的逐问深挖决策记录（回写 proposal；合约变更须经 Specs landing 才回写 live `spec.toon`）。
 
 {{ unit("skills/structured-protocol") }}

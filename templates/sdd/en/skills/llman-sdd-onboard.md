@@ -19,7 +19,9 @@ Use this skill to onboard to llman SDD in a repository.
    - If context returns `quality: "unavailable"`, run `llman sdd index rebuild` first (default backend is `pageindex`; it needs `LLMAN_SDD_INDEX_CHAT_MODEL` for retrieval but not for rebuilding).
 3. Read only the `direct` spec files from context output.
 4. Assess change scale (see triage rules): behavioural contract change → full SDD; implementation change → quick path.
-5. Follow proposal -> implement -> archive (full path) or modify directly (quick path).
+5. Advance by path:
+   - **Full path**: Designed planning shell → Branch binding → Specs landing (or `skip_specs_landing`) → `readyToImplement=true` → apply → verify → archive (skill navigation: propose → apply → verify → archive).
+   - **Quick path**: no MUST/SHALL change; edit code and commit (live specs only on a bound branch — see `llman-sdd-quick`).
 6. Use `llman sdd graph` to visualize change dependencies.
 
 {{ unit("skills/sdd-commands") }}

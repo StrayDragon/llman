@@ -76,12 +76,12 @@ The map is **deliberately** incomplete. The test for ticket-vs-fog: **can you st
 
 ### Work through the map
 1. Load the map (low-resolution view).
-2. Pick a ticket (user-named or first frontier item), `change attach` to claim it.
-3. Resolve it — zoom as needed (read related ticket bodies, invoke skills the Notes block names). In doubt, use `llman-sdd-explore`'s grilling.
+2. Pick a ticket (user-named or first frontier item); claim it with Branch binding (`change start`, or `change attach` if the branch already exists). The map/ticket **planning shell** may briefly live on the default branch; if the ticket must edit live specs, do Specs landing on the bound branch.
+3. Resolve it — zoom as needed (read related ticket bodies, invoke skills the Notes block names). In doubt, use `llman-sdd-explore`'s grilling. **Do not** edit `llmanspec/specs/**` before Branch binding.
 4. Record the resolution: write the answer into the ticket's proposal, close it, append a one-line gist + pointer to the map's Decisions-so-far.
 5. Add newly-surfaced tickets (create-then-wire); graduate fog that the answer has made specifiable, clearing it from Not yet specified. If the answer reveals a ticket sits beyond the destination, rule it out of scope rather than resolving it on the route.
 
 ## Output
-Map change + child decision changes' dependency graph (`llman sdd graph`). When the way is clear, proceed to `llman-sdd-propose` to collapse the decisions into a buildable plan.
+Map change + child decision changes' dependency graph (`llman sdd graph`). When the way is clear, proceed to `llman-sdd-propose` (Branch binding → Specs landing through `readyToImplement=true`) to collapse decisions into an implementable plan.
 
 {{ unit("skills/structured-protocol") }}
