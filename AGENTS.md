@@ -55,7 +55,7 @@
 - `tests/` contains integration tests; files are named `*_tests.rs`.
 - `templates/` stores prompt templates; `locales/` stores i18n YAML files.
 - `artifacts/testing_config_home/` is the test fixture config root used by dev commands.
-- `scripts/` has helper scripts; `docs/` has design and planning notes.
+- `scripts/` has helper scripts. SDD workflow SSOT is root `AGENTS.md` + `llmanspec/` (not a parallel `docs/sdd` tree).
 
 ## Build, Test, and Development Commands
 This project targets Rust edition 2024 and uses the nightly toolchain.
