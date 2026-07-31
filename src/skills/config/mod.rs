@@ -43,8 +43,8 @@ struct LlmanConfig {
 }
 
 #[derive(Deserialize, Debug, Default)]
+#[serde(deny_unknown_fields)]
 struct LlmanSkillsConfig {
-    dir: Option<String>,
     #[serde(default)]
     repo: Vec<LlmanRepoEntry>,
 }
@@ -89,9 +89,8 @@ impl SkillsPaths {
 /// the entire repo list is replaced by a single-element list rooted at the
 /// override path — matching the legacy single-directory override behavior.
 ///
-/// Otherwise the repo list is built from `skills.repo[]` (preferred) or the
-/// legacy `skills.dir` (auto-converted to a single repo). When both are present,
-/// `repo` wins and a deprecation warning is emitted for `dir`.
+/// Otherwise the repo list is built from `skills.repo[]`. Entries whose path is
+/// missing or not a directory are skipped with a startup warning.
 fn resolve_skill_repos_and_root(cli_override: Option<&Path>) -> Result<(Vec<RepoSource>, PathBuf)> {
     let env_skills_dir = env::var(ENV_SKILLS_DIR).ok();
     let config_dir = resolve_config_dir(None)?;
@@ -148,9 +147,10 @@ fn load_llman_skills_config(path: &Path) -> Result<Option<LlmanSkillsConfig>> {
     Ok(parsed.skills)
 }
 
-/// Turn a parsed `skills` section into `Vec<RepoSource>`. `repo[]` is preferred
-/// (D2); legacy `dir` auto-converts to a single repo; when both are present,
-/// `repo` wins and a deprecation warning is printed for `dir`.
+/// Turn a parsed `skills` section into `Vec<RepoSource>`.
+///
+/// Missing or non-directory paths are skipped with a warning; surviving entries
+/// keep their original positional index for stable id fallback.
 fn build_repos_from_config(
     skills: Option<LlmanSkillsConfig>,
     config_dir: &Path,
@@ -160,28 +160,24 @@ fn build_repos_from_config(
         return Ok(Vec::new());
     };
 
-    if !skills.repo.is_empty() {
-        if skills.dir.is_some() {
-            eprintln!("{}", t!("skills.config.skills_dir_deprecated"));
+    let mut repos = Vec::new();
+    for (index, entry) in skills.repo.into_iter().enumerate() {
+        let path = resolve_skills_root_from_config(&entry.path, config_dir)?;
+        if !path.is_dir() {
+            let label = entry.name.as_deref().unwrap_or(entry.path.as_str());
+            eprintln!(
+                "{}",
+                t!(
+                    "skills.config.repo_path_missing",
+                    name = label,
+                    path = path.display()
+                )
+            );
+            continue;
         }
-        return skills
-            .repo
-            .into_iter()
-            .enumerate()
-            .map(|(index, entry)| {
-                let path = resolve_skills_root_from_config(&entry.path, config_dir)?;
-                Ok(RepoSource::from_index(index, entry.name, path))
-            })
-            .collect();
+        repos.push(RepoSource::from_index(index, entry.name, path));
     }
-
-    // Legacy single `dir` → single repo, behavior unchanged.
-    if let Some(dir) = skills.dir {
-        let path = resolve_skills_root_from_config(&dir, config_dir)?;
-        return Ok(vec![RepoSource::from_index(0, None, path)]);
-    }
-
-    Ok(Vec::new())
+    Ok(repos)
 }
 
 fn resolve_skills_root_from_cli(path: &Path) -> Result<PathBuf> {
@@ -421,13 +417,14 @@ mod tests {
         let temp = TempDir::new().expect("temp dir");
         let env_root = temp.path().join("env-root");
         let global_root = temp.path().join("global-root");
+        fs::create_dir_all(&global_root).expect("create global root");
         let config_dir = temp.path().join("config");
         fs::create_dir_all(&config_dir).expect("create config dir");
 
         fs::write(
             config_dir.join("config.yaml"),
             format!(
-                "version: \"0.1\"\ntools: {{}}\nskills:\n  dir: {}\n",
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  repo:\n    - path: {}\n",
                 global_root.display()
             ),
         )
@@ -441,23 +438,23 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_skills_root_legacy_dir_single_repo() {
+    fn test_resolve_skills_root_repo_single_entry() {
         let temp = TempDir::new().expect("temp dir");
         let global_root = temp.path().join("global-root");
+        fs::create_dir_all(&global_root).expect("create global root");
         let config_dir = temp.path().join("config");
         fs::create_dir_all(&config_dir).expect("create config dir");
 
         fs::write(
             config_dir.join("config.yaml"),
             format!(
-                "version: \"0.1\"\ntools: {{}}\nskills:\n  dir: {}\n",
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  repo:\n    - path: {}\n",
                 global_root.display()
             ),
         )
         .expect("write global config");
         let (repos, root) = resolve_skill_repos_with(None, None, &config_dir).expect("paths");
         assert_eq!(root, global_root);
-        // Legacy `dir` auto-converts to a single repo (backward compatible).
         assert_eq!(repos.len(), 1);
         assert_eq!(repos[0].path, global_root);
         assert!(repos[0].name.is_none());
@@ -468,29 +465,32 @@ mod tests {
         let temp = TempDir::new().expect("temp dir");
         let config_dir = temp.path().join("config");
         fs::create_dir_all(&config_dir).expect("create config dir");
+        let skills_dir = config_dir.join("skills");
+        fs::create_dir_all(&skills_dir).expect("create skills dir");
 
         fs::write(
             config_dir.join("config.yaml"),
-            "version: \"0.1\"\ntools: {}\nskills:\n  dir: \"$LLMAN_CONFIG_DIR/skills\"\n",
+            "version: \"0.1\"\ntools: {}\nskills:\n  repo:\n    - path: \"$LLMAN_CONFIG_DIR/skills\"\n",
         )
         .expect("write global config");
 
         let (repos, root) = resolve_skill_repos_with(None, None, &config_dir).expect("paths");
-        assert_eq!(root, config_dir.join("skills"));
+        assert_eq!(root, skills_dir);
         assert_eq!(repos.len(), 1);
-        assert_eq!(repos[0].path, config_dir.join("skills"));
+        assert_eq!(repos[0].path, skills_dir);
     }
 
     #[test]
     fn test_resolve_skills_root_global_config_fallback() {
         let temp = TempDir::new().expect("temp dir");
         let global_root = temp.path().join("global-root");
+        fs::create_dir_all(&global_root).expect("create global root");
         let config_dir = temp.path().join("config");
         fs::create_dir_all(&config_dir).expect("create config dir");
         fs::write(
             config_dir.join("config.yaml"),
             format!(
-                "version: \"0.1\"\ntools: {{}}\nskills:\n  dir: {}\n",
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  repo:\n    - path: {}\n",
                 global_root.display()
             ),
         )
@@ -624,6 +624,8 @@ mod tests {
         let temp = TempDir::new().expect("temp dir");
         let repo_a = temp.path().join("repo-a");
         let repo_b = temp.path().join("repo-b");
+        fs::create_dir_all(&repo_a).expect("create repo-a");
+        fs::create_dir_all(&repo_b).expect("create repo-b");
         let config_dir = temp.path().join("config");
         write_global_config(
             &config_dir,
@@ -649,32 +651,53 @@ mod tests {
     }
 
     #[test]
-    fn test_repo_takes_precedence_over_dir() {
+    fn test_missing_repo_path_is_filtered() {
         let temp = TempDir::new().expect("temp dir");
-        let dir_root = temp.path().join("dir-root");
-        let repo_root = temp.path().join("repo-root");
+        let present = temp.path().join("present");
+        let missing = temp.path().join("missing");
+        fs::create_dir_all(&present).expect("create present");
         let config_dir = temp.path().join("config");
         write_global_config(
             &config_dir,
             &format!(
-                "version: \"0.1\"\ntools: {{}}\nskills:\n  dir: {d}\n  repo:\n    - path: {r}\n",
-                d = dir_root.display(),
-                r = repo_root.display()
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  repo:\n    - name: gone\n      path: {m}\n    - name: ok\n      path: {p}\n",
+                m = missing.display(),
+                p = present.display()
             ),
         );
 
         let (repos, root) = resolve_skill_repos_with(None, None, &config_dir).expect("paths");
-        // repo wins over dir.
         assert_eq!(repos.len(), 1);
-        assert_eq!(repos[0].path, repo_root);
-        assert_eq!(root, repo_root);
-        assert_ne!(root, dir_root);
+        assert_eq!(repos[0].name.as_deref(), Some("ok"));
+        // Original positional index is preserved for the surviving entry.
+        assert_eq!(repos[0].id, "ok");
+        assert_eq!(repos[0].path, present);
+        assert_eq!(root, present);
+    }
+
+    #[test]
+    fn test_all_missing_repos_fall_back_to_default_root() {
+        let temp = TempDir::new().expect("temp dir");
+        let missing = temp.path().join("missing");
+        let config_dir = temp.path().join("config");
+        write_global_config(
+            &config_dir,
+            &format!(
+                "version: \"0.1\"\ntools: {{}}\nskills:\n  repo:\n    - path: {}\n",
+                missing.display()
+            ),
+        );
+
+        let (repos, root) = resolve_skill_repos_with(None, None, &config_dir).expect("paths");
+        assert!(repos.is_empty());
+        assert_eq!(root, config_dir.join("skills"));
     }
 
     #[test]
     fn test_name_fallback_uses_index_when_absent() {
         let temp = TempDir::new().expect("temp dir");
         let repo_root = temp.path().join("solo");
+        fs::create_dir_all(&repo_root).expect("create solo");
         let config_dir = temp.path().join("config");
         write_global_config(
             &config_dir,
@@ -695,6 +718,8 @@ mod tests {
         let temp = TempDir::new().expect("temp dir");
         let repo_a = temp.path().join("repo-a");
         let repo_b = temp.path().join("repo-b");
+        fs::create_dir_all(&repo_a).expect("create repo-a");
+        fs::create_dir_all(&repo_b).expect("create repo-b");
         let override_root = temp.path().join("override");
         let config_dir = temp.path().join("config");
         write_global_config(

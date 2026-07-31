@@ -49,18 +49,15 @@ pub struct ProjectConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[schemars(
     title = "llman Skills Config",
-    description = "Global skills configuration."
+    description = "Global skills configuration. Sources are declared only via skills.repo[].",
+    deny_unknown_fields
 )]
 pub struct GlobalSkillsConfig {
     #[schemars(
-        description = "Override skills root directory. Supports ~ and env vars. Deprecated: prefer `repo` for multi-source skills."
-    )]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dir: Option<String>,
-    #[schemars(
-        description = "Multiple skills repository sources. When present, takes precedence over the legacy `dir`. Each entry declares a local path (and optional display name)."
+        description = "Skills repository sources. Each entry declares a local path (and optional display name). Missing or non-directory paths are skipped with a warning at startup."
     )]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub repo: Vec<GlobalSkillsRepoEntry>,
@@ -90,8 +87,10 @@ impl Default for GlobalConfig {
             version: tool_defaults.version,
             tools: tool_defaults.tools,
             skills: Some(GlobalSkillsConfig {
-                dir: Some("$LLMAN_CONFIG_DIR/skills".to_string()),
-                repo: Vec::new(),
+                repo: vec![GlobalSkillsRepoEntry {
+                    name: Some("default".to_string()),
+                    path: "$LLMAN_CONFIG_DIR/skills".to_string(),
+                }],
             }),
         }
     }
@@ -479,20 +478,8 @@ mod tests {
     }
 
     #[test]
-    fn skills_config_schema_round_trips_repo_and_legacy_dir() {
-        // Legacy dir-only config must still deserialize (backward compat).
-        let legacy = GlobalSkillsConfig {
-            dir: Some("/old/skills".to_string()),
-            repo: Vec::new(),
-        };
-        let yaml = serde_yaml::to_string(&legacy).expect("serialize");
-        let back: GlobalSkillsConfig = serde_yaml::from_str(&yaml).expect("deserialize");
-        assert_eq!(back, legacy);
-        assert!(back.repo.is_empty());
-
-        // Multi-repo config round-trips with name/path.
+    fn skills_config_schema_round_trips_repo() {
         let multi = GlobalSkillsConfig {
-            dir: None,
             repo: vec![
                 GlobalSkillsRepoEntry {
                     name: Some("Team".to_string()),
@@ -511,11 +498,21 @@ mod tests {
     }
 
     #[test]
-    fn default_global_config_emits_legacy_dir_only() {
-        // Default must remain backward compatible: single dir, no repo.
+    fn skills_config_rejects_legacy_dir_field() {
+        let err = serde_yaml::from_str::<GlobalSkillsConfig>("dir: /old/skills\n")
+            .expect_err("legacy dir must be rejected");
+        assert!(
+            err.to_string().contains("dir") || err.to_string().contains("unknown"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn default_global_config_emits_default_repo() {
         let default = GlobalConfig::default();
         let skills = default.skills.expect("default skills section");
-        assert!(skills.dir.is_some());
-        assert!(skills.repo.is_empty());
+        assert_eq!(skills.repo.len(), 1);
+        assert_eq!(skills.repo[0].name.as_deref(), Some("default"));
+        assert_eq!(skills.repo[0].path, "$LLMAN_CONFIG_DIR/skills");
     }
 }

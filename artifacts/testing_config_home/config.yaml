@@ -1,7 +1,9 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llman-config.schema.json
 version: '0.1'
 skills:
-  dir: $LLMAN_CONFIG_DIR/skills
+  repo:
+    - name: default
+      path: $LLMAN_CONFIG_DIR/skills
 tools:
   clean-useless-comments:
     scope:

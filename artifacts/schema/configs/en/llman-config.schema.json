@@ -16,15 +16,8 @@
         "null"
       ],
       "properties": {
-        "dir": {
-          "description": "Override skills root directory. Supports ~ and env vars. Deprecated: prefer `repo` for multi-source skills.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "repo": {
-          "description": "Multiple skills repository sources. When present, takes precedence over the legacy `dir`. Each entry declares a local path (and optional display name).",
+          "description": "Skills repository sources. Each entry declares a local path (and optional display name). Missing or non-directory paths are skipped with a warning at startup.",
           "type": "array",
           "items": {
             "title": "llman Skills Repo Source",
@@ -48,7 +41,8 @@
             ]
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     "tools": {
       "description": "Tool configuration.",
