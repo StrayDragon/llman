@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-ff"
-description: "Fast-forward: create proposal/specs/design/tasks for a change in one pass."
+description: "Fast-forward: create the planning shell then Branch binding + Specs landing in one pass. Never author under changes/<id>/specs/."
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
@@ -10,31 +10,30 @@ metadata:
 
 # LLMAN SDD Fast-Forward (FF)
 
-Use this skill to create **all** artifacts for a new change quickly (proposal → specs → design (optional) → tasks).
+Run the propose-equivalent path quickly: planning shell → Branch binding → Specs landing (through `readyToImplement=true`). This is **not** the old `changes/<id>/specs/` delta model.
+
+## Hard constraints
+
+- **Planning shell** only under `llmanspec/changes/<id>/` (proposal/design/tasks).
+- Live contracts only under bound-branch `llmanspec/specs/**` (Specs landing).
+- **Do not** create `llmanspec/changes/<id>/specs/` or `*.feature.delta.toon`.
+- Enter apply only when `readyToImplement=true`.
 
 ## Steps
-1. Ask the user for:
-   - A short description of the change
-   - A preferred change id (or derive one; kebab-case, verb prefix)
-   - The capability/capabilities impacted (to name `specs/<capability>/`)
-   - Confirm the final id before creating any directories.
-2. Ensure the project is initialized:
-   - `llmanspec/` must exist; if missing, tell the user to run `llman sdd init`, then STOP.
-3. If `llmanspec/changes/<id>/` already exists, ask whether to:
-   - Continue and fill missing artifacts (recommended), or
-   - Use a different id.
-   Do NOT overwrite existing artifacts without explicit confirmation.
-4. Create artifacts under `llmanspec/changes/<id>/`:
-   - `proposal.md`
-   - `specs/<capability>/spec.toon` (at least one)
-   - `design.md` (only if needed)
-   - `tasks.md` (ordered, small, verifiable tasks including validation)
-5. Validate:
-   ```bash
-   llman sdd validate <id> --strict --no-interactive
-   ```
-6. Show a short status summary and suggest next actions (`llman-sdd-apply`).
 
+1. Ask the user for a short description, change id (or derive), impacted capability, and confirm the final id.
+2. Ensure `llman sdd init` has been run (`llmanspec/` exists).
+3. If `llmanspec/changes/<id>/` exists: ask fill-missing vs new id; do not overwrite without confirmation.
+4. Create the **planning shell** (OK briefly on the default branch):
+   - `llman sdd change new <id>` (or hand-write) → flesh out `proposal.md`
+   - `design.md` (if needed)
+   - `tasks.md`
+5. **Branch binding**: `llman sdd change start <id>` (clean tree on default branch) or create a branch then `change attach <id>`.
+6. **Specs landing**: on the bound branch, edit live `llmanspec/specs/<capability>/spec.toon` (+ `*.feature` when bdd-on) and commit; or set `skip_specs_landing: true` when there is no contract edit.
+7. Validate: `llman sdd validate <id> --strict --no-interactive`.
+8. Confirm `readyToImplement=true` via `llman sdd show <id> --json`, then suggest `llman-sdd-apply` (do not suggest apply before ready).
+
+{{ unit("skills/git-native-flow-brief") }}
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}
 
