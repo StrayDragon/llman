@@ -49,8 +49,12 @@ Feature: sample
     Then exit code 0
 ```
 
-- **Git-native lifecycle**: first `llman sdd change start <id>` (recommended; clean tree on the default branch) or `change attach` for Branch binding / Full stage; **then** edit live `.feature` and `spec.toon` on the bound non-default branch and commit (Specs landing). Prefer `change finalize` for single-commit close-out (or fallback: `checkpoint` then `change archive`). Archive/finalize auto ff-merges the feature branch into the default branch, then renames change docs to `changes/archive/` (one follow-up `git commit` for the dirty rename). `diff` is read-only review/export. Do **not** author under `changes/<id>/specs/` or create `*.feature.delta.toon`. There is no `change delta`, solidify, or `llman-sdd-sync`.
-- Downstream upgrade: manually remove leftover `change/specs/` or `*.feature.delta.toon` (`partitioned` migrate removed).
+- **Git-native lifecycle (two steps — do not conflate)**:
+  1. **Branch binding**: `llman sdd change start <id>` (recommended; clean tree on the default branch) or `change attach` → Full. The planning shell (proposal/design/tasks) may briefly live on the default branch.
+  2. **Specs landing**: edit live `.feature` / `spec.toon` only on the bound non-default branch and commit. **Do not** edit live specs on the default branch. No contract edits → `skip_specs_landing: true`. Apply requires `readyToImplement=true` (`Full ∧ (specsLanded ∨ skip)`).
+  - **Close-out** (after verify): prefer `change finalize`; or `checkpoint` → `change archive`. Archive/finalize auto ff-merges into the default branch, then renames change docs (one follow-up `git commit` for the dirty rename). `diff` is read-only.
+  - **Do not** author under `changes/<id>/specs/` or create `*.feature.delta.toon`. There is no `change delta`, solidify, or `llman-sdd-sync`.
+- Downstream upgrade: manually remove leftover `llmanspec/changes/<id>/specs/` or `*.feature.delta.toon` (`partitioned` migrate removed).
 - `bdd:` enabled with empty `requirements` and no `.feature` is an ERROR.
 
 ### Quoting Rules for Tabular Rows

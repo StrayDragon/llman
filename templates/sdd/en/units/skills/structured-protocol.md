@@ -9,7 +9,8 @@
 - Keep changes minimal and scoped.
 - Avoid guessing when identifiers or intent are ambiguous.
 - Use `llman sdd context --task --paths` before reading full spec files.
-- Choose workflow path based on change scale: behavioral contract changes use full SDD, implementation changes use quick path.
+- Choose workflow path by change scale: behavioral contracts use full SDD (Branch binding → Specs landing → `readyToImplement` → apply); implementation changes use quick path (live specs still require a bound branch).
+- Do not conflate skill navigation with the Git-native lifecycle; never edit live `llmanspec/specs/**` on the default branch.
 
 ## Workflow
 - Use `llman sdd` commands as the source of truth.

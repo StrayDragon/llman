@@ -9,7 +9,8 @@
 - 变更保持最小化且范围明确。
 - 标识符或意图不明确时禁止猜测。
 - 在读取 spec 全文前，先使用 `llman sdd context --task --paths` 获取相关 specs。
-- 判断变更规模后选择路径：行为合约变更走完整 SDD 流程，实现变更走快速路径。
+- 判断变更规模后选择路径：行为合约变更走完整 SDD（Branch binding → Specs landing → `readyToImplement` → apply）；实现变更走快速路径（live specs 仍须绑定分支）。
+- 勿混淆 Skill 导航与 Git-native 生命周期；勿在默认分支编辑 live `llmanspec/specs/**`。
 
 ## Workflow
 - 以 `llman sdd` 命令结果为事实来源。
