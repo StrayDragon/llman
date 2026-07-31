@@ -14,6 +14,10 @@ metadata:
 
 ## Pipeline 位置
 
+{{ unit("skills/git-native-flow") }}
+
+### Skill 导航（降级：仅指 agent skill，不是 Git 车道）
+
 ```mermaid
 flowchart LR
     explore["llman-sdd-explore<br/>探索"] --> propose
@@ -25,7 +29,7 @@ flowchart LR
     style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在提案阶段（含 Branch binding + Specs landing）→ 下一步 `llman-sdd-apply`（须 `readyToImplement=true`）
+> 📍 你现在在提案阶段：上图 Git-native 的 **Designed → Binding → Specs landing**（到 `readyToImplement=true`）→ 下一步 `llman-sdd-apply`
 > 📎 如果只是小改动（不改行为合约），可直接 `llman-sdd-quick`（快速路径）
 
 ## 硬约束
@@ -116,7 +120,6 @@ flowchart LR
 
 > 💡 提案完成 → 下一步 `llman-sdd-apply` 进入实施阶段。
 
-{{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}
 

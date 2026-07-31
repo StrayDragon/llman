@@ -33,6 +33,7 @@ flowchart LR
 
 > 📍 你现在在探索阶段（仅思考）→ 常规路径下一步 `llman-sdd-propose`（提案）
 > 📎 如果是小改动（不改行为合约），可直接走 `llman-sdd-quick`（快速路径）
+> 🗺️ Skill 链 ≠ Git 车道：完整 Binding→Specs landing→apply 见下方「Git-native 生命周期」
 
 ## 探索姿态
 - 好奇而不教条

@@ -33,6 +33,7 @@ flowchart LR
 
 > 📍 You are in the explore phase (thinking only) → standard path next: `llman-sdd-propose` (propose)
 > 📎 For small changes (no behavioral contract changes), go directly to `llman-sdd-quick` (quick path)
+> 🗺️ Skill chain ≠ Git lane: full Binding→Specs landing→apply is in the Git-native lifecycle section below
 
 ## Stance
 - Curious, not prescriptive

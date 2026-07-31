@@ -24,7 +24,8 @@ flowchart LR
     style verify fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在验证阶段 → 通过后下一步 `llman-sdd-archive`（归档）；失败则回到 `llman-sdd-apply`（修复）。验证对象应已通过 Specs landing（`readyToImplement=true`）。
+> 📍 你现在在验证阶段 → 通过后下一步 `llman-sdd-archive`（归档）；失败则回到 `llman-sdd-apply`（修复）。对应 Git-native 图中的 **I（verify）**，对象应已 Specs-landed（`readyToImplement=true`）。
+> 🗺️ 上图是 Skill 导航；完整车道见下方 Git-native 生命周期
 
 ## 硬约束
 
@@ -83,6 +84,7 @@ flowchart LR
 
 > 💡 验证通过 → 下一步 `llman-sdd-archive`（归档）；有 CRITICAL → 回到 `llman-sdd-apply`（修复）
 
+{{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}
 
 {{ unit("skills/structured-protocol") }}

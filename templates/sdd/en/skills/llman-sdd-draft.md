@@ -25,7 +25,8 @@ flowchart LR
 ```
 
 > 📍 You are at the draft stage → next: flesh out `proposal.md`, then run `llman-sdd-propose` to formalize
-> 📎 This skill creates a **draft** change (proposal.md only). For full proposals (tasks → start/attach → Specs landing), use `llman-sdd-propose`.
+> 📎 This skill creates a **draft** change (proposal.md only). Full propose follows Git-native: tasks → start/attach → Specs landing (see propose lifecycle diagram)
+> 🗺️ Diagram above is skill navigation; Binding / Specs landing are not separate skills
 
 ## Hard Constraints
 
