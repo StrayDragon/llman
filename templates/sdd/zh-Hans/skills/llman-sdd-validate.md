@@ -19,11 +19,12 @@ metadata:
 4. 若校验失败，汇总错误并给出最小、可执行的修复建议。
 {% if bdd_enabled %}
 5. **BDD 校验（Git-native Partitioned SSOT）**：
-   - 在 feature 分支上验证 live `.feature` Gherkin 与 `@req` / 双写门禁。
-   - `.feature` 是 harness 权威——可执行 GWT 在此维护（无 solidify；无 `feature_delta`）。
-   - Change 生命周期门禁：`llman sdd change attach` / `finalize`（推荐）/ `checkpoint`（fallback）/ `diff`（diff 只读）。
+   - 在**绑定分支**上验证 live `.feature` Gherkin 与 `@req` / 双写门禁（须已 Branch binding）。
+   - `.feature` 是 harness 权威——可执行 GWT 只在 live `.feature` 维护（无 solidify；无 `feature_delta` / `change delta`）。
+   - Change 生命周期门禁：`change start` / `attach`（Branch binding）、`finalize`（推荐）/ `checkpoint`（fallback）/ `diff`（只读）。
    - `llman sdd validate --specs` 默认自动运行 `bdd.run_command`。
    - 可用 `list --specs --json` 查看 `morphology`（含 `dualWriteCount`）。
+   - Change JSON 状态字段：`stage` / `specsLanded` / `readyToImplement`（`show --json`）。
 {% endif %}
 
 {{ unit("skills/sdd-commands") }}

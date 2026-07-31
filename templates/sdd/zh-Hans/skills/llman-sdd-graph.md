@@ -23,7 +23,7 @@ flowchart LR
     style graph fill:#e8f4e8,stroke:#28a745,stroke-width:2px
 ```
 
-> 📎 辅助工具，可在 pipeline 任意阶段使用。需要落地执行时 → `llman-sdd-apply`（实施）或 `llman-sdd-propose`（提案）。
+> 📎 辅助工具，可在 pipeline 任意阶段使用。需要提案 → `llman-sdd-propose`；需要实施 → 仅当 `readyToImplement=true` 时用 `llman-sdd-apply`。
 
 ## 用法
 
@@ -69,7 +69,7 @@ blocks:
 ...
 ```
 
-> 💡 这只是辅助工具 — 需要落地执行时回到主 pipeline：`llman-sdd-propose` → `llman-sdd-apply` → `llman-sdd-verify` → `llman-sdd-archive`。
+> 💡 这只是辅助工具 — 主流程：`llman-sdd-propose`（含 Branch binding + Specs landing）→ `llman-sdd-apply`（须 `readyToImplement`）→ `llman-sdd-verify` → `llman-sdd-archive`。
 
 {{ unit("skills/sdd-commands") }}
 
