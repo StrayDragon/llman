@@ -1,6 +1,6 @@
 # language: zh-CN
 # 对应 spec: skills-management — llman skills 交互式扫描后直接进 agent→scope→skills 流程；
-# 尊重忽略规则并跳过软链接解析；单一来源扫描不可配置；取消是安全 no-op；
+# 尊重忽略规则并跳过软链接解析；每个 skills.repo 仅扫描直子目录一层；取消是安全 no-op；
 # 项目范围菜单隐藏仅 user scope 已管理技能；scope 排序动态化。
 功能: 交互入口、扫描与 scope 语义
   @req:r67
@@ -41,6 +41,13 @@
     假如 skills_root 下存在含 SKILL.md 的技能目录
     当 管理器扫描
     而且 那么将其作为可管理技能展示
+
+  @req:r67
+  场景: 仅扫描 skills_root 下一层技能目录
+    假如 skills_root 下深层嵌套目录也含 SKILL.md
+    当 管理器扫描
+    而且 那么不导入该嵌套技能
+    而且 而且仅导入 skills_root 直子目录中的技能
 
   @req:r67
   场景: 隐藏仅 user scope 已链接技能
