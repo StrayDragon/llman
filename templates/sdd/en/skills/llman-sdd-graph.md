@@ -23,7 +23,7 @@ flowchart LR
     style graph fill:#e8f4e8,stroke:#28a745,stroke-width:2px
 ```
 
-> 📎 Utility tool, available at any pipeline stage. For execution: `llman-sdd-apply` (implement) or `llman-sdd-propose` (propose).
+> 📎 Utility tool, available at any pipeline stage. To propose → `llman-sdd-propose`. To implement → `llman-sdd-apply` only when `readyToImplement=true`.
 
 ## Usage
 
@@ -69,10 +69,10 @@ blocks:
 ...
 ```
 
-> 💡 This is just a utility — for execution, return to the main pipeline: `llman-sdd-propose` → `llman-sdd-apply` → `llman-sdd-verify` → `llman-sdd-archive`.
+> 💡 This is just a utility — main flow: `llman-sdd-propose` (Branch binding + Specs landing) → `llman-sdd-apply` (requires `readyToImplement`) → `llman-sdd-verify` → `llman-sdd-archive`.
 
 {{ unit("skills/sdd-commands") }}
 
 {{ unit("skills/validation-hints-toon") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}

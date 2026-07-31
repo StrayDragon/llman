@@ -14,17 +14,19 @@ Use this skill to verify that the implementation matches the change's artifacts.
 
 ## Pipeline Position
 
+### Skill navigation (not the lifecycle; shows current skill only)
+
 ```mermaid
 flowchart LR
     apply["llman-sdd-apply<br/>Implement"] --> verify
     verify["★ llman-sdd-verify ★<br/>Verify (you are here)"]
     verify --> archive["llman-sdd-archive<br/>Archive"]
-    archive --> commit["git commit<br/>Done"]
 
     style verify fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are in the verify phase → if pass: next `llman-sdd-archive` (archive); if fail: go back to `llman-sdd-apply` (fix)
+> 📍 You are in the verify phase → if pass: next `llman-sdd-archive` (archive); if fail: go back to `llman-sdd-apply` (fix). This is Git-native **I (verify)**; the change should already be Specs-landed (`readyToImplement=true`).
+> 🗺️ Skill navigation ≠ Git-native lifecycle; see brief lifecycle unit at the bottom.
 
 ## Hard Constraints
 
@@ -34,28 +36,15 @@ flowchart LR
 
 ## Steps
 1. Select the change id (or ask the user to pick from `llman sdd list --json`).
-2. Check the stage gate (authoritative):
-   ```bash
-   stage=$(llman sdd show <id> --json --type change | jq -r .stage)
-   ```
-   (If `jq` is unavailable, parse the `stage` value from the JSON with any tool.)
-   - If `stage` is not `full`, the change has nothing implemented to verify → STOP with a guard:
-     - `draft`: "Change <id> is a draft proposal (proposal.md only); nothing to verify yet. Generate full artifacts with llman-sdd-propose, then `llman sdd change start <id>`, then implement with llman-sdd-apply." If proposal+design+tasks exist but stage is still `draft`, the change is **not started/attached** — run `llman sdd change start <id>` or `change attach <id>` (do not add `changes/<id>/specs/`).
-     - `designed`: "Change <id> is in designed stage, not yet Full. Run `llman sdd change start <id>` before apply/verify."
+{{ unit("skills/stage-guard") }}
 3. Run a fast validation gate:
    - `llman sdd validate <id> --strict --no-interactive`
    - **When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / global req_id uniqueness), prefer adding `--no-check`** (skips the potentially slow `bdd.run_command` under BDD-on); run the full `--check` (full mode) only after structural gates are green. Each `FAIL <item_type>/<id>` line lists a failing item (above the Totals line).
 4. Read:
-{% if bdd_enabled %}
-   - Live specs on the feature branch: `llmanspec/specs/**` (`spec.toon` + `*.feature`) — SSOT under BDD-on
+   - Live specs on the feature branch: `llmanspec/specs/**` (`spec.toon` + `*.feature` when `bdd:` configured) — SSOT
    - `proposal.md` and `design.md` if present
    - `tasks.md` to understand what was implemented
-   - `llmanspec/changes/<id>/specs/` only if residual docs exist (prefer live specs)
-{% else %}
-   - Delta specs under `llmanspec/changes/<id>/specs/`
-   - `proposal.md` and `design.md` if present
-   - `tasks.md` to understand what was implemented
-{% endif %}
+   - `llmanspec/changes/<id>/specs/` only if residual old docs exist — ignore; SSOT is live specs
 5. **Dual-axis review (Standards + Spec, kept separate so neither masks the other)** — diff against `git diff <merge-base>...HEAD` (merge-base = the attach base_sha or `main`) on two axes:
    - **Spec axis**: does the implementation satisfy the `spec.toon` MUST/SHALL and the `*.feature` GWT?
      - Missing/partial behaviors, wrong implementations, and scope creep in the diff not asked for by the spec.
@@ -69,8 +58,8 @@ flowchart LR
    - Confirm the change is attached and you are on that feature branch.
    - `llman sdd validate --specs`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
    - Optional read-only review: `llman sdd change diff <id>` (or `--export-patch <path>`). Diff is review/export only — never treat it as an apply step.
-   - Archive: **prefer** `llman sdd change finalize <id>` (dirty tree OK; then one `git commit`); use `checkpoint` → `archive` only when you need a strict `checkpoint_sha`.
    - Check: executable GWT only in live `.feature`; `morphology.dualWriteCount` should be 0; if an active `*.feature.delta.toon` already exists, migrate first (do not invent a solidify / repair hunt).
+   - Next step after verify passes: `llman-sdd-archive` (not inline finalize here).
 {% if bdd_verify_prompt %}
    - Extra requirement: {{ bdd_verify_prompt }}
 {% endif %}
@@ -78,10 +67,11 @@ flowchart LR
    - **CRITICAL** (must fix before archive)
    - **WARNING** (should fix)
    - **SUGGESTION** (nice to have)
-8. If CRITICAL exists, suggest `llman-sdd-apply` for fixes. If clean, suggest archive: `llman sdd change finalize <id>` (recommended) or fallback `checkpoint` + `archive`.
+8. If CRITICAL exists, suggest `llman-sdd-apply` for fixes. If clean, suggest `llman-sdd-archive` for finalize/archive.
 
 > 💡 Verify pass → next: `llman-sdd-archive` (archive); CRITICAL issues → go back to `llman-sdd-apply` (fix)
 
+{{ unit("skills/git-native-flow-brief") }}
 {{ unit("skills/sdd-commands") }}
 
 {{ unit("skills/structured-protocol") }}

@@ -16,18 +16,21 @@ metadata:
 
 ## Pipeline 位置
 
+{{ unit("skills/git-native-flow-brief") }}
+
+### Skill 导航（非生命周期；仅指示当前 skill）
+
 ```mermaid
 flowchart LR
     propose["llman-sdd-propose<br/>提案"] --> apply
-    apply["★ llman-sdd-apply ★<br/>实施（你现在在这里）"]
+    apply["★ llman-sdd-apply ★<br/>实施（须 readyToImplement）"]
     apply --> verify["llman-sdd-verify<br/>验证"]
     verify --> archive["llman-sdd-archive<br/>归档"]
-    archive --> commit["git commit<br/>完成闭环"]
 
     style apply fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在实施阶段 → 完成本阶段后下一步 `llman-sdd-verify`（验证）
+> 📍 你现在在完整 Git-native 生命周期图中的 **H（apply）**：进入前须 Specs-landed（或 `skip_specs_landing`）且 `readyToImplement=true` → 下一步 `llman-sdd-verify`
 
 ## 硬约束
 
@@ -37,7 +40,7 @@ flowchart LR
 - **禁止猜测**：需求不明确、specs 与实现矛盾时，先 STOP 并报告，不要自行假定行为。
 - **不保留旧兼容层**：若 change 要求改行为，直接全量升级到新写法，除非 tasks/proposal 明确写了要兼容。
 - **不要问「要不要继续」**：除非遇到无法自动解决的 blocker，否则一路执行到闭环结束。
-- **收尾**：实现自测通过后优先 `llman sdd change finalize <id>`（工作区可脏）→ 一次 `git commit`；勿默认再拆 checkpoint/archive 三连 commit。
+- **收尾**：本 skill 闭环以建议 `llman-sdd-verify` 结束；finalize/archive 由 `llman-sdd-archive` 负责（勿在自修复循环里 finalize）。
 
 ## 步骤
 
@@ -54,14 +57,7 @@ flowchart LR
 - 否则从上下文推断；若不明确，运行 `llman sdd list --json` 并让用户选择。
 - 始终说明："使用变更：<id>"，并告知如何覆盖。
 - 确认已在经 `llman sdd change start <id>` 或 `change attach <id>` 绑定的非默认 feature 分支上（仅在需要重绑时用 `--force`）。分支上的 specs/features 即 SSOT——不要在 `changes/<id>/specs/` 下编写。
-- 检查阶段守卫：
-  ```bash
-  llman sdd show <id> --json --type change
-  ```
-  - `draft`：变更尚未准备好实现 → STOP，提示先用 `llman-sdd-propose` 完善到 Designed，再 `llman sdd change start <id>`。若已有 proposal+design+tasks 仍是 `draft`，说明变更**未 start/attach** —— 在默认分支干净树上运行 `change start`，或手动建分支后 `change attach`（不要新增 `changes/<id>/specs/`）。
-  - `designed`：已有规划壳但未 binding → STOP，先 `change start` / `attach`。
-  - `full` 但 `readyToImplement=false`（通常 `specsLanded=false` 且未 `skipSpecsLanding`）→ STOP：在**绑定分支**编辑 `llmanspec/specs/**` 并 commit 完成 Specs landing；**不要**再跑 `change start`。提示使用 `llman-sdd-propose` 的 Specs landing 步骤。丢失分支上的 specs 改动时 checkout/重建绑定分支，必要时 `attach --force`。
-  - `readyToImplement=true`：通过，继续。`changes/<id>/specs/` 预期为**不存在**，请勿视为缺失。
+{{ unit("skills/stage-guard") }}
 - 使用 `llman sdd context --task "<proposal 中的目标>" --paths "<specs 中的 scope>"` 获取相关 specs。
   - 若 context 不可用，运行 `llman sdd index rebuild` 后重试。
 
@@ -90,14 +86,14 @@ flowchart LR
 运行项目门禁命令（根据项目实际选择）：
 - 相关测试集：`just test` 或 `cargo test --all`
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
-- Git-native：留在已 attach 的 feature 分支；编辑 live `spec.toon`（约束）与 `*.feature`（配置了 `bdd:` 时的 `@req`）；`llman sdd validate --specs` 通过后，verify 阶段结束优先 `change finalize`（工作区可脏）；勿在每个 task 后跑 `checkpoint`。勿使用 `change delta` / solidify / feature_delta。
+- Git-native：留在绑定 feature 分支；按需编辑 live `spec.toon`（约束）与 `*.feature`（配置了 `bdd:` 时的 `@req`）；spec 改动后跑 `llman sdd validate --specs`。勿在每个 task 后跑 `checkpoint`。勿使用 `change delta` / solidify / feature_delta。
 - SDD 校验：`llman sdd validate <id> --strict --no-interactive`
 
 **若失败 → 进入自修复循环（不要问要不要继续）：**
 1. 解析失败原因（测试失败 / lint / 格式 / 校验错误）。
 2. **判定是否难定位的 bug**（测试失败原因不明 / 间歇性 flake / 回归且一眼看不穿）：
    - **不是难定位的 bug**（明确的 lint/格式/编译错误/校验失败）：进行最小修复（不扩大范围），先重跑「最小失败复现命令」再重跑全部门禁。
-   - **难定位的 bug → 升级诊断子流程（r102）**：
+   - **难定位的 bug → 升级诊断子流程**：
      1. **先建一个能复现失败的命令**（快、确定、agent 可运行，且能在这个 bug 上失败）——即一个能驱动真实 bug 路径并断言用户确切症状的命令。**MUST NOT 在没有这种命令前就开始猜原因**（盯着代码空想正是本流程要防止的失败）。
      2. 运行并确认失败 → 最小化复现（逐个剔除输入/调用/配置/数据，只留关键部分）。
      3. 生成 **3–5 个排序假设**，每个须可证伪（「若 X 是因，则改 Y 会让 bug 消失」）。
@@ -116,44 +112,4 @@ flowchart LR
 
 {{ unit("skills/sdd-commands") }}
 
-## Context
-- 执行前先确认当前 change/spec 状态。
-- 优先使用 `llman sdd context --task --paths` 获取相关 specs，而非全量读取或猜测。
-- 这是实现阶段：此时 proposal/specs/tasks 已就绪，只负责落地。
-
-## Goal
-- 在一个闭环内完成所有 tasks 实现 + 验证 + 自修复，产出全绿门禁结果。
-
-## Constraints
-- 变更保持最小化且范围明确。
-- 标识符或意图不明确时禁止猜测。
-- 禁止中途停下来问「要不要继续」；遇到 blocker 才 STOP。
-- 行为合约变更必须走完整 SDD 流程（本 skill 仅处理已到 apply 阶段的变更）。
-
-## Workflow
-- 以 `llman sdd` 命令结果为事实来源。
-- 涉及文件/规范变更时执行校验。
-- 首选 `llman sdd context` 获取相关 specs，而非全量读取或猜测。
-- 当 context 不可用时，按错误提示处理（重建 index 或降级到 `list --specs --json`）。
-- 实现 → 验证 → 失败 → 自修复 → 重验证 → 直到通过或超过 8 轮。
-
-## Decision Policy
-- 高影响歧义必须先澄清。
-- 已知校验错误下禁止强行继续。
-- 自修复仅限最小改动，不得扩大范围。
-
-## Output Contract
-所有 tasks 完成后（或遇到 blocker 时）必须输出：
-- **实现摘要**：列出完成的 task 及关键改动文件。
-- **验证命令与结果**：逐条列出你实际运行过的命令 + 关键输出/通过结论。
-- **自修复轮次**：每轮：`Round N：失败点 → 修复 → 重跑命令 → 是否通过`。
-- **校验状态**：`llman sdd validate <id> --strict --no-interactive` 的结果。
-- **残留风险/已知不确定性**：含未能自动解决的事项。
-- **下一步建议**：建议运行 `llman-sdd-verify` 进入验证阶段。
-
-## Ethics Governance
-- `ethics.risk_level`：按 `low|medium|high|critical` 标注风险等级。
-- `ethics.prohibited_actions`：列出绝对禁止执行的动作。
-- `ethics.required_evidence`：列出高影响输出前必须具备的证据。
-- `ethics.refusal_contract`：定义何时拒答以及安全替代响应方式。
-- `ethics.escalation_policy`：定义何时必须升级为用户确认/人工复核。
+{{ unit("skills/structured-protocol") }}

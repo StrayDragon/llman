@@ -14,10 +14,14 @@ Create a new change with planning artifacts (proposal + tasks; design optional),
 
 ## Pipeline Position
 
+{{ unit("skills/git-native-flow") }}
+
+### Skill navigation (not the lifecycle; shows current skill only)
+
 ```mermaid
 flowchart LR
     explore["llman-sdd-explore<br/>Explore"] --> propose
-    propose["★ llman-sdd-propose ★<br/>Propose (you are here)"]
+    propose["★ llman-sdd-propose ★<br/>Propose (Branch binding + Specs landing)"]
     propose --> apply["llman-sdd-apply<br/>Implement"]
     apply --> verify["llman-sdd-verify<br/>Verify"]
     verify --> archive["llman-sdd-archive<br/>Archive"]
@@ -25,24 +29,24 @@ flowchart LR
     style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are in the propose phase → next: `llman-sdd-apply` (implement)
+> 📍 You are in propose: Git-native path above is **Designed → Branch binding → Specs landing** (until `readyToImplement=true`) → next: `llman-sdd-apply`
 > 📎 For small changes (no behavioral contract changes), use `llman-sdd-quick` (quick path)
 
 ## Hard Constraints
 
 - **Must confirm change id with user before writing files**: change boundaries must stay clear. **Exception**: when the user wants to quickly capture an idea (draft only, no id needed), route them to `llman-sdd-draft` instead of running full propose.
-- **Live specs on the feature branch are SSOT**: edit `llmanspec/specs/**` directly — do **not** author under `changes/<id>/specs/` or use `change delta` (removed).
+- **Live specs are SSOT**: edit `llmanspec/specs/**` only **after** Branch binding, on the **bound non-default branch** (Specs landing). **Do not** edit live specs on the default branch; **do not** author under `changes/<id>/specs/` or use `change delta` (removed). The planning shell may briefly live on the default branch.
 - **Don't ask "should I continue?"**: execute the full propose phase in one pass, generate artifacts and validate.
 {% if extra_skill_continue %}
-- **If change already exists**: STOP and suggest `llman-sdd-continue` or `llman-sdd-apply`.
+- **If change already exists**: STOP. If `readyToImplement=true`, suggest `llman-sdd-apply`; otherwise use `llman-sdd-continue` to finish Branch binding / Specs landing, or fill the planning shell.
 {% else %}
-- **If change already exists**: STOP and suggest `llman-sdd-apply`; to fill missing artifacts, edit `llmanspec/changes/<id>/` directly (or enable `extra_skills: [llman-sdd-continue]`).
+- **If change already exists**: STOP. If `readyToImplement=true`, suggest `llman-sdd-apply`; otherwise finish the planning shell / Branch binding / Specs landing (edit `llmanspec/changes/<id>/`, or enable `extra_skills: [llman-sdd-continue]`).
 {% endif %}
-- **Frontmatter has a fixed schema (r124)**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted. `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR; lifecycle stage is inferred (r93, query via `llman sdd status`/`show`), never stored in frontmatter. Do not re-declare frontmatter fields in the prose body; the body H1 is a human-readable title, not a repeat of the change id.
+- **Frontmatter has a fixed schema**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted (including `depends_on`, `blocks`, `branch`, `base_sha`/`baseSha`, `checkpointed`, `checkpoint_sha`/`checkpointSha`, `skip_specs_landing`). `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR; lifecycle stage is inferred (query via `llman sdd status`/`show`), never stored in frontmatter. Do not re-declare frontmatter fields in the prose body; the body H1 is a human-readable title, not a repeat of the change id.
 
 ## Quick-capture routing
 
-If the user just wants to **capture an idea** (e.g. "draft a proposal", "note down X", "remember to do Y later") without full planning, route them to the `llman-sdd-draft` skill — it creates a `proposal.md`-only draft shell via `change new --from` (no id asked, no tasks/specs/attach). Full propose (triage + tasks + live specs + `change start`) starts here.
+If the user just wants to **capture an idea** (e.g. "draft a proposal", "note down X", "remember to do Y later") without full planning, route them to the `llman-sdd-draft` skill — it creates a `proposal.md`-only draft shell via `change new --from` (no id asked, no tasks/specs/attach). Full propose (triage + tasks → `change start`/`attach` → Specs landing) starts here.
 
 ## Steps
 
@@ -99,7 +103,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 - **Do NOT silently add the `bdd:` block** — always ask first. Adding it changes how `validate --check` behaves project-wide.
 
 ### 4b) Git-native spec authoring (Partitioned SSOT when `bdd:` is configured)
-- Work on a **non-default Git feature branch** (never propose/implement on main/master).
+- Planning shell (proposal/design/tasks) may briefly live on the default branch; **do not** edit live `llmanspec/specs/**` on the default branch. After Branch binding, Specs landing and implementation happen on the bound branch.
 - **Partitioned SSOT** (when `bdd:` exists): edit live `spec.toon` (constraints) and `*.feature` (executable GWT + `@req`); never dual-write the same scenario id.
 
   | Scenario type | `spec.toon` `scenarios[]` | `*.feature` |

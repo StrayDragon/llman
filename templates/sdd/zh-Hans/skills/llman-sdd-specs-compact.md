@@ -22,7 +22,7 @@ flowchart LR
     style compact fill:#e8f4e8,stroke:#28a745,stroke-width:2px
 ```
 
-> 📎 维护工具，通常在归档积累较多后执行。日常开发 → `llman-sdd-propose` / `llman-sdd-apply`。
+> 📎 维护工具，通常在归档积累较多后执行。日常开发 → `llman-sdd-propose`（含 Branch binding + Specs landing）/ `llman-sdd-apply`（须 `readyToImplement`）。
 
 ## Context
 - specs 会随着变更积累而膨胀，并出现重复 requirement/scenario。
@@ -37,6 +37,7 @@ flowchart LR
 - 未经明确替代，不得删除规范性行为。
 - 尽量保持 requirement 标题稳定。
 - 每个保留 requirement 至少保留一个有效 scenario。
+- **编辑 live `llmanspec/specs/**` 须走 change**：先 Branch binding（`change start` / `attach`），在绑定分支上做 Specs landing 式提交；**禁止**在默认分支直接压缩改写 live specs。
 
 ## Workflow
 1. 盘点当前 specs（`llman sdd list --specs`）。
@@ -58,10 +59,10 @@ flowchart LR
 - 包含：keep/merge/remove 决策及理由。
 - 包含验证命令与预期结果。
 
-> 💡 维护完成后，新需求走正常 pipeline：`llman-sdd-propose` → `llman-sdd-apply` → `llman-sdd-verify` → `llman-sdd-archive`。
+> 💡 维护完成后，新需求走正常 pipeline：`llman-sdd-propose`（含 Branch binding + Specs landing）→ `llman-sdd-apply`（须 `readyToImplement`）→ `llman-sdd-verify` → `llman-sdd-archive`。
 
 {{ unit("skills/sdd-commands") }}
 
 {{ unit("skills/validation-hints-toon") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}

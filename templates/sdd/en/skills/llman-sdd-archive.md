@@ -10,7 +10,7 @@ metadata:
 
 # LLMAN SDD Archive
 
-Use this skill to archive completed changes. Live specs are already on the feature branch; archive/finalize **auto ff-merges** into the default branch, then **renames** change docs to `changes/archive/` (one follow-up `git commit` for the dirty rename). `git push` / hosting PR are optional.
+Use this skill to archive completed changes. Prerequisites: verify all-green, and the change already has Branch binding plus Specs landing (or `skip_specs_landing`; live specs are on the bound branch). Archive/finalize **auto ff-merges** into the default branch, then **renames** change docs to `changes/archive/` (one follow-up `git commit` for the dirty rename). `git push` / hosting PR are optional.
 
 ## Pipeline Position
 
@@ -18,17 +18,17 @@ Use this skill to archive completed changes. Live specs are already on the featu
 flowchart LR
     verify["llman-sdd-verify<br/>Verify"] --> archive
     archive["★ llman-sdd-archive ★<br/>Archive (you are here)"]
-    archive --> commit["git commit<br/>Done"]
 
     style archive fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are in the archive phase: the last stop in the pipeline.
+> 📍 You are in the archive phase: the last stop in the Git-native lifecycle.
 > 📎 If specs get too large, run `llman-sdd-specs-compact` to compress.
 
 ## Hard Constraints
 
 - **Must pass verify phase all-green first**: don't archive changes that haven't passed verification.
+- **Must already have Branch binding**: `change start` / `attach` done; otherwise STOP.
 - **SSOT validation**: every change must pass `llman sdd validate <id> --strict --no-interactive` before archiving.
 - **Don't ask "should I continue?"**: execute the full batch to completion unless you hit an unresolvable error.
 - **Close-out MUST NOT default to PR/push**: after archive/finalize, default to a local ff-merge (handled by the CLI) and one `git commit` for the docs rename. `git push` / hosting PR are optional — only when the user or project explicitly requires remote review. **Agent MUST NOT** push or open a PR by default on this skill's account.
@@ -53,7 +53,7 @@ flowchart LR
   - tooling-only: `llman sdd change archive <id> --skip-specs`
   - **stop immediately on first failure**, report remaining unprocessed IDs.
 - **Git-native close-out**:
-  - Prerequisites: `llman sdd change start <id>` or `change attach <id>` done; still on the feature branch (or default branch after auto ff-merge).
+  - Prerequisites: Branch binding done (`change start` / `attach`); still on the bound branch (or default branch after auto ff-merge).
   - `change archive` / `change finalize` run **auto ff-merge** (`git merge --ff-only <feature>` into default), **then** rename change docs into `changes/archive/` — rename is never rolled back on merge failure.
   - Legacy active `*.feature.delta.toon` under the change is a migration blocker — remove/migrate before archive.
   - **Recommended: single-commit close (`change finalize`)** — same process runs gates → auto ff-merge → docs rename; leaves the tree dirty once for **one `git commit`**:

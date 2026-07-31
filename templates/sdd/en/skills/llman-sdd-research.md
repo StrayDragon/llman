@@ -24,7 +24,8 @@ The background agent's job:
 
 1. Investigate the question against **primary sources** — official docs, source code, specs, first-party APIs — not secondary write-ups. Follow every claim back to the source that owns it.
 2. Write findings to a single Markdown file, citing each claim's source.
-3. Save where the repo already keeps such notes; match the existing convention, and if there is none, put it at `llmanspec/changes/<current-change>/research/<topic>.md` and say where.
+3. Save where the repo already keeps such notes; match the existing convention, and if there is none, put it at `llmanspec/changes/<current-change>/research/<topic>.md` and say where (this is change docs, **not** live specs).
+4. **MUST NOT** edit `llmanspec/specs/**` in this skill. If research shows MUST/SHALL must change → suggest `llman-sdd-propose` (Branch binding → Specs landing).
 
 ## Steps
 

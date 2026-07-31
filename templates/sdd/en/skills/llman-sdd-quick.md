@@ -21,7 +21,7 @@ flowchart LR
     quick["★ llman-sdd-quick ★<br/>Quick path (you are here)"]
     quick --> commit["git commit<br/>Done"]
 
-    explore --> propose["Full path:<br/>propose → apply → verify → archive"]
+    explore --> propose["Full path:<br/>propose (Branch binding + Specs landing) → apply → verify → archive"]
     propose --> apply["..."]
     apply --> verify["..."]
     verify --> archive["..."]
@@ -30,6 +30,7 @@ flowchart LR
 ```
 
 > 📍 Quick path: no behavioral contract changes, modify code and commit directly. If you find you need to change a contract → STOP, switch to full path `llman-sdd-propose`
+> 🗺️ Full path includes Git-native Branch binding + Specs landing (Specs landing is not a separate skill)
 
 ## Conditions (all must hold)
 - Does not change any MUST/SHALL-defined externally observable behavior
@@ -42,7 +43,7 @@ flowchart LR
    - If context returns `quality: "unavailable"`, rebuild with `llman sdd index rebuild` (default `pageindex`, no model needed).
    - Use `llman sdd list --specs --json` for keyword-level spec metadata.
 2. Modify the code directly.
-3. If spec maintenance is needed (typo fix, scope tightening), edit the spec file directly and run `llman sdd validate --specs`.
+3. If you need to touch `llmanspec/specs/**`, STOP unless you are on a bound non-default change branch (mini change: `change start`/`attach` → edit → commit). Never commit live specs on the default branch — not even for typo or scope-only fixes. Prefer routing live-spec maintenance to `llman-sdd-propose`, or require an existing bound branch.
 4. git commit (message must explain why).
 5. No change directory, no archive needed.
 
@@ -54,4 +55,4 @@ flowchart LR
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}
