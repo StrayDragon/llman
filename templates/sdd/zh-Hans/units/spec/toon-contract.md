@@ -49,8 +49,12 @@ scenarios[1]{req_id,id,given,when,then,feature}:
     那么 退出码为 0
 ```
 
-- **Git-native 生命周期**：先用 `llman sdd change start <id>`（推荐；须在默认分支干净树）或 `change attach` 完成 Branch binding 进入 Full；**再**在绑定的非默认分支上编辑 live `.feature` 与 `spec.toon` 并 commit（Specs landing）。优先 `change finalize` 单 commit 收尾（或 fallback：归档前 `checkpoint` 再 `change archive`）。archive/finalize 自动 ff-merge feature 分支到默认分支，再将 change 文档改名到 `changes/archive/`（脏改名留一次 `git commit`）。`diff` 只读审查/导出。**禁止**在 `changes/<id>/specs/` 下编写或创建 `*.feature.delta.toon`。没有 `change delta`、solidify 或 `llman-sdd-sync`。
-- 下游升级：人工清理遗留 `change/specs/` 或 `*.feature.delta.toon`（`partitioned` migrate 已移除）。
+- **Git-native 生命周期（两步勿混）**：
+  1. **Branch binding（分支绑定）**：`llman sdd change start <id>`（推荐；须在默认分支干净树）或 `change attach` → Full。规划壳（proposal/design/tasks）可短暂在默认分支。
+  2. **Specs landing（合约落地）**：仅在绑定的非默认分支编辑 live `.feature` / `spec.toon` 并 commit。**禁止**在默认分支改 live specs。无合约变更可设 `skip_specs_landing: true`。apply 前须 `readyToImplement=true`（`Full ∧ (specsLanded ∨ skip)`）。
+  - **收尾**（verify 之后）：优先 `change finalize`；或 `checkpoint` → `change archive`。archive/finalize 自动 ff-merge 到默认分支，再改名 change 文档（脏改名留一次 `git commit`）。`diff` 只读。
+  - **禁止**编写 `changes/<id>/specs/` 或 `*.feature.delta.toon`。没有 `change delta`、solidify、`llman-sdd-sync`。
+- 下游升级：人工清理遗留 `llmanspec/changes/<id>/specs/` 或 `*.feature.delta.toon`（`partitioned` migrate 已移除）。
 - `bdd:` 已启用且 `requirements` 为空、又无 `.feature` 是 ERROR。
 
 ### 表格化行的引号规则
