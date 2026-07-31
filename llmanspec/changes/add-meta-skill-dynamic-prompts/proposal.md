@@ -1,8 +1,6 @@
 ---
-id: add-meta-skill-dynamic-prompts
 depends_on:
   - update-skill-bdd-mode-conditioning
-stage: draft
 ---
 
 # Proposal (DRAFT): 元 Skill + `llman sdd` 动态提示词
