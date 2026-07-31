@@ -19,7 +19,7 @@ Unless there is a clear blocker, **DO NOT stop halfway to ask "should I continue
 ```mermaid
 flowchart LR
     propose["llman-sdd-propose<br/>Propose"] --> apply
-    apply["★ llman-sdd-apply ★<br/>Implement (you are here)"]
+    apply["★ llman-sdd-apply ★<br/>Implement (readyToImplement)"]
     apply --> verify["llman-sdd-verify<br/>Verify"]
     verify --> archive["llman-sdd-archive<br/>Archive"]
     archive --> commit["git commit<br/>Done"]
@@ -27,7 +27,7 @@ flowchart LR
     style apply fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are in the implement phase → after this phase: `llman-sdd-verify` (verify)
+> 📍 You are in the implement phase (requires `readyToImplement=true` first) → after this phase: `llman-sdd-verify` (verify)
 
 ## Hard Constraints
 
@@ -97,7 +97,7 @@ Run project gate commands (adapt to the actual project):
 1. Parse failure cause (test failure / lint / format / validation error).
 2. **Decide if it's a hard-to-locate bug** (cause unclear / intermittent flake / regression not obvious at a glance):
    - **Not hard-to-locate** (clear lint/format/compile/validation error): apply a minimum fix (don't expand scope); re-run the "minimum failure repro command" first, then re-run all gates.
-   - **Hard-to-locate bug → escalate to the diagnose sub-flow (r102)**:
+   - **Hard-to-locate bug → escalate to the diagnose sub-flow**:
      1. **First build a command that reproduces the failure** (fast, deterministic, agent-runnable, and goes red on *this* bug) — one that drives the real bug path and asserts the user's exact symptom. **MUST NOT start hypothesizing before such a command exists** (staring at code and guessing is the failure this prevents).
      2. Run it, confirm red → minimize the repro (cut inputs/calls/config/data one at a time, keep only what's load-bearing).
      3. Generate **3–5 ranked hypotheses**, each falsifiable ("if X is the cause, changing Y makes the bug disappear").
@@ -114,6 +114,7 @@ Then suggest running `llman-sdd-verify` for the verification phase.
 
 > 💡 Implementation done → next: `llman-sdd-verify` (verify)
 
+{{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}
 
 ## Context

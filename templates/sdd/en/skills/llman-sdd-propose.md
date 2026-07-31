@@ -17,7 +17,7 @@ Create a new change with planning artifacts (proposal + tasks; design optional),
 ```mermaid
 flowchart LR
     explore["llman-sdd-explore<br/>Explore"] --> propose
-    propose["★ llman-sdd-propose ★<br/>Propose (you are here)"]
+    propose["★ llman-sdd-propose ★<br/>Propose (start+Specs landing)"]
     propose --> apply["llman-sdd-apply<br/>Implement"]
     apply --> verify["llman-sdd-verify<br/>Verify"]
     verify --> archive["llman-sdd-archive<br/>Archive"]
@@ -25,7 +25,7 @@ flowchart LR
     style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are in the propose phase → next: `llman-sdd-apply` (implement)
+> 📍 You are in the propose phase (Branch binding + Specs landing) → next: `llman-sdd-apply` (requires `readyToImplement=true`)
 > 📎 For small changes (no behavioral contract changes), use `llman-sdd-quick` (quick path)
 
 ## Hard Constraints
@@ -38,7 +38,7 @@ flowchart LR
 {% else %}
 - **If change already exists**: STOP and suggest `llman-sdd-apply`; to fill missing artifacts, edit `llmanspec/changes/<id>/` directly (or enable `extra_skills: [llman-sdd-continue]`).
 {% endif %}
-- **Frontmatter has a fixed schema (r124)**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted. `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR; lifecycle stage is inferred (r93, query via `llman sdd status`/`show`), never stored in frontmatter. Do not re-declare frontmatter fields in the prose body; the body H1 is a human-readable title, not a repeat of the change id.
+- **Frontmatter has a fixed schema**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted (including `depends_on`, `blocks`, `branch`, `base_sha`/`baseSha`, `checkpointed`, `checkpoint_sha`/`checkpointSha`, `skip_specs_landing`). `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR; lifecycle stage is inferred (query via `llman sdd status`/`show`), never stored in frontmatter. Do not re-declare frontmatter fields in the prose body; the body H1 is a human-readable title, not a repeat of the change id.
 
 ## Quick-capture routing
 
@@ -117,6 +117,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 
 > 💡 Proposal done → next: `llman-sdd-apply` (implement)
 
+{{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}
 

@@ -38,6 +38,7 @@ const UNIT_FILES: &[&str] = &[
     "skills/sdd-commands.md",
     "skills/validation-hints.md",
     "skills/validation-hints-toon.md",
+    "skills/git-native-flow.md",
     "spec/toon-contract.md",
     "skills/structured-protocol.md",
     "workflow/archive-freeze-guidance.md",
@@ -341,6 +342,10 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/units/skills/validation-hints-toon.md"
         ))),
+        "templates/sdd/en/units/skills/git-native-flow.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/units/skills/git-native-flow.md"
+        ))),
         "templates/sdd/en/units/spec/toon-contract.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/units/spec/toon-contract.md"
@@ -419,6 +424,10 @@ fn embedded_template(path: &str) -> Option<&'static str> {
                 "/templates/sdd/zh-Hans/units/skills/validation-hints-toon.md"
             )))
         }
+        "templates/sdd/zh-Hans/units/skills/git-native-flow.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/units/skills/git-native-flow.md"
+        ))),
         "templates/sdd/zh-Hans/units/spec/toon-contract.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/units/spec/toon-contract.md"

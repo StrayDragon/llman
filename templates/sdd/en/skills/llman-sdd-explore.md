@@ -22,7 +22,7 @@ Use this skill when the user wants to think through ideas, investigate problems,
 ```mermaid
 flowchart LR
     explore["★ llman-sdd-explore ★<br/>Explore (you are here)"]
-    explore --> propose["llman-sdd-propose<br/>Propose"]
+    explore --> propose["llman-sdd-propose<br/>Propose (start+Specs landing)"]
     propose --> apply["llman-sdd-apply<br/>Implement"]
     apply --> verify["llman-sdd-verify<br/>Verify"]
     verify --> archive["llman-sdd-archive<br/>Archive"]
@@ -48,7 +48,7 @@ flowchart LR
 3. **Grilling branch (optional, only when the user explicitly triggers)**: triggers on "deep-dig" / "grill" / "one at a time" / "nail it down". Walks the decision tree one question at a time:
    - **Ask one question at a time**, with your recommended answer, waiting for feedback before the next.
    - **Facts vs decisions**: look up anything verifiable by reading `spec.toon`/code/running commands yourself — **don't ask** the user; only **decisions** (tradeoffs, preferences, scope boundaries) go to the user.
-   - **Terminology sharpening (r107)**: when a term conflicts or is fuzzy, call it out immediately ("your spec.toon defines 'X' as A, but you just said B — which is it?"); on resolution, update the corresponding `spec.toon` requirement statement on the feature branch; MUST NOT create a `CONTEXT.md` glossary as a second authority.
+   - **Terminology sharpening**: when a term conflicts or is fuzzy, call it out immediately ("your spec.toon defines 'X' as A, but you just said B — which is it?"); on resolution, update the corresponding `spec.toon` requirement statement on the feature branch; MUST NOT create a `CONTEXT.md` glossary as a second authority.
    - **Write decisions back**: resolved decisions go into the change's `proposal.md` "Open Questions" section on the feature branch.
    - **Completion criterion**: every pending decision is resolved or explicitly deferred. When not triggered, the default (ask 1–3 questions) behavior is unchanged.
 4. If a change id is relevant, read its artifacts under `llmanspec/changes/<id>/`.
@@ -63,6 +63,8 @@ flowchart LR
    - Work items → `tasks.md`
 
 > Git-native: first `change start`/`attach` (Branch binding) to enter Full, then edit live `.feature`/`spec.toon` on the bound branch (Specs landing); no `change delta` / solidify / feature_delta.
+
+{{ unit("skills/git-native-flow") }}
 
 ## Exiting explore mode
 When the user is ready to implement, choose based on change scale:
