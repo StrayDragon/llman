@@ -22,7 +22,7 @@ metadata:
 ```mermaid
 flowchart LR
     explore["★ llman-sdd-explore ★<br/>探索（你现在在这里）"]
-    explore --> propose["llman-sdd-propose<br/>提案"]
+    explore --> propose["llman-sdd-propose<br/>提案（含 start+Specs landing）"]
     propose --> apply["llman-sdd-apply<br/>实施"]
     apply --> verify["llman-sdd-verify<br/>验证"]
     verify --> archive["llman-sdd-archive<br/>归档"]
@@ -48,7 +48,7 @@ flowchart LR
 3. **逐问深挖分支（可选，仅当用户显式触发时进入）**：触发词为「深挖」「grill」「逐个问」「彻底理清」。进入后一问一答走清决策：
    - **一次只问一个问题**，并附你的推荐答案，等用户反馈后再继续下一个。
    - **事实 vs 决策分离**：能通过读 `spec.toon`/代码/运行命令查证的事实，自行查证，**不问**用户；只有**决策**（取舍、偏好、范围边界）才交给用户。
-   - **术语校准（r107）**：遇到术语冲突或模糊词时立即指出（「你的 spec.toon 定义 'X' 为 A，但你刚说成 B——哪个对？」）；解决后在 feature 分支上更新对应 `spec.toon` 的 requirement statement，MUST NOT 另建 `CONTEXT.md` 词表作为第二权威。
+   - **术语校准**：遇到术语冲突或模糊词时立即指出（「你的 spec.toon 定义 'X' 为 A，但你刚说成 B——哪个对？」）；解决后在 feature 分支上更新对应 `spec.toon` 的 requirement statement，MUST NOT 另建 `CONTEXT.md` 词表作为第二权威。
    - **决策回写**：已解决的决策回写到该 change 的 `proposal.md`「Open Questions」段（在 feature 分支上）。
    - **完成判据**：每个待定决策都已解决或被显式推迟。未触发时保持默认（问 1–3 个问题）行为不变。
 4. 如果某个 change id 相关，阅读 `llmanspec/changes/<id>/` 下的 artifacts。
@@ -63,6 +63,8 @@ flowchart LR
    - 新工作项 → `tasks.md`
 
 > Git-native：先 `change start`/`attach`（Branch binding）进入 Full，再在绑定分支编辑 live `.feature`/`spec.toon`（Specs landing）；无 `change delta` / solidify / feature_delta。
+
+{{ unit("skills/git-native-flow") }}
 
 ## 退出探索模式
 当用户准备开始实现时，根据变更规模选择路径：

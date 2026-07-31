@@ -56,7 +56,7 @@ metadata:
 ### 3. 逐问深挖（用户选定候选后）
 用户从候选中选一个后，运行 `llman-sdd-explore` 的**逐问深挖分支**（触发词「深挖」）逐个走清决策——约束、依赖、加深后的模块形状、接缝后放什么、哪些测试存活。
 
-- 加深后的模块用到了 `spec.toon` 里没有的概念？→ 更新 `spec.toon` requirement statement（r107，BDD-on 在 feature 分支编辑 live 文件）。
+- 加深后的模块用到了 `spec.toon` 里没有的概念？→ 更新 `spec.toon` requirement statement（BDD-on 在 feature 分支编辑 live 文件）。
 - 用户以关键理由拒绝候选？→ 仅当「难逆转 + 无上下文会困惑 + 真实权衡」三者皆满足时，建议记入 `design.md`。
 
 ## 输出

@@ -21,7 +21,7 @@ flowchart LR
     quick["★ llman-sdd-quick ★<br/>快速路径（你现在在这里）"]
     quick --> commit["git commit<br/>完成"]
 
-    explore --> propose["完整路径:<br/>propose → apply → verify → archive"]
+    explore --> propose["完整路径:<br/>propose（含 start+Specs landing）→ apply → verify → archive"]
     propose --> apply["..."]
     apply --> verify["..."]
     verify --> archive["..."]

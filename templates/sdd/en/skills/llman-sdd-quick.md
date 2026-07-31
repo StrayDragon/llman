@@ -21,7 +21,7 @@ flowchart LR
     quick["★ llman-sdd-quick ★<br/>Quick path (you are here)"]
     quick --> commit["git commit<br/>Done"]
 
-    explore --> propose["Full path:<br/>propose → apply → verify → archive"]
+    explore --> propose["Full path:<br/>propose (start+Specs landing) → apply → verify → archive"]
     propose --> apply["..."]
     apply --> verify["..."]
     verify --> archive["..."]

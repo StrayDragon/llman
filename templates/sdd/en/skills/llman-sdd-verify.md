@@ -24,7 +24,7 @@ flowchart LR
     style verify fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are in the verify phase → if pass: next `llman-sdd-archive` (archive); if fail: go back to `llman-sdd-apply` (fix)
+> 📍 You are in the verify phase → if pass: next `llman-sdd-archive` (archive); if fail: go back to `llman-sdd-apply` (fix). The change under review should already have Specs landing done (`readyToImplement=true`).
 
 ## Hard Constraints
 

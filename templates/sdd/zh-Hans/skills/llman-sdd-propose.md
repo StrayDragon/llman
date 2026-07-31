@@ -17,7 +17,7 @@ metadata:
 ```mermaid
 flowchart LR
     explore["llman-sdd-explore<br/>探索"] --> propose
-    propose["★ llman-sdd-propose ★<br/>提案（你现在在这里）"]
+    propose["★ llman-sdd-propose ★<br/>提案（含 start+Specs landing）"]
     propose --> apply["llman-sdd-apply<br/>实施"]
     apply --> verify["llman-sdd-verify<br/>验证"]
     verify --> archive["llman-sdd-archive<br/>归档"]
@@ -25,7 +25,7 @@ flowchart LR
     style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在提案阶段 → 下一步 `llman-sdd-apply`（实施）
+> 📍 你现在在提案阶段（含 Branch binding + Specs landing）→ 下一步 `llman-sdd-apply`（须 `readyToImplement=true`）
 > 📎 如果只是小改动（不改行为合约），可直接 `llman-sdd-quick`（快速路径）
 
 ## 硬约束
@@ -38,7 +38,7 @@ flowchart LR
 {% else %}
 - **若变更已存在**：STOP 并建议用户使用 `llman-sdd-apply`；若需补齐缺失 artifact，直接编辑 `llmanspec/changes/<id>/`（或启用 `extra_skills: [llman-sdd-continue]` 后使用 continue）。
 {% endif %}
-- **frontmatter 有固定 schema（r124）**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（r93，用 `llman sdd status`/`show` 查看），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 用人类可读标题，不要复读 change id。
+- **frontmatter 有固定 schema**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段（含 `depends_on`、`blocks`、`branch`、`base_sha`/`baseSha`、`checkpointed`、`checkpoint_sha`/`checkpointSha`、`skip_specs_landing`）。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（用 `llman sdd status`/`show` 查看），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 用人类可读标题，不要复读 change id。
 
 ## 快速记录路由
 
@@ -116,6 +116,7 @@ flowchart LR
 
 > 💡 提案完成 → 下一步 `llman-sdd-apply` 进入实施阶段。
 
+{{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}
 

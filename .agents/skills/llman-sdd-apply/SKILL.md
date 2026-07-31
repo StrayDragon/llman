@@ -19,7 +19,7 @@ metadata:
 ```mermaid
 flowchart LR
     propose["llman-sdd-propose<br/>提案"] --> apply
-    apply["★ llman-sdd-apply ★<br/>实施（你现在在这里）"]
+    apply["★ llman-sdd-apply ★<br/>实施（须 readyToImplement）"]
     apply --> verify["llman-sdd-verify<br/>验证"]
     verify --> archive["llman-sdd-archive<br/>归档"]
     archive --> commit["git commit<br/>完成闭环"]
@@ -27,7 +27,7 @@ flowchart LR
     style apply fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在实施阶段 → 完成本阶段后下一步 `llman-sdd-verify`（验证）
+> 📍 你现在在实施阶段（进入前须 `readyToImplement=true`）→ 完成本阶段后下一步 `llman-sdd-verify`（验证）
 
 ## 硬约束
 
@@ -97,7 +97,7 @@ flowchart LR
 1. 解析失败原因（测试失败 / lint / 格式 / 校验错误）。
 2. **判定是否难定位的 bug**（测试失败原因不明 / 间歇性 flake / 回归且一眼看不穿）：
    - **不是难定位的 bug**（明确的 lint/格式/编译错误/校验失败）：进行最小修复（不扩大范围），先重跑「最小失败复现命令」再重跑全部门禁。
-   - **难定位的 bug → 升级诊断子流程（r102）**：
+   - **难定位的 bug → 升级诊断子流程**：
      1. **先建一个能复现失败的命令**（快、确定、agent 可运行，且能在这个 bug 上失败）——即一个能驱动真实 bug 路径并断言用户确切症状的命令。**MUST NOT 在没有这种命令前就开始猜原因**（盯着代码空想正是本流程要防止的失败）。
      2. 运行并确认失败 → 最小化复现（逐个剔除输入/调用/配置/数据，只留关键部分）。
      3. 生成 **3–5 个排序假设**，每个须可证伪（「若 X 是因，则改 Y 会让 bug 消失」）。
@@ -114,6 +114,22 @@ flowchart LR
 
 > 💡 实施完成 → 下一步 `llman-sdd-verify`（验证）
 
+## Git-native 子流程（Branch binding → Specs landing）
+
+主 skill 链（explore→propose→apply→verify→archive）之外，propose 阶段内部还有 Git-native 子流程。Specs landing **不是**独立 skill。
+
+```mermaid
+flowchart LR
+  designed[Designed_shell] --> bound[change_start_or_attach]
+  bound --> landed[Specs_landing]
+  landed --> applyReady[readyToImplement]
+  applyReady --> applySkill[llman_sdd_apply]
+```
+
+硬规则：
+1. **先** `change start` / `attach`（Branch binding）进入 Full；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（Specs landing）。
+2. 无 live 合约变更时可设 frontmatter `skip_specs_landing: true`。进入 apply 前 `llman sdd show <id> --json` 的 `readyToImplement` 须为 true。
+3. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
 行动前先阅读 `llmanspec/config.yaml`，并遵循其中的 `context` 与 `rules`（若有）。
 
 常用命令：

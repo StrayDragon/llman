@@ -24,7 +24,7 @@ flowchart LR
     style verify fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在验证阶段 → 通过后下一步 `llman-sdd-archive`（归档）；失败则回到 `llman-sdd-apply`（修复）
+> 📍 你现在在验证阶段 → 通过后下一步 `llman-sdd-archive`（归档）；失败则回到 `llman-sdd-apply`（修复）。验证对象应已通过 Specs landing（`readyToImplement=true`）。
 
 ## 硬约束
 

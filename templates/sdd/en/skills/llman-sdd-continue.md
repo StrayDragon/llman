@@ -42,6 +42,7 @@ Use this skill to continue an existing change and create the next missing artifa
    - Close (recommended): `llman sdd change finalize <id>` (dirty tree OK; then one `git commit`)
    - Fallback: `llman sdd change checkpoint <id>` (clean tree required) → `llman sdd change archive <id>`
 
+{{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}
 

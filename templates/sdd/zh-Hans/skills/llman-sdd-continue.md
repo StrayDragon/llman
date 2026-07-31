@@ -42,6 +42,7 @@ metadata:
    - 收尾（推荐）：`llman sdd change finalize <id>`（工作区可脏；然后一次 `git commit`）
    - Fallback：`llman sdd change checkpoint <id>`（需干净树）→ `llman sdd change archive <id>`
 
+{{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}
 
