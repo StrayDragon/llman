@@ -14,6 +14,10 @@ Create a new change with planning artifacts (proposal + tasks; design optional),
 
 ## Pipeline Position
 
+{{ unit("skills/git-native-flow") }}
+
+### Skill navigation (demoted: agent skills only, not the Git lane)
+
 ```mermaid
 flowchart LR
     explore["llman-sdd-explore<br/>Explore"] --> propose
@@ -25,7 +29,7 @@ flowchart LR
     style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are in the propose phase (Branch binding + Specs landing) → next: `llman-sdd-apply` (requires `readyToImplement=true`)
+> 📍 You are in propose: Git-native path above is **Designed → Binding → Specs landing** (until `readyToImplement=true`) → next: `llman-sdd-apply`
 > 📎 For small changes (no behavioral contract changes), use `llman-sdd-quick` (quick path)
 
 ## Hard Constraints
@@ -117,7 +121,6 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 
 > 💡 Proposal done → next: `llman-sdd-apply` (implement)
 
-{{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}
 {{ unit("skills/validation-hints-toon") }}
 

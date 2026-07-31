@@ -30,6 +30,7 @@ flowchart LR
 ```
 
 > 📍 Quick path: no behavioral contract changes, modify code and commit directly. If you find you need to change a contract → STOP, switch to full path `llman-sdd-propose`
+> 🗺️ Full path includes Git-native Binding + Specs landing (Specs landing is not a separate skill)
 
 ## Conditions (all must hold)
 - Does not change any MUST/SHALL-defined externally observable behavior

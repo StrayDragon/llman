@@ -30,6 +30,7 @@ flowchart LR
 ```
 
 > 📍 快速路径：不改行为合约，直接改代码 commit。如果发现需要改合约 → STOP，改走完整路径 `llman-sdd-propose`
+> 🗺️ 完整路径含 Git-native Binding + Specs landing（不是把 Specs landing 当成独立 skill）
 
 ## 使用条件（所有条件必须满足）
 - 不改变任何 spec 中 MUST/SHALL 定义的外部可观测行为

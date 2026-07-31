@@ -87,7 +87,57 @@ Cargo equivalents use `cargo +nightly ...`.
 
 ## 统一 Git-native 变更流程
 
-本项目采用统一 Git-native 流程（不再区分 BDD-on/off）：
+本项目采用统一 Git-native 流程（不再区分 BDD-on/off）。
+
+### 领域概念区分（两层勿混）
+
+| 概念 | 是什么 | 不是什么 |
+|------|--------|----------|
+| **Skill 导航 / skill pipeline** | agent 技能顺序：explore → propose → apply → verify → archive | **不是** Git 分支/specs 车道；图上的 propose≠已可 apply |
+| **Git-native 生命周期** | Draft壳 → Designed → Branch binding → Specs landing → apply → verify → finalize/archive | **不是**一组独立 skill；Specs landing 不是 skill |
+| **CLI 三态 `stage`** | `draft` / `designed` / `full`（Full = Designed 工件 + attach binding） | **不是** apply-ready；`full` 仍可能 `readyToImplement=false` |
+| **Branch binding** | `change start` 或 `change attach`：绑到非默认 `sdd/<id>`（或已有 feature），写入 `branch`/`base_sha` | **不等于** Specs landing；**不等于**可 apply；start 须干净树+默认分支 |
+| **Specs landing** | 仅在**绑定分支**编辑 `llmanspec/specs/**` 并留下相对 `base_sha` 的 diff/commit（`specsLanded`） | **不是**在默认分支改 live specs；**不是**写 `changes/<id>/specs/` |
+| **`skip_specs_landing`** | frontmatter 豁免：本次无 live 合约变更 | **不是**跳过 Branch binding |
+| **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | **不是** CLI `stage` 字段；用 `show`/`status --json` 查 |
+| **Change 文档** | `llmanspec/changes/<id>/` 的 proposal/design/tasks（可短暂在默认分支） | **不是** live 合约正文；合约 SSOT 在 `llmanspec/specs/**` |
+| **Live specs** | 绑定分支上的 `spec.toon` +（bdd-on）`*.feature` | 默认分支上未 binding 的编辑；已移除的 `change delta` / `*.feature.delta.toon` |
+
+```mermaid
+flowchart TB
+  subgraph main_ok["允许短暂在默认分支"]
+    A["change new → Draft<br/>仅 proposal.md"]
+    B["充实 design + tasks → Designed"]
+  end
+
+  subgraph gate_start["Binding：独占车道"]
+    C{"工作区干净<br/>且在默认分支？"}
+    D["change start<br/>建 sdd/&lt;id&gt; + 写 branch/base_sha"]
+    E["或手动 checkout -b<br/>再 change attach"]
+  end
+
+  subgraph specs_only["仅在本 change 分支"]
+    F["编辑 live llmanspec/specs/**<br/>toon / feature"]
+    G["commit → Specs-landed<br/>base...HEAD 含 specs 路径"]
+  end
+
+  subgraph implement["实现"]
+    H["apply：按 tasks 改代码<br/>可继续改 specs"]
+    I["verify"]
+    J["finalize / archive<br/>ff-merge → 默认分支才首次合入 specs"]
+  end
+
+  A --> B --> C
+  C -->|是| D --> F
+  C -->|已在 feature| E --> F
+  F --> G --> H --> I --> J
+
+  style F fill:#e8f5e9,stroke:#2e7d32
+  style G fill:#e8f5e9,stroke:#2e7d32
+  style J fill:#fff3e0,stroke:#ef6c00
+```
+
+线性对照：
 
 ```
 draft [proposal.md]

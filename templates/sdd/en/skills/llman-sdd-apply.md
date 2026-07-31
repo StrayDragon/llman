@@ -16,6 +16,10 @@ Unless there is a clear blocker, **DO NOT stop halfway to ask "should I continue
 
 ## Pipeline Position
 
+{{ unit("skills/git-native-flow") }}
+
+### Skill navigation (demoted: agent skills only, not the Git lane)
+
 ```mermaid
 flowchart LR
     propose["llman-sdd-propose<br/>Propose"] --> apply
@@ -27,7 +31,7 @@ flowchart LR
     style apply fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are in the implement phase (requires `readyToImplement=true` first) → after this phase: `llman-sdd-verify` (verify)
+> 📍 You are at Git-native **H (apply)** above: Specs-landed (or `skip_specs_landing`) and `readyToImplement=true` required first → next: `llman-sdd-verify`
 
 ## Hard Constraints
 
@@ -114,7 +118,6 @@ Then suggest running `llman-sdd-verify` for the verification phase.
 
 > 💡 Implementation done → next: `llman-sdd-verify` (verify)
 
-{{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}
 
 ## Context
