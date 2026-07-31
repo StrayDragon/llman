@@ -56,7 +56,7 @@ llman sdd change new --from "<user description>"
 - **MUST tell the user the derived id** (e.g. "Created draft change `<id>` at `llmanspec/changes/<id>/proposal.md`").
 - Suggest next steps:
   - Flesh out `proposal.md` (Why / What Changes / Capabilities / Impact) now or later.
-  - When ready to act on it, run `llman-sdd-propose` to formalize (triage + tasks + live specs + `change start`).
+  - When ready to act on it, run `llman-sdd-propose` to formalize (triage + tasks → `change start`/`attach` → Specs landing).
 
 > 💡 Draft captured → next: edit `proposal.md`, then `llman-sdd-propose` to formalize.
 

@@ -25,7 +25,7 @@ r1,happy,"","a trigger happens","the outcome is observed"
 ```
 
 3) Git-native 护栏（配置了 `bdd:` 时采用 Partitioned SSOT）：
-`spec.toon`=约束/不可执行场景；`*.feature`=可执行 GWT（`@req`）。在非默认分支编辑 live 文件 → `change start` 或 `change attach` → 优先 `change finalize`（单 commit）或 fallback `checkpoint` → ff-merge + 文档改名 via `change archive`。勿使用 `change delta` / solidify / `*.feature.delta.toon`。配置了 `bdd:` 且空 requirements 又无 `.feature` = ERROR。
+`spec.toon`=约束/不可执行场景；`*.feature`=可执行 GWT（`@req`）。先 `change start` 或 `change attach`（Branch binding），再在绑定的非默认分支编辑 live 文件并 commit（Specs landing）→ 优先 `change finalize`（单 commit）或 fallback `checkpoint` → ff-merge + 文档改名 via `change archive`。勿使用 `change delta` / solidify / `*.feature.delta.toon`。配置了 `bdd:` 且空 requirements 又无 `.feature` = ERROR。
 
 备注：
 - 每个 spec 是一个独立的 `.toon` 文件；没有 Markdown 外壳，也没有 ```toon fence。
