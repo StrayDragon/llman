@@ -14,9 +14,9 @@ metadata:
 
 ## Pipeline 位置
 
-## Git-native 生命周期（权威）
+## Git-native 生命周期（权威全图）
 
-**两层勿混**：**Git-native 生命周期**（Branch binding → Specs landing → apply-ready）与 **skill 导航**（explore→propose→apply→verify→archive）是不同层。Specs landing **不是**独立 skill。
+勿混淆两层：**Git-native 生命周期**（Branch binding → Specs landing → `readyToImplement`）与 **Skill 导航**（explore→propose→apply→verify→archive）。Specs landing **不是**独立 skill。
 
 ```mermaid
 flowchart TB
@@ -25,7 +25,7 @@ flowchart TB
     B["充实 design + tasks → Designed"]
   end
 
-  subgraph gate_start["Binding：独占车道"]
+  subgraph gate_start["Branch binding"]
     C{"工作区干净<br/>且在默认分支？"}
     D["change start<br/>建 sdd/&lt;id&gt; + 写 branch/base_sha"]
     E["或手动 checkout -b<br/>再 change attach"]
@@ -33,7 +33,7 @@ flowchart TB
 
   subgraph specs_only["仅在本 change 分支"]
     F["编辑 live llmanspec/specs/**<br/>toon / feature"]
-    G["commit → Specs-landed<br/>base...HEAD 含 specs 路径"]
+    G["commit → Specs landing<br/>base...HEAD 含 specs 路径"]
   end
 
   subgraph implement["实现"]
@@ -46,23 +46,19 @@ flowchart TB
   C -->|是| D --> F
   C -->|已在 feature| E --> F
   F --> G --> H --> I --> J
-
-  style F fill:#e8f5e9,stroke:#2e7d32
-  style G fill:#e8f5e9,stroke:#2e7d32
-  style J fill:#fff3e0,stroke:#ef6c00
 ```
 
 硬规则：
-1. **先** `change start` / `attach`（Branch binding）进入 Full；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（Specs landing）。
+1. **先** `change start` / `attach`（Branch binding / 分支绑定）进入 Full；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（Specs landing / 合约落地）。
 2. 无 live 合约变更时可设 frontmatter `skip_specs_landing: true`。进入 apply 前 `llman sdd show <id> --json` 的 `readyToImplement` 须为 true（`Full ∧ (specsLanded ∨ skip)`）。
 3. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
 
-### Skill 导航（降级：仅指 agent skill，不是 Git 车道）
+### Skill 导航（非生命周期；仅指示当前 skill）
 
 ```mermaid
 flowchart LR
     explore["llman-sdd-explore<br/>探索"] --> propose
-    propose["★ llman-sdd-propose ★<br/>提案（含 start+Specs landing）"]
+    propose["★ llman-sdd-propose ★<br/>提案（含 Branch binding 与 Specs landing）"]
     propose --> apply["llman-sdd-apply<br/>实施"]
     apply --> verify["llman-sdd-verify<br/>验证"]
     verify --> archive["llman-sdd-archive<br/>归档"]
@@ -70,7 +66,7 @@ flowchart LR
     style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在提案阶段：上图 Git-native 的 **Designed → Binding → Specs landing**（到 `readyToImplement=true`）→ 下一步 `llman-sdd-apply`
+> 📍 你现在在提案阶段：上图 Git-native 的 **Designed → Branch binding → Specs landing**（到 `readyToImplement=true`）→ 下一步 `llman-sdd-apply`
 > 📎 如果只是小改动（不改行为合约），可直接 `llman-sdd-quick`（快速路径）
 
 ## 硬约束
@@ -139,7 +135,7 @@ flowchart LR
 - **禁止静默添加 `bdd:` 段**——必须先询问。添加它会改变 `validate --check` 在整个项目的行为。
 
 ### 4b) Git-native spec 写作（配置了 `bdd:` 时采用 Partitioned SSOT）
-- 在**非默认 Git feature 分支**上工作（禁止在 main/master 上 propose/实现）。
+- 规划壳（proposal/design/tasks）可短暂在默认分支；**禁止**在默认分支编辑 live `llmanspec/specs/**`；Branch binding 后才 Specs landing / 实现。
 - **Partitioned SSOT**（有 `bdd:` 时）：编辑 live `spec.toon`（约束）与 `*.feature`（可执行 GWT + `@req`）；禁止同一 scenario id 双写。
 
   | 场景类型 | `spec.toon` `scenarios[]` | `*.feature` |

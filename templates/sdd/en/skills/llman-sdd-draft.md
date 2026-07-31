@@ -25,8 +25,8 @@ flowchart LR
 ```
 
 > 📍 You are at the draft stage → next: flesh out `proposal.md`, then run `llman-sdd-propose` to formalize
-> 📎 This skill creates a **draft** change (proposal.md only). Full propose follows Git-native: tasks → start/attach → Specs landing (see propose lifecycle diagram)
-> 🗺️ Diagram above is skill navigation; Binding / Specs landing are not separate skills
+> 📎 This skill creates a **draft** change (proposal.md only). Full propose follows Git-native: tasks → Branch binding → Specs landing (see propose lifecycle diagram)
+> 🗺️ Skill navigation ≠ Git-native lifecycle; Branch binding / Specs landing are not separate skills
 
 ## Hard Constraints
 
@@ -63,4 +63,4 @@ llman sdd change new --from "<user description>"
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}

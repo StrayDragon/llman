@@ -31,4 +31,4 @@ Use this skill to onboard to llman SDD in a repository.
 
 {{ unit("skills/validation-hints-toon") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}

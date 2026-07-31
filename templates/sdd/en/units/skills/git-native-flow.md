@@ -1,6 +1,6 @@
-## Git-native lifecycle (authoritative)
+## Git-native lifecycle (full diagram)
 
-**Do not conflate two layers**: the **Git-native lifecycle** (Branch binding → Specs landing → apply-ready) is distinct from **skill navigation** (explore→propose→apply→verify→archive). Specs landing is **not** a separate skill.
+Do not conflate two layers: the **Git-native lifecycle** (Branch binding → Specs landing → `readyToImplement`) vs **skill navigation** (explore→propose→apply→verify→archive). Specs landing is **not** a separate skill.
 
 ```mermaid
 flowchart TB
@@ -9,7 +9,7 @@ flowchart TB
     B["Fill design + tasks → Designed"]
   end
 
-  subgraph gate_start["Binding: exclusive lane"]
+  subgraph gate_start["Branch binding"]
     C{"Clean tree<br/>and on default branch?"}
     D["change start<br/>create sdd/&lt;id&gt; + write branch/base_sha"]
     E["or manual checkout -b<br/>then change attach"]
@@ -17,7 +17,7 @@ flowchart TB
 
   subgraph specs_only["Only on this change branch"]
     F["Edit live llmanspec/specs/**<br/>toon / feature"]
-    G["commit → Specs-landed<br/>base...HEAD includes specs paths"]
+    G["commit → Specs landing<br/>base...HEAD includes specs paths"]
   end
 
   subgraph implement["Implement"]
@@ -30,10 +30,6 @@ flowchart TB
   C -->|yes| D --> F
   C -->|already on feature| E --> F
   F --> G --> H --> I --> J
-
-  style F fill:#e8f5e9,stroke:#2e7d32
-  style G fill:#e8f5e9,stroke:#2e7d32
-  style J fill:#fff3e0,stroke:#ef6c00
 ```
 
 Hard rules:

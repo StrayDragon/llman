@@ -89,19 +89,22 @@ Cargo equivalents use `cargo +nightly ...`.
 
 本项目采用统一 Git-native 流程（不再区分 BDD-on/off）。
 
-### 领域概念区分（两层勿混）
+### 领域概念区分（勿混淆两层）
 
-| 概念 | 是什么 | 不是什么 |
-|------|--------|----------|
-| **Skill 导航 / skill pipeline** | agent 技能顺序：explore → propose → apply → verify → archive | **不是** Git 分支/specs 车道；图上的 propose≠已可 apply |
-| **Git-native 生命周期** | Draft壳 → Designed → Branch binding → Specs landing → apply → verify → finalize/archive | **不是**一组独立 skill；Specs landing 不是 skill |
-| **CLI 三态 `stage`** | `draft` / `designed` / `full`（Full = Designed 工件 + attach binding） | **不是** apply-ready；`full` 仍可能 `readyToImplement=false` |
-| **Branch binding** | `change start` 或 `change attach`：绑到非默认 `sdd/<id>`（或已有 feature），写入 `branch`/`base_sha` | **不等于** Specs landing；**不等于**可 apply；start 须干净树+默认分支 |
-| **Specs landing** | 仅在**绑定分支**编辑 `llmanspec/specs/**` 并留下相对 `base_sha` 的 diff/commit（`specsLanded`） | **不是**在默认分支改 live specs；**不是**写 `changes/<id>/specs/` |
+标准术语（禁止用「车道」等隐喻替代）：
+
+| 标准说法 | 是什么 | 不是什么 / 禁止说法 |
+|----------|--------|---------------------|
+| **Skill 导航** | agent 技能顺序：explore → propose → apply → verify → archive | **不是** Git-native 生命周期；图上的 propose ≠ 已可 apply。勿写「Skill 链 vs Git 车道」 |
+| **Git-native 生命周期** | Draft → Designed → Branch binding → Specs landing → apply → verify → finalize/archive | **不是**一组独立 skill；Specs landing 不是 skill。勿写「完整车道」「独占车道」 |
+| **CLI 三态 `stage`** | `draft` / `designed` / `full`（Full = Designed 规划壳 + Branch binding） | **不是** apply-ready；`full` 仍可能 `readyToImplement=false` |
+| **Branch binding（分支绑定）** | `change start` 或 `change attach`：绑到非默认 `sdd/<id>`（或已有 feature），写入 `branch`/`base_sha` | **不等于** Specs landing；**不等于**可 apply；start 须干净树+默认分支。勿单写含糊的「Binding」而不点名 |
+| **Specs landing（合约落地）** | 仅在**绑定分支**编辑 `llmanspec/specs/**` 并留下相对 `base_sha` 的 diff/commit（`specsLanded`） | **不是**在默认分支改 live specs；**不是**写 `changes/<id>/specs/` |
+| **规划壳** | `proposal.md` / `design.md` / `tasks.md`（可短暂在默认分支） | **不是**已 Specs-landed；**不是** live 合约正文 |
 | **`skip_specs_landing`** | frontmatter 豁免：本次无 live 合约变更 | **不是**跳过 Branch binding |
-| **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | **不是** CLI `stage` 字段；用 `show`/`status --json` 查 |
-| **Change 文档** | `llmanspec/changes/<id>/` 的 proposal/design/tasks（可短暂在默认分支） | **不是** live 合约正文；合约 SSOT 在 `llmanspec/specs/**` |
-| **Live specs** | 绑定分支上的 `spec.toon` +（bdd-on）`*.feature` | 默认分支上未 binding 的编辑；已移除的 `change delta` / `*.feature.delta.toon` |
+| **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | **不是**「完整工件」口头说法；用 `show`/`status --json` 查 |
+| **Change 文档** | `llmanspec/changes/<id>/` 下的规划壳 | **不是** live 合约；合约 SSOT 在 `llmanspec/specs/**` |
+| **Live specs** | 绑定分支上的 `spec.toon` +（bdd-on）`*.feature` | 未 binding 时在默认分支编辑；已移除的 `change delta` / `*.feature.delta.toon` |
 
 ```mermaid
 flowchart TB
@@ -110,7 +113,7 @@ flowchart TB
     B["充实 design + tasks → Designed"]
   end
 
-  subgraph gate_start["Binding：独占车道"]
+  subgraph gate_start["Branch binding"]
     C{"工作区干净<br/>且在默认分支？"}
     D["change start<br/>建 sdd/&lt;id&gt; + 写 branch/base_sha"]
     E["或手动 checkout -b<br/>再 change attach"]
@@ -118,7 +121,7 @@ flowchart TB
 
   subgraph specs_only["仅在本 change 分支"]
     F["编辑 live llmanspec/specs/**<br/>toon / feature"]
-    G["commit → Specs-landed<br/>base...HEAD 含 specs 路径"]
+    G["commit → Specs landing<br/>base...HEAD 含 specs 路径"]
   end
 
   subgraph implement["实现"]
@@ -131,10 +134,6 @@ flowchart TB
   C -->|是| D --> F
   C -->|已在 feature| E --> F
   F --> G --> H --> I --> J
-
-  style F fill:#e8f5e9,stroke:#2e7d32
-  style G fill:#e8f5e9,stroke:#2e7d32
-  style J fill:#fff3e0,stroke:#ef6c00
 ```
 
 线性对照：

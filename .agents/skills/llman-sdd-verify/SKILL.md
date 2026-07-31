@@ -14,18 +14,19 @@ metadata:
 
 ## Pipeline 位置
 
+### Skill 导航（非生命周期；仅指示当前 skill）
+
 ```mermaid
 flowchart LR
     apply["llman-sdd-apply<br/>实施"] --> verify
     verify["★ llman-sdd-verify ★<br/>验证（你现在在这里）"]
     verify --> archive["llman-sdd-archive<br/>归档"]
-    archive --> commit["git commit<br/>完成闭环"]
 
     style verify fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
 > 📍 你现在在验证阶段 → 通过后下一步 `llman-sdd-archive`（归档）；失败则回到 `llman-sdd-apply`（修复）。对应 Git-native 图中的 **I（verify）**，对象应已 Specs-landed（`readyToImplement=true`）。
-> 🗺️ 上图是 Skill 导航；完整车道见下方 Git-native 生命周期
+> 🗺️ Skill 导航 ≠ Git-native 生命周期；完整生命周期见底部 brief 单元。
 
 ## 硬约束
 
@@ -35,25 +36,30 @@ flowchart LR
 
 ## 步骤
 1. 确定 change id（不明确时让用户从 `llman sdd list --json` 选择）。
-2. 检查阶段守卫（权威）：
-   ```bash
-   stage=$(llman sdd show <id> --json --type change | jq -r .stage)
-   ```
-   （若无 `jq`，可用任意工具从 JSON 中解析 `stage` 值。）
-   - 若 `stage` 不为 `full`，变更尚未实现、无可验证内容 → 必须停止并给出守卫提示：
-     - `draft`："变更 <id> 是 draft 提案（仅 proposal.md），尚无可验证的实现。请先用 llman-sdd-propose 生成完整工件，再 `llman sdd change start <id>`，完成 Specs landing 后用 llman-sdd-apply 实现。" 若已有 proposal+design+tasks 仍是 `draft`，意味着变更**未 start/attach** —— 修复方式是 `llman sdd change start <id>` 或 `change attach <id>`（而非新增 `changes/<id>/specs/`）。
-     - `designed`："变更 <id> 处于 designed 阶段，尚未进入 Full。请运行 `llman sdd change start <id>` 后再 apply/verify。"
-   - 若 `stage` 为 `full` 但 `llman sdd show <id> --json` 的 `readyToImplement` 为 false：Specs landing 未完成 → STOP，提示在绑定分支编辑 `llmanspec/specs/**` 并 commit（或设 `skip_specs_landing`）；**不要**再跑 `change start`。
+## 阶段守卫（`stage` / `readyToImplement`）
+
+用权威 JSON 判定（勿凭「完整工件」口头说法）：
+
+```bash
+llman sdd show <id> --json --type change
+```
+
+解读字段：`stage`、`specsLanded`、`skipSpecsLanding`、`readyToImplement`。
+
+| 条件 | 动作 |
+|------|------|
+| `stage=draft`（仅 proposal.md） | STOP。长大到 Designed（proposal + tasks；design 按需）→ Branch binding → Specs landing。draft 不能直接 apply/verify。若已有 proposal+design+tasks 仍是 `draft`：未 start/attach —— 在默认分支干净树跑 `change start`，或手动建分支后 `change attach`。**不要**建 `changes/<id>/specs/`，**不要**先在默认分支改 live specs。 |
+| `stage=designed` | STOP。先 `change start` / `attach`（Branch binding）。 |
+| `stage=full` 且 `readyToImplement=false` | STOP。在**绑定分支**完成 Specs landing（编辑 `llmanspec/specs/**` 并 commit），或设 `skip_specs_landing`。**不要**再跑 `change start`。丢失绑定分支 specs → checkout/重建 + 必要时 `attach --force`。 |
+| `readyToImplement=true` | 可通过 apply/verify 前置检查。`changes/<id>/specs/` 预期**不存在**，勿当缺失。 |
 3. 先跑一个快速校验门禁：
    - `llman sdd validate <id> --strict --no-interactive`
    - **诊断结构问题（Gherkin 解析 / `@req` 链接 / 双写 / 全局 req_id 唯一性）时优先加 `--no-check`**（BDD-on 下跳过可能耗时的 `bdd.run_command`），结构门禁全绿后再跑完整 `--check`（full mode）。`FAIL <item_type>/<id>` 行会逐条列出失败项（在 Totals 行上方）。
 4. 阅读：
-
-   - feature 分支上的 live specs：`llmanspec/specs/**`（`spec.toon` + `*.feature`）——BDD-on 下这是 SSOT
+   - feature 分支上的 live specs：`llmanspec/specs/**`（`spec.toon` + 配置了 `bdd:` 时的 `*.feature`）——SSOT
    - `proposal.md` 与 `design.md`（如存在）
    - `tasks.md`（理解实现范围）
-   - change 内 `llmanspec/changes/<id>/specs/` 仅当残留文档存在时（优先读 live specs）
-
+   - `llmanspec/changes/<id>/specs/` 若残留旧文档可忽略；SSOT 是 live specs
 5. **双轴审查（标准轴 + 合约轴分离，互不掩盖）**——对比 diff（`git diff <merge-base>...HEAD`，merge-base 取 attach 的 base_sha 或 `main`）分两轴：
    - **合约轴（Spec）**：实现是否满足 `spec.toon` 的 MUST/SHALL 与 `*.feature` 的 GWT。
      - 缺失/部分实现的行为、错误实现、以及 diff 中未被 spec 要求的超范围改动。
@@ -67,59 +73,25 @@ flowchart LR
    - 确认 change 已 attach，且当前在对应 feature 分支上。
    - `llman sdd validate --specs`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
    - 可选只读审查：`llman sdd change diff <id>`（或 `--export-patch <path>`）。diff 仅作审查/导出——绝不当作 apply 步骤。
-   - 归档：**优先** `llman sdd change finalize <id>`（可不要求干净树；随后一次 `git commit`）；需要严格 `checkpoint_sha` 时再走 `checkpoint` → `archive`。
    - 检查：可执行 GWT 只在 live `.feature`；`morphology.dualWriteCount` 应为 0；若已有活跃 `*.feature.delta.toon` 则先迁移（不要自创 solidify/找补步骤）。
+   - verify 通过后下一步：`llman-sdd-archive`（勿在此 inline finalize）。
 
 7. 输出简短报告：
    - **CRITICAL**（归档前必须修复）
    - **WARNING**（建议修复）
    - **SUGGESTION**（可选优化）
-8. 若存在 CRITICAL，建议用 `llman-sdd-apply` 修复；若通过则建议归档：`llman sdd change finalize <id>`（推荐）或 fallback `checkpoint` + `archive`。
+8. 若存在 CRITICAL，建议用 `llman-sdd-apply` 修复；若通过则建议 `llman-sdd-archive` 进行 finalize/archive。
 
 > 💡 验证通过 → 下一步 `llman-sdd-archive`（归档）；有 CRITICAL → 回到 `llman-sdd-apply`（修复）
 
-## Git-native 生命周期（权威）
+## Git-native 生命周期（摘要）
 
-**两层勿混**：**Git-native 生命周期**（Branch binding → Specs landing → apply-ready）与 **skill 导航**（explore→propose→apply→verify→archive）是不同层。Specs landing **不是**独立 skill。
-
-```mermaid
-flowchart TB
-  subgraph main_ok["允许短暂在默认分支"]
-    A["change new → Draft<br/>仅 proposal.md"]
-    B["充实 design + tasks → Designed"]
-  end
-
-  subgraph gate_start["Binding：独占车道"]
-    C{"工作区干净<br/>且在默认分支？"}
-    D["change start<br/>建 sdd/&lt;id&gt; + 写 branch/base_sha"]
-    E["或手动 checkout -b<br/>再 change attach"]
-  end
-
-  subgraph specs_only["仅在本 change 分支"]
-    F["编辑 live llmanspec/specs/**<br/>toon / feature"]
-    G["commit → Specs-landed<br/>base...HEAD 含 specs 路径"]
-  end
-
-  subgraph implement["实现"]
-    H["apply：按 tasks 改代码<br/>可继续改 specs"]
-    I["verify"]
-    J["finalize / archive<br/>ff-merge → 默认分支才首次合入 specs"]
-  end
-
-  A --> B --> C
-  C -->|是| D --> F
-  C -->|已在 feature| E --> F
-  F --> G --> H --> I --> J
-
-  style F fill:#e8f5e9,stroke:#2e7d32
-  style G fill:#e8f5e9,stroke:#2e7d32
-  style J fill:#fff3e0,stroke:#ef6c00
-```
+勿混淆：**Skill 导航** ≠ **Git-native 生命周期**。全图见根 `AGENTS.md`「领域概念区分」或 `llman-sdd-propose` 内嵌全图。
 
 硬规则：
-1. **先** `change start` / `attach`（Branch binding）进入 Full；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（Specs landing）。
-2. 无 live 合约变更时可设 frontmatter `skip_specs_landing: true`。进入 apply 前 `llman sdd show <id> --json` 的 `readyToImplement` 须为 true（`Full ∧ (specsLanded ∨ skip)`）。
-3. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
+1. **先** Branch binding（`change start` / `attach`）→ Full；**再** Specs landing（绑定分支编辑并 commit `llmanspec/specs/**`）。
+2. 无 live 合约变更 → `skip_specs_landing: true`。apply 前须 `readyToImplement=true`。
+3. **禁止**在默认分支 commit live specs；已 attach 勿重复 `start`。
 行动前先阅读 `llmanspec/config.yaml`，并遵循其中的 `context` 与 `rules`（若有）。
 
 常用命令：

@@ -14,26 +14,37 @@ metadata:
 
 **重要：探索模式只用于思考，不用于实现。**
 - 你可以阅读文件、搜索代码、调查代码库。
-- 如果用户需要，你可以创建/更新 llman SDD artifacts（proposal/specs/design/tasks）。
+- 你可以创建/更新规划壳工件（proposal/design/tasks）。
+- live specs：**只读**，除非 change 已 Branch-bound 且你在该分支上；否则 STOP 并建议 `llman-sdd-propose` / `change start`。
 - 你绝对不能在探索模式下写应用代码或实现功能。
 
 ## Pipeline 位置
 
+## Git-native 生命周期（摘要）
+
+勿混淆：**Skill 导航** ≠ **Git-native 生命周期**。全图见根 `AGENTS.md`「领域概念区分」或 `llman-sdd-propose` 内嵌全图。
+
+硬规则：
+1. **先** Branch binding（`change start` / `attach`）→ Full；**再** Specs landing（绑定分支编辑并 commit `llmanspec/specs/**`）。
+2. 无 live 合约变更 → `skip_specs_landing: true`。apply 前须 `readyToImplement=true`。
+3. **禁止**在默认分支 commit live specs；已 attach 勿重复 `start`。
+
+### Skill 导航（非生命周期；仅指示当前 skill）
+
 ```mermaid
 flowchart LR
     explore["★ llman-sdd-explore ★<br/>探索（你现在在这里）"]
-    explore --> propose["llman-sdd-propose<br/>提案（含 start+Specs landing）"]
+    explore --> propose["llman-sdd-propose<br/>提案（含 Branch binding 与 Specs landing）"]
     propose --> apply["llman-sdd-apply<br/>实施"]
     apply --> verify["llman-sdd-verify<br/>验证"]
     verify --> archive["llman-sdd-archive<br/>归档"]
-    archive --> commit["git commit<br/>完成闭环"]
 
     style explore fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
 > 📍 你现在在探索阶段（仅思考）→ 常规路径下一步 `llman-sdd-propose`（提案）
 > 📎 如果是小改动（不改行为合约），可直接走 `llman-sdd-quick`（快速路径）
-> 🗺️ Skill 链 ≠ Git 车道：完整 Binding→Specs landing→apply 见下方「Git-native 生命周期」
+> 🗺️ Skill 导航 ≠ Git-native 生命周期
 
 ## 探索姿态
 - 好奇而不教条
@@ -65,57 +76,14 @@ flowchart LR
 
 > Git-native：先 `change start`/`attach`（Branch binding）进入 Full，再在绑定分支编辑 live `.feature`/`spec.toon`（Specs landing）；无 `change delta` / solidify / feature_delta。
 
-## Git-native 生命周期（权威）
-
-**两层勿混**：**Git-native 生命周期**（Branch binding → Specs landing → apply-ready）与 **skill 导航**（explore→propose→apply→verify→archive）是不同层。Specs landing **不是**独立 skill。
-
-```mermaid
-flowchart TB
-  subgraph main_ok["允许短暂在默认分支"]
-    A["change new → Draft<br/>仅 proposal.md"]
-    B["充实 design + tasks → Designed"]
-  end
-
-  subgraph gate_start["Binding：独占车道"]
-    C{"工作区干净<br/>且在默认分支？"}
-    D["change start<br/>建 sdd/&lt;id&gt; + 写 branch/base_sha"]
-    E["或手动 checkout -b<br/>再 change attach"]
-  end
-
-  subgraph specs_only["仅在本 change 分支"]
-    F["编辑 live llmanspec/specs/**<br/>toon / feature"]
-    G["commit → Specs-landed<br/>base...HEAD 含 specs 路径"]
-  end
-
-  subgraph implement["实现"]
-    H["apply：按 tasks 改代码<br/>可继续改 specs"]
-    I["verify"]
-    J["finalize / archive<br/>ff-merge → 默认分支才首次合入 specs"]
-  end
-
-  A --> B --> C
-  C -->|是| D --> F
-  C -->|已在 feature| E --> F
-  F --> G --> H --> I --> J
-
-  style F fill:#e8f5e9,stroke:#2e7d32
-  style G fill:#e8f5e9,stroke:#2e7d32
-  style J fill:#fff3e0,stroke:#ef6c00
-```
-
-硬规则：
-1. **先** `change start` / `attach`（Branch binding）进入 Full；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（Specs landing）。
-2. 无 live 合约变更时可设 frontmatter `skip_specs_landing: true`。进入 apply 前 `llman sdd show <id> --json` 的 `readyToImplement` 须为 true（`Full ∧ (specsLanded ∨ skip)`）。
-3. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
-
 ## 退出探索模式
 当用户准备开始实现时，根据变更规模选择路径：
 - 行为合约变更 → `llman-sdd-propose`（创建提案工件）
 - 小改动 / 不改合约 → `llman-sdd-quick`（快速路径）
-- 已有完整 change 工件 → `llman-sdd-apply`（按 tasks 实施）
+- `readyToImplement=true` → `llman-sdd-apply`（按 tasks 实施）
 若用户在探索模式中要求你开始实现，STOP 并提醒其先退出探索模式。
 
-> 💡 探索完成 → 下一步 `llman-sdd-propose`（保单）或 `llman-sdd-quick`（快速路径）
+> 💡 探索完成 → 下一步 `llman-sdd-propose`（提案）或 `llman-sdd-quick`（快速路径）
 
 行动前先阅读 `llmanspec/config.yaml`，并遵循其中的 `context` 与 `rules`（若有）。
 

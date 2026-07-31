@@ -21,7 +21,7 @@ flowchart LR
     quick["★ llman-sdd-quick ★<br/>快速路径（你现在在这里）"]
     quick --> commit["git commit<br/>完成"]
 
-    explore --> propose["完整路径:<br/>propose（含 start+Specs landing）→ apply → verify → archive"]
+    explore --> propose["完整路径:<br/>propose（含 Branch binding 与 Specs landing）→ apply → verify → archive"]
     propose --> apply["..."]
     apply --> verify["..."]
     verify --> archive["..."]
@@ -30,7 +30,7 @@ flowchart LR
 ```
 
 > 📍 快速路径：不改行为合约，直接改代码 commit。如果发现需要改合约 → STOP，改走完整路径 `llman-sdd-propose`
-> 🗺️ 完整路径含 Git-native Binding + Specs landing（不是把 Specs landing 当成独立 skill）
+> 🗺️ 完整路径含 Git-native Branch binding + Specs landing（不是把 Specs landing 当成独立 skill）
 
 ## 使用条件（所有条件必须满足）
 - 不改变任何 spec 中 MUST/SHALL 定义的外部可观测行为
@@ -43,7 +43,7 @@ flowchart LR
    - 如果 context 返回 `quality: "unavailable"`，运行 `llman sdd index rebuild`（默认 `pageindex`，无需模型）。
    - 可以用 `llman sdd list --specs --json` 查看 specs 元数据。
 2. 直接修改代码。
-3. 如果涉及 spec 的维护性调整（修错字、收紧 scope），直接编辑 spec 文件并用 `llman sdd validate --specs` 校验。
+3. 若要动 `llmanspec/specs/**`，STOP——除非已在绑定的非默认 change 分支上（迷你 change：`change start`/`attach` → 编辑 → commit）。禁止在默认分支 commit live specs，即使是 typo 或仅收紧 scope 也不行。优先把 live specs 维护路由到 `llman-sdd-propose`，或要求已有绑定分支。
 4. git commit（message 写明 why）。
 5. 无需 change 目录，无需 archive。
 
@@ -75,33 +75,6 @@ flowchart LR
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备份恢复）
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图）
 - `llman sdd project migrate [--kind format|partitioned|legacy-bdd|auto]`（一次性迁移）
-
-## Context
-- 执行前先确认当前 change/spec 状态。
-- 优先使用 `llman sdd context --task --paths` 获取相关 specs，而非全量读取或猜测。
-
-## Goal
-- 明确本次命令/skill 要达成的可验证结果。
-
-## Constraints
-- 变更保持最小化且范围明确。
-- 标识符或意图不明确时禁止猜测。
-- 在读取 spec 全文前，先使用 `llman sdd context --task --paths` 获取相关 specs。
-- 判断变更规模后选择路径：行为合约变更走完整 SDD 流程，实现变更走快速路径。
-
-## Workflow
-- 以 `llman sdd` 命令结果为事实来源。
-- 涉及文件/规范变更时执行校验。
-- 首选 `llman sdd context` 获取相关 specs，而非全量读取或猜测。
-- 当 context 不可用时，按错误提示处理（重建 index 或降级到 `list --specs --json`）。
-
-## Decision Policy
-- 高影响歧义必须先澄清。
-- 已知校验错误下禁止强行继续。
-
-## Output Contract
-- 汇总已执行动作。
-- 给出结果路径与校验状态。
 
 ## Ethics Governance
 - `ethics.risk_level`：按 `low|medium|high|critical` 标注风险等级。
