@@ -30,4 +30,4 @@ Use this skill to validate change/spec format and staleness.
 
 {{ unit("skills/validation-hints-toon") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}

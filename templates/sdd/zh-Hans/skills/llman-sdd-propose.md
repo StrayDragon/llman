@@ -16,12 +16,12 @@ metadata:
 
 {{ unit("skills/git-native-flow") }}
 
-### Skill 导航（降级：仅指 agent skill，不是 Git 车道）
+### Skill 导航（非生命周期；仅指示当前 skill）
 
 ```mermaid
 flowchart LR
     explore["llman-sdd-explore<br/>探索"] --> propose
-    propose["★ llman-sdd-propose ★<br/>提案（含 start+Specs landing）"]
+    propose["★ llman-sdd-propose ★<br/>提案（含 Branch binding 与 Specs landing）"]
     propose --> apply["llman-sdd-apply<br/>实施"]
     apply --> verify["llman-sdd-verify<br/>验证"]
     verify --> archive["llman-sdd-archive<br/>归档"]
@@ -29,7 +29,7 @@ flowchart LR
     style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在提案阶段：上图 Git-native 的 **Designed → Binding → Specs landing**（到 `readyToImplement=true`）→ 下一步 `llman-sdd-apply`
+> 📍 你现在在提案阶段：上图 Git-native 的 **Designed → Branch binding → Specs landing**（到 `readyToImplement=true`）→ 下一步 `llman-sdd-apply`
 > 📎 如果只是小改动（不改行为合约），可直接 `llman-sdd-quick`（快速路径）
 
 ## 硬约束
@@ -102,7 +102,7 @@ flowchart LR
 - **禁止静默添加 `bdd:` 段**——必须先询问。添加它会改变 `validate --check` 在整个项目的行为。
 
 ### 4b) Git-native spec 写作（配置了 `bdd:` 时采用 Partitioned SSOT）
-- 在**非默认 Git feature 分支**上工作（禁止在 main/master 上 propose/实现）。
+- 规划壳（proposal/design/tasks）可短暂在默认分支；**禁止**在默认分支编辑 live `llmanspec/specs/**`；Branch binding 后才 Specs landing / 实现。
 - **Partitioned SSOT**（有 `bdd:` 时）：编辑 live `spec.toon`（约束）与 `*.feature`（可执行 GWT + `@req`）；禁止同一 scenario id 双写。
 
   | 场景类型 | `spec.toon` `scenarios[]` | `*.feature` |

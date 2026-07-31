@@ -25,8 +25,8 @@ flowchart LR
 ```
 
 > 📍 你现在在草案阶段 → 下一步：完善 `proposal.md`，然后运行 `llman-sdd-propose` 正式化
-> 📎 本技能创建**草案** change（仅 proposal.md）。完整提案走 Git-native：tasks → start/attach → Specs landing（见 propose 的生命周期图）
-> 🗺️ 上图是 Skill 导航；Binding / Specs landing 不是独立 skill
+> 📎 本技能创建**草案** change（仅 proposal.md）。完整提案走 Git-native：tasks → Branch binding → Specs landing（见 propose 的生命周期图）
+> 🗺️ Skill 导航 ≠ Git-native 生命周期；Branch binding / Specs landing 不是独立 skill
 
 ## 硬约束
 
@@ -63,4 +63,4 @@ llman sdd change new --from "<用户描述>"
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}

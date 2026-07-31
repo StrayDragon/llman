@@ -18,12 +18,7 @@ metadata:
    - 否则运行 `llman sdd list --json` 并询问要继续哪个 change。
    - 始终说明："使用变更：<id>"。
 2. 阅读变更目录：`llmanspec/changes/<id>/`。
-   - 权威判定阶段：
-     ```bash
-     stage=$(llman sdd show <id> --json --type change | jq -r .stage)
-     ```
-     （若无 `jq`，用任意工具从 JSON 解析 `stage` 值。）
-   - 若 `stage` 为 `draft`（仅 proposal.md），明确告知用户：「这是 draft 提案。需长大到可实施状态（design → tasks → `change start`/`attach` → Specs landing，且 `readyToImplement=true`）；draft 不能直接 apply 或 verify。」若已有 proposal+design+tasks 仍是 `draft`，下一步是在默认分支干净树上运行 `llman sdd change start <id>`（或手动建分支后 `change attach`）——不要创建 `changes/<id>/specs/`，也不要先在默认分支改 live specs。
+{{ unit("skills/stage-guard") }}
 3. 确定下一个要创建的 artifact（按顺序）：
    1) `proposal.md`
    2) `design.md`（仅当涉及设计权衡时）
@@ -37,10 +32,9 @@ metadata:
 5. 若所有 artifact 已齐全，建议下一步：
    - 若 `llman sdd show <id> --json` 的 `readyToImplement` 为 false：先完成 Specs landing（或 `skip_specs_landing`），再 apply
    - 实施：`llman-sdd-apply`
+   - 归档（verify 后）：`llman-sdd-archive`
    - 校验：`llman sdd validate <id> --strict --no-interactive`
    - 审查：`llman sdd change diff <id>`（只读）
-   - 收尾（推荐）：`llman sdd change finalize <id>`（工作区可脏；然后一次 `git commit`）
-   - Fallback：`llman sdd change checkpoint <id>`（需干净树）→ `llman sdd change archive <id>`
 
 {{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}

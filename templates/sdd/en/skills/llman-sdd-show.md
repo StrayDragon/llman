@@ -23,4 +23,4 @@ Use this skill to inspect changes, specs, and JSON output.
 
 {{ unit("skills/validation-hints-toon") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}

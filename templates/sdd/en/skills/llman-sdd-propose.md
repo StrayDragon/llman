@@ -16,12 +16,12 @@ Create a new change with planning artifacts (proposal + tasks; design optional),
 
 {{ unit("skills/git-native-flow") }}
 
-### Skill navigation (demoted: agent skills only, not the Git lane)
+### Skill navigation (not the lifecycle; shows current skill only)
 
 ```mermaid
 flowchart LR
     explore["llman-sdd-explore<br/>Explore"] --> propose
-    propose["★ llman-sdd-propose ★<br/>Propose (start+Specs landing)"]
+    propose["★ llman-sdd-propose ★<br/>Propose (Branch binding + Specs landing)"]
     propose --> apply["llman-sdd-apply<br/>Implement"]
     apply --> verify["llman-sdd-verify<br/>Verify"]
     verify --> archive["llman-sdd-archive<br/>Archive"]
@@ -29,7 +29,7 @@ flowchart LR
     style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are in propose: Git-native path above is **Designed → Binding → Specs landing** (until `readyToImplement=true`) → next: `llman-sdd-apply`
+> 📍 You are in propose: Git-native path above is **Designed → Branch binding → Specs landing** (until `readyToImplement=true`) → next: `llman-sdd-apply`
 > 📎 For small changes (no behavioral contract changes), use `llman-sdd-quick` (quick path)
 
 ## Hard Constraints
@@ -103,7 +103,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 - **Do NOT silently add the `bdd:` block** — always ask first. Adding it changes how `validate --check` behaves project-wide.
 
 ### 4b) Git-native spec authoring (Partitioned SSOT when `bdd:` is configured)
-- Work on a **non-default Git feature branch** (never propose/implement on main/master).
+- Planning shell (proposal/design/tasks) may briefly live on the default branch; **do not** edit live `llmanspec/specs/**` on the default branch. After Branch binding, Specs landing and implementation happen on the bound branch.
 - **Partitioned SSOT** (when `bdd:` exists): edit live `spec.toon` (constraints) and `*.feature` (executable GWT + `@req`); never dual-write the same scenario id.
 
   | Scenario type | `spec.toon` `scenarios[]` | `*.feature` |

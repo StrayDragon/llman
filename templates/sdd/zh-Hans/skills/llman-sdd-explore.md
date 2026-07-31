@@ -14,26 +14,30 @@ metadata:
 
 **重要：探索模式只用于思考，不用于实现。**
 - 你可以阅读文件、搜索代码、调查代码库。
-- 如果用户需要，你可以创建/更新 llman SDD artifacts（proposal/specs/design/tasks）。
+- 你可以创建/更新规划壳工件（proposal/design/tasks）。
+- live specs：**只读**，除非 change 已 Branch-bound 且你在该分支上；否则 STOP 并建议 `llman-sdd-propose` / `change start`。
 - 你绝对不能在探索模式下写应用代码或实现功能。
 
 ## Pipeline 位置
 
+{{ unit("skills/git-native-flow-brief") }}
+
+### Skill 导航（非生命周期；仅指示当前 skill）
+
 ```mermaid
 flowchart LR
     explore["★ llman-sdd-explore ★<br/>探索（你现在在这里）"]
-    explore --> propose["llman-sdd-propose<br/>提案（含 start+Specs landing）"]
+    explore --> propose["llman-sdd-propose<br/>提案（含 Branch binding 与 Specs landing）"]
     propose --> apply["llman-sdd-apply<br/>实施"]
     apply --> verify["llman-sdd-verify<br/>验证"]
     verify --> archive["llman-sdd-archive<br/>归档"]
-    archive --> commit["git commit<br/>完成闭环"]
 
     style explore fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
 > 📍 你现在在探索阶段（仅思考）→ 常规路径下一步 `llman-sdd-propose`（提案）
 > 📎 如果是小改动（不改行为合约），可直接走 `llman-sdd-quick`（快速路径）
-> 🗺️ Skill 链 ≠ Git 车道：完整 Binding→Specs landing→apply 见下方「Git-native 生命周期」
+> 🗺️ Skill 导航 ≠ Git-native 生命周期
 
 ## 探索姿态
 - 好奇而不教条
@@ -65,16 +69,14 @@ flowchart LR
 
 > Git-native：先 `change start`/`attach`（Branch binding）进入 Full，再在绑定分支编辑 live `.feature`/`spec.toon`（Specs landing）；无 `change delta` / solidify / feature_delta。
 
-{{ unit("skills/git-native-flow") }}
-
 ## 退出探索模式
 当用户准备开始实现时，根据变更规模选择路径：
 - 行为合约变更 → `llman-sdd-propose`（创建提案工件）
 - 小改动 / 不改合约 → `llman-sdd-quick`（快速路径）
-- 已有完整 change 工件 → `llman-sdd-apply`（按 tasks 实施）
+- `readyToImplement=true` → `llman-sdd-apply`（按 tasks 实施）
 若用户在探索模式中要求你开始实现，STOP 并提醒其先退出探索模式。
 
-> 💡 探索完成 → 下一步 `llman-sdd-propose`（保单）或 `llman-sdd-quick`（快速路径）
+> 💡 探索完成 → 下一步 `llman-sdd-propose`（提案）或 `llman-sdd-quick`（快速路径）
 
 {{ unit("skills/sdd-commands") }}
 

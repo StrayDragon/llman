@@ -25,8 +25,8 @@ flowchart LR
 ```
 
 > 📍 你现在在草案阶段 → 下一步：完善 `proposal.md`，然后运行 `llman-sdd-propose` 正式化
-> 📎 本技能创建**草案** change（仅 proposal.md）。完整提案走 Git-native：tasks → start/attach → Specs landing（见 propose 的生命周期图）
-> 🗺️ 上图是 Skill 导航；Binding / Specs landing 不是独立 skill
+> 📎 本技能创建**草案** change（仅 proposal.md）。完整提案走 Git-native：tasks → Branch binding → Specs landing（见 propose 的生命周期图）
+> 🗺️ Skill 导航 ≠ Git-native 生命周期；Branch binding / Specs landing 不是独立 skill
 
 ## 硬约束
 
@@ -83,33 +83,6 @@ llman sdd change new --from "<用户描述>"
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备份恢复）
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图）
 - `llman sdd project migrate [--kind format|partitioned|legacy-bdd|auto]`（一次性迁移）
-
-## Context
-- 执行前先确认当前 change/spec 状态。
-- 优先使用 `llman sdd context --task --paths` 获取相关 specs，而非全量读取或猜测。
-
-## Goal
-- 明确本次命令/skill 要达成的可验证结果。
-
-## Constraints
-- 变更保持最小化且范围明确。
-- 标识符或意图不明确时禁止猜测。
-- 在读取 spec 全文前，先使用 `llman sdd context --task --paths` 获取相关 specs。
-- 判断变更规模后选择路径：行为合约变更走完整 SDD 流程，实现变更走快速路径。
-
-## Workflow
-- 以 `llman sdd` 命令结果为事实来源。
-- 涉及文件/规范变更时执行校验。
-- 首选 `llman sdd context` 获取相关 specs，而非全量读取或猜测。
-- 当 context 不可用时，按错误提示处理（重建 index 或降级到 `list --specs --json`）。
-
-## Decision Policy
-- 高影响歧义必须先澄清。
-- 已知校验错误下禁止强行继续。
-
-## Output Contract
-- 汇总已执行动作。
-- 给出结果路径与校验状态。
 
 ## Ethics Governance
 - `ethics.risk_level`：按 `low|medium|high|critical` 标注风险等级。

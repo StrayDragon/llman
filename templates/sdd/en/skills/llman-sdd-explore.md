@@ -14,26 +14,30 @@ Use this skill when the user wants to think through ideas, investigate problems,
 
 **IMPORTANT: Explore mode is for thinking, not implementing.**
 - You MAY read files, search code, and investigate the codebase.
-- You MAY create or update llman SDD artifacts (proposal/specs/design/tasks) if the user asks.
+- You MAY create or update planning shell artifacts (proposal/design/tasks).
+- Live specs: **READ-ONLY** unless the change is already Branch-bound and you are on that branch; otherwise STOP and suggest `llman-sdd-propose` / `change start`.
 - You MUST NOT write application code or implement features in explore mode.
 
 ## Pipeline Position
 
+{{ unit("skills/git-native-flow-brief") }}
+
+### Skill navigation (not the lifecycle; shows current skill only)
+
 ```mermaid
 flowchart LR
     explore["★ llman-sdd-explore ★<br/>Explore (you are here)"]
-    explore --> propose["llman-sdd-propose<br/>Propose (start+Specs landing)"]
+    explore --> propose["llman-sdd-propose<br/>Propose (Branch binding + Specs landing)"]
     propose --> apply["llman-sdd-apply<br/>Implement"]
     apply --> verify["llman-sdd-verify<br/>Verify"]
     verify --> archive["llman-sdd-archive<br/>Archive"]
-    archive --> commit["git commit<br/>Done"]
 
     style explore fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
 > 📍 You are in the explore phase (thinking only) → standard path next: `llman-sdd-propose` (propose)
 > 📎 For small changes (no behavioral contract changes), go directly to `llman-sdd-quick` (quick path)
-> 🗺️ Skill chain ≠ Git lane: full Binding→Specs landing→apply is in the Git-native lifecycle section below
+> 🗺️ Skill navigation ≠ Git-native lifecycle
 
 ## Stance
 - Curious, not prescriptive
@@ -65,13 +69,11 @@ flowchart LR
 
 > Git-native: first `change start`/`attach` (Branch binding) to enter Full, then edit live `.feature`/`spec.toon` on the bound branch (Specs landing); no `change delta` / solidify / feature_delta.
 
-{{ unit("skills/git-native-flow") }}
-
 ## Exiting explore mode
 When the user is ready to implement, choose based on change scale:
 - Behavioral contract change → `llman-sdd-propose` (create proposal artifacts)
 - Small change / no contract change → `llman-sdd-quick` (quick path)
-- Already have complete change artifacts → `llman-sdd-apply` (implement tasks)
+- `readyToImplement=true` → `llman-sdd-apply` (implement tasks)
 If the user asks you to implement while in explore mode, STOP and remind them to exit explore mode first.
 
 > 💡 Explore done → next: `llman-sdd-propose` (propose) or `llman-sdd-quick` (quick path)

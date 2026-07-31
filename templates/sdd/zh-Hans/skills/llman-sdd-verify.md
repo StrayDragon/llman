@@ -14,18 +14,19 @@ metadata:
 
 ## Pipeline 位置
 
+### Skill 导航（非生命周期；仅指示当前 skill）
+
 ```mermaid
 flowchart LR
     apply["llman-sdd-apply<br/>实施"] --> verify
     verify["★ llman-sdd-verify ★<br/>验证（你现在在这里）"]
     verify --> archive["llman-sdd-archive<br/>归档"]
-    archive --> commit["git commit<br/>完成闭环"]
 
     style verify fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
 > 📍 你现在在验证阶段 → 通过后下一步 `llman-sdd-archive`（归档）；失败则回到 `llman-sdd-apply`（修复）。对应 Git-native 图中的 **I（verify）**，对象应已 Specs-landed（`readyToImplement=true`）。
-> 🗺️ 上图是 Skill 导航；完整车道见下方 Git-native 生命周期
+> 🗺️ Skill 导航 ≠ Git-native 生命周期；完整生命周期见底部 brief 单元。
 
 ## 硬约束
 
@@ -35,29 +36,15 @@ flowchart LR
 
 ## 步骤
 1. 确定 change id（不明确时让用户从 `llman sdd list --json` 选择）。
-2. 检查阶段守卫（权威）：
-   ```bash
-   stage=$(llman sdd show <id> --json --type change | jq -r .stage)
-   ```
-   （若无 `jq`，可用任意工具从 JSON 中解析 `stage` 值。）
-   - 若 `stage` 不为 `full`，变更尚未实现、无可验证内容 → 必须停止并给出守卫提示：
-     - `draft`："变更 <id> 是 draft 提案（仅 proposal.md），尚无可验证的实现。请先用 llman-sdd-propose 生成完整工件，再 `llman sdd change start <id>`，完成 Specs landing 后用 llman-sdd-apply 实现。" 若已有 proposal+design+tasks 仍是 `draft`，意味着变更**未 start/attach** —— 修复方式是 `llman sdd change start <id>` 或 `change attach <id>`（而非新增 `changes/<id>/specs/`）。
-     - `designed`："变更 <id> 处于 designed 阶段，尚未进入 Full。请运行 `llman sdd change start <id>` 后再 apply/verify。"
-   - 若 `stage` 为 `full` 但 `llman sdd show <id> --json` 的 `readyToImplement` 为 false：Specs landing 未完成 → STOP，提示在绑定分支编辑 `llmanspec/specs/**` 并 commit（或设 `skip_specs_landing`）；**不要**再跑 `change start`。
+{{ unit("skills/stage-guard") }}
 3. 先跑一个快速校验门禁：
    - `llman sdd validate <id> --strict --no-interactive`
    - **诊断结构问题（Gherkin 解析 / `@req` 链接 / 双写 / 全局 req_id 唯一性）时优先加 `--no-check`**（BDD-on 下跳过可能耗时的 `bdd.run_command`），结构门禁全绿后再跑完整 `--check`（full mode）。`FAIL <item_type>/<id>` 行会逐条列出失败项（在 Totals 行上方）。
 4. 阅读：
-{% if bdd_enabled %}
-   - feature 分支上的 live specs：`llmanspec/specs/**`（`spec.toon` + `*.feature`）——BDD-on 下这是 SSOT
+   - feature 分支上的 live specs：`llmanspec/specs/**`（`spec.toon` + 配置了 `bdd:` 时的 `*.feature`）——SSOT
    - `proposal.md` 与 `design.md`（如存在）
    - `tasks.md`（理解实现范围）
-   - change 内 `llmanspec/changes/<id>/specs/` 仅当残留文档存在时（优先读 live specs）
-{% else %}
-   - `llmanspec/changes/<id>/specs/` 下的 delta specs
-   - `proposal.md` 与 `design.md`（如存在）
-   - `tasks.md`（理解实现范围）
-{% endif %}
+   - `llmanspec/changes/<id>/specs/` 若残留旧文档可忽略；SSOT 是 live specs
 5. **双轴审查（标准轴 + 合约轴分离，互不掩盖）**——对比 diff（`git diff <merge-base>...HEAD`，merge-base 取 attach 的 base_sha 或 `main`）分两轴：
    - **合约轴（Spec）**：实现是否满足 `spec.toon` 的 MUST/SHALL 与 `*.feature` 的 GWT。
      - 缺失/部分实现的行为、错误实现、以及 diff 中未被 spec 要求的超范围改动。
@@ -71,8 +58,8 @@ flowchart LR
    - 确认 change 已 attach，且当前在对应 feature 分支上。
    - `llman sdd validate --specs`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
    - 可选只读审查：`llman sdd change diff <id>`（或 `--export-patch <path>`）。diff 仅作审查/导出——绝不当作 apply 步骤。
-   - 归档：**优先** `llman sdd change finalize <id>`（可不要求干净树；随后一次 `git commit`）；需要严格 `checkpoint_sha` 时再走 `checkpoint` → `archive`。
    - 检查：可执行 GWT 只在 live `.feature`；`morphology.dualWriteCount` 应为 0；若已有活跃 `*.feature.delta.toon` 则先迁移（不要自创 solidify/找补步骤）。
+   - verify 通过后下一步：`llman-sdd-archive`（勿在此 inline finalize）。
 {% if bdd_verify_prompt %}
    - 额外要求: {{ bdd_verify_prompt }}
 {% endif %}
@@ -80,11 +67,11 @@ flowchart LR
    - **CRITICAL**（归档前必须修复）
    - **WARNING**（建议修复）
    - **SUGGESTION**（可选优化）
-8. 若存在 CRITICAL，建议用 `llman-sdd-apply` 修复；若通过则建议归档：`llman sdd change finalize <id>`（推荐）或 fallback `checkpoint` + `archive`。
+8. 若存在 CRITICAL，建议用 `llman-sdd-apply` 修复；若通过则建议 `llman-sdd-archive` 进行 finalize/archive。
 
 > 💡 验证通过 → 下一步 `llman-sdd-archive`（归档）；有 CRITICAL → 回到 `llman-sdd-apply`（修复）
 
-{{ unit("skills/git-native-flow") }}
+{{ unit("skills/git-native-flow-brief") }}
 {{ unit("skills/sdd-commands") }}
 
 {{ unit("skills/structured-protocol") }}
