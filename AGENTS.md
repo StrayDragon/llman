@@ -31,7 +31,7 @@
 | `llman-sdd-wayfinder` | user-invoked | 把大型、一团乱的工作拆成决策地图，逐个解决决策 |
 | `llman-sdd-research` | model-invoked | 后台 agent 委托查一手资料（官方文档/源码/API） |
 
-> 注：这 3 个独立 skill 尚未被 `init --update` 托管（需后续 CLI change 加入 `OPTIONAL_SKILL_NAMES`）。运行 `init --update` 前备份，否则会被清理。
+> 注：上述独立 skill 已列入 `OPTIONAL_SKILL_NAMES`；经 `llmanspec/config.yaml` 的 `extra_skills` 启用后，`init --update` 会写入/刷新。未列入 candidate 的 `llman-sdd-*` 目录会被清理——启用前先配 `extra_skills`。
 
 ### 设计词汇
 
@@ -104,7 +104,7 @@ Cargo equivalents use `cargo +nightly ...`.
 | **`skip_specs_landing`** | frontmatter 豁免：本次无 live 合约变更 | **不是**跳过 Branch binding |
 | **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | **不是**「完整工件」口头说法；用 `show`/`status --json` 查 |
 | **Change 文档** | `llmanspec/changes/<id>/` 下的规划壳 | **不是** live 合约；合约 SSOT 在 `llmanspec/specs/**` |
-| **Live specs** | 绑定分支上的 `spec.toon` +（bdd-on）`*.feature` | 未 binding 时在默认分支编辑；已移除的 `change delta` / `*.feature.delta.toon` |
+| **Live specs** | 绑定分支上的 `spec.toon` +（bdd-on）`*.feature` | **禁止**未 binding 时在默认分支编辑；不是已移除的 `change delta` / `*.feature.delta.toon` |
 
 ```mermaid
 flowchart TB
