@@ -547,6 +547,34 @@ fn validate_change_full(
         issues.extend(check_tasks_exists(change_dir));
         issues.extend(check_tasks_completion(change_dir, archive_config));
         issues.extend(check_design_md(change_dir));
+        // Specs landing soft gate (WARNING): Full but no live specs diff / skip.
+        if let Some(root) = crate::sdd::change::specs_landing::repo_root_from_change_dir(change_dir)
+        {
+            let landing =
+                crate::sdd::change::specs_landing::evaluate_specs_landing(root, change_dir);
+            if !landing.ready_to_implement {
+                let msg = landing.not_ready_message(
+                    change_dir
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("<change>"),
+                );
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Warning,
+                    path: "proposal.md".to_string(),
+                    message: msg,
+                });
+            }
+            if let Some(dirty) =
+                crate::sdd::change::specs_landing::warn_dirty_specs_on_default_branch(root)
+            {
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Warning,
+                    path: "llmanspec/specs".to_string(),
+                    message: dirty,
+                });
+            }
+        }
     }
 
     // Stage hint (always Info — stage reflects effective stage)

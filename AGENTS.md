@@ -90,8 +90,24 @@ Cargo equivalents use `cargo +nightly ...`.
 本项目采用统一 Git-native 流程（不再区分 BDD-on/off）：
 
 ```
-draft [proposal.md] → designed [+design+tasks] → full [change start→分支+attach] → apply → verify → archive [docs rename + ff-merge→main]
+draft [proposal.md]
+  → designed [+design+tasks；仍可不碰 live specs；规划壳可短暂在默认分支]
+  → bound [change start|attach → sdd/<id>；仅 Branch binding]
+  → specs-landed [仅在绑定分支改 llmanspec/specs/** 并留下相对 base_sha 的 diff/commit]
+  → apply [代码；可继续在同分支改 specs]
+  → verify
+  → archive [docs rename + ff-merge → 默认分支首次合入该 change 的 specs]
 ```
+
+CLI 三态仍为 Draft / Designed / Full（Full = designed 工件 + attach binding）。**Apply-ready** 另看 `readyToImplement`：`Full ∧ (specsLanded ∨ skip_specs_landing)`。`show`/`status --json` 暴露 `specsLanded` / `skipSpecsLanding` / `readyToImplement`。
+
+### Specs landing（硬规则）
+
+- **任意阶段**：对公共 `llmanspec/specs/**` 的编辑，只允许发生在该 change 已绑定的非默认分支上。
+- **禁止**为过 `change start` 干净树门禁，把未实现 live specs commit 进默认分支。
+- `change start` 只做 Branch binding，**不等于** Specs landing，也**不等于**可 apply。
+- 丢失绑定分支上的 specs 改动 → checkout/重建分支并必要时 `attach --force` 后重写；**不要**对已 attach 的 change 再跑 `start`。
+- 无 live 合约变更的 change 可在 proposal frontmatter 设 `skip_specs_landing: true`。
 
 `bdd:` 段降级为**仅 runner 开关**（决定 `validate --check` 是否跑 `bdd.run_command`，不影响变更生命周期）。
 
@@ -99,13 +115,14 @@ draft [proposal.md] → designed [+design+tasks] → full [change start→分支
 |------|------|----------|
 | draft | proposal.md only | `change new` |
 | designed | +design.md +tasks.md | 手动补充 artifact |
-| full | +attach binding | `change start`（推荐）或 `change attach` |
-| apply | 实现代码 | `llman-sdd-apply` |
+| full（bound） | +attach binding | `change start`（推荐）或 `change attach` |
+| specs-landed | 绑定分支上 `llmanspec/specs/**` 相对 base 有 diff（或 skip） | 在绑定分支编辑并 commit |
+| apply | 实现代码 | `llman-sdd-apply`（须 `readyToImplement=true`） |
 | verify | 验证一致性 | `llman-sdd-verify` |
 | archive | docs rename + ff-merge | `change archive` 或 `change finalize` |
 
-- **`change start <id>`**：clean-tree 门禁 → 自动建分支 `sdd/<id>` → 写入 attach binding
-- **`change attach <id>`**：手动绑已有 feature 分支（共存命令）
+- **`change start <id>`**：clean-tree 门禁 → **须在默认分支** → 自动建分支 `sdd/<id>` → 写入 attach binding
+- **`change attach <id>`**：手动绑已有 feature 分支（共存命令；拒绝绑到默认分支）
 - **`change start --worktree <id>`**：`git worktree add` 并行工作（路径 `<repo>/.git/sdd/worktrees/`）
 - **`change finalize <id>`**：checkpoint + docs rename + ff-merge 单进程（工作区可脏）
 - **`change archive <id>`**：docs rename + `git merge --ff-only` 到默认分支

@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-propose"
-description: "创建 llman SDD 变更提案与规划工件（proposal/tasks；在 feature 分支编辑 live specs/features 并 `change start`）。用于 MUST/SHALL 行为合约变更。"
+description: "创建 llman SDD 变更提案与规划工件（proposal/tasks；先 `change start`/`attach`，再在绑定分支编辑 live specs/features）。用于 MUST/SHALL 行为合约变更。"
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
@@ -10,7 +10,7 @@ metadata:
 
 # LLMAN SDD 提案（Propose）
 
-创建一个新变更并生成规划工件（proposal + tasks；design 可选），在 feature 分支上编辑 live `spec.toon` / `*.feature`，然后 `change start`（或 `attach`）、校验并建议下一步。
+创建一个新变更并生成规划工件（proposal + tasks；design 可选），**先** `change start`（或 `attach`）完成 Branch binding，**再**在绑定分支上编辑 live `spec.toon` / `*.feature`（Specs landing）、校验并建议下一步。
 
 ## Pipeline 位置
 
@@ -79,7 +79,9 @@ flowchart LR
    - 仅在涉及权衡/迁移时创建 `design.md`
    - **测试边界前置确认（在写 tasks.md 之前）**：列出将测试的边界（seam）并与用户确认。seam = `*.feature` 的 GWT 步骤所驱动的公共边界（CLI 子进程或 public interface）——MUST 复用已有 harness 的边界，MUST NOT 另行发明脱离 `.feature` 的边界。无 `.feature` 时，seam 取被测的 CLI 子命令或 public 函数边界。
    - `tasks.md`：按**垂直切片**拆分（每个 task 一刀切穿 schema→API→UI→tests 的完整窄路径，且可独立验证），支持 `[blocked-by: <task-id>]` 依赖标记。**大范围机械重构例外**（一个机械改动横扫全库、单次编辑破坏大量调用点）：按「新旧并存再切换」顺序排列（先并存 → 分批迁移 → 删旧），不强行塞进垂直切片。
-   - 在非默认 feature 分支上编辑 live `llmanspec/specs/<capability>/spec.toon`（配置了 `bdd:` 时再加 `*.feature`）——然后 `llman sdd change start <change-id>`（推荐）或 `change attach <change-id>` 进入 Full 阶段。
+   - **先** `llman sdd change start <change-id>`（推荐；须干净树且在默认分支）或手动建分支后 `change attach <change-id>`，进入 Full（Bound）。
+   - **再**在绑定的非默认分支上编辑 live `llmanspec/specs/<capability>/spec.toon`（配置了 `bdd:` 时再加 `*.feature`）并 commit，完成 Specs landing。**禁止**先改 live specs 再 start；**禁止**为过干净树门禁把 live specs commit 到默认分支。已 attach 时不要重复 `start`（丢失 specs 走恢复：checkout/重建绑定分支，必要时 `attach --force`）。
+   - 无 live 合约变更时可设 frontmatter `skip_specs_landing: true`。`llman sdd show <id> --json` 的 `readyToImplement` 须为 true 后才进入 apply。
 
 ### 4) 校验：
    ```bash
@@ -105,7 +107,7 @@ flowchart LR
   | 不可执行场景（纯文档） | `feature: false` + GWT 可填 | n/a（不要放） |
 
   要点：Partitioned SSOT 下 toon 里 **不要** 写 `feature: true` 的行；requirement 语句放 toon，可执行例子放 `.feature` 并用 `@req:<req_id>` 挂回。
-- Change 壳：`llman sdd change new <change-id>` → 充实 proposal/design/tasks → 在分支上编辑 live specs → `llman sdd change start <change-id>`（或 `change attach`）。
+- Change 壳：`llman sdd change new <change-id>` → 充实 proposal/design/tasks → `llman sdd change start <change-id>`（或 `change attach`）→ **再**在绑定分支编辑 live specs 并 commit（Specs landing）。
 - **不要**使用 `change delta` / solidify / `*.feature.delta.toon`；若仓库里已有活跃 `*.feature.delta.toon`，先迁移再继续。
 
 ### 5) 总结已创建内容，并建议下一步：
