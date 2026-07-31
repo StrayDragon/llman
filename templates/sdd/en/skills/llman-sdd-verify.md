@@ -40,8 +40,9 @@ flowchart LR
    ```
    (If `jq` is unavailable, parse the `stage` value from the JSON with any tool.)
    - If `stage` is not `full`, the change has nothing implemented to verify → STOP with a guard:
-     - `draft`: "Change <id> is a draft proposal (proposal.md only); nothing to verify yet. Generate full artifacts with llman-sdd-propose, then `llman sdd change start <id>`, then implement with llman-sdd-apply." If proposal+design+tasks exist but stage is still `draft`, the change is **not started/attached** — run `llman sdd change start <id>` or `change attach <id>` (do not add `changes/<id>/specs/`).
+     - `draft`: "Change <id> is a draft proposal (proposal.md only); nothing to verify yet. Generate full artifacts with llman-sdd-propose, then `llman sdd change start <id>`, complete Specs landing, then implement with llman-sdd-apply." If proposal+design+tasks exist but stage is still `draft`, the change is **not started/attached** — run `llman sdd change start <id>` or `change attach <id>` (do not add `changes/<id>/specs/`).
      - `designed`: "Change <id> is in designed stage, not yet Full. Run `llman sdd change start <id>` before apply/verify."
+   - If `stage` is `full` but `llman sdd show <id> --json` has `readyToImplement=false`: Specs landing incomplete → STOP; edit `llmanspec/specs/**` on the bound branch and commit (or set `skip_specs_landing`); **do not** re-run `change start`.
 3. Run a fast validation gate:
    - `llman sdd validate <id> --strict --no-interactive`
    - **When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / global req_id uniqueness), prefer adding `--no-check`** (skips the potentially slow `bdd.run_command` under BDD-on); run the full `--check` (full mode) only after structural gates are green. Each `FAIL <item_type>/<id>` line lists a failing item (above the Totals line).

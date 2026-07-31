@@ -62,7 +62,7 @@ flowchart LR
    - Design decisions → `design.md`
    - Work items → `tasks.md`
 
-> Git-native: feature branch + live `.feature`/`spec.toon` are SSOT; enter Full with `change start` (or `change attach`); no `change delta` / solidify / feature_delta.
+> Git-native: first `change start`/`attach` (Branch binding) to enter Full, then edit live `.feature`/`spec.toon` on the bound branch (Specs landing); no `change delta` / solidify / feature_delta.
 
 ## Exiting explore mode
 When the user is ready to implement, choose based on change scale:

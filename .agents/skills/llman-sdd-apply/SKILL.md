@@ -120,13 +120,13 @@ flowchart LR
 - `llman sdd context --task "<描述>" --paths "<文件>"`（找相关 specs）。使用 pageindex agentic tree 后端（需 `LLMAN_SDD_INDEX_CHAT_MODEL`）。可用 `LLMAN_SDD_INDEX_BACKEND` 预设。
 - `llman sdd list`（列出变更）
 - `llman sdd list --specs`（列出 specs 及 purpose/scope 元数据）
-- `llman sdd show <id>`（展示 change/spec）
+- `llman sdd show <id>`（展示 change/spec；`--type change --output json` 含 `stage` / `specsLanded` / `readyToImplement`）
 - `llman sdd validate <id>`（校验 change 或 spec）
 - `llman sdd validate --all`（批量校验）
 - `llman sdd index rebuild`（重建 pageindex 树索引——不需要模型）
 - `llman sdd index check`（检查索引新鲜度）
 - `llman sdd change new <id>`（创建草稿 `changes/<id>/proposal.md`）
-- `llman sdd change start <id> [--worktree]`（Designed→Full：干净树 → 创建 `sdd/<id>` 分支 + attach 绑定）
+- `llman sdd change start <id> [--worktree]`（Designed→Full：干净树且在默认分支 → 创建 `sdd/<id>` 分支 + attach 绑定；仅 Branch binding，不等于 Specs landing）
 - `llman sdd change attach <id> [--force]`（绑定已有 feature 分支 + base SHA）
 - `llman sdd change finalize <id> [--no-check]`（**推荐单 commit 路径**——不要求干净树；门禁 + 自动 ff-merge + 文档改名）
 - `llman sdd change checkpoint <id> [--no-check]`（干净工作区 + 归档前门禁；严格 sha = HEAD）

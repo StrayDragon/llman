@@ -49,7 +49,7 @@ scenarios[1]{req_id,id,given,when,then,feature}:
     那么 退出码为 0
 ```
 
-- **Git-native 生命周期**：在非默认 feature 分支上编辑 live `.feature` 与 `spec.toon`；用 `llman sdd change start <id>`（推荐）或 `change attach` 进入 Full 阶段；优先 `change finalize` 单 commit 收尾（或 fallback：归档前 `checkpoint` 再 `change archive`）。archive/finalize 自动 ff-merge feature 分支到默认分支，再将 change 文档改名到 `changes/archive/`（脏改名留一次 `git commit`）。`diff` 只读审查/导出。**禁止**在 `changes/<id>/specs/` 下编写或创建 `*.feature.delta.toon`。没有 `change delta`、solidify 或 `llman-sdd-sync`。
+- **Git-native 生命周期**：先用 `llman sdd change start <id>`（推荐；须在默认分支干净树）或 `change attach` 完成 Branch binding 进入 Full；**再**在绑定的非默认分支上编辑 live `.feature` 与 `spec.toon` 并 commit（Specs landing）。优先 `change finalize` 单 commit 收尾（或 fallback：归档前 `checkpoint` 再 `change archive`）。archive/finalize 自动 ff-merge feature 分支到默认分支，再将 change 文档改名到 `changes/archive/`（脏改名留一次 `git commit`）。`diff` 只读审查/导出。**禁止**在 `changes/<id>/specs/` 下编写或创建 `*.feature.delta.toon`。没有 `change delta`、solidify 或 `llman-sdd-sync`。
 - 下游升级：人工清理遗留 `change/specs/` 或 `*.feature.delta.toon`（`partitioned` migrate 已移除）。
 - `bdd:` 已启用且 `requirements` 为空、又无 `.feature` 是 ERROR。
 

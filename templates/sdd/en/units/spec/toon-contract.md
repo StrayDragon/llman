@@ -49,7 +49,7 @@ Feature: sample
     Then exit code 0
 ```
 
-- **Git-native lifecycle**: edit live `.feature` and `spec.toon` on a non-default feature branch; enter Full stage with `llman sdd change start <id>` (recommended) or `change attach`; prefer `change finalize` for single-commit close-out (or fallback: `checkpoint` then `change archive`). Archive/finalize auto ff-merges the feature branch into the default branch, then renames change docs to `changes/archive/` (one follow-up `git commit` for the dirty rename). `diff` is read-only review/export. Do **not** author under `changes/<id>/specs/` or create `*.feature.delta.toon`. There is no `change delta`, solidify, or `llman-sdd-sync`.
+- **Git-native lifecycle**: first `llman sdd change start <id>` (recommended; clean tree on the default branch) or `change attach` for Branch binding / Full stage; **then** edit live `.feature` and `spec.toon` on the bound non-default branch and commit (Specs landing). Prefer `change finalize` for single-commit close-out (or fallback: `checkpoint` then `change archive`). Archive/finalize auto ff-merges the feature branch into the default branch, then renames change docs to `changes/archive/` (one follow-up `git commit` for the dirty rename). `diff` is read-only review/export. Do **not** author under `changes/<id>/specs/` or create `*.feature.delta.toon`. There is no `change delta`, solidify, or `llman-sdd-sync`.
 - Downstream upgrade: manually remove leftover `change/specs/` or `*.feature.delta.toon` (`partitioned` migrate removed).
 - `bdd:` enabled with empty `requirements` and no `.feature` is an ERROR.
 
