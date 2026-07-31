@@ -14,10 +14,14 @@ metadata:
 
 ## Pipeline 位置
 
+{{ unit("skills/git-native-flow") }}
+
+### Skill 导航（非生命周期；仅指示当前 skill）
+
 ```mermaid
 flowchart LR
     explore["llman-sdd-explore<br/>探索"] --> propose
-    propose["★ llman-sdd-propose ★<br/>提案（你现在在这里）"]
+    propose["★ llman-sdd-propose ★<br/>提案（含 Branch binding 与 Specs landing）"]
     propose --> apply["llman-sdd-apply<br/>实施"]
     apply --> verify["llman-sdd-verify<br/>验证"]
     verify --> archive["llman-sdd-archive<br/>归档"]
@@ -25,24 +29,24 @@ flowchart LR
     style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在提案阶段 → 下一步 `llman-sdd-apply`（实施）
+> 📍 你现在在提案阶段：上图 Git-native 的 **Designed → Branch binding → Specs landing**（到 `readyToImplement=true`）→ 下一步 `llman-sdd-apply`
 > 📎 如果只是小改动（不改行为合约），可直接 `llman-sdd-quick`（快速路径）
 
 ## 硬约束
 
 - **必须与用户确认 change id 后再写文件**：不同变更的边界不能模糊。**例外**：用户只想快速记一个想法（仅草案，不需要 id）时，引导其使用 `llman-sdd-draft` 技能，而非走完整 propose。
-- **feature 分支上的 live specs 为 SSOT**：直接编辑 `llmanspec/specs/**`——**禁止**在 `changes/<id>/specs/` 下编写或使用 `change delta`（已移除）。
+- **Live specs SSOT**：仅在 Branch binding 之后、于**绑定的非默认分支**编辑 `llmanspec/specs/**`（Specs landing）。**禁止**在默认分支改 live specs；**禁止**在 `changes/<id>/specs/` 下编写或使用 `change delta`（已移除）。规划壳可短暂在默认分支。
 - **不要问「要不要继续」**：在 propose 阶段内一路执行到底，生成工件并校验。
 {% if extra_skill_continue %}
-- **若变更已存在**：STOP 并建议用户使用 `llman-sdd-apply` 或 `llman-sdd-continue`。
+- **若变更已存在**：STOP。若 `readyToImplement=true` 建议 `llman-sdd-apply`；否则用 `llman-sdd-continue` 补 Branch binding / Specs landing，或补齐规划壳。
 {% else %}
-- **若变更已存在**：STOP 并建议用户使用 `llman-sdd-apply`；若需补齐缺失 artifact，直接编辑 `llmanspec/changes/<id>/`（或启用 `extra_skills: [llman-sdd-continue]` 后使用 continue）。
+- **若变更已存在**：STOP。若 `readyToImplement=true` 建议 `llman-sdd-apply`；否则补齐规划壳 / Branch binding / Specs landing（可编辑 `llmanspec/changes/<id>/`，或启用 `extra_skills: [llman-sdd-continue]`）。
 {% endif %}
-- **frontmatter 有固定 schema（r124）**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（r93，用 `llman sdd status`/`show` 查看），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 用人类可读标题，不要复读 change id。
+- **frontmatter 有固定 schema**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段（含 `depends_on`、`blocks`、`branch`、`base_sha`/`baseSha`、`checkpointed`、`checkpoint_sha`/`checkpointSha`、`skip_specs_landing`）。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（用 `llman sdd status`/`show` 查看），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 用人类可读标题，不要复读 change id。
 
 ## 快速记录路由
 
-若用户只想**随手记一个想法**（如「draft 提案」「记一个提案」「先把 X 记下来」）而无需完整规划，引导其使用 `llman-sdd-draft` 技能——它通过 `change new --from` 创建仅含 `proposal.md` 的草案壳（不问 id，不写 tasks/specs/attach）。完整 propose（triage + tasks + live specs + `change start`）从这里开始。
+若用户只想**随手记一个想法**（如「draft 提案」「记一个提案」「先把 X 记下来」）而无需完整规划，引导其使用 `llman-sdd-draft` 技能——它通过 `change new --from` 创建仅含 `proposal.md` 的草案壳（不问 id，不写 tasks/specs/attach）。完整 propose（triage + tasks → `change start`/`attach` → Specs landing）从这里开始。
 
 ## 步骤
 
@@ -98,7 +102,7 @@ flowchart LR
 - **禁止静默添加 `bdd:` 段**——必须先询问。添加它会改变 `validate --check` 在整个项目的行为。
 
 ### 4b) Git-native spec 写作（配置了 `bdd:` 时采用 Partitioned SSOT）
-- 在**非默认 Git feature 分支**上工作（禁止在 main/master 上 propose/实现）。
+- 规划壳（proposal/design/tasks）可短暂在默认分支；**禁止**在默认分支编辑 live `llmanspec/specs/**`；Branch binding 后才 Specs landing / 实现。
 - **Partitioned SSOT**（有 `bdd:` 时）：编辑 live `spec.toon`（约束）与 `*.feature`（可执行 GWT + `@req`）；禁止同一 scenario id 双写。
 
   | 场景类型 | `spec.toon` `scenarios[]` | `*.feature` |

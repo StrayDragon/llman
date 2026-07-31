@@ -22,7 +22,7 @@ flowchart LR
     style compact fill:#e8f4e8,stroke:#28a745,stroke-width:2px
 ```
 
-> 📎 Maintenance tool, typically run after accumulating many archives. For daily development → `llman-sdd-propose` / `llman-sdd-apply`.
+> 📎 Maintenance tool, typically run after accumulating many archives. For daily development → `llman-sdd-propose` (Branch binding + Specs landing) / `llman-sdd-apply` (requires `readyToImplement`).
 
 ## Context
 - Specs grow bloated with duplicate requirements/scenarios as changes accumulate.
@@ -37,6 +37,7 @@ flowchart LR
 - Don't delete normative behavior without explicit replacement.
 - Try to keep requirement titles stable.
 - Each retained requirement must have at least one valid scenario.
+- **Editing live `llmanspec/specs/**` requires a change**: Branch binding first (`change start` / `attach`), then commit on the bound branch (Specs landing style); **never** compact-rewrite live specs on the default branch.
 
 ## Workflow
 1. Inventory current specs (`llman sdd list --specs`).
@@ -58,10 +59,10 @@ flowchart LR
 - Include: keep/merge/remove decisions with rationale.
 - Include validation commands and expected results.
 
-> 💡 After maintenance, new work goes through the normal pipeline: `llman-sdd-propose` → `llman-sdd-apply` → `llman-sdd-verify` → `llman-sdd-archive`.
+> 💡 After maintenance, new work goes through the normal pipeline: `llman-sdd-propose` (Branch binding + Specs landing) → `llman-sdd-apply` (requires `readyToImplement`) → `llman-sdd-verify` → `llman-sdd-archive`.
 
 {{ unit("skills/sdd-commands") }}
 
 {{ unit("skills/validation-hints-toon") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}

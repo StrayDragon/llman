@@ -25,7 +25,8 @@ flowchart LR
 ```
 
 > 📍 You are at the draft stage → next: flesh out `proposal.md`, then run `llman-sdd-propose` to formalize
-> 📎 This skill creates a **draft** change (proposal.md only). For full proposals (tasks + specs + attach), use `llman-sdd-propose`.
+> 📎 This skill creates a **draft** change (proposal.md only). Full propose follows Git-native: tasks → Branch binding → Specs landing (see propose lifecycle diagram)
+> 🗺️ Skill navigation ≠ Git-native lifecycle; Branch binding / Specs landing are not separate skills
 
 ## Hard Constraints
 
@@ -33,7 +34,7 @@ flowchart LR
 - **MUST NOT create tasks/design/specs/attach**: this skill creates only the `proposal.md` draft shell. Full planning artifacts belong to `llman-sdd-propose`.
 - **MUST NOT run triage or assess change scale**: that is propose's job. If the user wants to start implementing, suggest `llman-sdd-propose`.
 - **Scope boundary**: if the description clearly involves MUST/SHALL behavioral contract changes or multi-file impact, suggest `llman-sdd-propose` instead of stopping at a draft — but still create the draft shell first so the idea isn't lost.
-- **Frontmatter has a fixed schema (r124)**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted (`depends_on`, `blocks`, `branch`, `base_sha`/`baseSha`, `checkpointed`, `checkpoint_sha`/`checkpointSha`). `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR. Lifecycle stage is inferred (r93) — query it via `llman sdd status`/`show`, never store it in frontmatter. Do not re-declare frontmatter fields in the prose body (no `## Status` block); the body H1 is a human-readable title, not a repeat of the change id.
+- **Frontmatter has a fixed schema**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted (`depends_on`, `blocks`, `branch`, `base_sha`/`baseSha`, `checkpointed`, `checkpoint_sha`/`checkpointSha`, `skip_specs_landing`). `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR. Lifecycle stage is inferred — query it via `llman sdd status`/`show`, never store it in frontmatter. Do not re-declare frontmatter fields in the prose body (no `## Status` block); the body H1 is a human-readable title, not a repeat of the change id.
 
 ## Steps
 
@@ -56,10 +57,10 @@ llman sdd change new --from "<user description>"
 - **MUST tell the user the derived id** (e.g. "Created draft change `<id>` at `llmanspec/changes/<id>/proposal.md`").
 - Suggest next steps:
   - Flesh out `proposal.md` (Why / What Changes / Capabilities / Impact) now or later.
-  - When ready to act on it, run `llman-sdd-propose` to formalize (triage + tasks + live specs + `change start`).
+  - When ready to act on it, run `llman-sdd-propose` to formalize (triage + tasks → `change start`/`attach` → Specs landing).
 
 > 💡 Draft captured → next: edit `proposal.md`, then `llman-sdd-propose` to formalize.
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}

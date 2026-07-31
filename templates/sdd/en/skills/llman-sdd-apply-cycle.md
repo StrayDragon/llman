@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-apply-cycle"
-description: "Single closed-loop for one change: implement→test→validate→archive→commit. Manual trigger only. Agent MUST NOT auto-invoke."
+description: "Single closed-loop for one change: gate→implement→test→validate→verify→archive→commit. Manual trigger only. Agent MUST NOT auto-invoke."
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
@@ -11,66 +11,69 @@ disable-model-invocation: true
 
 # LLMAN SDD Apply Cycle
 
-Single closed-loop that completes one change end-to-end: implement incomplete tasks, run tests, validate, archive, and commit.
+End-to-end closed loop for one change (manual). Requires Branch binding and `readyToImplement=true`.
 
 **Manual trigger only**: `/skill:llman-sdd-apply-cycle <change-id>`
 
 ## Workflow
 
-### 0) Read status
+### 0) Gate + status
 ```bash
+llman sdd show <change-id> --json --type change
 llman sdd status <change-id>
 ```
-Parse the TOON output. The `tasks[]` table lists incomplete tasks with test commands. The `next` field gives the immediate next action.
+{{ unit("skills/stage-guard") }}
+
+- Must be on the bound non-default branch.
+- If `readyToImplement` is not true → STOP (finish Specs landing or `skip_specs_landing`); **do not** finalize yet.
+- Use `status` `tasks[]` / `next` for progress; still read `tasks.md`, proposal/design, and live `llmanspec/specs/**` on the bound branch (SSOT).
 
 ### 1) Loop: implement → test
-For each incomplete task from `tasks[]` (in order):
-1. Implement the code change
-2. Run the test command from `tasks[].test` field (if present)
-3. If test fails, fix and retry (up to 3 times)
-4. Update `tasks.md` checkbox to `[x]` when done
+For each incomplete task:
+1. Implement per task + live specs (minimal diff)
+2. Run `tasks[].test` if present
+3. On failure, fix and retry (up to 3 times)
+4. Check off `tasks.md` as `[x]`
 
 ### 2) Validate
 ```bash
 llman sdd validate <change-id> --strict --no-interactive
 ```
-If validation fails, fix issues and retry (up to 3 times).
+On failure, fix and retry (up to 3 times).
 
-### 3) Archive
+### 3) Verify (recommended)
+Prefer `llman-sdd-verify` (or equivalent dual-axis self-check). CRITICAL → STOP; do not archive.
+
+### 4) Archive
 Prefer:
 ```bash
 llman sdd change finalize <change-id>
 ```
-(dirty tree OK; auto ff-merge + docs rename; then one `git commit`.)
+(dirty tree OK; ff-merge + docs rename; then one `git commit`.)
 
-Fallback:
-```bash
-llman sdd change checkpoint <change-id>
-llman sdd change archive <change-id>
-```
+Fallback: `checkpoint` → `archive` (see `llman-sdd-archive`).
 
-### 4) Commit
+### 5) Commit
 ```bash
 git add -A && git commit -m "<prefix>: <description>"
 ```
-Use conventional commit prefix (feat:/fix:/refactor:).
 
-### 5) Optional cleanup
+### 6) Optional cleanup
 ```bash
 git branch -d <feature-branch>
 ```
-Archive/finalize already ff-merged into the default branch. `git push` / hosting PR (`gh pr create`/`gh pr merge`) are optional — only when the user or project explicitly requires remote review.
+push / hosting PR only when the user explicitly asks.
 
-## Hard Constraints
-- **Never ask** "should I continue" — keep executing until done or blocker.
-- **Never switch** to another change until current is archived and committed.
-- **Retry limit**: 3 attempts per failing step, then report blocker.
-- **SSOT**: Use `llman sdd status` output as the single source of truth. Do not read tasks.md/proposal.md/spec files directly.
-- **No default push/PR**: do **not** run `git push` or `gh pr create|merge` without explicit user request.
+## Hard constraints
+- **Never ask** "should I continue" unless blocked.
+- **Never switch** changes until this one is archived and committed.
+- **Retry cap** 3 per step.
+- **Do not** author `changes/<id>/specs/` or use `change delta`.
+- **No default push/PR**.
 
 ## Ethics Governance
 - `ethics.risk_level`: medium
-- `ethics.prohibited_actions`: switching to other changes before current is done, modifying proposal.md/spec files directly, committing without validation
-- `ethics.required_evidence`: llman sdd validate --strict pass, llman sdd change archive success, all tasks checked as done in tasks.md
-- `ethics.refusal_contract`: if validation fails 3 times, report blocker instead of force-archiving
-- `ethics.escalation_policy`: if the change modifies SDD workflow specs or templates, pause and ask user to confirm before archive
+- `ethics.prohibited_actions`: implement/archive without `readyToImplement`, switching changes early, writing `changes/<id>/specs/`, commit without validation, default push/PR
+- `ethics.required_evidence`: `readyToImplement=true`, validate --strict pass, all tasks checked, finalize/archive success
+- `ethics.refusal_contract`: after 3 gate/validation failures, report blocker; do not force-archive
+- `ethics.escalation_policy`: if changing SDD workflow specs/templates, pause for user confirm before archive

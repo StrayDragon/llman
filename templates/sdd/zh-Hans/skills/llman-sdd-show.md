@@ -17,10 +17,10 @@ metadata:
 2. 如果 id 不明确，展示列表并让用户选择。
 3. 查看详情：`llman sdd show <id>`。
 4. 需要时使用 `--type change|spec` 消除歧义。
-5. 使用 `--json` 获取结构化输出。
+5. 对 change 使用 `--json`：状态 SSOT 字段为 `stage` / `specsLanded` / `skipSpecsLanding` / `readyToImplement`（勿凭「完整工件」口头判断可否 apply）。
 
 {{ unit("skills/sdd-commands") }}
 
 {{ unit("skills/validation-hints-toon") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}

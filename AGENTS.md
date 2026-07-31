@@ -31,7 +31,7 @@
 | `llman-sdd-wayfinder` | user-invoked | 把大型、一团乱的工作拆成决策地图，逐个解决决策 |
 | `llman-sdd-research` | model-invoked | 后台 agent 委托查一手资料（官方文档/源码/API） |
 
-> 注：这 3 个独立 skill 尚未被 `init --update` 托管（需后续 CLI change 加入 `OPTIONAL_SKILL_NAMES`）。运行 `init --update` 前备份，否则会被清理。
+> 注：上述独立 skill 已列入 `OPTIONAL_SKILL_NAMES`；经 `llmanspec/config.yaml` 的 `extra_skills` 启用后，`init --update` 会写入/刷新。未列入 candidate 的 `llman-sdd-*` 目录会被清理——启用前先配 `extra_skills`。
 
 ### 设计词汇
 
@@ -55,7 +55,7 @@
 - `tests/` contains integration tests; files are named `*_tests.rs`.
 - `templates/` stores prompt templates; `locales/` stores i18n YAML files.
 - `artifacts/testing_config_home/` is the test fixture config root used by dev commands.
-- `scripts/` has helper scripts; `docs/` has design and planning notes.
+- `scripts/` has helper scripts. SDD workflow SSOT is root `AGENTS.md` + `llmanspec/` (not a parallel `docs/sdd` tree).
 
 ## Build, Test, and Development Commands
 This project targets Rust edition 2024 and uses the nightly toolchain.
@@ -87,7 +87,56 @@ Cargo equivalents use `cargo +nightly ...`.
 
 ## 统一 Git-native 变更流程
 
-本项目采用统一 Git-native 流程（不再区分 BDD-on/off）：
+本项目采用统一 Git-native 流程（不再区分 BDD-on/off）。
+
+### 领域概念区分（勿混淆两层）
+
+标准术语（禁止用「车道」等隐喻替代）：
+
+| 标准说法 | 是什么 | 不是什么 / 禁止说法 |
+|----------|--------|---------------------|
+| **Skill 导航** | agent 技能顺序：explore → propose → apply → verify → archive | **不是** Git-native 生命周期；图上的 propose ≠ 已可 apply。勿写「Skill 链 vs Git 车道」 |
+| **Git-native 生命周期** | Draft → Designed → Branch binding → Specs landing → apply → verify → finalize/archive | **不是**一组独立 skill；Specs landing 不是 skill。勿写「完整车道」「独占车道」 |
+| **CLI 三态 `stage`** | `draft` / `designed` / `full`（Full = Designed 规划壳 + Branch binding） | **不是** apply-ready；`full` 仍可能 `readyToImplement=false` |
+| **Branch binding（分支绑定）** | `change start` 或 `change attach`：绑到非默认 `sdd/<id>`（或已有 feature），写入 `branch`/`base_sha` | **不等于** Specs landing；**不等于**可 apply；start 须干净树+默认分支。勿单写含糊的「Binding」而不点名 |
+| **Specs landing（合约落地）** | 仅在**绑定分支**编辑 `llmanspec/specs/**` 并留下相对 `base_sha` 的 diff/commit（`specsLanded`） | **不是**在默认分支改 live specs；**不是**写 `changes/<id>/specs/` |
+| **规划壳** | `proposal.md` / `design.md` / `tasks.md`（可短暂在默认分支） | **不是**已 Specs-landed；**不是** live 合约正文 |
+| **`skip_specs_landing`** | frontmatter 豁免：本次无 live 合约变更 | **不是**跳过 Branch binding |
+| **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | **不是**「完整工件」口头说法；用 `show`/`status --json` 查 |
+| **Change 文档** | `llmanspec/changes/<id>/` 下的规划壳 | **不是** live 合约；合约 SSOT 在 `llmanspec/specs/**` |
+| **Live specs** | 绑定分支上的 `spec.toon` +（bdd-on）`*.feature` | **禁止**未 binding 时在默认分支编辑；不是已移除的 `change delta` / `*.feature.delta.toon` |
+
+```mermaid
+flowchart TB
+  subgraph main_ok["允许短暂在默认分支"]
+    A["change new → Draft<br/>仅 proposal.md"]
+    B["充实 design + tasks → Designed"]
+  end
+
+  subgraph gate_start["Branch binding"]
+    C{"工作区干净<br/>且在默认分支？"}
+    D["change start<br/>建 sdd/&lt;id&gt; + 写 branch/base_sha"]
+    E["或手动 checkout -b<br/>再 change attach"]
+  end
+
+  subgraph specs_only["仅在本 change 分支"]
+    F["编辑 live llmanspec/specs/**<br/>toon / feature"]
+    G["commit → Specs landing<br/>base...HEAD 含 specs 路径"]
+  end
+
+  subgraph implement["实现"]
+    H["apply：按 tasks 改代码<br/>可继续改 specs"]
+    I["verify"]
+    J["finalize / archive<br/>ff-merge → 默认分支才首次合入 specs"]
+  end
+
+  A --> B --> C
+  C -->|是| D --> F
+  C -->|已在 feature| E --> F
+  F --> G --> H --> I --> J
+```
+
+线性对照：
 
 ```
 draft [proposal.md]

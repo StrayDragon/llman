@@ -16,18 +16,21 @@ Unless there is a clear blocker, **DO NOT stop halfway to ask "should I continue
 
 ## Pipeline Position
 
+{{ unit("skills/git-native-flow-brief") }}
+
+### Skill navigation (not the lifecycle; shows current skill only)
+
 ```mermaid
 flowchart LR
     propose["llman-sdd-propose<br/>Propose"] --> apply
-    apply["★ llman-sdd-apply ★<br/>Implement (you are here)"]
+    apply["★ llman-sdd-apply ★<br/>Implement (readyToImplement)"]
     apply --> verify["llman-sdd-verify<br/>Verify"]
     verify --> archive["llman-sdd-archive<br/>Archive"]
-    archive --> commit["git commit<br/>Done"]
 
     style apply fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are in the implement phase → after this phase: `llman-sdd-verify` (verify)
+> 📍 You are at Git-native **H (apply)** in the full lifecycle diagram: Specs-landed (or `skip_specs_landing`) and `readyToImplement=true` required first → next: `llman-sdd-verify`
 
 ## Hard Constraints
 
@@ -37,7 +40,7 @@ flowchart LR
 - **No guessing**: If requirements are unclear, or specs contradict reality, STOP and report — don't assume behavior.
 - **No legacy compatibility layers**: If a change requires new behavior, upgrade all call sites directly, unless tasks/proposal explicitly require compatibility.
 - **Don't ask "should I continue?"**: Execute to loop closure unless you hit an unresolvable blocker.
-- **Close-out**: after self-tests pass, prefer `llman sdd change finalize <id>` (dirty tree OK) → one `git commit`; do not default to the checkpoint/archive three-commit sequence.
+- **Close-out**: this skill's closed loop ends by suggesting `llman-sdd-verify`; finalize/archive is handled by `llman-sdd-archive` (do not finalize inside the self-healing loop).
 
 ## Steps
 
@@ -54,14 +57,7 @@ flowchart LR
 - Otherwise infer from context; if ambiguous, run `llman sdd list --json` and let user pick.
 - Always announce: "Using change: <id>" and how to override.
 - Confirm you are on the non-default feature branch bound via `llman sdd change start <id>` or `change attach <id>` (`--force` only to rebind). Specs/features on the branch are SSOT — do not author under `changes/<id>/specs/`.
-- Check the stage gate:
-  ```bash
-  llman sdd show <id> --json --type change
-  ```
-  - `draft`: change not ready to implement → STOP, suggest using `llman-sdd-propose` to grow to Designed, then `llman sdd change start <id>`. If proposal+design+tasks exist but stage is still `draft`, the change is **not started/attached** — run `change start` on a clean default branch, or create a branch then `change attach` (do NOT add `changes/<id>/specs/`).
-  - `designed`: planning shell only, no binding → STOP; run `change start` / `attach` first.
-  - `full` but `readyToImplement=false` (usually `specsLanded=false` and not `skipSpecsLanding`) → STOP: edit `llmanspec/specs/**` on the **bound branch** and commit (Specs landing); **do not** re-run `change start`. Follow `llman-sdd-propose` Specs landing steps. If specs edits on the branch were lost, checkout/recreate the bound branch and `attach --force` if needed.
-  - `readyToImplement=true`: proceed. `changes/<id>/specs/` is expected to be **absent** — do not treat that as missing.
+{{ unit("skills/stage-guard") }}
 - Use `llman sdd context --task "<goal from proposal>" --paths "<scope from specs>"` to get relevant specs.
   - If context is unavailable, run `llman sdd index rebuild` and retry.
 
@@ -90,14 +86,14 @@ For each unchecked task:
 Run project gate commands (adapt to the actual project):
 - Relevant test suite: `just test` or `cargo test --all`
 - Format/lint: `just check` or `just lint` + `just fmt`
-- Git-native: stay on the attached feature branch; edit live `spec.toon` (constraints) and `*.feature` (`@req` when `bdd:` configured); after `llman sdd validate --specs` passes, prefer `change finalize` after verify (dirty tree OK); do not run `checkpoint` after every task. Do not use `change delta` / solidify / feature_delta.
+- Git-native: stay on the bound feature branch; edit live `spec.toon` (constraints) and `*.feature` (`@req` when `bdd:` configured) as needed; run `llman sdd validate --specs` after spec edits. Do not run `checkpoint` after every task. Do not use `change delta` / solidify / feature_delta.
 - SDD validation: `llman sdd validate <id> --strict --no-interactive`
 
 **On failure → enter self-healing loop (don't ask "should I continue?"):**
 1. Parse failure cause (test failure / lint / format / validation error).
 2. **Decide if it's a hard-to-locate bug** (cause unclear / intermittent flake / regression not obvious at a glance):
    - **Not hard-to-locate** (clear lint/format/compile/validation error): apply a minimum fix (don't expand scope); re-run the "minimum failure repro command" first, then re-run all gates.
-   - **Hard-to-locate bug → escalate to the diagnose sub-flow (r102)**:
+   - **Hard-to-locate bug → escalate to the diagnose sub-flow**:
      1. **First build a command that reproduces the failure** (fast, deterministic, agent-runnable, and goes red on *this* bug) — one that drives the real bug path and asserts the user's exact symptom. **MUST NOT start hypothesizing before such a command exists** (staring at code and guessing is the failure this prevents).
      2. Run it, confirm red → minimize the repro (cut inputs/calls/config/data one at a time, keep only what's load-bearing).
      3. Generate **3–5 ranked hypotheses**, each falsifiable ("if X is the cause, changing Y makes the bug disappear").
@@ -116,44 +112,4 @@ Then suggest running `llman-sdd-verify` for the verification phase.
 
 {{ unit("skills/sdd-commands") }}
 
-## Context
-- Confirm current change/spec status before execution.
-- Prefer `llman sdd context --task --paths` to find relevant specs rather than reading all or guessing.
-- This is the implementation phase: proposal/specs/tasks are ready, you just need to deliver.
-
-## Goal
-- Complete all task implementation + verification + self-healing in one closed loop, producing all-green gate results.
-
-## Constraints
-- Keep changes minimal and clearly scoped.
-- Don't guess when identifiers or intent are ambiguous.
-- Don't stop halfway to ask "should I continue?" — only STOP on blockers.
-- Behavioral contract changes must go through full SDD (this skill only handles changes already at apply stage).
-
-## Workflow
-- Use `llman sdd` command output as the source of truth.
-- Validate whenever files/specs change.
-- Prefer `llman sdd context` to get relevant specs over reading all or guessing.
-- When context unavailable, follow error hints (rebuild index or fall back to `list --specs --json`).
-- Implement → verify → fail → self-heal → re-verify → until pass or 8 rounds exceeded.
-
-## Decision Policy
-- High-impact ambiguity must be clarified first.
-- Don't force-proceed with known validation errors.
-- Self-healing fixes must be minimal, not expanding scope.
-
-## Output Contract
-After all tasks complete (or on blocker), you MUST output:
-- **Implementation summary**: completed tasks and key changed files.
-- **Verification commands and results**: list every command you actually ran + key output/pass conclusion.
-- **Self-healing rounds**: each round: `Round N: failure point → fix → re-run command → passed/failed`.
-- **Validation status**: result of `llman sdd validate <id> --strict --no-interactive`.
-- **Residual risks / known uncertainties**: including items that couldn't be automatically resolved.
-- **Next step**: suggest running `llman-sdd-verify` for the verification phase.
-
-## Ethics Governance
-- `ethics.risk_level`: tag risk as `low|medium|high|critical`.
-- `ethics.prohibited_actions`: list actions absolutely forbidden.
-- `ethics.required_evidence`: list evidence required before high-impact output.
-- `ethics.refusal_contract`: define when to refuse and what safe alternative response to give.
-- `ethics.escalation_policy`: define when to escalate for user confirmation / human review.
+{{ unit("skills/structured-protocol") }}

@@ -21,7 +21,7 @@ flowchart LR
     quick["★ llman-sdd-quick ★<br/>快速路径（你现在在这里）"]
     quick --> commit["git commit<br/>完成"]
 
-    explore --> propose["完整路径:<br/>propose → apply → verify → archive"]
+    explore --> propose["完整路径:<br/>propose（含 Branch binding 与 Specs landing）→ apply → verify → archive"]
     propose --> apply["..."]
     apply --> verify["..."]
     verify --> archive["..."]
@@ -30,6 +30,7 @@ flowchart LR
 ```
 
 > 📍 快速路径：不改行为合约，直接改代码 commit。如果发现需要改合约 → STOP，改走完整路径 `llman-sdd-propose`
+> 🗺️ 完整路径含 Git-native Branch binding + Specs landing（不是把 Specs landing 当成独立 skill）
 
 ## 使用条件（所有条件必须满足）
 - 不改变任何 spec 中 MUST/SHALL 定义的外部可观测行为
@@ -42,7 +43,7 @@ flowchart LR
    - 如果 context 返回 `quality: "unavailable"`，运行 `llman sdd index rebuild`（默认 `pageindex`，无需模型）。
    - 可以用 `llman sdd list --specs --json` 查看 specs 元数据。
 2. 直接修改代码。
-3. 如果涉及 spec 的维护性调整（修错字、收紧 scope），直接编辑 spec 文件并用 `llman sdd validate --specs` 校验。
+3. 若要动 `llmanspec/specs/**`，STOP——除非已在绑定的非默认 change 分支上（迷你 change：`change start`/`attach` → 编辑 → commit）。禁止在默认分支 commit live specs，即使是 typo 或仅收紧 scope 也不行。优先把 live specs 维护路由到 `llman-sdd-propose`，或要求已有绑定分支。
 4. git commit（message 写明 why）。
 5. 无需 change 目录，无需 archive。
 
@@ -54,4 +55,4 @@ flowchart LR
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit("skills/structured-protocol") }}
+{{ unit("skills/ethics-governance") }}

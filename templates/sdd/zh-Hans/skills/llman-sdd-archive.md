@@ -10,7 +10,7 @@ metadata:
 
 # LLMAN SDD 归档
 
-使用此 skill 归档已完成的变更。live specs 已在 feature 分支上；archive/finalize **自动 ff-merge** 到默认分支，**再将** change 文档改名到 `changes/archive/`（脏改名留一次 `git commit`）。`git push` / Hosting PR 仅为可选。
+使用此 skill 归档已完成的变更。前置：verify 全绿，且变更已 Branch binding、Specs landing 完成（或 `skip_specs_landing`；归档时 live specs 已在绑定分支上）。archive/finalize **自动 ff-merge** 到默认分支，**再将** change 文档改名到 `changes/archive/`（脏改名留一次 `git commit`）。`git push` / Hosting PR 仅为可选。
 
 ## Pipeline 位置
 
@@ -18,17 +18,17 @@ metadata:
 flowchart LR
     verify["llman-sdd-verify<br/>验证"] --> archive
     archive["★ llman-sdd-archive ★<br/>归档（你现在在这里）"]
-    archive --> commit["git commit<br/>完成闭环"]
 
     style archive fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在归档阶段：pipeline 最后一站。
+> 📍 你现在在归档阶段：Git-native 生命周期的最后一站。
 > 📎 若 specs 逐渐膨胀，可运行 `llman-sdd-specs-compact` 压缩。
 
 ## 硬约束
 
 - **必须先通过 verify 阶段全绿**：未通过验证的 change 禁止归档。
+- **须已 Branch binding**：`change start` / `attach` 已完成；无绑定则 STOP。
 - **SSOT 校验**：每个 change 归档前必须通过 `llman sdd validate <id> --strict --no-interactive`。
 - **不要问「要不要继续」**：批量归档时间线上一路执行到底，除非遇到无法自动解决的错误。
 - **收尾不默认导向 PR/push**：archive/finalize 后由 CLI 处理本地 ff-merge，再一次性 `git commit` 提交文档改名。`git push` / Hosting PR 仅为可选——仅当用户或项目明确要求远程审查时才做。**Agent MUST NOT** 因本 skill 默认执行 push 或创建 PR。
@@ -53,7 +53,7 @@ flowchart LR
   - 仅工具类变更：`llman sdd change archive <id> --skip-specs`
   - **任一失败立即停止**，报告剩余未处理 ID。
 - **Git-native 收尾**：
-  - 前置：已 `llman sdd change start <id>` 或 `change attach <id>`；仍在 feature 分支上（或 ff-merge 后已在默认分支）。
+  - 前置：已 Branch binding（`change start` / `attach`）；仍在绑定分支上（或 ff-merge 后已在默认分支）。
   - `change archive` / `change finalize` **先自动 ff-merge**（`git merge --ff-only <feature>` 到默认分支），**再**将 change 文档改名到 `changes/archive/`——merge 失败也不会回滚改名。
   - change 下遗留活跃 `*.feature.delta.toon` 是迁移阻断项——归档前须移除/迁移。
   - **推荐：单 commit 收尾（`change finalize`）**——同进程跑门禁 → 自动 ff-merge → 文档改名；结束后工作区脏一次，**一次 `git commit`** 收尾：
