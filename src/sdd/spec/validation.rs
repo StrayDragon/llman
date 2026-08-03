@@ -8,6 +8,10 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// One tip per process when full-mode BDD runner starts (bulk validate reuses cache).
+static FULL_MODE_QUIET_HINT_SHOWN: AtomicBool = AtomicBool::new(false);
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -1270,6 +1274,15 @@ fn run_full_mode_cached(
 fn run_full_mode(spec_dir: &Path, bdd_config: &BddConfig) -> Vec<ValidationIssue> {
     let command = bdd_config.effective_run_command();
     let expanded = expand_run_command_placeholders(&command, spec_dir);
+    if !FULL_MODE_QUIET_HINT_SHOWN.swap(true, Ordering::Relaxed) {
+        eprintln!(
+            "{}",
+            t!(
+                "sdd.validate.full_mode_quiet_hint",
+                command = expanded.as_str()
+            )
+        );
+    }
     let mut shell = std::process::Command::new("sh");
     shell
         .args(["-c", &expanded])
