@@ -74,37 +74,18 @@ fn parse_scope(scope: &str) -> Result<Vec<ScopeKind>> {
 // Node collection helpers
 // ---------------------------------------------------------------------------
 
-fn collect_active_nodes(root: &Path) -> Vec<GraphNode> {
-    let active_ids = list_changes(root).unwrap_or_default();
-    let changes_dir = root.join(LLMANSPEC_DIR_NAME).join("changes");
-    let mut nodes: Vec<GraphNode> = active_ids
-        .iter()
+fn collect_active_nodes(root: &Path) -> Result<Vec<GraphNode>> {
+    // r129: only dirs with proposal.md (via discovery). No partial-node heuristic
+    // for group folders without proposal.md.
+    // r127: discovery errors (e.g. duplicate leaf ids) MUST surface — do not swallow.
+    Ok(list_changes(root)?
+        .into_iter()
         .map(|id| GraphNode {
-            id: id.clone(),
+            id,
             archived: false,
             present: true,
         })
-        .collect();
-    // Also scan for directories without proposal.md (partial changes)
-    if let Ok(entries) = fs::read_dir(&changes_dir) {
-        for entry in entries.flatten() {
-            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                continue;
-            }
-            let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with('.') || name == "archive" {
-                continue;
-            }
-            if !nodes.iter().any(|n| n.id == name) {
-                nodes.push(GraphNode {
-                    id: name,
-                    archived: false,
-                    present: true,
-                });
-            }
-        }
-    }
-    nodes
+        .collect())
 }
 
 fn collect_archived_nodes(root: &Path) -> Vec<GraphNode> {
@@ -136,13 +117,13 @@ fn collect_archived_nodes(root: &Path) -> Vec<GraphNode> {
     nodes
 }
 
-fn collect_nodes_for_scope(root: &Path, scope_kinds: &[ScopeKind]) -> Vec<GraphNode> {
+fn collect_nodes_for_scope(root: &Path, scope_kinds: &[ScopeKind]) -> Result<Vec<GraphNode>> {
     let mut combined = Vec::new();
     let mut seen = HashSet::new();
 
     for kind in scope_kinds {
         let nodes = match kind {
-            ScopeKind::Active => collect_active_nodes(root),
+            ScopeKind::Active => collect_active_nodes(root)?,
             ScopeKind::Archived => collect_archived_nodes(root),
         };
         for node in nodes {
@@ -151,19 +132,22 @@ fn collect_nodes_for_scope(root: &Path, scope_kinds: &[ScopeKind]) -> Vec<GraphN
             }
         }
     }
-    combined
+    Ok(combined)
 }
 
-fn find_node_dir(root: &Path, node: &GraphNode) -> std::path::PathBuf {
+fn find_node_dir(root: &Path, node: &GraphNode) -> Option<std::path::PathBuf> {
     if node.archived {
         let archive_dir = root
             .join(LLMANSPEC_DIR_NAME)
             .join("changes")
             .join("archive");
-        find_latest_archived_dir(&archive_dir, &node.id)
-            .unwrap_or_else(|| archive_dir.join(&node.id))
+        Some(
+            find_latest_archived_dir(&archive_dir, &node.id)
+                .unwrap_or_else(|| archive_dir.join(&node.id)),
+        )
     } else {
-        root.join(LLMANSPEC_DIR_NAME).join("changes").join(&node.id)
+        // No flat `changes/<id>` fallback — nested changes must resolve via discovery.
+        crate::sdd::shared::discovery::resolve_change_dir(root, &node.id).ok()
     }
 }
 
@@ -208,7 +192,10 @@ fn build_relation_maps(root: &Path, all_nodes: &[GraphNode]) -> RelationMaps {
         if !node.present {
             continue;
         }
-        let dir = find_node_dir(root, node);
+        let dir = match find_node_dir(root, node) {
+            Some(d) => d,
+            None => continue,
+        };
         let deps = parse_proposal_frontmatter(&dir);
 
         for dep in &deps.depends_on {
@@ -235,7 +222,7 @@ fn build_seed_neighborhood(root: &Path, seed_id: &str, max_depth: usize) -> Resu
     // emits the r112 prefix-match hint to stderr when `seed_id` was a prefix.
     let resolved_id = crate::sdd::shared::discovery::resolve_change_id_human(root, seed_id)?;
 
-    let all_nodes = collect_nodes_for_scope(root, &[ScopeKind::Active, ScopeKind::Archived]);
+    let all_nodes = collect_nodes_for_scope(root, &[ScopeKind::Active, ScopeKind::Archived])?;
     let node_map: HashMap<&str, &GraphNode> =
         all_nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
@@ -293,12 +280,12 @@ fn build_seed_neighborhood(root: &Path, seed_id: &str, max_depth: usize) -> Resu
 // Default graph: active + level-1 depends_on expansion
 // ---------------------------------------------------------------------------
 
-fn build_default_nodes(root: &Path, scope_kinds: &[ScopeKind]) -> Vec<GraphNode> {
-    let mut nodes = collect_nodes_for_scope(root, scope_kinds);
+fn build_default_nodes(root: &Path, scope_kinds: &[ScopeKind]) -> Result<Vec<GraphNode>> {
+    let mut nodes = collect_nodes_for_scope(root, scope_kinds)?;
     let node_ids: HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
 
     // Build a lookup for all known nodes (active + archived) to resolve deps
-    let all_nodes = collect_nodes_for_scope(root, &[ScopeKind::Active, ScopeKind::Archived]);
+    let all_nodes = collect_nodes_for_scope(root, &[ScopeKind::Active, ScopeKind::Archived])?;
     let all_node_map: HashMap<&str, &GraphNode> =
         all_nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
@@ -308,7 +295,9 @@ fn build_default_nodes(root: &Path, scope_kinds: &[ScopeKind]) -> Vec<GraphNode>
         if !node_ids.contains(node.id.as_str()) {
             continue;
         }
-        let dir = find_node_dir(root, node);
+        let Some(dir) = find_node_dir(root, node) else {
+            continue;
+        };
         let deps = parse_proposal_frontmatter(&dir);
         for dep in &deps.depends_on {
             if !node_ids.contains(dep.as_str()) {
@@ -330,7 +319,7 @@ fn build_default_nodes(root: &Path, scope_kinds: &[ScopeKind]) -> Vec<GraphNode>
         }
     }
 
-    nodes
+    Ok(nodes)
 }
 
 // ---------------------------------------------------------------------------
@@ -345,7 +334,9 @@ fn collect_edges_for_nodes(root: &Path, nodes: &[GraphNode]) -> Vec<DependencyEd
         if !node.present {
             continue;
         }
-        let dir = find_node_dir(root, node);
+        let Some(dir) = find_node_dir(root, node) else {
+            continue;
+        };
         let deps = parse_proposal_frontmatter(&dir);
         for dep in &deps.depends_on {
             if node_ids.contains(dep.as_str()) {
@@ -481,7 +472,7 @@ fn render_mermaid(root: &Path, args: &GraphArgs) -> Result<()> {
         build_seed_neighborhood(root, seed, args.depth)?
     } else {
         let scope_kinds = parse_scope(&args.scope)?;
-        build_default_nodes(root, &scope_kinds)
+        build_default_nodes(root, &scope_kinds)?
     };
 
     if nodes.is_empty() {

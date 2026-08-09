@@ -1,36 +1,196 @@
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
 use anyhow::{Result, bail};
+use std::cell::Cell;
+use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-pub fn list_changes(root: &Path) -> Result<Vec<String>> {
+/// Default max depth relative to `llmanspec/changes/` (depth 1 = direct children).
+pub const DEFAULT_MAX_SCAN_DEPTH: usize = 8;
+
+thread_local! {
+    static MAX_SCAN_DEPTH: Cell<usize> = const { Cell::new(DEFAULT_MAX_SCAN_DEPTH) };
+}
+
+/// Effective scan depth for this thread (CLI may override via [`with_max_scan_depth`]).
+pub fn effective_max_scan_depth() -> usize {
+    MAX_SCAN_DEPTH.with(|c| c.get())
+}
+
+/// Run `f` with a temporary max scan depth, restoring the previous value afterwards.
+pub fn with_max_scan_depth<F, R>(depth: usize, f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    MAX_SCAN_DEPTH.with(|c| {
+        let prev = c.replace(depth);
+        let out = f();
+        c.set(prev);
+        out
+    })
+}
+
+/// One active change located under `llmanspec/changes/`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChangeLoc {
+    /// Leaf directory name (change id).
+    pub id: String,
+    /// Path relative to `llmanspec/changes/` (e.g. `c0` or `some_a/c0`).
+    pub path: String,
+}
+
+impl ChangeLoc {
+    pub fn abs_dir(&self, root: &Path) -> PathBuf {
+        root.join(LLMANSPEC_DIR_NAME)
+            .join("changes")
+            .join(Path::new(&self.path))
+    }
+}
+
+/// Recursively discover active changes (dirs with `proposal.md`).
+///
+/// Skips `archive/`, dot-directories, and symlinks. Does not recurse into a
+/// directory once it is recognized as a change. Duplicate leaf ids → `Err`
+/// listing conflicting relative paths.
+pub fn discover_changes(root: &Path) -> Result<Vec<ChangeLoc>> {
+    discover_changes_with_depth(root, effective_max_scan_depth())
+}
+
+pub fn discover_changes_with_depth(root: &Path, max_depth: usize) -> Result<Vec<ChangeLoc>> {
+    if max_depth < 1 {
+        bail!("max-scan-depth must be >= 1 (got {max_depth})");
+    }
     let changes_dir = root.join(LLMANSPEC_DIR_NAME).join("changes");
-    let mut result = Vec::new();
-    let entries = match fs::read_dir(changes_dir) {
-        Ok(entries) => entries,
-        Err(_) => return Ok(result),
-    };
+    if !changes_dir.is_dir() {
+        return Ok(Vec::new());
+    }
 
+    let mut by_id: HashMap<String, Vec<String>> = HashMap::new();
+    walk_changes(&changes_dir, "", 1, max_depth, &mut by_id)?;
+
+    let mut conflicts: Vec<(String, Vec<String>)> = by_id
+        .iter()
+        .filter(|(_, paths)| paths.len() > 1)
+        .map(|(id, paths)| {
+            let mut p = paths.clone();
+            p.sort();
+            (id.clone(), p)
+        })
+        .collect();
+    if !conflicts.is_empty() {
+        conflicts.sort_by(|a, b| a.0.cmp(&b.0));
+        let detail = conflicts
+            .iter()
+            .map(|(id, paths)| {
+                format!(
+                    "  - {id}:\n{}",
+                    paths
+                        .iter()
+                        .map(|p| format!("      {p}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        bail!(
+            "duplicate change id(s) under llmanspec/changes/ (leaf directory names must be unique):\n{detail}"
+        );
+    }
+
+    let mut result: Vec<ChangeLoc> = by_id
+        .into_iter()
+        .map(|(id, mut paths)| {
+            let path = paths.pop().expect("single path");
+            ChangeLoc { id, path }
+        })
+        .collect();
+    result.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(result)
+}
+
+fn walk_changes(
+    dir: &Path,
+    rel_prefix: &str,
+    depth: usize,
+    max_depth: usize,
+    by_id: &mut HashMap<String, Vec<String>>,
+) -> Result<()> {
+    if depth > max_depth {
+        return Ok(());
+    }
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(()),
+    };
     for entry in entries.flatten() {
         let file_type = match entry.file_type() {
             Ok(ft) => ft,
             Err(_) => continue,
         };
+        // Skip symlinks (do not follow).
+        if file_type.is_symlink() {
+            continue;
+        }
         if !file_type.is_dir() {
             continue;
         }
         let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with('.') || name == "archive" {
+        if name.starts_with('.') {
             continue;
         }
-        let proposal_path = entry.path().join("proposal.md");
-        if proposal_path.exists() {
-            result.push(name);
+        // Top-level archive/ only (and never treat it as a group to recurse).
+        if rel_prefix.is_empty() && name == "archive" {
+            continue;
+        }
+
+        let rel = if rel_prefix.is_empty() {
+            name.clone()
+        } else {
+            format!("{rel_prefix}/{name}")
+        };
+        let path = entry.path();
+        if path.join("proposal.md").is_file() {
+            by_id.entry(name).or_default().push(rel);
+            // Do not recurse into a change directory.
+            continue;
+        }
+        if depth < max_depth {
+            walk_changes(&path, &rel, depth + 1, max_depth, by_id)?;
         }
     }
+    Ok(())
+}
 
-    result.sort();
-    Ok(result)
+/// Sorted leaf ids of active changes (uses effective max scan depth).
+pub fn list_changes(root: &Path) -> Result<Vec<String>> {
+    Ok(discover_changes(root)?.into_iter().map(|c| c.id).collect())
+}
+
+/// Absolute directory for an active change id (via discovery map).
+pub fn resolve_change_dir(root: &Path, change_id: &str) -> Result<PathBuf> {
+    let loc = resolve_change_loc(root, change_id)?;
+    Ok(loc.abs_dir(root))
+}
+
+/// Relative path under `llmanspec/changes/` for an active change id.
+pub fn resolve_change_rel_path(root: &Path, change_id: &str) -> Result<String> {
+    Ok(resolve_change_loc(root, change_id)?.path)
+}
+
+pub fn resolve_change_loc(root: &Path, change_id: &str) -> Result<ChangeLoc> {
+    let found = discover_changes(root)?;
+    if let Some(loc) = found.into_iter().find(|c| c.id == change_id) {
+        return Ok(loc);
+    }
+    bail!("change '{change_id}' not found under llmanspec/changes/");
+}
+
+/// Flat destination for `change new` (always `changes/<id>/`, no group).
+pub fn flat_change_dir(root: &Path, change_id: &str) -> PathBuf {
+    root.join(LLMANSPEC_DIR_NAME)
+        .join("changes")
+        .join(change_id)
 }
 
 pub fn extract_archived_change_id(dir_name: &str) -> Option<String> {
@@ -163,13 +323,14 @@ pub fn resolve_change_id_human(root: &Path, input: &str) -> Result<String> {
 /// Resolve a user-provided change name input to a canonical change id.
 ///
 /// Resolution priority:
-/// 1. Exact match against active changes (`llmanspec/changes/<input>/proposal.md` exists)
-/// 2. Prefix match against active changes (directory name starts with `input`)
+/// 1. Exact match against active changes (leaf id)
+/// 2. Prefix match against active changes (leaf id prefix)
 /// 3. Prefix match against archived changes (change id portion starts with `input`)
 ///
 /// Returns the resolved change id (plus the `via_prefix` flag for the r112 hint)
 /// on success. Errors with a descriptive message on multi-match (lists all
-/// candidates) or no-match.
+/// candidates) or no-match. Multi-match / not-found hints include relative paths
+/// when available.
 pub fn resolve_change_id(root: &Path, input: &str) -> Result<ResolvedChange> {
     use crate::sdd::shared::match_utils::{PrefixOutcome, prefix_resolve};
 
@@ -178,8 +339,20 @@ pub fn resolve_change_id(root: &Path, input: &str) -> Result<ResolvedChange> {
         bail!("change id must not be empty");
     }
 
-    let active = list_changes(root)?;
+    let locs = discover_changes(root)?;
+    let active: Vec<String> = locs.iter().map(|c| c.id.clone()).collect();
+    let path_by_id: HashMap<&str, &str> = locs
+        .iter()
+        .map(|c| (c.id.as_str(), c.path.as_str()))
+        .collect();
     let archived = list_archived_changes(root)?;
+
+    let fmt_active = |id: &str| -> String {
+        match path_by_id.get(id) {
+            Some(p) if *p != id => format!("{id} ({p})"),
+            _ => id.to_string(),
+        }
+    };
 
     // 1) Exact / prefix match against active changes (active takes priority)
     match prefix_resolve(input, &active) {
@@ -193,7 +366,7 @@ pub fn resolve_change_id(root: &Path, input: &str) -> Result<ResolvedChange> {
         PrefixOutcome::Multiple(matches) => {
             let candidates = matches
                 .iter()
-                .map(|s| format!("  - {s}"))
+                .map(|s| format!("  - {}", fmt_active(s)))
                 .collect::<Vec<_>>()
                 .join("\n");
             bail!(
@@ -227,7 +400,7 @@ pub fn resolve_change_id(root: &Path, input: &str) -> Result<ResolvedChange> {
 
     // 3) No match at all
     let mut suggestions = Vec::new();
-    suggestions.extend(active);
+    suggestions.extend(active.iter().map(|id| fmt_active(id)));
     suggestions.extend(archived);
     let nearby = crate::sdd::shared::match_utils::nearest_matches(input, &suggestions, 5);
     if nearby.is_empty() {
@@ -237,4 +410,101 @@ pub fn resolve_change_id(root: &Path, input: &str) -> Result<ResolvedChange> {
         "change '{input}' not found. Did you mean: {}?",
         nearby.join(", ")
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn write_proposal(dir: &Path) {
+        fs::create_dir_all(dir).unwrap();
+        fs::write(dir.join("proposal.md"), "## Why\nx\n").unwrap();
+    }
+
+    #[test]
+    fn discovers_flat_and_nested() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        write_proposal(&root.join("llmanspec/changes/flat-a"));
+        write_proposal(&root.join("llmanspec/changes/grp/nested-b"));
+        // group dir without proposal is not a change
+        fs::create_dir_all(root.join("llmanspec/changes/grp")).unwrap();
+
+        let locs = discover_changes(root).unwrap();
+        let ids: Vec<_> = locs.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, vec!["flat-a", "nested-b"]);
+        assert_eq!(
+            locs.iter().find(|c| c.id == "nested-b").unwrap().path,
+            "grp/nested-b"
+        );
+        assert_eq!(
+            resolve_change_rel_path(root, "nested-b").unwrap(),
+            "grp/nested-b"
+        );
+        assert!(
+            resolve_change_dir(root, "nested-b")
+                .unwrap()
+                .ends_with("llmanspec/changes/grp/nested-b")
+        );
+    }
+
+    #[test]
+    fn duplicate_leaf_ids_error_lists_paths() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        write_proposal(&root.join("llmanspec/changes/a/dup"));
+        write_proposal(&root.join("llmanspec/changes/b/dup"));
+        let err = discover_changes(root).unwrap_err().to_string();
+        assert!(err.contains("duplicate change id"));
+        assert!(err.contains("a/dup"));
+        assert!(err.contains("b/dup"));
+    }
+
+    #[test]
+    fn max_depth_hides_deeper_changes() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        write_proposal(&root.join("llmanspec/changes/deep/x/y/z"));
+        // depth 1: only direct children — deep is a group without proposal
+        let none = discover_changes_with_depth(root, 1).unwrap();
+        assert!(none.is_empty());
+        // depth 4: changes/deep/x/y/z → z at depth 4
+        let found = discover_changes_with_depth(root, 4).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, "z");
+        assert_eq!(found[0].path, "deep/x/y/z");
+    }
+
+    #[test]
+    fn skips_archive_and_does_not_recurse_into_change() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        write_proposal(&root.join("llmanspec/changes/active"));
+        write_proposal(&root.join("llmanspec/changes/active/nested-should-ignore"));
+        write_proposal(&root.join("llmanspec/changes/archive/2026-01-01-old"));
+        let locs = discover_changes(root).unwrap();
+        assert_eq!(locs.len(), 1);
+        assert_eq!(locs[0].id, "active");
+    }
+
+    #[test]
+    fn rejects_depth_zero() {
+        let tmp = TempDir::new().unwrap();
+        assert!(discover_changes_with_depth(tmp.path(), 0).is_err());
+    }
+
+    #[test]
+    fn with_max_scan_depth_scopes_effective_depth() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        write_proposal(&root.join("llmanspec/changes/g/c1"));
+        with_max_scan_depth(1, || {
+            assert!(list_changes(root).unwrap().is_empty());
+        });
+        with_max_scan_depth(2, || {
+            assert_eq!(list_changes(root).unwrap(), vec!["c1".to_string()]);
+        });
+    }
 }

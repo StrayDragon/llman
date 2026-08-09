@@ -10,6 +10,11 @@ use std::path::PathBuf;
 
 #[derive(Args)]
 pub struct SddArgs {
+    /// Max depth when scanning `llmanspec/changes/` for `proposal.md`
+    /// (depth 1 = direct children). Default 8. Applies to all sdd subcommands.
+    #[arg(long, global = true, default_value_t = crate::sdd::shared::discovery::DEFAULT_MAX_SCAN_DEPTH)]
+    pub max_scan_depth: usize,
+
     #[command(subcommand)]
     pub command: SddCommands,
 }
@@ -501,6 +506,16 @@ pub enum ArchiveSubcommand {
 }
 
 pub fn run(args: &SddArgs) -> Result<()> {
+    if args.max_scan_depth < 1 {
+        anyhow::bail!(
+            "--max-scan-depth must be >= 1 (got {})",
+            args.max_scan_depth
+        );
+    }
+    crate::sdd::shared::discovery::with_max_scan_depth(args.max_scan_depth, || run_command(args))
+}
+
+fn run_command(args: &SddArgs) -> Result<()> {
     match &args.command {
         SddCommands::Init { path, lang, update } => init::run(
             path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),

@@ -1,5 +1,5 @@
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
-use crate::sdd::shared::discovery::{extract_archived_change_id, list_changes, list_specs};
+use crate::sdd::shared::discovery::{extract_archived_change_id, list_specs, resolve_change_dir};
 use crate::sdd::shared::tasks;
 use crate::sdd::spec::backend::{BACKEND as SPEC_BACKEND, SpecBackend};
 use crate::sdd::spec::validation::{ChangeStage, determine_stage};
@@ -99,32 +99,31 @@ fn extract_priority(dir_name: &str) -> usize {
     0
 }
 
-/// Collect all active changes with their metadata
-fn collect_active_changes(root: &Path) -> Vec<ChangeInfo> {
-    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    let changes_dir = llmanspec_dir.join("changes");
+/// Collect all active changes with their metadata.
+/// Propagates discovery errors (r127 duplicate leaf ids, etc.).
+fn collect_active_changes(root: &Path) -> Result<Vec<ChangeInfo>> {
     let mut result = Vec::new();
 
-    for name in list_changes(root).unwrap_or_default() {
-        let change_dir = changes_dir.join(&name);
+    for loc in crate::sdd::shared::discovery::discover_changes(root)? {
+        let change_dir = loc.abs_dir(root);
         let stage = determine_stage(&change_dir);
         let (done, total) = parse_task_counts(&change_dir);
         let landing = crate::sdd::change::specs_landing::evaluate_specs_landing(root, &change_dir);
         result.push(ChangeInfo {
-            dir_name: name.clone(),
-            name: name.clone(),
+            dir_name: loc.id.clone(),
+            name: loc.id.clone(),
             is_archived: false,
             stage,
             tasks_done: done,
             tasks_total: total,
-            priority: extract_priority(&name),
+            priority: extract_priority(&loc.id),
             specs_landed: landing.specs_landed,
             skip_specs_landing: landing.skip_specs_landing,
             ready_to_implement: landing.ready_to_implement,
         });
     }
 
-    result
+    Ok(result)
 }
 
 /// Collect all archived changes with their metadata
@@ -193,10 +192,10 @@ enum TargetResult {
     None,
 }
 
-fn resolve_target(root: &Path, target: &str) -> TargetResult {
+fn resolve_target(root: &Path, target: &str) -> Result<TargetResult> {
     use crate::sdd::shared::match_utils::{PrefixOutcome, prefix_resolve};
 
-    let active = collect_active_changes(root);
+    let active = collect_active_changes(root)?;
     let archived = collect_archived_changes(root);
 
     // Resolution shares the same "exact > prefix" core as discovery::resolve_change_id
@@ -226,16 +225,16 @@ fn resolve_target(root: &Path, target: &str) -> TargetResult {
                 // `via_prefix` is authoritative from prefix_resolve; a dir_name
                 // exact match (c.dir_name == target) is never a prefix match.
                 let via_prefix = via_prefix && ci.dir_name != target;
-                return TargetResult::Single {
+                return Ok(TargetResult::Single {
                     info: ci.clone(),
                     via_prefix,
-                };
+                });
             }
         }
         PrefixOutcome::Multiple(ids) => {
             let mut m = collect_matches(&active, target, &ids);
             m.sort_by_key(|c| c.priority);
-            return TargetResult::Multiple(m);
+            return Ok(TargetResult::Multiple(m));
         }
         PrefixOutcome::None => {}
     }
@@ -249,22 +248,22 @@ fn resolve_target(root: &Path, target: &str) -> TargetResult {
                 .find(|c| c.name == id || c.dir_name == target)
             {
                 let via_prefix = via_prefix && ci.dir_name != target;
-                return TargetResult::Single {
+                return Ok(TargetResult::Single {
                     info: ci.clone(),
                     via_prefix,
-                };
+                });
             }
         }
         PrefixOutcome::Multiple(ids) => {
             let mut m = collect_matches(&archived, target, &ids);
             m.sort_by_key(|c| c.priority);
-            return TargetResult::Multiple(m);
+            return Ok(TargetResult::Multiple(m));
         }
         PrefixOutcome::None => {}
     }
 
     // 3) No match — per cli spec r112, MUST NOT fall back to substring contains.
-    TargetResult::None
+    Ok(TargetResult::None)
 }
 
 // ── TOON output builders ──
@@ -400,10 +399,12 @@ fn toon_single_change(ci: &ChangeInfo, root: &Path) -> String {
         }
     } else {
         // Active: show incomplete tasks
-        let change_dir = root
-            .join(LLMANSPEC_DIR_NAME)
-            .join("changes")
-            .join(&ci.dir_name);
+        let change_dir = match resolve_change_dir(root, &ci.dir_name) {
+            Ok(p) => p,
+            Err(_) => {
+                return out;
+            }
+        };
         if let Ok(Some(report)) = tasks::parse_tasks_file(&change_dir.join("tasks.md")) {
             let incomplete: Vec<_> = report
                 .items
@@ -661,7 +662,7 @@ pub fn run(args: StatusArgs) -> Result<()> {
     match &args.target {
         None => {
             // Project-level overview
-            let changes = collect_active_changes(root);
+            let changes = collect_active_changes(root)?;
             let specs_count = list_specs(root).unwrap_or_default().len();
             match format {
                 Format::Toon => print!("{}", toon_project_overview(&changes, specs_count)),
@@ -669,7 +670,7 @@ pub fn run(args: StatusArgs) -> Result<()> {
             }
         }
         Some(target) => {
-            let resolved = resolve_target(root, target);
+            let resolved = resolve_target(root, target)?;
             match resolved {
                 TargetResult::Single {
                     info: ci,
@@ -713,7 +714,9 @@ pub fn run(args: StatusArgs) -> Result<()> {
 }
 
 fn suggest_similar_changes(root: &Path, target: &str) -> Vec<String> {
-    let active = collect_active_changes(root);
+    let Ok(active) = collect_active_changes(root) else {
+        return Vec::new();
+    };
     let archived = collect_archived_changes(root);
     let lower = target.to_lowercase();
 

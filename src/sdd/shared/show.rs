@@ -1,6 +1,8 @@
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
-use crate::sdd::shared::discovery::{list_changes, list_specs};
+use crate::sdd::shared::discovery::{
+    list_changes, list_specs, resolve_change_dir, resolve_change_rel_path,
+};
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
@@ -202,10 +204,10 @@ fn show_change(
     args: &ShowArgs,
 ) -> Result<()> {
     validate_sdd_id(change_id, "change")?;
-    let change_dir = root
-        .join(LLMANSPEC_DIR_NAME)
-        .join("changes")
-        .join(change_id);
+    let change_dir = resolve_change_dir(root, change_id)
+        .map_err(|_| anyhow!(t!("sdd.show.change_not_found", id = change_id)))?;
+    let rel_path =
+        resolve_change_rel_path(root, change_id).unwrap_or_else(|_| change_id.to_string());
     let proposal_path = change_dir.join("proposal.md");
     if !proposal_path.exists() {
         return Err(anyhow!(t!("sdd.show.change_not_found", id = change_id)));
@@ -228,6 +230,7 @@ fn show_change(
         let attached = crate::sdd::spec::validation::has_attach_binding(&change_dir);
         let output = serde_json::json!({
             "id": change_id,
+            "path": rel_path,
             "title": title,
             "stage": stage.as_str(),
             "artifacts": artifacts,
@@ -247,6 +250,7 @@ fn show_change(
     let content = fs::read_to_string(&proposal_path)?;
     let stage = determine_stage(&change_dir);
     println!("{}", t!("sdd.show.change_stage", stage = stage.as_str()));
+    println!("path: {rel_path}");
     print!("{content}");
     Ok(())
 }

@@ -307,6 +307,7 @@ version = "0.1.0"
         use crate::sdd::command::SddCommands;
         // Create a minimal SddArgs for testing
         let sdd_args = SddArgs {
+            max_scan_depth: crate::sdd::shared::discovery::DEFAULT_MAX_SCAN_DEPTH,
             command: SddCommands::List {
                 specs: false,
                 changes: true,

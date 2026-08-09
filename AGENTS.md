@@ -103,7 +103,7 @@ Cargo equivalents use `cargo +nightly ...`.
 | **规划壳** | `proposal.md` / `design.md` / `tasks.md`（可短暂在默认分支） | **不是**已 Specs-landed；**不是** live 合约正文 |
 | **`skip_specs_landing`** | frontmatter 豁免：本次无 live 合约变更 | **不是**跳过 Branch binding |
 | **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | **不是**「完整工件」口头说法；用 `show`/`status --json` 查 |
-| **Change 文档** | `llmanspec/changes/<id>/` 下的规划壳 | **不是** live 合约；合约 SSOT 在 `llmanspec/specs/**` |
+| **Change 文档** | `llmanspec/changes/` 下含 `proposal.md` 的目录（可用分组：`changes/<group>/…/<id>/`；CLI id 仍为叶子目录名） | **不是** live 合约；合约 SSOT 在 `llmanspec/specs/**` |
 | **Live specs** | 绑定分支上的 `spec.toon` +（bdd-on）`*.feature` | **禁止**未 binding 时在默认分支编辑；不是已移除的 `change delta` / `*.feature.delta.toon` |
 
 ```mermaid

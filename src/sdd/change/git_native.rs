@@ -54,14 +54,12 @@ pub struct StartArgs {
     pub no_interactive: bool,
 }
 
-fn change_dir(root: &Path, change_id: &str) -> PathBuf {
-    root.join(LLMANSPEC_DIR_NAME)
-        .join("changes")
-        .join(change_id)
+fn change_dir(root: &Path, change_id: &str) -> Result<PathBuf> {
+    crate::sdd::shared::discovery::resolve_change_dir(root, change_id)
 }
 
-fn proposal_path(root: &Path, change_id: &str) -> PathBuf {
-    change_dir(root, change_id).join("proposal.md")
+fn proposal_path(root: &Path, change_id: &str) -> Result<PathBuf> {
+    Ok(change_dir(root, change_id)?.join("proposal.md"))
 }
 
 pub(crate) fn run_git(root: &Path, args: &[&str]) -> Result<String> {
@@ -188,7 +186,7 @@ fn parse_yaml_bool(doc: &serde_yaml::Value, key: &str) -> bool {
 
 /// Read Git binding fields from proposal frontmatter (best-effort).
 pub fn read_binding(root: &Path, change_id: &str) -> Result<Option<ChangeGitBinding>> {
-    let path = proposal_path(root, change_id);
+    let path = proposal_path(root, change_id)?;
     if !path.exists() {
         bail!("change `{}` proposal.md not found", change_id);
     }
@@ -254,7 +252,7 @@ pub(crate) fn write_binding(
     change_id: &str,
     binding: &ChangeGitBinding,
 ) -> Result<()> {
-    let path = proposal_path(root, change_id);
+    let path = proposal_path(root, change_id)?;
     let content = fs::read_to_string(&path)?;
     let mut updates = vec![
         ("branch", binding.branch.clone()),
@@ -287,11 +285,11 @@ pub fn run_attach(root: &Path, args: AttachArgs) -> Result<()> {
     validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
     let _config = load_required_config(&llmanspec)?;
-    let dir = change_dir(root, &change_name);
+    let dir = change_dir(root, &change_name)?;
     if !dir.exists() {
         bail!("change `{}` not found", change_name);
     }
-    if !proposal_path(root, &change_name).exists() {
+    if !proposal_path(root, &change_name)?.exists() {
         bail!("change `{}` is missing proposal.md", change_name);
     }
 
@@ -358,11 +356,11 @@ pub fn run_start(root: &Path, args: StartArgs) -> Result<()> {
     validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
     let config = load_required_config(&llmanspec)?;
-    let dir = change_dir(root, &change_name);
+    let dir = change_dir(root, &change_name)?;
     if !dir.exists() {
         bail!("change `{}` not found", change_name);
     }
-    if !proposal_path(root, &change_name).exists() {
+    if !proposal_path(root, &change_name)?.exists() {
         bail!("change `{}` is missing proposal.md", change_name);
     }
     if let Some(existing) = read_binding(root, &change_name)? {
