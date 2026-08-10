@@ -1,7 +1,9 @@
 use crate::sdd::change::freeze::FREEZE_ARCHIVE_NAME;
 use crate::sdd::project::config::{ArchiveConfig, BddConfig, load_required_config};
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
-use crate::sdd::shared::discovery::{list_archived_changes, list_changes, list_specs};
+use crate::sdd::shared::discovery::{
+    list_archived_changes, list_changes, list_specs, resolve_change_dir,
+};
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
@@ -436,7 +438,9 @@ fn compute_dag_issues_for_bulk(
 ) -> HashMap<String, Vec<ValidationIssue>> {
     let mut frontmatters = Vec::new();
     for id in change_ids {
-        let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(id);
+        let Ok(change_dir) = resolve_change_dir(root, id) else {
+            continue;
+        };
         let (_, fm) =
             check_proposal_frontmatter(&change_dir, change_ids, archived_change_ids, has_frozen);
         frontmatters.push((id.clone(), fm));
@@ -671,8 +675,8 @@ fn validate_by_type(
     let (report, staleness) = match item_type {
         ItemType::Change => {
             validate_sdd_id(id, "change")?;
-            let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(id);
-            let change_ids = list_changes(root).unwrap_or_default();
+            let change_dir = resolve_change_dir(root, id)?;
+            let change_ids = list_changes(root)?;
             let dag_issues = compute_dag_issues_for_single(
                 root,
                 id,
@@ -973,7 +977,25 @@ fn run_bulk_validation(
     for id in changes {
         let start = Instant::now();
         validate_sdd_id(&id, "change")?;
-        let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join(&id);
+        let change_dir = match resolve_change_dir(root, &id) {
+            Ok(p) => p,
+            Err(err) => {
+                items.push(ValidationItem {
+                    id,
+                    item_type: "change".to_string(),
+                    valid: false,
+                    issues: vec![ValidationIssue {
+                        level: ValidationLevel::Error,
+                        path: "discovery".to_string(),
+                        message: err.to_string(),
+                    }],
+                    duration_ms: start.elapsed().as_millis(),
+                    staleness: StalenessInfo::not_applicable(),
+                    matched_via_prefix: false,
+                });
+                continue;
+            }
+        };
         let dag_issues = dag_issues_map.get(&id).cloned().unwrap_or_default();
         let report = validate_change_full(
             &change_dir,

@@ -5,7 +5,7 @@ rules, context, or conventions that AI agents should follow.
 
 ## Change Proposal Frontmatter SSOT
 
-`llmanspec/changes/<id>/proposal.md` 的 frontmatter（YAML）是**变更元信息的唯一权威**。
+`llmanspec/changes/` 下任意深度（默认扫描深度 8，可用 `llman sdd --max-scan-depth` 调整）含 `proposal.md` 的目录都是 change；叶子目录名为 change id（可用分组目录组织，如 `changes/<group>/<id>/proposal.md`）。其 `proposal.md` 的 frontmatter（YAML）是**变更元信息的唯一权威**。
 正文 MUST NOT 重复声明已在 frontmatter 中声明的字段，否则 SSOT 失效。
 
 ### 合法字段集（r124 强制）

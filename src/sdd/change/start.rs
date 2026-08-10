@@ -164,11 +164,8 @@ fn git_worktree_exists(root: &Path, path: &Path) -> Result<bool> {
 
 /// Check depends_on guard: any dependency not in archive or Full stage → bail.
 fn check_depends_on_guard(root: &Path, change_id: &str) -> Result<()> {
-    let proposal_path = root
-        .join("llmanspec")
-        .join("changes")
-        .join(change_id)
-        .join("proposal.md");
+    let change_dir = crate::sdd::shared::discovery::resolve_change_dir(root, change_id)?;
+    let proposal_path = change_dir.join("proposal.md");
 
     let content = match fs::read_to_string(&proposal_path) {
         Ok(c) => c,
@@ -195,11 +192,10 @@ fn check_depends_on_guard(root: &Path, change_id: &str) -> Result<()> {
         })
         .unwrap_or_default();
 
-    for dep_id in &deps {
-        let dep_dir = root.join("llmanspec").join("changes").join(dep_id);
-        let archive_dir = root.join("llmanspec").join("changes").join("archive");
+    let archive_dir = root.join("llmanspec").join("changes").join("archive");
 
-        // Check if archived.
+    for dep_id in &deps {
+        // Check if archived first (archive is flat by date-id).
         let archived = archive_dir.exists()
             && fs::read_dir(&archive_dir)
                 .ok()
@@ -216,11 +212,18 @@ fn check_depends_on_guard(root: &Path, change_id: &str) -> Result<()> {
             continue;
         }
 
-        if !dep_dir.exists() {
-            bail!(
-                "depends_on `{dep_id}` not found; complete or archive it before starting `{change_id}`"
-            );
-        }
+        let dep_dir = match crate::sdd::shared::discovery::resolve_change_dir(root, dep_id) {
+            Ok(p) => p,
+            Err(err) => {
+                let msg = err.to_string();
+                if msg.contains("duplicate change id") {
+                    return Err(err);
+                }
+                bail!(
+                    "depends_on `{dep_id}` not found; complete or archive it before starting `{change_id}`"
+                );
+            }
+        };
 
         let stage = crate::sdd::spec::validation::determine_stage(&dep_dir);
         if !matches!(stage, crate::sdd::spec::validation::ChangeStage::Full) {
@@ -247,6 +250,19 @@ pub fn run_worktree_prune(root: &Path, config: &SddConfig) -> Result<()> {
     let changes_dir = root.join("llmanspec").join("changes");
     let archive_dir = changes_dir.join("archive");
 
+    // One discovery pass so nested changes are visible to prune decisions.
+    let active_by_id: std::collections::HashMap<String, std::path::PathBuf> =
+        match crate::sdd::shared::discovery::discover_changes(root) {
+            Ok(locs) => locs
+                .into_iter()
+                .map(|loc| (loc.id.clone(), loc.abs_dir(root)))
+                .collect(),
+            Err(err) => {
+                // Surface discovery conflicts (r127) instead of pruning everything.
+                return Err(err);
+            }
+        };
+
     for entry in fs::read_dir(&wt_root)? {
         let entry = entry?;
         let path = entry.path();
@@ -260,8 +276,10 @@ pub fn run_worktree_prune(root: &Path, config: &SddConfig) -> Result<()> {
             continue;
         }
 
-        let change_dir = changes_dir.join(&name);
-        let proposal_exists = change_dir.join("proposal.md").exists();
+        let proposal_exists = active_by_id
+            .get(&name)
+            .map(|dir| dir.join("proposal.md").exists())
+            .unwrap_or(false);
 
         // Check if archived.
         let archived = archive_dir.exists()

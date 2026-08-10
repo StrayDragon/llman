@@ -34,7 +34,7 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
     let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, raw_name)?;
     validate_sdd_id(&change_name, "change")?;
     let changes_dir = root.join(LLMANSPEC_DIR_NAME).join("changes");
-    let change_dir = changes_dir.join(&change_name);
+    let change_dir = crate::sdd::shared::discovery::resolve_change_dir(root, &change_name)?;
 
     if !change_dir.exists() {
         return Err(anyhow!(t!(

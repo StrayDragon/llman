@@ -1,6 +1,6 @@
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
-use crate::sdd::shared::discovery::{list_changes, list_specs};
+use crate::sdd::shared::discovery::{discover_changes, list_specs};
 use crate::sdd::shared::tasks;
 use crate::sdd::spec::parser::parse_spec;
 use crate::sdd::spec::validation::{ChangeStage, determine_stage};
@@ -24,6 +24,8 @@ pub struct ListArgs {
 #[derive(Debug, Serialize)]
 struct ChangeJson {
     name: String,
+    /// Relative to `llmanspec/changes/` (r128).
+    path: String,
     stage: String,
     #[serde(rename = "completedTasks")]
     completed_tasks: usize,
@@ -37,6 +39,7 @@ struct ChangeJson {
 #[derive(Debug)]
 struct ChangeInfo {
     name: String,
+    path: String,
     stage: ChangeStage,
     completed_tasks: usize,
     total_tasks: usize,
@@ -82,8 +85,8 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
         return Err(anyhow!(t!("sdd.list.no_changes_dir")));
     }
 
-    let change_ids = list_changes(root)?;
-    if change_ids.is_empty() {
+    let locs = discover_changes(root)?;
+    if locs.is_empty() {
         if args.json {
             print_json(&serde_json::json!({"changes": []}), args.compact_json)?;
         } else {
@@ -93,12 +96,14 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
     }
 
     let mut changes = Vec::new();
-    for change in change_ids {
-        let (completed, total) = task_progress(&changes_dir, &change)?;
-        let last_modified = last_modified(&changes_dir.join(&change))?;
-        let stage = determine_stage(&changes_dir.join(&change));
+    for loc in locs {
+        let change_dir = loc.abs_dir(root);
+        let (completed, total) = task_progress(&change_dir)?;
+        let last_modified = last_modified(&change_dir)?;
+        let stage = determine_stage(&change_dir);
         changes.push(ChangeInfo {
-            name: change,
+            name: loc.id,
+            path: loc.path,
             stage,
             completed_tasks: completed,
             total_tasks: total,
@@ -118,6 +123,7 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
             .iter()
             .map(|c| ChangeJson {
                 name: c.name.clone(),
+                path: c.path.clone(),
                 stage: c.stage.as_str().to_string(),
                 completed_tasks: c.completed_tasks,
                 total_tasks: c.total_tasks,
@@ -282,8 +288,8 @@ fn status_key(completed: usize, total: usize) -> &'static str {
     "in-progress"
 }
 
-fn task_progress(changes_dir: &Path, change_name: &str) -> Result<(usize, usize)> {
-    let tasks_path = changes_dir.join(change_name).join("tasks.md");
+fn task_progress(change_dir: &Path) -> Result<(usize, usize)> {
+    let tasks_path = change_dir.join("tasks.md");
     match tasks::parse_tasks_file(&tasks_path)? {
         Some(report) => Ok((report.completed, report.total())),
         None => Ok((0, 0)),

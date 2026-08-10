@@ -110,7 +110,7 @@ pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
     // commit lands the archive move. On merge failure, still rename (no
     // rollback) — `do_ff_merge` restores the feature branch best-effort.
     let changes_dir = root.join(LLMANSPEC_DIR_NAME).join("changes");
-    let change_dir = changes_dir.join(&change_name);
+    let change_dir = crate::sdd::shared::discovery::resolve_change_dir(root, &change_name)?;
     let archive_dir = changes_dir.join("archive");
     let archive_name = archive_name_for(&change_name);
     let feature_branch = binding.branch.clone();
