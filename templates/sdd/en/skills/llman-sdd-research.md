@@ -24,7 +24,7 @@ The background agent's job:
 
 1. Investigate the question against **primary sources** — official docs, source code, specs, first-party APIs — not secondary write-ups. Follow every claim back to the source that owns it.
 2. Write findings to a single Markdown file, citing each claim's source.
-3. Save where the repo already keeps such notes; match the existing convention, and if there is none, put it at `llmanspec/changes/<current-change>/research/<topic>.md` and say where (this is change docs, **not** live specs).
+3. Save location (follow the repo's own convention if it has one): **default** to `llmanspec/changes/<current-change>/research/<topic>.md` (change docs, **not** live specs). Write to `docs/research/` only when the topic spans multiple changes and will still be referenced after archiving; **never** put single-change decisions or decaying deep-dives into `docs/research/`.
 4. **MUST NOT** edit `llmanspec/specs/**` in this skill. If research shows MUST/SHALL must change → suggest `llman-sdd-propose` (Branch binding → Specs landing).
 
 ## Steps
@@ -33,7 +33,7 @@ The background agent's job:
 2. Use the Agent tool `subagent_type=general-purpose` + `run_in_background: true` to launch the background research, with a prompt containing:
    - The question statement.
    - A requirement to cite only primary sources, with source URL/path per claim.
-   - The output file path (`llmanspec/changes/<id>/research/<topic>.md`).
+   - The output file path (default `llmanspec/changes/<id>/research/<topic>.md`).
    - A word limit (suggested: focus on facts, prose narrative < 1500 words).
 3. Continue main-flow work while it runs in the background; receive a notification when done.
 4. Read the output, summarize key conclusions back into the current change's `proposal.md` "Further Notes" section (with a file pointer).
