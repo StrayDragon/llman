@@ -2,7 +2,8 @@
 depends_on: []
 branch: sdd/support-nested-change-dir-groups
 base_sha: 738d1027c6a601bd007860faf63255c0032671fd
-checkpointed: false
+checkpointed: true
+checkpoint_sha: 738d1027c6a601bd007860faf63255c0032671fd
 ---
 
 # 支持 changes 下按目录分组（递归发现 proposal.md）
