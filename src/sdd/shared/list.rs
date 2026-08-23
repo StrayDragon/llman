@@ -228,9 +228,7 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
                 Ok(doc) => {
                     let mut m = compute_morphology(&doc, &harness);
                     if let Some(resolved) = &resolved_bindings {
-                        let bound = resolved.count_bound(&id, &harness_pairs);
-                        m.harness_bound_count = Some(bound);
-                        m.harness_unbound_count = Some(m.harness_scenario_count - bound);
+                        resolved.attach_to_morphology(&id, &harness_pairs, &mut m);
                     }
                     Some(m)
                 }
