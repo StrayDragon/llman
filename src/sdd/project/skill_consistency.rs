@@ -196,6 +196,7 @@ mod tests {
                 default_language: None,
                 run_command: Some("cargo test --features bdd".into()),
                 verify_prompt: None,
+                bindings: None,
             }),
             extra_skills: None,
             archive: None,

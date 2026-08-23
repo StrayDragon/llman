@@ -299,15 +299,25 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
         config.bdd.as_ref(),
     );
     let content = fs::read_to_string(&spec_path)?;
+    let resolved_bindings = crate::sdd::spec::bindings::resolve_from_config(root, Some(&config))?;
     let morphology = {
         use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-        use crate::sdd::spec::partitioned::{compute_morphology, load_spec_harness_soft};
+        use crate::sdd::spec::partitioned::{compute_morphology, load_spec_harness_files_soft};
         let mut soft = Vec::new();
-        let harness = load_spec_harness_soft(&spec_dir, &lang, &mut soft);
+        let harness_pairs = load_spec_harness_files_soft(&spec_dir, &lang, &mut soft);
+        let harness: Vec<_> = harness_pairs.iter().map(|(_, sc)| sc.clone()).collect();
         BACKEND
             .parse_main_spec(&content, &format!("spec `{spec_id}`"))
             .ok()
-            .map(|doc| compute_morphology(&doc, &harness))
+            .map(|doc| {
+                let mut m = compute_morphology(&doc, &harness);
+                if let Some(resolved) = &resolved_bindings {
+                    let bound = resolved.count_bound(spec_id, &harness_pairs);
+                    m.harness_bound_count = Some(bound);
+                    m.harness_unbound_count = Some(m.harness_scenario_count - bound);
+                }
+                m
+            })
     };
     let harness_summaries = {
         use crate::sdd::spec::partitioned::load_spec_harness_soft;
@@ -383,13 +393,24 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
         }
     }
     if let Some(m) = morphology {
-        println!(
-            "\n## Morphology\nconstraintsReqCount={} harnessScenarioCount={} dualWriteCount={} reqLinkCoverage={:.2}",
-            m.constraints_req_count,
-            m.harness_scenario_count,
-            m.dual_write_count,
-            m.req_link_coverage
-        );
+        match (m.harness_bound_count, m.harness_unbound_count) {
+            (Some(bound), Some(unbound)) => println!(
+                "\n## Morphology\nconstraintsReqCount={} harnessScenarioCount={} harnessBoundCount={} harnessUnboundCount={} dualWriteCount={} reqLinkCoverage={:.2}",
+                m.constraints_req_count,
+                m.harness_scenario_count,
+                bound,
+                unbound,
+                m.dual_write_count,
+                m.req_link_coverage
+            ),
+            _ => println!(
+                "\n## Morphology\nconstraintsReqCount={} harnessScenarioCount={} dualWriteCount={} reqLinkCoverage={:.2}",
+                m.constraints_req_count,
+                m.harness_scenario_count,
+                m.dual_write_count,
+                m.req_link_coverage
+            ),
+        }
     }
     Ok(())
 }

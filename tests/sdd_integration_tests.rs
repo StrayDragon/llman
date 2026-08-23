@@ -1528,3 +1528,159 @@ fn test_sdd_config_skills_non_interactive() {
         "should list all optional skills as available (none enabled yet), got: {available:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// bdd.bindings: harness bound/unbound split (sdd-workflow r2/r3)
+// ---------------------------------------------------------------------------
+
+const SAMPLE_FEATURE_WITH_TAGS: &str = "\
+Feature: sample harness
+
+  @executable @req:r1
+  Scenario: tagged-runs
+    Given a precondition
+    When an action occurs
+    Then the outcome is observed
+
+  @req:r1
+  Scenario: untagged-docs
+    Given another precondition
+    When something happens
+    Then nothing executes
+";
+
+fn config_with_bindings(bindings_block: &str) -> String {
+    format!(
+        "schema: spec-driven\nlocale: en\nbdd:\n  run_command: \"cargo test --features bdd\"\n{bindings_block}"
+    )
+}
+
+/// Init a project, author `sample` with r1, and plant a two-scenario feature.
+fn setup_spec_with_feature(work_dir: &Path) {
+    assert_success(&run_llman(
+        &["sdd", "init", work_dir.to_str().unwrap()],
+        work_dir,
+        work_dir,
+    ));
+    assert_success(&run_llman(
+        &["sdd", "spec", "skeleton", "sample"],
+        work_dir,
+        work_dir,
+    ));
+    assert_success(&run_llman(
+        &[
+            "sdd",
+            "spec",
+            "add-requirement",
+            "sample",
+            "r1",
+            "--title",
+            "R1",
+            "--statement",
+            "System MUST support R1.",
+        ],
+        work_dir,
+        work_dir,
+    ));
+    let feature_path = work_dir
+        .join("llmanspec")
+        .join("specs")
+        .join("sample")
+        .join("sample.feature");
+    fs::write(feature_path, SAMPLE_FEATURE_WITH_TAGS).expect("write feature");
+}
+
+#[test]
+fn test_list_specs_splits_harness_bound_unbound_when_bindings_declared() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+    setup_spec_with_feature(work_dir);
+
+    fs::write(
+        work_dir.join("llmanspec").join("config.yaml"),
+        config_with_bindings("  bindings:\n    - kind: tags\n      tags: [executable]\n"),
+    )
+    .expect("write config");
+
+    // Text output splits into bound/unbound summing to the scenario total.
+    let list_output = run_llman(&["sdd", "list", "--specs"], work_dir, work_dir);
+    assert_success(&list_output);
+    let stdout = String::from_utf8_lossy(&list_output.stdout);
+    assert!(
+        stdout.contains("harness-bound 1") && stdout.contains("harness-unbound 1"),
+        "expected split counts in list output; got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains(" harness 2 "),
+        "legacy single count must be replaced when bindings are declared; got:\n{stdout}"
+    );
+
+    // JSON morphology carries numeric bound/unbound keys.
+    let json_output = run_llman(&["sdd", "list", "--specs", "--json"], work_dir, work_dir);
+    assert_success(&json_output);
+    let parsed: Value =
+        serde_json::from_str(String::from_utf8_lossy(&json_output.stdout).trim()).expect("json");
+    let morphology = &parsed[0]["morphology"];
+    assert_eq!(morphology["harnessScenarioCount"], 2);
+    assert_eq!(morphology["harnessBoundCount"], 1);
+    assert_eq!(morphology["harnessUnboundCount"], 1);
+
+    // show syncs the same criterion on its Morphology line.
+    let show_output = run_llman(
+        &["sdd", "show", "sample", "--type", "spec"],
+        work_dir,
+        work_dir,
+    );
+    assert_success(&show_output);
+    let show_stdout = String::from_utf8_lossy(&show_output.stdout);
+    assert!(
+        show_stdout.contains("harnessBoundCount=1")
+            && show_stdout.contains("harnessUnboundCount=1"),
+        "show Morphology line must split too; got:\n{show_stdout}"
+    );
+}
+
+#[test]
+fn test_list_specs_keeps_legacy_harness_output_without_bindings() {
+    let env = TestEnvironment::new();
+    let work_dir = env.path();
+    setup_spec_with_feature(work_dir);
+
+    // BDD-on but no bindings declared: legacy single count + null JSON keys.
+    fs::write(
+        work_dir.join("llmanspec").join("config.yaml"),
+        config_with_bindings(""),
+    )
+    .expect("write config");
+
+    let list_output = run_llman(&["sdd", "list", "--specs"], work_dir, work_dir);
+    assert_success(&list_output);
+    let stdout = String::from_utf8_lossy(&list_output.stdout);
+    assert!(
+        stdout.contains("harness 2"),
+        "legacy single harness count must stay without bindings; got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("harness-bound"),
+        "split columns must not appear without declared bindings; got:\n{stdout}"
+    );
+
+    let json_output = run_llman(&["sdd", "list", "--specs", "--json"], work_dir, work_dir);
+    assert_success(&json_output);
+    let parsed: Value =
+        serde_json::from_str(String::from_utf8_lossy(&json_output.stdout).trim()).expect("json");
+    let morphology = &parsed[0]["morphology"];
+    assert_eq!(morphology["harnessScenarioCount"], 2);
+    assert!(
+        morphology["harnessBoundCount"].is_null(),
+        "undeclared bindings must serialize null bound key"
+    );
+    assert!(
+        morphology["harnessUnboundCount"].is_null(),
+        "undeclared bindings must serialize null unbound key"
+    );
+    // Legacy r39 keys stay intact for existing consumers.
+    assert!(morphology["constraintsReqCount"].is_number());
+    assert!(morphology["reqLinkCoverage"].is_number());
+    assert!(morphology["dualWriteCount"].is_number());
+}

@@ -744,6 +744,7 @@ mod tests {
             framework: "cucumber-rs".to_string(),
             feature_dir: None,
             default_language: Some("ja".to_string()),
+            bindings: None,
             run_command: None,
             verify_prompt: None,
         };
@@ -821,6 +822,7 @@ mod tests {
             default_language: None,
             run_command: Some(cmd.to_string()),
             verify_prompt: None,
+            bindings: None,
         }
     }
 
