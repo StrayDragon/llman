@@ -30,36 +30,29 @@ const BDD_ON_BLOCK: &str = "bdd:\n  run_command: \"cargo test --features bdd\"";
 
 /// Seed a spec `sample` (r1 + scenario) and an `add-scen` change (proposal only — delta removed, r115).
 fn seed_spec_and_change(env: &TestEnvironment) {
-    assert_success(&run(&["sdd", "spec", "skeleton", "sample"], env));
-    assert_success(&run(
-        &[
-            "sdd",
-            "spec",
-            "add-requirement",
-            "sample",
-            "r1",
-            "--title",
-            "R1",
-            "--statement",
-            "System MUST do X.",
-        ],
-        env,
-    ));
-    assert_success(&run(
-        &[
-            "sdd",
-            "spec",
-            "add-scenario",
-            "sample",
-            "r1",
-            "happy",
-            "--when",
-            "trigger",
-            "--then",
-            "outcome",
-        ],
-        env,
-    ));
+    // Single-track (r131): author the spec as one `.feature` with a @human
+    // rule plus an executable acceptance scenario.
+    let sample_dir = env.work_dir.join("llmanspec/specs/sample");
+    fs::create_dir_all(&sample_dir).expect("mkdir sample");
+    let feature = concat!(
+        "# language: en\n",
+        "# capability: sample\n",
+        "# purpose: sample\n",
+        "# scope: llmanspec/specs/sample\n",
+        "\n",
+        "Feature: sample\n",
+        "\n",
+        "  @req:r1 @human\n",
+        "  Scenario: R1\n",
+        "    System MUST do X.\n",
+        "\n",
+        "  @req:r1 @executable\n",
+        "  Scenario: happy\n",
+        "    Given a precondition\n",
+        "    When trigger\n",
+        "    Then outcome\n",
+    );
+    fs::write(sample_dir.join("sample.feature"), feature).expect("write feature");
     let change_dir = env.work_dir.join("llmanspec/changes/add-scen");
     fs::create_dir_all(&change_dir).expect("mkdir change");
     fs::write(
@@ -119,24 +112,12 @@ fn commit(env: &TestEnvironment, msg: &str) {
 }
 
 fn seed_live_feature(env: &TestEnvironment) {
+    // Single-track (r131): the `.feature` is the only spec artifact.
     fs::write(
         env.work_dir.join("llmanspec/specs/sample/sample.feature"),
-        "# language: en\nFeature: sample\n  @req:r1\n  Scenario: harness-happy\n    Given a\n    When b\n    Then c\n",
+        "# language: en\n# capability: sample\n# purpose: sample\n# scope: llmanspec/specs/sample\n\nFeature: sample\n  @req:r1 @human\n  Scenario: R1\n    System MUST do X.\n\n  @req:r1 @executable\n  Scenario: harness-happy\n    Given a\n    When b\n    Then c\n",
     )
     .expect("write feature");
-    fs::write(
-        env.work_dir.join("llmanspec/specs/sample/spec.toon"),
-        r#"kind: llman.sdd.spec
-name: "sample"
-purpose: "sample"
-valid_scope[1]: "llmanspec/specs/sample"
-requirements[1]{req_id,title,statement}:
-  r1,R1,"System MUST do X."
-scenarios[1]{req_id,id,given,when,then,feature}:
-  r1,happy,"","trigger","outcome",false
-"#,
-    )
-    .expect("rewrite toon");
 }
 
 // ── 实现细节：init 在两种 config 下结构等价 ──────────────────────────────────

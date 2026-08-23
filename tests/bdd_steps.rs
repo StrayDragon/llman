@@ -195,18 +195,15 @@ fn seed_bdd_project(mode: &str) {
     // subcommands rewrite config.yaml on write paths.
     run_llman_in(&dir, "sdd init --lang en", &[]);
 
-    // author sample spec: r1 + a scenario.
-    run_llman_in(&dir, "sdd spec skeleton sample", &[]);
-    run_llman_in(
-        &dir,
-        "sdd spec add-requirement sample r1 --title R1 --statement \"System MUST do X.\"",
-        &[],
+    // Single-track (r131): seed `sample` as one `.feature` with a @human rule
+    // plus an executable acceptance scenario for harness content.
+    write_single_track_spec(&dir, "sample", &[("r1", "R1")]);
+    let sample_feature = dir.join("llmanspec/specs/sample/sample.feature");
+    let mut body = std::fs::read_to_string(&sample_feature).expect("read seeded feature");
+    body.push_str(
+        "\n  @req:r1 @executable\n  Scenario: harness-happy\n    Given a precondition\n    When an action\n    Then an outcome\n",
     );
-    run_llman_in(
-        &dir,
-        "sdd spec add-scenario sample r1 happy --when trigger --then outcome",
-        &[],
-    );
+    std::fs::write(&sample_feature, body).expect("append acceptance scenario");
 
     // author add-scen change: proposal only (delta specs are removed, r115).
     let change_dir = dir.join("llmanspec/changes/add-scen");
@@ -232,38 +229,6 @@ fn seed_bdd_project(mode: &str) {
 
     // Regenerated skills must match final bdd mode (r95 metadata gate).
     run_llman_in(&dir, "sdd init --update", &[]);
-
-    if mode_norm == "off" {
-        // BDD-off: drop a deliberately malformed .feature next to the spec to prove
-        // validate ignores it (r83 contract).
-        std::fs::write(
-            dir.join("llmanspec/specs/sample/sample.feature"),
-            "# language: en\nTHIS IS NOT VALID GHERKIN {{{",
-        )
-        .expect("write bogus feature");
-    } else {
-        // BDD-on: live harness SSOT on the branch (distinct scenario id avoids dual-write
-        // with the seeded toon `happy` row until partition-migrate).
-        std::fs::write(
-            dir.join("llmanspec/specs/sample/sample.feature"),
-            "# language: en\nFeature: sample\n  @req:r1\n  Scenario: harness-happy\n    Given a precondition\n    When an action\n    Then an outcome\n",
-        )
-        .expect("write live feature");
-        // Keep toon scenario as non-executable documentation to match Partitioned SSOT.
-        std::fs::write(
-            dir.join("llmanspec/specs/sample/spec.toon"),
-            r#"kind: llman.sdd.spec
-name: "sample"
-purpose: "sample"
-valid_scope[1]: "llmanspec/specs/sample"
-requirements[1]{req_id,title,statement}:
-  r1,R1,"System MUST do X."
-scenarios[1]{req_id,id,given,when,then,feature}:
-  r1,happy,"","trigger","outcome",false
-"#,
-        )
-        .expect("rewrite sample toon partitioned");
-    }
 
     // git init+commit: staleness checks need a base ref.
     Command::new("git")
@@ -318,35 +283,7 @@ fn given_multi_cap_counter_run_command() {
     run_llman_in(&dir, "sdd init --lang en", &[]);
 
     for (name, req) in [("sample", "r1"), ("other", "r2")] {
-        run_llman_in(&dir, &format!("sdd spec skeleton {name}"), &[]);
-        run_llman_in(
-            &dir,
-            &format!(
-                "sdd spec add-requirement {name} {req} --title {name} --statement \"System MUST cover {name}.\""
-            ),
-            &[],
-        );
-        std::fs::write(
-            dir.join(format!("llmanspec/specs/{name}/spec.toon")),
-            format!(
-                r#"kind: llman.sdd.spec
-name: "{name}"
-purpose: "{name}"
-valid_scope[1]: "llmanspec/specs/{name}"
-requirements[1]{{req_id,title,statement}}:
-  {req},{name},"System MUST cover {name}."
-scenarios[0]:
-"#
-            ),
-        )
-        .expect("write constraints-only toon");
-        std::fs::write(
-            dir.join(format!("llmanspec/specs/{name}/{name}.feature")),
-            format!(
-                "# language: en\nFeature: {name}\n  @req:{req}\n  Scenario: harness-{name}\n    Given a\n    When b\n    Then c\n"
-            ),
-        )
-        .expect("write live feature");
+        write_single_track_spec(&dir, name, &[(req, name)]);
     }
 
     // Project-wide runner with no {feature_*} placeholders; each spawn appends one line.
@@ -387,35 +324,24 @@ scenarios[0]:
     });
 }
 
+/// Write a minimal valid single-track spec for `name` with the given rules.
+fn write_single_track_spec(dir: &std::path::Path, name: &str, reqs: &[(&str, &str)]) {
+    let spec_dir = dir.join(format!("llmanspec/specs/{name}"));
+    std::fs::create_dir_all(&spec_dir).expect("mkdir spec dir");
+    let mut body = format!(
+        "# language: en\n# capability: {name}\n# purpose: {name}\n# scope: llmanspec/specs/{name}\n\nFeature: {name}\n"
+    );
+    for (id, title) in reqs {
+        body.push_str(&format!(
+            "\n  @req:{id} @human\n  Scenario: {title}\n    System MUST cover {title}.\n"
+        ));
+    }
+    std::fs::write(spec_dir.join(format!("{name}.feature")), body).expect("write feature");
+}
+
 #[given("已初始化 sdd 项目且 bdd 配置为 {mode}")]
 fn given_seeded_sdd_project(mode: String) {
     seed_bdd_project(&mode);
-}
-
-/// BDD-on fixture where sample still has executable GWT in toon *and* a matching
-/// `.feature` scenario — triggers Partitioned dual-write validate ERROR.
-#[given("已初始化含可执行双写的 sdd 项目且 bdd 配置为 {mode}")]
-fn given_sdd_project_dual_write(mode: String) {
-    seed_bdd_project(&mode);
-    let dir = fixture_cwd();
-    std::fs::write(
-        dir.join("llmanspec/specs/sample/spec.toon"),
-        r#"kind: llman.sdd.spec
-name: "sample"
-purpose: "sample"
-valid_scope[1]: "llmanspec/specs/sample"
-requirements[1]{req_id,title,statement}:
-  r1,R1,"System MUST do X."
-scenarios[1]{req_id,id,given,when,then,feature}:
-  r1,happy,"a","b","c",true
-"#,
-    )
-    .expect("write dual-write toon");
-    std::fs::write(
-        dir.join("llmanspec/specs/sample/sample.feature"),
-        "# language: en\nFeature: sample\n  @req:r1\n  Scenario: happy\n    Given a\n    When b\n    Then c\n",
-    )
-    .expect("write dual-write feature");
 }
 
 /// Two capabilities share the same req_id — triggers global uniqueness ERROR.
@@ -424,21 +350,7 @@ fn given_sdd_project_global_req_collision(mode: String) {
     seed_bdd_project(&mode);
     let dir = fixture_cwd();
     // Second capability reuses r1 (sample already has r1).
-    run_llman_in(&dir, "sdd spec skeleton other", &[]);
-    // Bypass add-req global guard by writing toon directly.
-    std::fs::write(
-        dir.join("llmanspec/specs/other/spec.toon"),
-        r#"kind: llman.sdd.spec
-name: "other"
-purpose: "other"
-valid_scope[1]: "llmanspec/specs/other"
-requirements[1]{req_id,title,statement}:
-  r1,Other,"System MUST collide."
-scenarios[1]{req_id,id,given,when,then,feature}:
-  r1,baseline,"","trigger","outcome",false
-"#,
-    )
-    .expect("write colliding other spec");
+    write_single_track_spec(&dir, "other", &[("r1", "Other")]);
 }
 
 /// Seed a project then plant an occupied custom tag for add-req guard tests.
@@ -446,46 +358,39 @@ scenarios[1]{req_id,id,given,when,then,feature}:
 fn given_sdd_project_occupied_req(mode: String) {
     seed_bdd_project(&mode);
     let dir = fixture_cwd();
-    std::fs::write(
-        dir.join("llmanspec/specs/sample/spec.toon"),
-        r#"kind: llman.sdd.spec
-name: "sample"
-purpose: "sample"
-valid_scope[1]: "llmanspec/specs/sample"
-requirements[2]{req_id,title,statement}:
-  r1,R1,"System MUST do X."
-  occupied-id,Occupied,"System MUST be unique."
-scenarios[2]{req_id,id,given,when,then,feature}:
-  r1,happy,"","trigger","outcome",false
-  occupied-id,baseline,"","trigger","outcome",false
-"#,
-    )
-    .expect("write occupied sample");
+    write_single_track_spec(&dir, "sample", &[("r1", "R1"), ("occupied-id", "Occupied")]);
 }
 
-/// BDD-on fixture whose harness `@req` points at a missing requirement id.
+/// BDD fixture with a leftover legacy `spec.toon` next to the single-track
+/// feature — triggers the r131 migration-pointer ERROR.
+#[given("已初始化含遗留 spec.toon 的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_legacy_toon(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    std::fs::write(
+        dir.join("llmanspec/specs/sample/spec.toon"),
+        concat!(
+            "kind: llman.sdd.spec\n",
+            "name: \"sample\"\n",
+            "purpose: \"sample legacy\"\n",
+            "valid_scope[1]: \"llmanspec/specs/sample\"\n",
+            "requirements[1]{req_id,title,statement}:\n",
+            "  r1,R1,\"System MUST do X.\"\n",
+            "scenarios[0]:\n",
+        ),
+    )
+    .expect("write legacy toon");
+}
+
+/// BDD-on fixture whose acceptance `@req` points at a missing rule id.
 #[given("已初始化含无效 @req 的 sdd 项目且 bdd 配置为 {mode}")]
 fn given_sdd_project_bad_req(mode: String) {
     seed_bdd_project(&mode);
     let dir = fixture_cwd();
-    // Constraints-only toon so validate fails on @req link, not dual-write.
-    std::fs::write(
-        dir.join("llmanspec/specs/sample/spec.toon"),
-        r#"kind: llman.sdd.spec
-name: "sample"
-purpose: "sample"
-valid_scope[1]: "llmanspec/specs/sample"
-requirements[1]{req_id,title,statement}:
-  r1,R1,"System MUST do X."
-scenarios[0]:
-"#,
-    )
-    .expect("rewrite sample toon");
-    std::fs::write(
-        dir.join("llmanspec/specs/sample/sample.feature"),
-        "# language: en\nFeature: sample\n  @req:r999\n  Scenario: bad link\n    Given a\n    When b\n    Then c\n",
-    )
-    .expect("write bad @req feature");
+    let path = dir.join("llmanspec/specs/sample/sample.feature");
+    let body = std::fs::read_to_string(&path).expect("read sample feature");
+    let updated = body.replace("@req:r1 @executable", "@req:r999 @executable");
+    std::fs::write(&path, updated).expect("write dangling @req feature");
 }
 
 #[given("项目中存在技能目录 {name}")]
@@ -652,8 +557,8 @@ fn then_exit_zero() {
     with_world(|w| {
         assert!(
             w.success,
-            "expected zero exit code, got failure (exit {:?})",
-            w.exit_code
+            "expected zero exit code, got failure (exit {:?})\nstdout:\n{}\nstderr:\n{}",
+            w.exit_code, w.stdout, w.stderr
         );
     });
 }

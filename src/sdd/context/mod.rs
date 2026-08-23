@@ -317,75 +317,14 @@ pub async fn index_rebuild(
     index_rebuild_pageindex(&context_dir, &specs_dir, &lang).await
 }
 
-/// Merge `.feature` scenarios into a parsed spec doc (in place) — Partitioned SSOT.
-///
-/// Feature harness is authoritative for executable GWT. On id collision, **feature
-/// wins** (replaces toon executable row). Toon `feature:false` rows are kept.
-/// `@req` tags populate `req_id` when present.
-fn merge_feature_scenarios(
-    doc: &mut crate::sdd::spec::ir::MainSpecDoc,
-    spec_dir: &Path,
-    lang: &str,
-) {
-    use crate::sdd::spec::ir::ScenarioEntry;
-    use std::collections::HashMap;
-
-    let features = crate::sdd::spec::validation::discover_features(spec_dir);
-    if features.is_empty() {
-        return;
-    }
-
-    let mut feature_by_id: HashMap<String, ScenarioEntry> = HashMap::new();
-    for fpath in &features {
-        match crate::sdd::spec::partitioned::parse_feature_file(fpath, lang) {
-            Ok(nodes) => {
-                for node in nodes {
-                    feature_by_id.insert(
-                        node.id.clone(),
-                        ScenarioEntry {
-                            req_id: node.req_id,
-                            id: node.id,
-                            given: node.given,
-                            when_: node.when_,
-                            then_: node.then_,
-                            feature: true,
-                        },
-                    );
-                }
-            }
-            Err(e) => eprintln!(
-                "Warning: failed to parse feature {}: {}",
-                fpath.display(),
-                e
-            ),
-        }
-    }
-
-    // Drop executable toon rows that collide with feature ids (feature wins).
-    doc.scenarios.retain(|s| {
-        if s.feature && feature_by_id.contains_key(&s.id) {
-            return false;
-        }
-        true
-    });
-    // Append feature scenarios not already present as non-executable? already dropped.
-    let existing: std::collections::HashSet<String> =
-        doc.scenarios.iter().map(|s| s.id.clone()).collect();
-    for (id, entry) in feature_by_id {
-        if !existing.contains(&id) {
-            doc.scenarios.push(entry);
-        }
-    }
-}
-
 /// pageindex backend rebuild: build the spec tree index (no LLM).
 ///
 /// Maps the parsed spec IR (`MainSpecDoc`) directly into a `TreeIndex` and
 /// serializes it to `.context/pageindex/tree.json`. No embedding or chat model
 /// is contacted — the spec tree is already structured, so building is a pure
 /// transform.
-async fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path, lang: &str) -> Result<()> {
-    use crate::sdd::spec::backend::{BACKEND, SpecBackend};
+async fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path, _lang: &str) -> Result<()> {
+    use crate::sdd::spec::backend::{FEATURE_BACKEND, SpecBackend};
     use crate::sdd::spec::ir::MainSpecDoc;
 
     let _lock = acquire_rebuild_lock(context_dir)?;
@@ -402,25 +341,30 @@ async fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path, lang: &st
 
     let mut parsed: Vec<(String, MainSpecDoc)> = Vec::new();
     for spec_dir in &entries {
+        // Single-track (r131): the capability's `.feature` IS the spec. Legacy
+        // `spec.toon` files are skipped with a warning pointing at migrate.
         let spec_file = spec_dir.join("spec.toon");
-        if !spec_file.exists() {
+        if spec_file.exists() {
+            eprintln!(
+                "Warning: skipping legacy {} (run `llman sdd project migrate --kind toon2features`)",
+                spec_file.display()
+            );
             continue;
         }
-        let content = fs::read_to_string(&spec_file)?;
+        let features = crate::sdd::spec::validation::discover_features(spec_dir);
+        let Some(feature_path) = features.first() else {
+            continue;
+        };
+        let content = fs::read_to_string(feature_path)?;
         let spec_id = spec_dir.file_name().unwrap().to_string_lossy().to_string();
         let ctx = format!("spec `{}`", spec_id);
-        let mut doc = match BACKEND.parse_main_spec(&content, &ctx) {
+        let doc = match FEATURE_BACKEND.parse_main_spec(&content, &ctx) {
             Ok(doc) => doc,
             Err(e) => {
                 eprintln!("Warning: failed to parse {}: {}", spec_id, e);
                 continue;
             }
         };
-        // Embed `.feature` scenarios (BDD-on). Parsed scenarios are spec-level
-        // (req_id empty) and merged into the doc's scenarios, deduplicated by id
-        // (toon source wins on collision since it carries req_id binding). Specs
-        // without `.feature` files are unaffected — discover_features is empty.
-        merge_feature_scenarios(&mut doc, spec_dir, lang);
         parsed.push((spec_id, doc));
     }
 
@@ -495,10 +439,9 @@ mod tests {
         // proc restores cwd on drop
     }
 
-    /// BDD-on mode: index rebuild embeds `.feature` scenarios alongside the
-    /// `spec.toon` scenarios, merged and deduplicated. Feature-sourced scenarios
-    /// are spec-level (req_id empty). Exercises the full rebuild → tree.json →
-    /// load cycle in a temp dir.
+    /// Single-track (r78/r131): index rebuild embeds scenarios from each
+    /// capability's `.feature` - acceptance scenarios carry their @req id, and
+    /// no `bdd:` config is required.
     #[test]
     fn test_index_rebuild_embeds_feature_scenarios_bdd() {
         let tmp = tempfile::TempDir::new().unwrap();
@@ -508,42 +451,34 @@ mod tests {
         let spec_dir = specs_dir.join("demo");
         std::fs::create_dir_all(&spec_dir).unwrap();
 
-        // spec.toon with one requirement and one feature:true scenario.
-        std::fs::write(
-            spec_dir.join("spec.toon"),
-            concat!(
-                "kind: llman.sdd.spec\n",
-                "name: \"demo\"\n",
-                "purpose: \"demo\"\n",
-                "valid_scope[1]: \"specs/demo\"\n",
-                "requirements[1]{req_id,title,statement}:\n",
-                "  r1,T,System MUST x.\n",
-                "scenarios[1]{req_id,id,given,when,then,feature}:\n",
-                "  r1,toon-scenario,\"\",\"a trigger\",\"an outcome\",true\n",
-            ),
-        )
-        .unwrap();
-        // A .feature file with two scenarios (spec-level, no req_id).
-        std::fs::write(
-            spec_dir.join("a.feature"),
-            concat!(
-                "# language: zh-CN\n",
-                "功能: demo\n",
-                "\n",
-                "场景: feature-scenario-one\n",
-                "假如 前置一\n",
-                "当 动作一\n",
-                "那么 结果一\n",
-                "\n",
-                "场景: feature-scenario-two\n",
-                "假如 前置二\n",
-                "当 动作二\n",
-                "那么 结果二\n",
-            ),
-        )
-        .unwrap();
+        let body = [
+            "# language: zh-CN",
+            "# capability: demo",
+            "# purpose: demo",
+            "# scope: src/",
+            "",
+            "功能: demo",
+            "",
+            "  @req:r1 @human",
+            "  场景: rule-R1",
+            "    System MUST x.",
+            "",
+            "  @req:r1 @executable",
+            "  场景: feature-scenario-one",
+            "    假如 precondition-one",
+            "    当 action-one",
+            "    那么 outcome-one",
+            "",
+            "  @executable",
+            "  场景: feature-scenario-two",
+            "    假如 precondition-two",
+            "    当 action-two",
+            "    那么 outcome-two",
+            "",
+        ]
+        .join("\n");
+        std::fs::write(spec_dir.join("demo.feature"), body).unwrap();
 
-        // Rebuild (zh-CN Gherkin language).
         let lang = crate::sdd::spec::validation::locale_to_gherkin_lang(Some("zh-Hans"), None);
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
@@ -551,68 +486,26 @@ mod tests {
         rt.block_on(index_rebuild_pageindex(&context_dir, &specs_dir, &lang))
             .unwrap();
 
-        // Load the tree and verify merged scenarios.
         let backend_dir = resolve_backend_dir(&context_dir, Backend::Pageindex);
         let tree = tree::TreeIndex::load(&backend_dir).unwrap();
         assert_eq!(tree.docs.len(), 1);
+        // One requirement from the @human rule + two embedded scenarios.
+        assert_eq!(tree.docs[0].reqs.len(), 1);
         let scenarios = &tree.docs[0].scenarios;
-        // 1 from toon + 2 from .feature = 3 after merge.
-        assert_eq!(scenarios.len(), 3, "toon + feature scenarios merged");
+        assert_eq!(scenarios.len(), 2, "both executable scenarios embedded");
         let ids: Vec<&str> = scenarios.iter().map(|s| s.id.as_str()).collect();
-        assert!(ids.contains(&"toon-scenario"));
         assert!(ids.contains(&"feature-scenario-one"));
         assert!(ids.contains(&"feature-scenario-two"));
-        // Feature-sourced scenarios are spec-level (req_id empty); toon keeps r1.
-        let toon_s = scenarios.iter().find(|s| s.id == "toon-scenario").unwrap();
-        assert_eq!(toon_s.req_id, "r1");
-        let feat_s = scenarios
+        // Linked scenario carries its rule id; the orphan one is empty.
+        let linked = scenarios
             .iter()
             .find(|s| s.id == "feature-scenario-one")
             .unwrap();
-        assert!(feat_s.req_id.is_empty(), "feature scenario req_id empty");
-    }
-
-    /// Non-BDD mode: a spec with no `.feature` files rebuilds with only the
-    /// `spec.toon` scenarios — output is unchanged from the pre-feature-embed
-    /// behavior. Guards the progressive-compatibility guarantee.
-    #[test]
-    fn test_index_rebuild_non_bdd_no_features() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let root = tmp.path();
-        let context_dir = root.join(".context");
-        let specs_dir = root.join("specs");
-        let spec_dir = specs_dir.join("plain");
-        std::fs::create_dir_all(&spec_dir).unwrap();
-
-        // spec.toon with scenarios, no .feature files present.
-        std::fs::write(
-            spec_dir.join("spec.toon"),
-            concat!(
-                "kind: llman.sdd.spec\n",
-                "name: \"plain\"\n",
-                "purpose: \"plain\"\n",
-                "valid_scope[1]: \"specs/plain\"\n",
-                "requirements[1]{req_id,title,statement}:\n",
-                "  r1,T,System MUST y.\n",
-                "scenarios[2]{req_id,id,given,when,then,feature}:\n",
-                "  r1,alpha,\"\",\"trigger a\",\"outcome a\",true\n",
-                "  r1,beta,\"\",\"trigger b\",\"outcome b\",true\n",
-            ),
-        )
-        .unwrap();
-        // No .feature files, no bdd config.
-        let lang = crate::sdd::spec::validation::locale_to_gherkin_lang(Some("en"), None);
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .build()
+        assert_eq!(linked.req_id, "r1");
+        let orphan = scenarios
+            .iter()
+            .find(|s| s.id == "feature-scenario-two")
             .unwrap();
-        rt.block_on(index_rebuild_pageindex(&context_dir, &specs_dir, &lang))
-            .unwrap();
-
-        let backend_dir = resolve_backend_dir(&context_dir, Backend::Pageindex);
-        let tree = tree::TreeIndex::load(&backend_dir).unwrap();
-        let scenarios = &tree.docs[0].scenarios;
-        // Only the two toon scenarios — no feature embedding happened.
-        assert_eq!(scenarios.len(), 2, "non-BDD: toon scenarios only");
-        assert!(scenarios.iter().all(|s| s.req_id == "r1"));
+        assert!(orphan.req_id.is_empty());
     }
 }

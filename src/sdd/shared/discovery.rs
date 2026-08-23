@@ -1,4 +1,5 @@
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
+use crate::sdd::spec::validation::discover_features;
 use anyhow::{Result, bail};
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -258,8 +259,11 @@ pub fn list_specs(root: &Path) -> Result<Vec<String>> {
         if name.starts_with('.') {
             continue;
         }
-        let spec_path = entry.path().join(SPEC_FILE);
-        if spec_path.exists() {
+        let dir = entry.path();
+        // Single-track (r131): a capability is a directory with exactly one
+        // `.feature`. Legacy `spec.toon` still counts so the resolver can
+        // point at `toon2features` instead of reporting "no such spec".
+        if dir.join(SPEC_FILE).exists() || !discover_features(&dir).is_empty() {
             result.push(name);
         }
     }

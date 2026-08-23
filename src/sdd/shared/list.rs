@@ -1,9 +1,10 @@
 use crate::sdd::project::config::load_required_config;
-use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{discover_changes, list_specs};
 use crate::sdd::shared::tasks;
-use crate::sdd::spec::parser::parse_spec;
-use crate::sdd::spec::validation::{ChangeStage, determine_stage};
+use crate::sdd::spec::backend::FEATURE_BACKEND;
+use crate::sdd::spec::backend::feature_backend::compute_rule_morphology;
+use crate::sdd::spec::validation::{ChangeStage, determine_stage, resolve_spec_file};
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -176,65 +177,26 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     }
 
     let mut specs = Vec::new();
-    let config = load_required_config(&root.join(LLMANSPEC_DIR_NAME)).ok();
-    let resolved_bindings = crate::sdd::spec::bindings::resolve_from_config(root, config.as_ref())?;
-    let lang = config
-        .as_ref()
-        .map(|c| {
-            crate::sdd::spec::validation::locale_to_gherkin_lang(Some(&c.locale), c.bdd.as_ref())
-        })
-        .unwrap_or_else(|| "en".to_string());
-
     for id in spec_ids {
-        let spec_path = specs_dir.join(&id).join(SPEC_FILE);
-        let content = fs::read_to_string(&spec_path)
-            .map_err(|err| anyhow!("failed to read spec {}: {}", spec_path.display(), err))?;
-        let spec =
-            parse_spec(&content, &id).map_err(|err| anyhow!("{}: {}", spec_path.display(), err))?;
-        let count = spec.requirements.len();
-        let purpose = spec.overview.clone();
-
-        // Extract valid_scope from raw TOON content
-        let valid_scope: Vec<String> = content
-            .lines()
-            .find_map(|line| {
-                let line = line.trim();
-                if line.starts_with("valid_scope") || line.starts_with("validScope") {
-                    if let Some(eq_idx) = line.find(':') {
-                        let vals = line[eq_idx + 1..].trim();
-                        Some(
-                            vals.split(',')
-                                .map(|v| v.trim().trim_matches('"').to_string())
-                                .filter(|v| !v.is_empty())
-                                .collect(),
-                        )
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_default();
-
-        let morphology = {
-            use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-            use crate::sdd::spec::partitioned::{compute_morphology, load_spec_harness_files_soft};
-            let mut soft = Vec::new();
-            let harness_pairs =
-                load_spec_harness_files_soft(&specs_dir.join(&id), &lang, &mut soft);
-            let harness: Vec<_> = harness_pairs.iter().map(|(_, sc)| sc.clone()).collect();
-            match BACKEND.parse_main_spec(&content, &format!("spec `{id}`")) {
-                Ok(doc) => {
-                    let mut m = compute_morphology(&doc, &harness);
-                    if let Some(resolved) = &resolved_bindings {
-                        resolved.attach_to_morphology(&id, &harness_pairs, &mut m);
-                    }
-                    Some(m)
-                }
-                Err(_) => None,
+        let content = resolve_spec_file(&specs_dir, &id)
+            .and_then(|p| fs::read_to_string(&p).map_err(|e| anyhow!("{}", e)));
+        let Ok(content) = content else {
+            // Legacy toon / unreadable specs surface via validate; keep listing
+            // resilient by emitting an empty morphology row.
+            specs.push((id, 0, String::new(), Vec::new(), None));
+            continue;
+        };
+        let parsed = match FEATURE_BACKEND.parse_content(&content, &format!("spec `{id}`")) {
+            Ok(parsed) => parsed,
+            Err(_) => {
+                specs.push((id, 0, String::new(), Vec::new(), None));
+                continue;
             }
         };
+        let count = parsed.rule_scenarios().count();
+        let purpose = parsed.purpose.clone();
+        let valid_scope = parsed.valid_scope.clone();
+        let morphology = Some(compute_rule_morphology(&parsed));
 
         specs.push((id, count, purpose, valid_scope, morphology));
     }
@@ -266,18 +228,17 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     for (id, count, _purpose, _scope, morphology) in specs {
         let padded = format!("{:<width$}", id, width = name_width);
         if let Some(m) = morphology {
-            match (m.harness_bound_count, m.harness_unbound_count) {
-                (Some(bound), Some(unbound)) => println!(
-                    "  {}     requirements {}  harness-bound {}  harness-unbound {}  dual-write {}",
-                    padded, count, bound, unbound, m.dual_write_count
-                ),
-                _ => println!(
-                    "  {}     requirements {}  harness {}  dual-write {}",
-                    padded, count, m.harness_scenario_count, m.dual_write_count
-                ),
-            }
+            println!(
+                "  {}     rules {}  enforced {}  manual {}  pending {}  acceptance {}",
+                padded,
+                m.rule_count,
+                m.rule_enforced_count,
+                m.rule_manual_count,
+                m.rule_pending_count,
+                m.acceptance_count
+            );
         } else {
-            println!("  {}     requirements {}", padded, count);
+            println!("  {}     rules {}", padded, count);
         }
     }
 

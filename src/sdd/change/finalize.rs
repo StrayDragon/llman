@@ -242,21 +242,19 @@ mod tests {
         let (tmp, id, base_sha) = setup_repo_with_attached_change("finalize-happy");
         let root = tmp.path();
 
-        // Seed a minimal BDD-on spec so `validate --specs` has something to pass
-        // on. r1 + a non-executable scenario; no .feature (so BDD runner is a
-        // no-op even if accidentally invoked; we also pass --no-check).
+        // Seed a minimal single-track spec so `validate --specs` has something
+        // to pass on. r1 as a @human rule; no runner is invoked (--no-check).
         let sample_dir = root.join("llmanspec/specs/sample");
         fs::create_dir_all(&sample_dir).unwrap();
         fs::write(
-            sample_dir.join("spec.toon"),
-            "kind: llman.sdd.spec\n\
-             name: \"sample\"\n\
-             purpose: \"sample for finalize happy-path test\"\n\
-             valid_scope[1]: \"llmanspec/specs/sample\"\n\
-             requirements[1]{req_id,title,statement}:\n\
-             \x20 r1,R1,\"System MUST do X.\"\n\
-             scenarios[1]{req_id,id,given,when,then,feature}:\n\
-             \x20 r1,happy,constraint note,trigger,outcome,false\n",
+            sample_dir.join("sample.feature"),
+            "# capability: sample\n\
+             # purpose: sample for finalize happy-path test\n\
+             # scope: llmanspec/specs/sample\n\n\
+             Feature: sample\n\n\
+             \x20 @req:r1 @human\n\
+             \x20 Scenario: R1\n\
+             \x20   System MUST do X.\n",
         )
         .unwrap();
         // Commit the spec so the tree isn't carrying untracked files that would
@@ -409,8 +407,8 @@ mod tests {
         let sample_dir = root.join("llmanspec/specs/sample");
         fs::create_dir_all(&sample_dir).unwrap();
         fs::write(
-            sample_dir.join("spec.toon"),
-            "kind: llman.sdd.spec\nname: \"sample\"\npurpose: \"sample\"\nvalid_scope[1]: \"llmanspec/specs/sample\"\nrequirements[1]{req_id,title,statement}:\n  r1,R1,\"System MUST do X.\"\nscenarios[1]{req_id,id,given,when,then,feature}:\n  r1,happy,constraint note,trigger,outcome,false\n",
+            sample_dir.join("sample.feature"),
+            "# capability: sample\n# purpose: sample\n# scope: llmanspec/specs/sample\n\nFeature: sample\n\n  @req:r1 @human\n  Scenario: R1\n    System MUST do X.\n",
         ).unwrap();
         Command::new("git")
             .args(["add", "-A"])

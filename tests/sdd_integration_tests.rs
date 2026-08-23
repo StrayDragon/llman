@@ -57,42 +57,28 @@ fn assert_no_disallowed_prompt_markers(path: &Path, content: &str) {
 }
 
 fn author_sample_spec(work_dir: &Path) {
-    assert_success(&run_llman(
-        &["sdd", "spec", "skeleton", "sample"],
-        work_dir,
-        work_dir,
-    ));
-    assert_success(&run_llman(
-        &[
-            "sdd",
-            "spec",
-            "add-requirement",
-            "sample",
-            "r1",
-            "--title",
-            "R1",
-            "--statement",
-            "System MUST support R1.",
-        ],
-        work_dir,
-        work_dir,
-    ));
-    assert_success(&run_llman(
-        &[
-            "sdd",
-            "spec",
-            "add-scenario",
-            "sample",
-            "r1",
-            "happy",
-            "--when",
-            "a trigger happens",
-            "--then",
-            "the outcome is observed",
-        ],
-        work_dir,
-        work_dir,
-    ));
+    // Single-track (r131): one `.feature` carrying rule r1 + acceptance.
+    let sample_dir = work_dir.join("llmanspec").join("specs").join("sample");
+    std::fs::create_dir_all(&sample_dir).expect("mkdir sample");
+    let feature = concat!(
+        "# language: en\n",
+        "# capability: sample\n",
+        "# purpose: sample behaviors\n",
+        "# scope: src/\n",
+        "\n",
+        "Feature: sample\n",
+        "\n",
+        "  @req:r1 @human\n",
+        "  Scenario: R1\n",
+        "    System MUST support R1.\n",
+        "\n",
+        "  @req:r1 @executable\n",
+        "  Scenario: happy\n",
+        "    Given a state\n",
+        "    When a trigger happens\n",
+        "    Then behavior is preserved\n",
+    );
+    fs::write(sample_dir.join("sample.feature"), feature).expect("write feature");
 }
 
 fn author_sample_change(work_dir: &Path, change_id: &str) {
@@ -185,8 +171,24 @@ fn test_sdd_show_validate_archive_flow() {
     let llmanspec_dir = work_dir.join("llmanspec");
     let spec_dir = llmanspec_dir.join("specs").join("sample");
     fs::create_dir_all(&spec_dir).expect("create spec dir");
-    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nrequirements[1]{req_id,title,statement}:\n  existing,Existing behavior,System MUST preserve existing behavior.\nscenarios[1]{req_id,id,given,when,then}:\n  existing,baseline,,running the sample,behavior is preserved\n";
-    fs::write(spec_dir.join("spec.toon"), spec_content).expect("write spec");
+    let feature_content = concat!(
+        "# language: en\n",
+        "# capability: sample\n",
+        "# purpose: Describe sample behavior.\n",
+        "# scope: src\n",
+        "\n",
+        "Feature: sample\n",
+        "\n",
+        "  @req:r9 @human\n",
+        "  Scenario: Existing behavior\n",
+        "    System MUST preserve existing behavior.\n",
+        "\n",
+        "  @req:r9 @executable\n",
+        "  Scenario: baseline\n",
+        "    When running the sample\n",
+        "    Then behavior is preserved\n",
+    );
+    fs::write(spec_dir.join("sample.feature"), feature_content).expect("write spec");
 
     let change_dir = llmanspec_dir.join("changes").join("add-sample");
     fs::create_dir_all(&change_dir).expect("create change dir");
@@ -261,15 +263,16 @@ Need a sample change.
     let archive_name = entries[0].file_name().to_string_lossy().to_string();
     assert!(archive_name.ends_with("-add-sample"));
 
-    let updated_spec = fs::read_to_string(spec_dir.join("spec.toon")).expect("read updated spec");
-    // Unified flow: archive does docs rename + ff-merge, no TOON delta merge (r113).
-    assert!(updated_spec.contains("requirements["));
-    assert!(updated_spec.contains("existing"));
+    let updated_spec =
+        fs::read_to_string(spec_dir.join("sample.feature")).expect("read feature after archive");
+    // Unified flow: archive does docs rename + ff-merge; the single-track
+    // feature is untouched by a docs-only archive (r113).
+    assert!(updated_spec.contains("@req:r9 @human"));
     assert!(updated_spec.contains("Existing behavior"));
 }
 
 #[test]
-fn test_sdd_archive_flow_works_in_toon_project() {
+fn test_sdd_archive_flow_works_in_single_track_project() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
 
@@ -284,7 +287,7 @@ fn test_sdd_archive_flow_works_in_toon_project() {
 
     // Seed change docs (no change/specs delta — unified Git-native).
     author_sample_change(work_dir, "add-sample");
-    git_commit_all(work_dir, "seed toon spec and change");
+    git_commit_all(work_dir, "seed single-track spec and change");
 
     let validate_spec = run_llman(
         &[
@@ -310,67 +313,16 @@ fn test_sdd_archive_flow_works_in_toon_project() {
     );
     assert_success(&archive_output);
 
-    // Unified flow: archive does ff-merge + docs rename, no TOON delta merge (r113).
-    let updated = fs::read_to_string(work_dir.join("llmanspec/specs/sample/spec.toon"))
-        .expect("read updated spec");
-    assert!(updated.contains("valid_scope"));
-    assert!(updated.contains("r1"));
+    // Unified flow: archive does ff-merge + docs rename (r113); the
+    // single-track feature is untouched by docs-only archive.
+    let updated = fs::read_to_string(work_dir.join("llmanspec/specs/sample/sample.feature"))
+        .expect("read feature after archive");
+    assert!(updated.contains("# capability: sample"));
+    assert!(updated.contains("@req:r1 @human"));
     assert!(
         !work_dir.join("llmanspec/changes/add-sample").exists(),
         "active change dir must be moved"
     );
-}
-
-#[test]
-fn test_sdd_single_toon_block_show_and_validate_spec() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    let init_output = run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&init_output);
-
-    let llmanspec_dir = work_dir.join("llmanspec");
-    let spec_dir = llmanspec_dir.join("specs").join("sample");
-    fs::create_dir_all(&spec_dir).expect("create spec dir");
-    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nrequirements[1]{req_id,title,statement}:\n  r1,First requirement,System MUST do the first thing.\nscenarios[1]{req_id,id,given,when,then}:\n  r1,s1,,doing the first thing,it works\n";
-    fs::write(spec_dir.join("spec.toon"), spec_content).expect("write spec");
-
-    git_commit_all(work_dir, "add toon spec");
-
-    let show_output = run_llman(
-        &[
-            "sdd", "show", "sample", "--type", "spec", "--output", "json",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&show_output);
-    let show_json: Value = serde_json::from_slice(&show_output.stdout).expect("show spec json");
-    assert_eq!(show_json["id"], "sample");
-    assert_eq!(show_json["requirementCount"], 1);
-
-    let validate_output = run_llman(
-        &[
-            "sdd",
-            "validate",
-            "sample",
-            "--type",
-            "spec",
-            "--strict",
-            "--no-interactive",
-            "--json",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&validate_output);
-    let validate_json: Value =
-        serde_json::from_slice(&validate_output.stdout).expect("validate json");
-    assert_eq!(validate_json["items"][0]["valid"], true);
 }
 
 #[test]
@@ -388,8 +340,31 @@ fn test_sdd_given_mapping_to_raw_text_is_deterministic() {
     let llmanspec_dir = work_dir.join("llmanspec");
     let spec_dir = llmanspec_dir.join("specs").join("sample");
     fs::create_dir_all(&spec_dir).expect("create spec dir");
-    let spec_content = "kind: llman.sdd.spec\nname: sample\npurpose: \"Describe sample behavior.\"\nvalid_scope[1]: src\nrequirements[1]{req_id,title,statement}:\n  r1,First requirement,System MUST do the first thing.\nscenarios[2]{req_id,id,given,when,then}:\n  r1,s1,,run the flow,it works\n  r1,s2,user exists,run the flow,it works\n";
-    fs::write(spec_dir.join("spec.toon"), spec_content).expect("write spec");
+    // Single-track (r131): acceptance scenarios carry GWT; s1 has no Given.
+    let feature_content = concat!(
+        "# language: en\n",
+        "# capability: sample\n",
+        "# purpose: Describe sample behavior.\n",
+        "# scope: src\n",
+        "\n",
+        "Feature: sample\n",
+        "\n",
+        "  @req:r1 @human\n",
+        "  Scenario: First requirement\n",
+        "    System MUST do the first thing.\n",
+        "\n",
+        "  @req:r1 @executable\n",
+        "  Scenario: s1\n",
+        "    When run the flow\n",
+        "    Then it works\n",
+        "\n",
+        "  @req:r1 @executable\n",
+        "  Scenario: s2\n",
+        "    Given user exists\n",
+        "    When run the flow\n",
+        "    Then it works\n",
+    );
+    fs::write(spec_dir.join("sample.feature"), feature_content).expect("write spec");
 
     let show_output = run_llman(
         &[
@@ -406,7 +381,7 @@ fn test_sdd_given_mapping_to_raw_text_is_deterministic() {
         .expect("scenarios array");
     let raw_1 = scenarios[0]["rawText"].as_str().expect("rawText 1");
     let raw_2 = scenarios[1]["rawText"].as_str().expect("rawText 2");
-    assert_eq!(raw_1, "WHEN: run the flow\nTHEN: it works");
+    assert_eq!(raw_1, "GIVEN: \nWHEN: run the flow\nTHEN: it works");
     assert_eq!(
         raw_2,
         "GIVEN: user exists\nWHEN: run the flow\nTHEN: it works"
@@ -429,13 +404,14 @@ fn test_sdd_authoring_helpers_produce_strict_valid_spec_and_change() {
     let spec_skel = run_llman(&["sdd", "spec", "skeleton", "sample"], work_dir, work_dir);
     assert_success(&spec_skel);
 
+    // Skeleton seeds a placeholder rule occupying r1; the next free id is r2.
     let add_req = run_llman(
         &[
             "sdd",
             "spec",
             "add-requirement",
             "sample",
-            "r1",
+            "r2",
             "--title",
             "First requirement",
             "--statement",
@@ -452,7 +428,7 @@ fn test_sdd_authoring_helpers_produce_strict_valid_spec_and_change() {
             "spec",
             "add-scenario",
             "sample",
-            "r1",
+            "r2",
             "s2",
             "--when",
             "running the flow",
@@ -1562,70 +1538,63 @@ fn setup_spec_with_feature(work_dir: &Path) {
         work_dir,
         work_dir,
     ));
-    assert_success(&run_llman(
-        &["sdd", "spec", "skeleton", "sample"],
-        work_dir,
-        work_dir,
-    ));
-    assert_success(&run_llman(
-        &[
-            "sdd",
-            "spec",
-            "add-requirement",
-            "sample",
-            "r1",
-            "--title",
-            "R1",
-            "--statement",
-            "System MUST support R1.",
-        ],
-        work_dir,
-        work_dir,
-    ));
-    let feature_path = work_dir
-        .join("llmanspec")
-        .join("specs")
-        .join("sample")
-        .join("sample.feature");
-    fs::write(feature_path, SAMPLE_FEATURE_WITH_TAGS).expect("write feature");
+    // Single-track (r131): one `.feature` with a @human rule + acceptance.
+    let sample_dir = work_dir.join("llmanspec").join("specs").join("sample");
+    std::fs::create_dir_all(&sample_dir).expect("mkdir sample");
+    let feature = concat!(
+        "# language: en\n",
+        "# capability: sample\n",
+        "# purpose: sample\n",
+        "# scope: llmanspec/specs/sample\n",
+        "\n",
+        "Feature: sample\n",
+        "\n",
+        "  @req:r1 @human\n",
+        "  Scenario: R1\n",
+        "    System MUST support R1.\n",
+        "\n",
+        "  @req:r1 @executable\n",
+        "  Scenario: tagged-happy\n",
+        "    Given a\n",
+        "    When b\n",
+        "    Then c\n",
+        "\n",
+        "  @executable\n",
+        "  Scenario: orphan-scenario\n",
+        "    Given x\n",
+        "    When y\n",
+        "    Then z\n",
+    );
+    fs::write(sample_dir.join("sample.feature"), feature).expect("write feature");
 }
 
 #[test]
-fn test_list_specs_splits_harness_bound_unbound_when_bindings_declared() {
+fn test_list_specs_reports_rule_tiers() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
     setup_spec_with_feature(work_dir);
 
-    fs::write(
-        work_dir.join("llmanspec").join("config.yaml"),
-        config_with_bindings("  bindings:\n    - kind: tags\n      tags: [executable]\n"),
-    )
-    .expect("write config");
-
-    // Text output splits into bound/unbound summing to the scenario total.
+    // Text output carries the three-tier rule morphology (r134).
     let list_output = run_llman(&["sdd", "list", "--specs"], work_dir, work_dir);
     assert_success(&list_output);
     let stdout = String::from_utf8_lossy(&list_output.stdout);
     assert!(
-        stdout.contains("harness-bound 1") && stdout.contains("harness-unbound 1"),
-        "expected split counts in list output; got:\n{stdout}"
-    );
-    assert!(
-        !stdout.contains(" harness 2 "),
-        "legacy single count must be replaced when bindings are declared; got:\n{stdout}"
+        stdout.contains("rules 1") && stdout.contains("enforced 1") && stdout.contains("pending 0"),
+        "expected tier counts in list output; got:\n{stdout}"
     );
 
-    // JSON morphology carries numeric bound/unbound keys.
+    // JSON morphology carries camelCase rule-tier keys.
     let json_output = run_llman(&["sdd", "list", "--specs", "--json"], work_dir, work_dir);
     assert_success(&json_output);
     let parsed: Value =
         serde_json::from_str(String::from_utf8_lossy(&json_output.stdout).trim()).expect("json");
     let morphology = &parsed[0]["morphology"];
-    assert_eq!(morphology["harnessScenarioCount"], 2);
-    assert_eq!(morphology["harnessBoundCount"], 1);
-    assert_eq!(morphology["harnessUnboundCount"], 1);
+    assert_eq!(morphology["ruleCount"], 1);
+    assert_eq!(morphology["ruleEnforcedCount"], 1);
+    assert_eq!(morphology["acceptanceCount"], 2);
+    assert_eq!(morphology["orphanAcceptanceCount"], 1);
 
-    // show syncs the same criterion on its Morphology line.
+    // show prints the same tiers.
     let show_output = run_llman(
         &["sdd", "show", "sample", "--type", "spec"],
         work_dir,
@@ -1634,53 +1603,7 @@ fn test_list_specs_splits_harness_bound_unbound_when_bindings_declared() {
     assert_success(&show_output);
     let show_stdout = String::from_utf8_lossy(&show_output.stdout);
     assert!(
-        show_stdout.contains("harnessBoundCount=1")
-            && show_stdout.contains("harnessUnboundCount=1"),
-        "show Morphology line must split too; got:\n{show_stdout}"
+        show_stdout.contains("ruleCount=1") && show_stdout.contains("enforced=1"),
+        "show Morphology line must carry rule tiers; got:\n{show_stdout}"
     );
-}
-
-#[test]
-fn test_list_specs_keeps_legacy_harness_output_without_bindings() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-    setup_spec_with_feature(work_dir);
-
-    // BDD-on but no bindings declared: legacy single count + null JSON keys.
-    fs::write(
-        work_dir.join("llmanspec").join("config.yaml"),
-        config_with_bindings(""),
-    )
-    .expect("write config");
-
-    let list_output = run_llman(&["sdd", "list", "--specs"], work_dir, work_dir);
-    assert_success(&list_output);
-    let stdout = String::from_utf8_lossy(&list_output.stdout);
-    assert!(
-        stdout.contains("harness 2"),
-        "legacy single harness count must stay without bindings; got:\n{stdout}"
-    );
-    assert!(
-        !stdout.contains("harness-bound"),
-        "split columns must not appear without declared bindings; got:\n{stdout}"
-    );
-
-    let json_output = run_llman(&["sdd", "list", "--specs", "--json"], work_dir, work_dir);
-    assert_success(&json_output);
-    let parsed: Value =
-        serde_json::from_str(String::from_utf8_lossy(&json_output.stdout).trim()).expect("json");
-    let morphology = &parsed[0]["morphology"];
-    assert_eq!(morphology["harnessScenarioCount"], 2);
-    assert!(
-        morphology["harnessBoundCount"].is_null(),
-        "undeclared bindings must serialize null bound key"
-    );
-    assert!(
-        morphology["harnessUnboundCount"].is_null(),
-        "undeclared bindings must serialize null unbound key"
-    );
-    // Legacy r39 keys stay intact for existing consumers.
-    assert!(morphology["constraintsReqCount"].is_number());
-    assert!(morphology["reqLinkCoverage"].is_number());
-    assert!(morphology["dualWriteCount"].is_number());
 }
