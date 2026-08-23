@@ -31,3 +31,24 @@
     当 运行 llman sdd show errors-exit --type spec
     那么 stdout 包含 Constraints
     而且 stdout 包含 Harness
+
+  # r2/r3（harness bound 可声明口径）：fixture 需改写 config.yaml 并造带标签 .feature，
+  # 保持 fast mode 文档场景；实际断言由单元/集成测试覆盖同一 CLI 边界。
+
+  @req:r2
+  场景: bdd.bindings 声明绑定源
+    假如 项目在 config.yaml 的 bdd 段声明 bindings 源
+    当 绑定解析器计算各 capability 的 bound 集
+    那么 多源结果取并集去重且 specs 目录外的 feature 路径被忽略
+
+  @req:r3
+  场景: 未声明绑定源时输出保持现口径
+    假如 项目未声明 bdd.bindings
+    当 运行 llman sdd list --specs
+    那么 文本保持 harness 单计数且 JSON 中 harnessBoundCount 与 harnessUnboundCount 为 null
+
+  @req:r3
+  场景: 声明绑定源后 harness 拆分为 bound 与 unbound
+    假如 项目声明了至少一个 bdd.bindings 源
+    当 运行 llman sdd list --specs
+    那么 文本含 harness-bound 与 harness-unbound 且两者之和等于场景总数
