@@ -147,6 +147,48 @@ pub struct BddConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(description = "Extra prompt text injected during verify phase.")]
     pub verify_prompt: Option<String>,
+
+    /// Declared harness-binding sources (r2): how llman decides which
+    /// `.feature` scenarios are actually bound/executed by the consumer.
+    /// When absent, the legacy count-all harness criterion stays in effect.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Declared harness-binding sources (r2). kind=tags: a scenario is bound when its tags contain all listed tags; kind=scenario-attrs: extract path/name literal pairs from #[scenario(...)] attribute blocks in glob-matched Rust files. Multiple sources union with dedup."
+    )]
+    pub bindings: Option<Vec<BindingSource>>,
+}
+
+/// One harness-binding source declaration (`bdd.bindings[]`, r2).
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(tag = "kind")]
+pub enum BindingSource {
+    /// Tag predicate source: a `.feature` scenario is bound when its tags
+    /// contain ALL listed tags (`@` prefix optional).
+    #[serde(rename = "tags")]
+    Tags {
+        /// Required tag names; MUST NOT be empty.
+        #[serde(default)]
+        #[schemars(
+            length(min = 1),
+            description = "Required tag names (leading '@' optional). MUST NOT be empty."
+        )]
+        tags: Vec<String>,
+    },
+    /// Per-scenario attribute source: extract `path = "..."` / `name = "..."`
+    /// literal pairs from `#[scenario( ... )]` attribute blocks inside files
+    /// matching the given globs (repo-root relative). Feature paths outside
+    /// `llmanspec/specs/**` are ignored.
+    #[serde(rename = "scenario-attrs")]
+    ScenarioAttrs {
+        /// Glob patterns of Rust sources to scan; MUST NOT be empty.
+        #[serde(default)]
+        #[schemars(
+            length(min = 1),
+            description = "Glob patterns (repo-root relative) of Rust source files to scan for #[scenario(path=..., name=...)] attributes. MUST NOT be empty."
+        )]
+        files: Vec<String>,
+    },
 }
 
 impl BddConfig {
@@ -467,6 +509,101 @@ mod tests {
         fs::write(&path, content).expect("write config");
         let result = load_config(llmanspec_dir);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn bindings_deserialize_tags_and_scenario_attrs() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        let path = config_path(llmanspec_dir);
+        let content = "\
+schema: spec-driven
+bdd:
+  run_command: \"cargo test --features bdd\"
+  bindings:
+    - kind: tags
+      tags: [executable]
+    - kind: scenario-attrs
+      files: [\"tests/bdd/bindings_*.rs\"]
+";
+        fs::write(&path, content).expect("write config");
+        let config = load_config(llmanspec_dir).expect("load").expect("config");
+        let bdd = config.bdd.expect("bdd");
+        let bindings = bdd.bindings.expect("bindings");
+        assert_eq!(bindings.len(), 2);
+        assert_eq!(
+            bindings[0],
+            BindingSource::Tags {
+                tags: vec!["executable".to_string()]
+            }
+        );
+        assert_eq!(
+            bindings[1],
+            BindingSource::ScenarioAttrs {
+                files: vec!["tests/bdd/bindings_*.rs".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn bindings_absent_is_none() {
+        let config: SddConfig = serde_yaml::from_str("schema: spec-driven\n").expect("parse");
+        assert!(config.bdd.is_none() || config.bdd.as_ref().unwrap().bindings.is_none());
+    }
+
+    #[test]
+    fn bindings_reject_unknown_kind() {
+        let result = serde_yaml::from_str::<SddConfig>(
+            "\
+schema: spec-driven
+bdd:
+  bindings:
+    - kind: magic
+",
+        );
+        assert!(result.is_err(), "unknown kind must fail deserialization");
+    }
+
+    #[test]
+    fn bindings_reject_empty_tags_via_schema() {
+        // Empty `tags` violates the schemars length(min=1) constraint that the
+        // runtime YAML schema validation enforces (config-schemas r73).
+        let yaml: serde_yaml::Value = serde_yaml::from_str(
+            "\
+schema: spec-driven
+bdd:
+  bindings:
+    - kind: tags
+      tags: []
+",
+        )
+        .expect("yaml");
+        let err = crate::config_schema::validate_yaml_value(
+            crate::config_schema::ConfigSchemaKind::Llmanspec,
+            &yaml,
+        )
+        .expect_err("empty tags must fail schema validation");
+        assert!(err.contains("tags"), "got: {err}");
+    }
+
+    #[test]
+    fn bindings_reject_empty_files_via_schema() {
+        let yaml: serde_yaml::Value = serde_yaml::from_str(
+            "\
+schema: spec-driven
+bdd:
+  bindings:
+    - kind: scenario-attrs
+      files: []
+",
+        )
+        .expect("yaml");
+        let err = crate::config_schema::validate_yaml_value(
+            crate::config_schema::ConfigSchemaKind::Llmanspec,
+            &yaml,
+        )
+        .expect_err("empty files must fail schema validation");
+        assert!(err.contains("files"), "got: {err}");
     }
 
     #[test]

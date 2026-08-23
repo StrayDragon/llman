@@ -8,3 +8,8 @@ locale: zh-Hans
 # 无 {feature_*} 占位符：validate --all/--specs 对该命令 batch-once（整批至多一次）。
 bdd:
   run_command: "cargo test --features bdd"
+  # harness bound 口径：带 @executable 标签的场景才会被 tests/bdd_steps.rs 的
+  # scenarios! 宏展开为测试；list --specs / show 据此拆分 bound/unbound 计数。
+  bindings:
+    - kind: tags
+      tags: [executable]

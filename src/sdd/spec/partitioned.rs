@@ -29,6 +29,13 @@ pub struct Morphology {
     pub constraints_req_count: usize,
     pub non_executable_scenario_count: usize,
     pub harness_scenario_count: usize,
+    /// Scenarios bound by declared `bdd.bindings` sources (r2/r3).
+    /// `None` while no sources are declared — the split stays inactive and
+    /// legacy output is preserved.
+    pub harness_bound_count: Option<usize>,
+    /// `harness_scenario_count - harness_bound_count`; `None` together with
+    /// [`Morphology::harness_bound_count`].
+    pub harness_unbound_count: Option<usize>,
     pub req_link_coverage: f64,
     pub dual_write_count: usize,
 }
@@ -129,10 +136,33 @@ pub fn load_spec_harness_soft(
     lang: &str,
     issues: &mut Vec<ValidationIssue>,
 ) -> Vec<FeatureScenario> {
+    load_spec_harness_files_soft(spec_dir, lang, issues)
+        .into_iter()
+        .map(|(_, sc)| sc)
+        .collect()
+}
+
+/// Like [`load_spec_harness_soft`], but keeps which feature file each scenario
+/// came from (path relative to `spec_dir`, `/`-separated). Used by the
+/// `bdd.bindings` bound/unbound split (r2/r3).
+pub fn load_spec_harness_files_soft(
+    spec_dir: &Path,
+    lang: &str,
+    issues: &mut Vec<ValidationIssue>,
+) -> Vec<(String, FeatureScenario)> {
     let mut all = Vec::new();
     for path in discover_features(spec_dir) {
         match parse_feature_scenarios(&path, lang) {
-            Ok(mut scs) => all.append(&mut scs),
+            Ok(scs) => {
+                let rel = path
+                    .strip_prefix(spec_dir)
+                    .unwrap_or(path.as_path())
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                for sc in scs {
+                    all.push((rel.clone(), sc));
+                }
+            }
             Err(e) => {
                 issues.push(ValidationIssue {
                     level: ValidationLevel::Warning,
@@ -205,6 +235,8 @@ pub fn compute_morphology(doc: &MainSpecDoc, harness: &[FeatureScenario]) -> Mor
         constraints_req_count,
         non_executable_scenario_count,
         harness_scenario_count,
+        harness_bound_count: None,
+        harness_unbound_count: None,
         req_link_coverage,
         dual_write_count: dual,
     }
@@ -303,6 +335,42 @@ mod tests {
     fn parses_req_tags() {
         let tags = vec!["@req:ar1".into(), "smoke".into(), "req:ar2".into()];
         assert_eq!(req_ids_from_tags(&tags), vec!["ar1", "ar2"]);
+    }
+
+    #[test]
+    fn morphology_serializes_bound_keys_as_null_when_inactive() {
+        // r3: keys always exist; null while no bdd.bindings sources declared.
+        let doc = MainSpecDoc {
+            kind: "llman.sdd.spec".into(),
+            name: "sample".into(),
+            purpose: "p".into(),
+            valid_scope: vec![],
+            requirements: vec![],
+            scenarios: vec![],
+        };
+        let m = compute_morphology(&doc, &[]);
+        let json = serde_json::to_value(&m).unwrap();
+        assert!(json["harnessBoundCount"].is_null());
+        assert!(json["harnessUnboundCount"].is_null());
+        assert_eq!(json["harnessScenarioCount"], 0);
+    }
+
+    #[test]
+    fn morphology_serializes_bound_keys_as_numbers_when_active() {
+        let doc = MainSpecDoc {
+            kind: "llman.sdd.spec".into(),
+            name: "sample".into(),
+            purpose: "p".into(),
+            valid_scope: vec![],
+            requirements: vec![],
+            scenarios: vec![],
+        };
+        let mut m = compute_morphology(&doc, &[]);
+        m.harness_bound_count = Some(3);
+        m.harness_unbound_count = Some(4);
+        let json = serde_json::to_value(&m).unwrap();
+        assert_eq!(json["harnessBoundCount"], 3);
+        assert_eq!(json["harnessUnboundCount"], 4);
     }
 
     #[test]

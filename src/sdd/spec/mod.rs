@@ -1,4 +1,5 @@
 pub mod backend;
+pub mod bindings;
 pub mod frontmatter;
 pub mod ir;
 pub mod parser;

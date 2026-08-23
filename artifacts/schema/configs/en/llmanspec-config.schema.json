@@ -86,6 +86,62 @@
             "string",
             "null"
           ]
+        },
+        "bindings": {
+          "description": "Declared harness-binding sources (r2). kind=tags: a scenario is bound when its tags contain all listed tags; kind=scenario-attrs: extract path/name literal pairs from #[scenario(...)] attribute blocks in glob-matched Rust files. Multiple sources union with dedup.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "description": "One harness-binding source declaration (`bdd.bindings[]`, r2).",
+            "oneOf": [
+              {
+                "description": "Tag predicate source: a `.feature` scenario is bound when its tags\ncontain ALL listed tags (`@` prefix optional).",
+                "type": "object",
+                "properties": {
+                  "tags": {
+                    "description": "Required tag names (leading '@' optional). MUST NOT be empty.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "default": []
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "tags"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "description": "Per-scenario attribute source: extract `path = \"...\"` / `name = \"...\"`\nliteral pairs from `#[scenario( ... )]` attribute blocks inside files\nmatching the given globs (repo-root relative). Feature paths outside\n`llmanspec/specs/**` are ignored.",
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "description": "Glob patterns (repo-root relative) of Rust source files to scan for #[scenario(path=..., name=...)] attributes. MUST NOT be empty.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "default": []
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "scenario-attrs"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            ]
+          }
         }
       }
     },

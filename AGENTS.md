@@ -201,16 +201,19 @@ BFD-on（`bdd:` 段存在）时 `.feature` harness 为 SSOT：
 - **fast mode（默认）**：`llman sdd validate <spec> --strict` 做 Gherkin + Partitioned 链接/双写门禁，
   不执行 runner（可用项目约定；本仓常用 `--no-check` 跳过 runner）。
 - **full mode（执行验证）**：`llman sdd validate <spec> --check` 或 `cargo test --features bdd`
-  实际运行 step 绑定。full mode 需要在 `tests/bdd_steps.rs` 中有对应的 `#[scenario]` 绑定 +
-  可匹配的 step 定义。
+  实际运行 step 绑定。full mode 需要有可匹配的 step 定义。
 - **泛化 step 库**：`tests/bdd_steps.rs` 提供一组可复用的「运行 llman → 断言输出」step
   （如 `当 运行 llman {args}`、`那么 退出码为 {code:i32}`、`那么 stderr 包含 {text}`）。
   新增可执行场景时优先复用这些泛化 step；仅在确实需要新断言模式时才添加新 step 定义。
 - **判定一个 spec 是否可启用 full mode**：该 spec 的 feature 触发步骤应能由 CLI 子进程驱动
   （即 `假如`/`当` 步骤实际调用 `llman` 命令，而非描述内部状态如「管理器扫描」）。
   描述内部行为的 feature（约占全库 86%）不适合 full mode，保持 fast mode 即可。
-- **新增 scenario 绑定**：在 `tests/bdd_steps.rs` 底部用 `#[scenario(path=..., name=...)]`
-  绑定；`name` 必须与 `.feature` 中 `场景:` 标题**精确匹配**（字节级，含中文）。
+- **scenario 绑定机制**：本仓用 `tests/bdd_steps.rs` 底部的
+  `scenarios!("llmanspec/specs", tags = "@executable")` **目录发现宏**——编译期扫描 specs 下全部
+  `.feature`，仅展开带 `@executable` 标签的场景（无需逐场景写 `#[scenario(path, name)]`；
+  该形态是 rstest-bdd 的另一种用法，下游项目在用）。`list --specs`/`show` 的 harness
+  bound/unbound 拆分口径由 `llmanspec/config.yaml` 的 `bdd.bindings` 声明（本仓配 `kind: tags`
+  + `[executable]`），未声明则保持单一 harness 计数。
 - rstest-bdd **不支持正则**（字面文本经 `regex::escape` 全锚定 `^...$`）；泛化靠 `{name}`
   /`{name:type}` 占位符实现，「包含」语义在 step 函数体内用 Rust 子串断言表达。
 - **占位符引号陷阱**：`.feature` 里写 `bdd 配置为 "on"` 时，rstest-bdd 会把引号也捕获进
@@ -219,7 +222,7 @@ BFD-on（`bdd:` 段存在）时 `.feature` harness 为 SSOT：
 ## BDD 模式兼容性测试维护规则
 
 `llmanspec/specs/sdd-bdd-mode-compat/` 承载 BDD on/off 切换的行为合约（合约层，
-`*.feature` + `tests/bdd_steps.rs` 的 `#[scenario]` 绑定）；`tests/sdd_bdd_compat_tests.rs`
+`*.feature`，经 `tests/bdd_steps.rs` 的 `scenarios!` 目录发现绑定）；`tests/sdd_bdd_compat_tests.rs`
 承载实现细节层（init 结构、serde 向后兼容、13 子命令 smoke）。当 llman sdd 流程变动时，
 以下变更**必须**同步适配这些测试：
 

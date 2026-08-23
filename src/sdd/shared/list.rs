@@ -177,6 +177,7 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
 
     let mut specs = Vec::new();
     let config = load_required_config(&root.join(LLMANSPEC_DIR_NAME)).ok();
+    let resolved_bindings = crate::sdd::spec::bindings::resolve_from_config(root, config.as_ref())?;
     let lang = config
         .as_ref()
         .map(|c| {
@@ -218,11 +219,21 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
 
         let morphology = {
             use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-            use crate::sdd::spec::partitioned::{compute_morphology, load_spec_harness_soft};
+            use crate::sdd::spec::partitioned::{compute_morphology, load_spec_harness_files_soft};
             let mut soft = Vec::new();
-            let harness = load_spec_harness_soft(&specs_dir.join(&id), &lang, &mut soft);
+            let harness_pairs =
+                load_spec_harness_files_soft(&specs_dir.join(&id), &lang, &mut soft);
+            let harness: Vec<_> = harness_pairs.iter().map(|(_, sc)| sc.clone()).collect();
             match BACKEND.parse_main_spec(&content, &format!("spec `{id}`")) {
-                Ok(doc) => Some(compute_morphology(&doc, &harness)),
+                Ok(doc) => {
+                    let mut m = compute_morphology(&doc, &harness);
+                    if let Some(resolved) = &resolved_bindings {
+                        let bound = resolved.count_bound(&id, &harness_pairs);
+                        m.harness_bound_count = Some(bound);
+                        m.harness_unbound_count = Some(m.harness_scenario_count - bound);
+                    }
+                    Some(m)
+                }
                 Err(_) => None,
             }
         };
@@ -257,10 +268,16 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
     for (id, count, _purpose, _scope, morphology) in specs {
         let padded = format!("{:<width$}", id, width = name_width);
         if let Some(m) = morphology {
-            println!(
-                "  {}     requirements {}  harness {}  dual-write {}",
-                padded, count, m.harness_scenario_count, m.dual_write_count
-            );
+            match (m.harness_bound_count, m.harness_unbound_count) {
+                (Some(bound), Some(unbound)) => println!(
+                    "  {}     requirements {}  harness-bound {}  harness-unbound {}  dual-write {}",
+                    padded, count, bound, unbound, m.dual_write_count
+                ),
+                _ => println!(
+                    "  {}     requirements {}  harness {}  dual-write {}",
+                    padded, count, m.harness_scenario_count, m.dual_write_count
+                ),
+            }
         } else {
             println!("  {}     requirements {}", padded, count);
         }
