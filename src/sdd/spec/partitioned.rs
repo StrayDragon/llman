@@ -154,11 +154,17 @@ pub fn load_spec_harness_files_soft(
     for path in discover_features(spec_dir) {
         match parse_feature_scenarios(&path, lang) {
             Ok(scs) => {
+                // discover_features is non-recursive (*.feature directly in
+                // spec_dir), so the relative name is exactly the file name.
+                // Deriving it via strip_prefix(spec_dir) breaks when root is
+                // relative ("./…"): glob yields normalized paths without the
+                // leading "." component, the prefix no longer matches, and
+                // the fallback leaks a full path that can never equal the
+                // binding triples' bare file names (bound counts all zero).
                 let rel = path
-                    .strip_prefix(spec_dir)
-                    .unwrap_or(path.as_path())
-                    .to_string_lossy()
-                    .replace('\\', "/");
+                    .file_name()
+                    .map(|n| n.to_string_lossy().replace('\\', "/"))
+                    .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"));
                 for sc in scs {
                     all.push((rel.clone(), sc));
                 }
@@ -330,6 +336,40 @@ pub fn split_executable_from_toon(doc: &mut MainSpecDoc) -> Vec<ScenarioEntry> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Regression (harness-bound-declarable-split follow-up): when the CLI
+    /// passes a RELATIVE spec_dir ("./…", root = "."), glob yields paths
+    /// normalized without the leading "." component, so strip_prefix failed
+    /// and the fallback leaked full paths — binding triples (bare file
+    /// names) never matched and every capability reported bound=0.
+    #[test]
+    fn harness_rel_is_bare_file_name_even_for_relative_spec_dir() {
+        // Tempdir helpers canonicalize, so build a genuinely RELATIVE spec
+        // dir ("./…", exactly like the CLI's root = "." shape) by hand.
+        // RAII guard keeps the repo root clean even if an assert panics.
+        struct Cleanup(std::path::PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let unique = format!("harness-rel-test-{}", std::process::id());
+        let cap_rel = format!("./{unique}/cap");
+        let _cleanup = Cleanup(std::path::PathBuf::from(format!("./{unique}")));
+        let cap_dir = std::path::PathBuf::from(&cap_rel);
+        fs::create_dir_all(&cap_dir).unwrap();
+        fs::write(
+            cap_dir.join("a.feature"),
+            "Feature: a\n  Scenario: s1\n    Given x\n",
+        )
+        .unwrap();
+
+        let issues = &mut Vec::new();
+        let pairs = load_spec_harness_files_soft(Path::new(&cap_rel), "en", issues);
+        assert!(issues.is_empty());
+        let files: Vec<_> = pairs.iter().map(|(f, _)| f.clone()).collect();
+        assert_eq!(files, vec!["a.feature"]);
+    }
 
     #[test]
     fn parses_req_tags() {
