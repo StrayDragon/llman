@@ -312,9 +312,7 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
             .map(|doc| {
                 let mut m = compute_morphology(&doc, &harness);
                 if let Some(resolved) = &resolved_bindings {
-                    let bound = resolved.count_bound(spec_id, &harness_pairs);
-                    m.harness_bound_count = Some(bound);
-                    m.harness_unbound_count = Some(m.harness_scenario_count - bound);
+                    resolved.attach_to_morphology(spec_id, &harness_pairs, &mut m);
                 }
                 m
             })

@@ -547,8 +547,17 @@ bdd:
 
     #[test]
     fn bindings_absent_is_none() {
-        let config: SddConfig = serde_yaml::from_str("schema: spec-driven\n").expect("parse");
-        assert!(config.bdd.is_none() || config.bdd.as_ref().unwrap().bindings.is_none());
+        // Pin the serde(default) behavior: bdd present, bindings omitted.
+        let config: SddConfig = serde_yaml::from_str(
+            "\
+schema: spec-driven
+bdd:
+  run_command: \"cargo test --features bdd\"
+",
+        )
+        .expect("parse");
+        let bdd = config.bdd.expect("bdd block");
+        assert!(bdd.bindings.is_none(), "omitted bindings must stay None");
     }
 
     #[test]

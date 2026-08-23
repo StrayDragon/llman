@@ -37,14 +37,13 @@ pub struct ResolvedBindings {
     /// Attribute blocks that named no usable scenario selector (e.g.
     /// `index = N`) or had incomplete path/name literals. Recorded, not fatal.
     pub ignored_attr_blocks: usize,
+    /// Glob-matched files that could not be read as UTF-8 Rust sources.
+    /// Recorded separately from block-level ignores so misdirected globs are
+    /// at least countable; not fatal.
+    pub unread_files: usize,
 }
 
 impl ResolvedBindings {
-    /// True when at least one source was declared (even if it matched nothing).
-    pub fn is_declared(&self) -> bool {
-        !self.tag_sets.is_empty() || !self.attr_triples.is_empty() || self.ignored_attr_blocks > 0
-    }
-
     /// Count scenarios of one capability that are bound by any source.
     ///
     /// The count only includes scenarios that actually exist in the spec dir,
@@ -58,6 +57,19 @@ impl ResolvedBindings {
             .iter()
             .filter(|(file, sc)| self.is_bound(capability, file, sc))
             .count()
+    }
+
+    /// Attach bound/unbound counts onto one morphology value, keeping the
+    /// r3 invariant `bound + unbound == harness_scenario_count` in one place.
+    pub fn attach_to_morphology(
+        &self,
+        capability: &str,
+        features: &[(String, crate::sdd::spec::partitioned::FeatureScenario)],
+        morphology: &mut crate::sdd::spec::partitioned::Morphology,
+    ) {
+        let bound = self.count_bound(capability, features);
+        morphology.harness_bound_count = Some(bound);
+        morphology.harness_unbound_count = Some(morphology.harness_scenario_count - bound);
     }
 
     /// Whether a single scenario is bound by any declared source.
@@ -135,25 +147,39 @@ pub fn resolve(root: &Path, sources: &[BindingSource]) -> Result<ResolvedBinding
     Ok(resolved)
 }
 
+/// Static regexes for `#[scenario( ... )]` attribute extraction (S1: compiled
+/// once instead of per matched file).
+fn attr_block_re() -> &'static regex::Regex {
+    static RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?s)#\[\s*scenario\s*\((.*?)\)\s*\]").expect("static regex")
+    });
+    &RE
+}
+
+fn attr_kv_re() -> &'static regex::Regex {
+    static RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r#"(path|name)\s*=\s*"([^"]*)""#).expect("static regex")
+    });
+    &RE
+}
+
 /// Extract `(path = "...", name = "...")` pairs from every
 /// `#[scenario( ... )]` block of one Rust source file.
 fn collect_attr_pairs(path: &Path, out: &mut ResolvedBindings) {
     let Ok(content) = fs::read_to_string(path) else {
-        out.ignored_attr_blocks += 1;
+        out.unread_files += 1;
         return;
     };
-    let block_re = regex::Regex::new(r"(?s)#\[\s*scenario\s*\((.*?)\)\s*\]").expect("static regex");
-    let kv_re = regex::Regex::new(r#"(path|name|index)\s*=\s*"([^"]*)""#).expect("static regex");
+    let block_re = attr_block_re();
+    let kv_re = attr_kv_re();
     for block in block_re.captures_iter(&content) {
         let attrs = &block[1];
         let mut feature_path: Option<String> = None;
         let mut name: Option<String> = None;
-        let mut has_index = false;
         for kv in kv_re.captures_iter(attrs) {
             match &kv[1] {
                 "path" => feature_path = Some(kv[2].to_string()),
-                "name" => name = Some(kv[2].to_string()),
-                _ => has_index = true,
+                _ => name = Some(kv[2].to_string()),
             }
         }
         match (feature_path, name) {
@@ -163,10 +189,11 @@ fn collect_attr_pairs(path: &Path, out: &mut ResolvedBindings) {
                 }
                 // Paths outside the specs root are ignored (r2): they belong
                 // to no capability, e.g. historical tests/features/*.feature.
+                // Attribute blocks without a usable name selector (e.g.
+                // index-only) fall through to the block-level ignore below.
             }
             _ => out.ignored_attr_blocks += 1,
         }
-        let _ = has_index; // index-only selectors carry no name to record
     }
 }
 
@@ -305,6 +332,23 @@ fn i() {}
     }
 
     #[test]
+    fn unread_glob_matched_files_are_counted_separately() {
+        let dir = tempfile::tempdir().unwrap();
+        // Invalid UTF-8 bytes: a Rust-source glob that matched a binary file.
+        fs::create_dir_all(dir.path().join("tests")).unwrap();
+        fs::write(dir.path().join("tests").join("blob.rs"), [0xff, 0xfe, 0x00]).unwrap();
+        let resolved = resolve(
+            dir.path(),
+            &[BindingSource::ScenarioAttrs {
+                files: vec!["tests/*.rs".into()],
+            }],
+        )
+        .unwrap();
+        assert_eq!(resolved.unread_files, 1);
+        assert_eq!(resolved.ignored_attr_blocks, 0);
+    }
+
+    #[test]
     fn attr_source_requires_existing_scenario_names_for_invariant() {
         let dir = tempfile::tempdir().unwrap();
         write(
@@ -333,7 +377,9 @@ fn i() {}
             }],
         )
         .unwrap();
-        assert!(!resolved.is_declared());
+        assert!(resolved.tag_sets.is_empty());
+        assert!(resolved.attr_triples.is_empty());
+        assert_eq!(resolved.unread_files, 0);
     }
 
     #[test]
