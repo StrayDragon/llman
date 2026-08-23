@@ -2,7 +2,7 @@
 
 垂直切片；每个 task 可独立验证。seam 已确认：CLI 子进程（泛化 step）/ Git-native 门禁 fixture / 库内函数单测。
 
-- [ ] t1 FeatureBackend 与解析层
+- [x] t1 FeatureBackend 与解析层
   - 新增 `src/sdd/spec/backend/feature_backend.rs`：头注释（capability/purpose/scope）+ tag 场景（@req/@human/@manual/@executable）→ `MainSpecDoc` 填充；GWT 槽位可选、description 承载 statement。
   - 锁定哈希规范化函数（D4 规则）+ 中文场景名/步骤的单元测试。
   - 验证：`cargo +nightly test --lib feature_backend`

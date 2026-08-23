@@ -1,6 +1,11 @@
+pub mod feature_backend;
 pub mod toon_backend;
 
 pub use toon_backend::BACKEND;
+
+/// Single-track backend (spec-format r131-r136). Adopted call-site by
+/// call-site during the transition; `BACKEND` (TOON) is removed in t9.
+pub static FEATURE_BACKEND: feature_backend::FeatureBackend = feature_backend::FeatureBackend;
 
 use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
 use anyhow::Result;
