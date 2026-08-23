@@ -2,7 +2,8 @@
 depends_on: []
 branch: sdd/harness-bound-declarable-split
 base_sha: d56264af127691906d95f0e12681ea8c5a929a54
-checkpointed: false
+checkpointed: true
+checkpoint_sha: d56264af127691906d95f0e12681ea8c5a929a54
 ---
 
 # list/show harness 计数拆分：bound 可声明口径
