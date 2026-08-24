@@ -10,8 +10,6 @@
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
 use crate::sdd::spec::backend::FEATURE_BACKEND;
-use crate::sdd::spec::backend::SpecBackend;
-use crate::sdd::spec::backend::toon_backend;
 use crate::sdd::spec::ir::MainSpecDoc;
 use anyhow::{Context, Result, anyhow};
 use std::fs;
@@ -59,9 +57,8 @@ pub fn run_at(root: &Path, args: MigrateArgs) -> Result<()> {
         }
         let raw = fs::read_to_string(dir.join(SPEC_FILE))
             .with_context(|| format!("read {}", dir.join(SPEC_FILE).display()))?;
-        let doc: MainSpecDoc = toon_backend::BACKEND
-            .parse_main_spec(&raw, &format!("legacy spec `{capability}`"))
-            .with_context(|| format!("parse legacy `{capability}`"))?;
+        let doc: MainSpecDoc =
+            parse_legacy_toon(&raw).with_context(|| format!("parse legacy `{capability}`"))?;
         plans.push(Plan {
             dir,
             capability,
@@ -300,6 +297,148 @@ fn collect_capability_dirs(specs_root: &Path) -> Result<Vec<PathBuf>> {
     Ok(out)
 }
 
+/// Minimal reader for the LEGACY strict-TOON spec shape (migration-only).
+/// Handles exactly the keys the old writer emitted; anything else fails loudly.
+fn parse_legacy_toon(content: &str) -> Result<MainSpecDoc> {
+    fn split_row(line: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut cur = String::new();
+        let mut in_quotes = false;
+        let mut chars = line.chars().peekable();
+        while let Some(c) = chars.next() {
+            match c {
+                '"' => {
+                    if in_quotes && chars.peek() == Some(&'"') {
+                        cur.push('"');
+                        chars.next();
+                    } else {
+                        in_quotes = !in_quotes;
+                    }
+                }
+                ',' if !in_quotes => out.push(std::mem::take(&mut cur)),
+                _ => cur.push(c),
+            }
+        }
+        out.push(cur);
+        out
+    }
+
+    fn unquote(v: String) -> String {
+        let t = v.trim();
+        if t.starts_with('"') && t.ends_with('"') && t.len() >= 2 {
+            t[1..t.len() - 1].to_string()
+        } else {
+            t.to_string()
+        }
+    }
+
+    let mut kind = String::new();
+    let mut name = String::new();
+    let mut purpose = String::new();
+    let mut valid_scope: Vec<String> = Vec::new();
+    let mut requirements: Vec<crate::sdd::spec::ir::RequirementEntry> = Vec::new();
+    let mut scenarios: Vec<crate::sdd::spec::ir::ScenarioEntry> = Vec::new();
+    let mut section: Option<&'static str> = None;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some((key, rest)) = trimmed.split_once(':') {
+            match key.trim() {
+                "kind" => kind = unquote(rest.to_string()),
+                "name" => name = unquote(rest.to_string()),
+                "purpose" => purpose = unquote(rest.to_string()),
+                k if k.starts_with("valid_scope") => {
+                    valid_scope = rest
+                        .split(',')
+                        .map(|v| unquote(v.to_string()).trim().to_string())
+                        .filter(|v| !v.is_empty())
+                        .collect();
+                    section = None;
+                    continue;
+                }
+                k if k.starts_with("requirements") => {
+                    section = Some("requirements");
+                    continue;
+                }
+                k if k.starts_with("scenarios") => {
+                    section = Some("scenarios");
+                    continue;
+                }
+                _ => {}
+            }
+            // Tabular row under the active section.
+            if section == Some("requirements") {
+                let cells = split_row(trimmed);
+                if cells.len() >= 3 {
+                    requirements.push(crate::sdd::spec::ir::RequirementEntry {
+                        req_id: unquote(cells[0].clone()).trim().to_string(),
+                        title: unquote(cells[1].clone()).trim().to_string(),
+                        statement: unquote(cells[2..].join(",")),
+                    });
+                }
+                continue;
+            }
+            if section == Some("scenarios") {
+                let cells = split_row(trimmed);
+                if cells.len() >= 6 {
+                    scenarios.push(crate::sdd::spec::ir::ScenarioEntry {
+                        req_id: unquote(cells[0].clone()).trim().to_string(),
+                        id: unquote(cells[1].clone()).trim().to_string(),
+                        given: unquote(cells[2].clone()),
+                        when_: unquote(cells[3].clone()),
+                        then_: unquote(cells[4].clone()),
+                        feature: unquote(cells[5].clone()).trim() != "false",
+                    });
+                }
+                continue;
+            }
+        }
+        // Rows are indented under their section header.
+        if line.starts_with(char::is_whitespace) {
+            if section == Some("requirements") {
+                let cells = split_row(trimmed);
+                if cells.len() >= 3 {
+                    requirements.push(crate::sdd::spec::ir::RequirementEntry {
+                        req_id: unquote(cells[0].clone()).trim().to_string(),
+                        title: unquote(cells[1].clone()).trim().to_string(),
+                        statement: unquote(cells[2..].join(",")),
+                    });
+                }
+                continue;
+            }
+            if section == Some("scenarios") {
+                let cells = split_row(trimmed);
+                if cells.len() >= 6 {
+                    scenarios.push(crate::sdd::spec::ir::ScenarioEntry {
+                        req_id: unquote(cells[0].clone()).trim().to_string(),
+                        id: unquote(cells[1].clone()).trim().to_string(),
+                        given: unquote(cells[2].clone()),
+                        when_: unquote(cells[3].clone()),
+                        then_: unquote(cells[4].clone()),
+                        feature: unquote(cells[5].clone()).trim() != "false",
+                    });
+                }
+                continue;
+            }
+        }
+    }
+
+    if kind.trim() != "llman.sdd.spec" {
+        anyhow::bail!("legacy spec kind must be `llman.sdd.spec`, got `{kind}`");
+    }
+    Ok(MainSpecDoc {
+        kind,
+        name,
+        purpose,
+        valid_scope,
+        requirements,
+        scenarios,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -344,7 +483,6 @@ mod tests {
         run_at(root, args).unwrap();
 
         // Migrated output parses and validates under the new gates.
-        use crate::sdd::spec::backend::SpecBackend;
         let doc = FEATURE_BACKEND
             .parse_main_spec(&feature, "migrated")
             .unwrap();

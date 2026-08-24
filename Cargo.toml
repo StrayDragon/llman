@@ -77,7 +77,6 @@ llm_json = "1.0.2"
 # Additional utilities
 regex = "1.12.3"
 serde_yaml = "0.9.34"
-toon-format = { version = "0.5.0", default-features = false }
 gherkin = "0.16"
 sevenz-rust2 = "0.21.3"
 

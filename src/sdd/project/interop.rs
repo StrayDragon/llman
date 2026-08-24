@@ -1,6 +1,6 @@
 use crate::fs_utils::atomic_write_with_mode;
-use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
-use crate::sdd::spec::backend::{BACKEND, SpecBackend};
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::spec::backend::FEATURE_BACKEND;
 use crate::sdd::spec::ir::{MainSpecDoc, RequirementEntry, ScenarioEntry};
 use anyhow::{Result, anyhow};
 use regex::Regex;
@@ -224,7 +224,8 @@ fn migrate_spec(
     dry_run: bool,
     force: bool,
 ) -> MigrationResult {
-    let target_file = target_dir.join(SPEC_FILE);
+    // Single-track: import lands as the capability feature file.
+    let target_file = target_dir.join(format!("{}.feature", spec.name.trim()));
     if target_file.exists() && !force {
         return MigrationResult {
             name: spec.name.clone(),
@@ -321,7 +322,7 @@ fn migrate_spec(
         scenarios,
     };
 
-    let content = match BACKEND.dump_main_spec(&doc) {
+    let content = match FEATURE_BACKEND.dump_main_spec(&doc) {
         Ok(p) => p,
         Err(e) => {
             return MigrationResult {
@@ -330,7 +331,7 @@ fn migrate_spec(
                 req_count: spec.requirements.len(),
                 scenario_count: 0,
                 errors: vec![],
-                reason: format!("TOON serialization failed: {e}"),
+                reason: format!("feature serialization failed: {e}"),
             };
         }
     };

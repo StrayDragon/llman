@@ -4,25 +4,6 @@
   "description": "SDD project configuration for llmanspec.",
   "type": "object",
   "properties": {
-    "schema": {
-      "description": "Schema identifier. Must be \"spec-driven\".",
-      "type": "string"
-    },
-    "locale": {
-      "description": "Locale used for SDD templates and skills.",
-      "type": "string",
-      "default": "en"
-    },
-    "extra_skills": {
-      "description": "Additional optional SDD skills to enable (extend candidates). On init --update, candidates = default workflow skills + this list; then `.agents/skills/llman-sdd-*` not in candidates are removed before rewrite. Valid values: llman-sdd-continue, llman-sdd-ff, llman-sdd-validate, llman-sdd-arch-review, llman-sdd-wayfinder, llman-sdd-research.",
-      "type": [
-        "array",
-        "null"
-      ],
-      "items": {
-        "type": "string"
-      }
-    },
     "archive": {
       "description": "Archive behaviour settings (defer tracking, completion gates).",
       "type": [
@@ -30,13 +11,6 @@
         "null"
       ],
       "properties": {
-        "strict_defer": {
-          "description": "When true, unchecked tasks without a defer link are errors (not just warnings). Default: false (transition period).",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
         "min_completion_ratio": {
           "description": "Minimum task completion ratio (0.0–1.0) required for archiving. Default: none (disabled).",
           "type": [
@@ -44,6 +18,13 @@
             "null"
           ],
           "format": "double"
+        },
+        "strict_defer": {
+          "description": "When true, unchecked tasks without a defer link are errors (not just warnings). Default: false (transition period).",
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       }
     },
@@ -54,10 +35,68 @@
         "null"
       ],
       "properties": {
-        "framework": {
-          "description": "BDD framework identifier (optional). Only used to derive a default run_command when run_command is unset.",
-          "type": "string",
-          "default": ""
+        "bindings": {
+          "description": "Declared harness-binding sources (r2). kind=tags: a scenario is bound when its tags contain all listed tags; kind=scenario-attrs: extract path/name literal pairs from #[scenario(...)] attribute blocks in glob-matched Rust files. Multiple sources union with dedup.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "description": "One harness-binding source declaration (`bdd.bindings[]`, r2).",
+            "oneOf": [
+              {
+                "description": "Tag predicate source: a `.feature` scenario is bound when its tags\ncontain ALL listed tags (`@` prefix optional).",
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "tags"
+                  },
+                  "tags": {
+                    "description": "Required tag names (leading '@' optional). MUST NOT be empty.",
+                    "type": "array",
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "description": "Per-scenario attribute source: extract `path = \"...\"` / `name = \"...\"`\nliteral pairs from `#[scenario( ... )]` attribute blocks inside files\nmatching the given globs (repo-root relative). Feature paths outside\n`llmanspec/specs/**` are ignored.",
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "description": "Glob patterns (repo-root relative) of Rust source files to scan for #[scenario(path=..., name=...)] attributes. MUST NOT be empty.",
+                    "type": "array",
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "scenario-attrs"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            ]
+          }
+        },
+        "default_language": {
+          "description": "Gherkin parsing language code (e.g. 'en', 'zh-CN'). Default: 'en'.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "feature_dir": {
           "description": "Root directory for .feature files, relative to project root.",
@@ -66,12 +105,10 @@
             "null"
           ]
         },
-        "default_language": {
-          "description": "Gherkin parsing language code (e.g. 'en', 'zh-CN'). Default: 'en'.",
-          "type": [
-            "string",
-            "null"
-          ]
+        "framework": {
+          "description": "BDD framework identifier (optional). Only used to derive a default run_command when run_command is unset.",
+          "type": "string",
+          "default": ""
         },
         "run_command": {
           "description": "Custom test run command. Placeholders: {feature_dir}, {feature_name}, {feature_path}. Without placeholders, validate --all/--specs runs the command at most once per batch (batch-once).",
@@ -86,64 +123,27 @@
             "string",
             "null"
           ]
-        },
-        "bindings": {
-          "description": "Declared harness-binding sources (r2). kind=tags: a scenario is bound when its tags contain all listed tags; kind=scenario-attrs: extract path/name literal pairs from #[scenario(...)] attribute blocks in glob-matched Rust files. Multiple sources union with dedup.",
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "description": "One harness-binding source declaration (`bdd.bindings[]`, r2).",
-            "oneOf": [
-              {
-                "description": "Tag predicate source: a `.feature` scenario is bound when its tags\ncontain ALL listed tags (`@` prefix optional).",
-                "type": "object",
-                "properties": {
-                  "tags": {
-                    "description": "Required tag names (leading '@' optional). MUST NOT be empty.",
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1,
-                    "default": []
-                  },
-                  "kind": {
-                    "type": "string",
-                    "const": "tags"
-                  }
-                },
-                "required": [
-                  "kind"
-                ]
-              },
-              {
-                "description": "Per-scenario attribute source: extract `path = \"...\"` / `name = \"...\"`\nliteral pairs from `#[scenario( ... )]` attribute blocks inside files\nmatching the given globs (repo-root relative). Feature paths outside\n`llmanspec/specs/**` are ignored.",
-                "type": "object",
-                "properties": {
-                  "files": {
-                    "description": "Glob patterns (repo-root relative) of Rust source files to scan for #[scenario(path=..., name=...)] attributes. MUST NOT be empty.",
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1,
-                    "default": []
-                  },
-                  "kind": {
-                    "type": "string",
-                    "const": "scenario-attrs"
-                  }
-                },
-                "required": [
-                  "kind"
-                ]
-              }
-            ]
-          }
         }
       }
+    },
+    "extra_skills": {
+      "description": "Additional optional SDD skills to enable (extend candidates). On init --update, candidates = default workflow skills + this list; then `.agents/skills/llman-sdd-*` not in candidates are removed before rewrite. Valid values: llman-sdd-continue, llman-sdd-ff, llman-sdd-validate, llman-sdd-arch-review, llman-sdd-wayfinder, llman-sdd-research.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "locale": {
+      "description": "Locale used for SDD templates and skills.",
+      "type": "string",
+      "default": "en"
+    },
+    "schema": {
+      "description": "Schema identifier. Must be \"spec-driven\".",
+      "type": "string"
     },
     "sdd": {
       "description": "Unified Git-native flow tuning (branch prefix, worktree).",
@@ -159,15 +159,15 @@
             "null"
           ]
         },
-        "worktree_root": {
-          "description": "Root directory for worktrees created by `change start --worktree`. Default: <repo>/.git/sdd/worktrees/.",
+        "worktree_naming": {
+          "description": "Worktree directory naming: \"id\" (default, = change-id) or \"hash\" (deterministic base32(sha256(change_id))[:8], letters only).",
           "type": [
             "string",
             "null"
           ]
         },
-        "worktree_naming": {
-          "description": "Worktree directory naming: \"id\" (default, = change-id) or \"hash\" (deterministic base32(sha256(change_id))[:8], letters only).",
+        "worktree_root": {
+          "description": "Root directory for worktrees created by `change start --worktree`. Default: <repo>/.git/sdd/worktrees/.",
           "type": [
             "string",
             "null"

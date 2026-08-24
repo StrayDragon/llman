@@ -1,5 +1,3 @@
-use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-use crate::sdd::spec::ir::MainSpecDoc;
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use serde::Serialize;
@@ -73,12 +71,6 @@ pub struct Delta {
     pub rename: Option<RenamePair>,
 }
 
-pub fn parse_spec(content: &str, name: &str) -> Result<Spec> {
-    let context = format!("spec `{}`", name);
-    let doc = BACKEND.parse_main_spec(content, &context)?;
-    Ok(convert_main_doc_to_spec(&doc, name))
-}
-
 pub fn parse_change(content: &str, name: &str, _change_dir: &Path) -> Result<Change> {
     let why =
         extract_section(content, "Why").ok_or_else(|| anyhow!("Change must have a Why section"))?;
@@ -94,55 +86,6 @@ pub fn parse_change(content: &str, name: &str, _change_dir: &Path) -> Result<Cha
             format: "openspec-change".to_string(),
         },
     })
-}
-
-fn convert_main_doc_to_spec(doc: &MainSpecDoc, fallback_name: &str) -> Spec {
-    let mut scenarios_by_req: std::collections::HashMap<&str, Vec<Scenario>> =
-        std::collections::HashMap::new();
-    for scenario in &doc.scenarios {
-        scenarios_by_req
-            .entry(scenario.req_id.as_str())
-            .or_default()
-            .push(Scenario {
-                raw_text: render_scenario_text(
-                    scenario.given.trim(),
-                    scenario.when_.trim(),
-                    scenario.then_.trim(),
-                ),
-            });
-    }
-
-    let requirements = doc
-        .requirements
-        .iter()
-        .map(|req| Requirement {
-            text: req.statement.trim().to_string(),
-            scenarios: scenarios_by_req
-                .remove(req.req_id.as_str())
-                .unwrap_or_default(),
-        })
-        .collect::<Vec<_>>();
-
-    Spec {
-        name: if doc.name.trim().is_empty() {
-            fallback_name.to_string()
-        } else {
-            doc.name.trim().to_string()
-        },
-        overview: doc.purpose.trim().to_string(),
-        requirements,
-        metadata: SpecMetadata {
-            format: "llman-sdd-toon".to_string(),
-        },
-    }
-}
-
-fn render_scenario_text(given: &str, when_: &str, then_: &str) -> String {
-    if given.trim().is_empty() {
-        format!("WHEN: {when_}\nTHEN: {then_}")
-    } else {
-        format!("GIVEN: {given}\nWHEN: {when_}\nTHEN: {then_}")
-    }
 }
 
 fn extract_section(content: &str, title: &str) -> Option<String> {

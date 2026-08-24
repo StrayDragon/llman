@@ -324,7 +324,7 @@ pub async fn index_rebuild(
 /// is contacted — the spec tree is already structured, so building is a pure
 /// transform.
 async fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path, _lang: &str) -> Result<()> {
-    use crate::sdd::spec::backend::{FEATURE_BACKEND, SpecBackend};
+    use crate::sdd::spec::backend::FEATURE_BACKEND;
     use crate::sdd::spec::ir::MainSpecDoc;
 
     let _lock = acquire_rebuild_lock(context_dir)?;

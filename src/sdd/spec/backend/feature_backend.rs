@@ -22,13 +22,15 @@
 //! `scenarios!` macro silently skips them, so accepting them here would hide
 //! executable scenarios from the runner (design D1).
 
-use crate::sdd::spec::backend::SpecBackend;
-use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc, RequirementEntry, ScenarioEntry};
+use crate::sdd::spec::ir::{MainSpecDoc, RequirementEntry, ScenarioEntry};
 use anyhow::{Result, anyhow};
 use sha2::{Digest, Sha256};
 use std::fmt::Write as _;
 
 pub struct FeatureBackend;
+
+/// Process-wide singleton (single-track spec-format r131).
+pub static FEATURE_BACKEND: FeatureBackend = FeatureBackend;
 
 /// Tier of a scenario under the single-track grammar (r132).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -350,31 +352,21 @@ pub fn rule_statement(sc: &RichScenario) -> String {
     parts.join("；")
 }
 
-impl SpecBackend for FeatureBackend {
-    fn parse_main_spec(&self, content: &str, context: &str) -> Result<MainSpecDoc> {
+impl FeatureBackend {
+    pub fn parse_main_spec(&self, content: &str, context: &str) -> Result<MainSpecDoc> {
         let parsed = self.parse_content(content, context)?;
         Ok(parsed_to_doc(&parsed))
     }
 
-    fn parse_main_spec_strict(&self, content: &str, context: &str) -> Result<MainSpecDoc> {
+    pub fn parse_main_spec_strict(&self, content: &str, context: &str) -> Result<MainSpecDoc> {
         // Strict mode adds nothing beyond the base grammar today: header
         // completeness and tag grammar already fail hard in `parse_content`.
         self.parse_main_spec(content, context)
     }
 
-    fn parse_delta_spec(&self, _content: &str, context: &str) -> Result<DeltaSpecDoc> {
-        Err(anyhow!(
-            "{context}: delta specs were removed by the single-track format"
-        ))
-    }
-
-    fn parse_delta_spec_strict(&self, content: &str, context: &str) -> Result<DeltaSpecDoc> {
-        self.parse_delta_spec(content, context)
-    }
-
     /// Deterministically render a main spec back to single-track gherkin
     /// (canonical form: zh-CN keywords, requirements as `@human` rules).
-    fn dump_main_spec(&self, doc: &MainSpecDoc) -> Result<String> {
+    pub fn dump_main_spec(&self, doc: &MainSpecDoc) -> Result<String> {
         let mut out = String::new();
         let _ = writeln!(out, "# language: zh-CN");
         let _ = writeln!(out, "# capability: {}", doc.name.trim());
@@ -423,12 +415,6 @@ impl SpecBackend for FeatureBackend {
             }
         }
         Ok(out)
-    }
-
-    fn dump_delta_spec(&self, _doc: &DeltaSpecDoc) -> Result<String> {
-        Err(anyhow!(
-            "delta specs were removed by the single-track format"
-        ))
     }
 }
 
