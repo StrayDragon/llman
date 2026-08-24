@@ -134,7 +134,10 @@ pub fn specs_diff_nonempty(root: &Path, binding: &ChangeGitBinding) -> Result<bo
             SPECS_PATHSPEC,
         ],
     )?;
-    Ok(out.lines().any(|l| !l.trim().is_empty()))
+    // r130: only `.feature` files count as contract landing.
+    Ok(out
+        .lines()
+        .any(|l| l.trim().ends_with(".feature") && !l.trim().is_empty()))
 }
 
 /// WARNING when the default branch has uncommitted edits under live specs.
@@ -221,8 +224,8 @@ mod tests {
         )
         .unwrap();
         fs::write(
-            root.join("llmanspec/specs/sample/spec.toon"),
-            "kind: llman.sdd.spec\nname: sample\npurpose: updated\nvalid_scope[1]: x\nrequirements[0]{req_id,title,statement}:\nscenarios[0]{req_id,id,given,when,then}:\n",
+            root.join("llmanspec/specs/sample/sample.feature"),
+            "# capability: sample\n# purpose: updated\n# scope: x\n\nFeature: sample\n",
         )
         .unwrap();
         run_git(root, &["add", "llmanspec/specs"]).unwrap();

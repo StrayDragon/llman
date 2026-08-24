@@ -110,3 +110,8 @@ debug = 1
 
 [profile.test.package."*"]
 debug = 0
+
+# Local fork: adds zh-CN 规则 rule keyword (upstream only has "Rule").
+# Patch applies workspace-wide, including rstest-bdd's gherkin dependency.
+[patch.crates-io]
+gherkin = { path = "../gherkin.rs" }

@@ -525,6 +525,21 @@ fn validate_change_full(
         issues.extend(check_bdd_on_change_gates(change_dir, Some(&frontmatter)));
     }
 
+    // Locked-rule integrity on the strict change path (spec-format r135):
+    // only when bound to a non-default branch.
+    if let Some(root) = crate::sdd::change::specs_landing::repo_root_from_change_dir(change_dir)
+        && frontmatter
+            .base_sha
+            .as_deref()
+            .is_some_and(|b| !b.trim().is_empty())
+    {
+        let acked = frontmatter.rules_edit_acked;
+        let base = frontmatter.base_sha.clone().unwrap_or_default();
+        for issue in crate::sdd::change::lock_gate::check(root, base.trim(), acked) {
+            issues.push(issue);
+        }
+    }
+
     // Non-draft stages: leftover `changes/<id>/specs/` are warned (live tree is SSOT).
     if stage != ChangeStage::Draft && has_spec_files(&change_dir.join("specs")) {
         issues.push(ValidationIssue {

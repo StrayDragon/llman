@@ -2,7 +2,7 @@ use crate::sdd::project::config::{ArchiveConfig, BddConfig};
 use crate::sdd::shared::constants::SPEC_FILE;
 use crate::sdd::shared::tasks::{self, TaskStatus};
 use crate::sdd::spec::backend::feature_backend::{
-    self, FeatureBackend, ParsedFeatureSpec, ScenarioTier,
+    self, FeatureBackend, ParsedFeatureSpec, RichScenario, ScenarioTier,
 };
 use crate::sdd::spec::frontmatter::split_frontmatter;
 use serde::Serialize;
@@ -127,6 +127,34 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
             let mut issues = Vec::new();
 
             validate_spec_meta(&parsed.valid_scope, &spec_name, &mut issues);
+            if parsed.purpose.trim().is_empty() {
+                issues.push(ValidationIssue {
+                    level: ValidationLevel::Error,
+                    path: format!("{spec_name}/purpose"),
+                    message: "`# purpose:` header comment must not be empty (spec-format r133)"
+                        .to_string(),
+                });
+            }
+            // Spec-first friendly: a not-yet-existing scope path is an INFO
+            // (staleness simply cannot fire until the path exists), not an error.
+            if let Some(root) = project_root {
+                let missing: Vec<&str> = parsed
+                    .valid_scope
+                    .iter()
+                    .map(|v| v.as_str())
+                    .filter(|scope| !root.join(scope).exists())
+                    .collect();
+                if !missing.is_empty() {
+                    issues.push(ValidationIssue {
+                        level: ValidationLevel::Info,
+                        path: format!("{spec_name}/valid_scope"),
+                        message: format!(
+                            "scope path(s) do not exist yet (staleness idle until they do): {}",
+                            missing.join(", ")
+                        ),
+                    });
+                }
+            }
             let frontmatter = if has_meta_errors(&issues) {
                 None
             } else {
@@ -238,94 +266,28 @@ fn validate_single_track(parsed: &ParsedFeatureSpec, spec_name: &str) -> Vec<Val
         std::collections::HashMap::new();
 
     for sc in &parsed.scenarios {
-        match sc.tier {
-            Some(ScenarioTier::Constraint) | Some(ScenarioTier::Manual) => {
-                let path = format!("{}/rule/{}", spec_name, sc.name);
-                match sc.req_ids.len() {
-                    0 => issues.push(ValidationIssue {
-                        level: Error,
-                        path: path.clone(),
-                        message: "@human constraint scenario must carry an @req:<req_id> tag"
-                            .to_string(),
-                    }),
-                    1 => {}
-                    _ => issues.push(ValidationIssue {
-                        level: Error,
-                        path: path.clone(),
-                        message: format!(
-                            "constraint scenario carries multiple @req tags {:?}; split the scenario per requirement",
-                            sc.req_ids
-                        ),
-                    }),
-                }
-                if !rule_names.insert(sc.name.clone()) {
-                    issues.push(ValidationIssue {
-                        level: Error,
-                        path: path.clone(),
-                        message: format!("duplicate constraint scenario name `{}`", sc.name),
-                    });
-                }
-                let hash = feature_backend::lock_hash(sc);
-                if let Some(prev) = rule_hashes.get(&hash) {
-                    issues.push(ValidationIssue {
-                        level: Error,
-                        path: path.clone(),
-                        message: format!(
-                            "constraint scenarios `{prev}` and `{}` are identical after normalization",
-                            sc.name
-                        ),
-                    });
-                } else {
-                    rule_hashes.insert(hash, sc.name.clone());
-                }
-                let statement = feature_backend::rule_statement(sc);
-                if !contains_normative_keyword(&statement) {
-                    issues.push(ValidationIssue {
-                        level: Error,
-                        path: path.clone(),
-                        message: format!(
-                            "constraint statement must contain MUST/SHALL (or 必须/不得/禁止): {}",
-                            statement.trim()
-                        ),
-                    });
-                }
-                if let Some(rid) = sc.req_ids.first() {
-                    rule_req_ids.push(rid.clone());
-                }
-            }
-            Some(ScenarioTier::Acceptance) => {
-                let path = format!("{}/acceptance/{}", spec_name, sc.name);
-                if sc.req_ids.is_empty() {
-                    issues.push(ValidationIssue {
-                        level: Warning,
-                        path: path.clone(),
-                        message: format!(
-                            "orphan acceptance scenario `{}` has no @req:<req_id> link",
-                            sc.name
-                        ),
-                    });
-                }
-                if sc.when_.is_empty() || sc.then_.is_empty() {
-                    issues.push(ValidationIssue {
-                        level: Warning,
-                        path: path.clone(),
-                        message: format!(
-                            "acceptance scenario `{}` is missing When/Then steps (runner will not bind)",
-                            sc.name
-                        ),
-                    });
-                }
-            }
-            None => {
-                issues.push(ValidationIssue {
-                    level: Warning,
-                    path: format!("{}/scenario/{}", spec_name, sc.name),
-                    message: format!(
-                        "scenario `{}` carries neither @human nor @executable; tag it or drop it",
-                        sc.name
-                    ),
-                });
-            }
+        let locked = matches!(sc.tier, Some(t) if t.is_locked());
+        let is_acceptance = sc.tier == Some(ScenarioTier::Acceptance);
+        if locked {
+            validate_locked_scenario(
+                sc,
+                spec_name,
+                &mut issues,
+                &mut rule_names,
+                &mut rule_hashes,
+                &mut rule_req_ids,
+            );
+        } else if is_acceptance {
+            validate_acceptance_scenario(sc, spec_name, &mut issues);
+        } else {
+            issues.push(ValidationIssue {
+                level: Warning,
+                path: format!("{}/scenario/{}", spec_name, sc.name),
+                message: format!(
+                    "scenario `{}` carries neither @human nor @executable; tag it or drop it",
+                    sc.name
+                ),
+            });
         }
     }
 
@@ -364,8 +326,101 @@ fn validate_single_track(parsed: &ParsedFeatureSpec, spec_name: &str) -> Vec<Val
     issues
 }
 
-/// Normative-keyword check tolerant of CJK statements.
-fn contains_normative_keyword(text: &str) -> bool {
+/// Grammar gates for one locked (`@human`) rule scenario.
+#[allow(clippy::too_many_arguments)]
+fn validate_locked_scenario(
+    sc: &RichScenario,
+    spec_name: &str,
+    issues: &mut Vec<ValidationIssue>,
+    rule_names: &mut std::collections::HashSet<String>,
+    rule_hashes: &mut std::collections::HashMap<String, String>,
+    rule_req_ids: &mut Vec<String>,
+) {
+    use ValidationLevel::Error;
+    let path = format!("{}/rule/{}", spec_name, sc.name);
+    match sc.req_ids.len() {
+        0 => issues.push(ValidationIssue {
+            level: Error,
+            path: path.clone(),
+            message: "@human constraint scenario must carry an @req:<req_id> tag".to_string(),
+        }),
+        1 => {}
+        _ => issues.push(ValidationIssue {
+            level: Error,
+            path: path.clone(),
+            message: format!(
+                "constraint scenario carries multiple @req tags {:?}; split the scenario per requirement",
+                sc.req_ids
+            ),
+        }),
+    }
+    if !rule_names.insert(sc.name.clone()) {
+        issues.push(ValidationIssue {
+            level: Error,
+            path: path.clone(),
+            message: format!("duplicate constraint scenario name `{}`", sc.name),
+        });
+    }
+    let hash = feature_backend::lock_hash(sc);
+    if let Some(prev) = rule_hashes.get(&hash) {
+        issues.push(ValidationIssue {
+            level: Error,
+            path: path.clone(),
+            message: format!(
+                "constraint scenarios `{prev}` and `{}` are identical after normalization",
+                sc.name
+            ),
+        });
+    } else {
+        rule_hashes.insert(hash, sc.name.clone());
+    }
+    let statement = feature_backend::rule_statement(sc);
+    if !contains_normative_keyword(&statement) {
+        issues.push(ValidationIssue {
+            level: Error,
+            path: path.clone(),
+            message: format!(
+                "constraint statement must contain MUST/SHALL (or 必须/不得/禁止): {}",
+                statement.trim()
+            ),
+        });
+    }
+    if let Some(rid) = sc.req_ids.first() {
+        rule_req_ids.push(rid.clone());
+    }
+}
+
+/// Grammar gates for one `@executable` acceptance scenario.
+fn validate_acceptance_scenario(
+    sc: &RichScenario,
+    spec_name: &str,
+    issues: &mut Vec<ValidationIssue>,
+) {
+    use ValidationLevel::Warning;
+    let path = format!("{}/acceptance/{}", spec_name, sc.name);
+    if sc.req_ids.is_empty() {
+        issues.push(ValidationIssue {
+            level: Warning,
+            path: path.clone(),
+            message: format!(
+                "orphan acceptance scenario `{}` has no @req:<req_id> link",
+                sc.name
+            ),
+        });
+    }
+    if sc.when_.is_empty() || sc.then_.is_empty() {
+        issues.push(ValidationIssue {
+            level: Warning,
+            path: path.clone(),
+            message: format!(
+                "acceptance scenario `{}` is missing When/Then steps (runner will not bind)",
+                sc.name
+            ),
+        });
+    }
+}
+
+pub(crate) fn contains_normative_keyword(text: &str) -> bool {
     ["MUST", "SHALL", "必须", "不得", "禁止"]
         .iter()
         .any(|kw| text.contains(kw))
@@ -1641,7 +1696,7 @@ fn parse_yaml_optional_string(doc: &serde_yaml::Value, key: &str) -> Option<Stri
     })
 }
 
-fn parse_yaml_optional_bool(doc: &serde_yaml::Value, key: &str) -> bool {
+pub(crate) fn parse_yaml_optional_bool(doc: &serde_yaml::Value, key: &str) -> bool {
     match doc.get(key) {
         Some(serde_yaml::Value::Bool(b)) => *b,
         Some(serde_yaml::Value::String(s)) => matches!(s.trim(), "true" | "yes" | "1"),

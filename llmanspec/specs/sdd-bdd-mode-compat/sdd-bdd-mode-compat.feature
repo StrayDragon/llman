@@ -26,8 +26,8 @@
     - `llman sdd change archive` 统一行为（不再按 bdd 段分叉）：MUST 先自动 ff-merge feature 分支回分叉点分支，再移动 change 文档到 changes/archive/YYYY-MM-DD-<id>/（详见 sdd-workflow r113）。MUST NOT merge TOON delta（已废除 change/specs 路径）、MUST NOT apply feature_delta。活跃 `*.feature.delta.toon` MUST 作为迁移阻断（ERROR，提示人工清理遗留 delta；partitioned migrate 已移除）。顶层 `sdd archive run` 为兼容别名但 MUST 走统一的 ff-merge 路径。
 
   @req:r85 @human
-  场景: partition-migrate 已移除（零兼容）
-    - `llman sdd project migrate --kind partitioned`（及隐藏别名 partition-migrate）MUST 以非零退出拒绝；clap/帮助仅接受 `spec-md2toon`。遗留 change/specs/ 或活跃 *.feature.delta.toon 须人工清理或另开 change（不再提供自动 partitioned 迁移）。错误信息 MUST 提示合法 kind（含 spec-md2toon）。
+  场景: migrate 合法 kind 收敛为 toon2features
+    - `llman sdd project migrate` 仅接受 --kind toon2features（spec-format r136）：--kind spec-md2toon / partitioned MUST 以非零退出拒绝且错误信息含合法 kind 名 toon2features。
 
   @req:r86 @human
   场景: 全局 req_id 唯一性

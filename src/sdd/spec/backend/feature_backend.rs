@@ -56,12 +56,50 @@ pub struct RichScenario {
     pub tier: Option<ScenarioTier>,
 }
 
-impl RichScenario {
-    pub fn has_tag(&self, tag: &str) -> bool {
-        let want = tag.trim_start_matches('@');
-        self.tags
-            .iter()
-            .any(|t| t.trim().trim_start_matches('@').eq_ignore_ascii_case(want))
+/// Gherkin keyword set for a supported language.
+#[derive(Debug, Clone, Copy)]
+pub struct GherkinKw {
+    pub feature: &'static str,
+    pub scenario: &'static str,
+    pub given: &'static str,
+    pub when: &'static str,
+    pub then: &'static str,
+}
+
+/// Keywords for the parsed/rendered language (zh-CN or English).
+pub fn keywords_for(lang: &str) -> GherkinKw {
+    if lang.starts_with("zh") {
+        GherkinKw {
+            feature: "功能",
+            scenario: "场景",
+            given: "假如",
+            when: "当",
+            then: "那么",
+        }
+    } else {
+        GherkinKw {
+            feature: "Feature",
+            scenario: "Scenario",
+            given: "Given",
+            when: "When",
+            then: "Then",
+        }
+    }
+}
+
+impl ScenarioTier {
+    /// Whether scenarios of this tier are locked for agent edits (r135).
+    pub fn is_locked(self) -> bool {
+        matches!(self, ScenarioTier::Constraint | ScenarioTier::Manual)
+    }
+
+    /// Stable machine label used in JSON output.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ScenarioTier::Constraint => "constraint",
+            ScenarioTier::Manual => "manual",
+            ScenarioTier::Acceptance => "acceptance",
+        }
     }
 }
 
@@ -78,13 +116,25 @@ pub struct ParsedFeatureSpec {
 }
 
 impl ParsedFeatureSpec {
-    /// Constraint scenarios (`@human`), including manual waivers.
+    /// Locked-rule scenarios (`@human`), including `@manual` waivers.
     pub fn rule_scenarios(&self) -> impl Iterator<Item = &RichScenario> {
-        self.scenarios
-            .iter()
-            .filter(|sc| sc.tier == Some(ScenarioTier::Constraint))
+        self.scenarios.iter().filter(|sc| {
+            matches!(
+                sc.tier,
+                Some(ScenarioTier::Constraint | ScenarioTier::Manual)
+            )
+        })
     }
 
+    /// Manual-waiver scenarios (`@human @manual`).
+    pub fn manual_scenarios(&self) -> impl Iterator<Item = &RichScenario> {
+        self.scenarios
+            .iter()
+            .filter(|sc| sc.tier == Some(ScenarioTier::Manual))
+    }
+}
+
+impl ParsedFeatureSpec {
     /// Acceptance scenarios (`@executable`).
     pub fn acceptance_scenarios(&self) -> impl Iterator<Item = &RichScenario> {
         self.scenarios
@@ -227,7 +277,7 @@ fn parse_header_comments(content: &str) -> (HeaderComments, usize) {
     )
 }
 
-fn detect_language(content: &str) -> String {
+pub fn detect_language(content: &str) -> String {
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
@@ -294,6 +344,9 @@ pub fn req_ids_from_tags(tags: &[String]) -> Vec<String> {
 /// right-trimmed. Whitespace inside lines is preserved verbatim.
 pub fn normalized_hash_lines(sc: &RichScenario) -> Vec<String> {
     let mut lines = vec![format!("scenario: {}", sc.name)];
+    for rid in &sc.req_ids {
+        lines.push(format!("req: {rid}"));
+    }
     if let Some(desc) = sc.description.as_deref() {
         for l in desc.lines() {
             lines.push(format!("desc: {}", l.trim_end()));
