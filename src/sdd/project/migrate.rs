@@ -79,11 +79,19 @@ pub fn run_at(root: &Path, args: MigrateArgs) -> Result<()> {
             } else {
                 "none"
             };
+            let doc = p.toon.as_ref();
+            let (converted, notes) = doc
+                .map(|d| {
+                    d.scenarios.iter().fold((0usize, 0usize), |(c, n), sc| {
+                        if sc.feature { (c + 1, n) } else { (c, n + 1) }
+                    })
+                })
+                .unwrap_or((0, 0));
             println!(
-                "  {} → {}.feature (rules {}, acceptance {})",
+                "  {} → {}.feature (rules {}, acceptance {}; toon scenarios → converted {converted}, notes {notes})",
                 p.dir.display(),
                 p.capability,
-                p.toon.as_ref().map(|d| d.requirements.len()).unwrap_or(0),
+                doc.map(|d| d.requirements.len()).unwrap_or(0),
                 acceptance_note,
             );
         }
@@ -146,6 +154,35 @@ fn migrate_capability(plan: &Plan) -> Result<String> {
     };
     let feature_path = plan.dir.join(format!("{}.feature", plan.capability));
 
+    // Legacy toon `scenarios[]` rows: `feature=true` rows that pair with a
+    // defined requirement become single-track `@executable` acceptance
+    // scenarios (the canonical renderer emits `@req:<id> @executable` + GWT
+    // steps, skipping empty columns). `feature=false` note rows are dropped
+    // but MUST be counted (`dropped_notes`); `feature=true` rows whose req_id
+    // is not defined would produce a dangling `@req` ERROR under
+    // `validate --strict`, so they are dropped and counted (`dropped_unpaired`).
+    let defined_reqs: std::collections::HashSet<&str> = toon_doc
+        .requirements
+        .iter()
+        .map(|r| r.req_id.as_str())
+        .collect();
+    let mut converted_from_toon = 0usize;
+    let mut dropped_notes = 0usize;
+    let mut dropped_unpaired = 0usize;
+    let mut toon_scenarios: Vec<crate::sdd::spec::ir::ScenarioEntry> = Vec::new();
+    for sc in &toon_doc.scenarios {
+        if !sc.feature {
+            dropped_notes += 1;
+            continue;
+        }
+        if !defined_reqs.contains(sc.req_id.as_str()) {
+            dropped_unpaired += 1;
+            continue;
+        }
+        toon_scenarios.push(sc.clone());
+        converted_from_toon += 1;
+    }
+
     // Rules come from legacy toon requirements (statement verbatim).
     let merged = MainSpecDoc {
         kind: "llman.sdd.spec".to_string(),
@@ -153,7 +190,7 @@ fn migrate_capability(plan: &Plan) -> Result<String> {
         purpose: toon_doc.purpose.clone(),
         valid_scope: toon_doc.valid_scope.clone(),
         requirements: toon_doc.requirements.clone(),
-        scenarios: Vec::new(),
+        scenarios: toon_scenarios,
     };
 
     // Acceptance scenarios are copied VERBATIM from every legacy feature:
@@ -226,13 +263,14 @@ fn migrate_capability(plan: &Plan) -> Result<String> {
     fs::remove_file(plan.dir.join(SPEC_FILE))
         .with_context(|| format!("remove legacy {}", plan.dir.join(SPEC_FILE).display()))?;
 
-    // r136: the report MUST carry the three-tier initial values.
+    // r136: the report MUST carry the three-tier initial values AND the
+    // conversion/accounting split so nothing is silently lost.
     let tiers = FEATURE_BACKEND
         .parse_content(&payload, &format!("migrated `{}`", plan.capability))
         .map(|p| crate::sdd::spec::backend::feature_backend::compute_rule_morphology(&p));
     match tiers {
         Ok(t) => Ok(format!(
-            "wrote {} (merged {merged_files} feature file(s); rules {} enforced {} manual {} pending {}; acceptance {}; dropped {dropped}); removed legacy spec.toon",
+            "wrote {} (merged {merged_files} feature file(s); converted_from_toon {converted_from_toon}; rules {} enforced {} manual {} pending {}; acceptance {}; dropped {dropped}; dropped_notes {dropped_notes}; dropped_unpaired {dropped_unpaired}); removed legacy spec.toon",
             feature_path.display(),
             t.rule_count,
             t.rule_enforced_count,
@@ -241,7 +279,7 @@ fn migrate_capability(plan: &Plan) -> Result<String> {
             t.acceptance_count,
         )),
         Err(e) => Ok(format!(
-            "wrote {} (merged {merged_files} feature file(s); rules {}, acceptance {}, dropped {dropped}); removed legacy spec.toon; tier report unavailable: {e}",
+            "wrote {} (merged {merged_files} feature file(s); converted_from_toon {converted_from_toon}; rules {}, acceptance {}, dropped {dropped}; dropped_notes {dropped_notes}; dropped_unpaired {dropped_unpaired}); removed legacy spec.toon; tier report unavailable: {e}",
             feature_path.display(),
             merged.requirements.len(),
             acceptance_blocks.len(),
@@ -448,7 +486,8 @@ mod tests {
         "requirements[2]{req_id,title,statement}:\n",
         "  r1,First,\"System MUST do X.\"\n",
         "  r2,Second,\"System MUST do Y.\"\n",
-        "scenarios[1]{req_id,id,given,when,then,feature}:\n",
+        "scenarios[2]{req_id,id,given,when,then,feature}:\n",
+        "  r1,acc-1,\"precondition ready\",\"run llman sdd validate sample\",\"exit code is zero\",true\n",
         "  r1,note,\"\",\"a trigger\",\"an outcome\",false\n",
     );
 
@@ -473,6 +512,12 @@ mod tests {
         assert!(feature.contains("# capability: demo"));
         assert!(feature.contains("@req:r1 @human"));
         assert!(feature.contains("System MUST do X."));
+        // feature=true row converts to an @executable acceptance scenario.
+        assert!(feature.contains("@req:r1 @executable"));
+        assert!(feature.contains("场景: acc-1"));
+        assert!(feature.contains("假如 precondition ready"));
+        assert!(feature.contains("当 run llman sdd validate sample"));
+        assert!(feature.contains("那么 exit code is zero"));
         // Note row (feature:false) is dropped.
         assert!(!feature.contains("note"));
 
@@ -484,10 +529,59 @@ mod tests {
             .parse_main_spec(&feature, "migrated")
             .unwrap();
         assert_eq!(doc.requirements.len(), 2);
+        assert_eq!(doc.scenarios.len(), 1, "one executable scenario converted");
+        assert!(doc.scenarios[0].feature);
+        assert_eq!(doc.scenarios[0].req_id, "r1");
+        assert_eq!(doc.scenarios[0].id, "acc-1");
         assert!(
             doc.requirements
                 .iter()
                 .all(|r| r.statement.contains("MUST"))
+        );
+    }
+    #[test]
+    fn toon_scenarios_accounting_converted_notes_unpaired() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let dir = root.join(LLMANSPEC_DIR_NAME).join("specs").join("demo");
+        fs::create_dir_all(&dir).unwrap();
+        // r1 + r2 defined; acc-1 pairs r1, note is feature:false, orphan pairs
+        // r404 (not defined) → dropped_unpaired.
+        let toon = concat!(
+            "kind: llman.sdd.spec\n",
+            "name: \"demo\"\n",
+            "purpose: \"demo purpose\"\n",
+            "valid_scope[1]: \"src/\"\n",
+            "requirements[2]{req_id,title,statement}:\n",
+            "  r1,First,\"System MUST do X.\"\n",
+            "  r2,Second,\"System MUST do Y.\"\n",
+            "scenarios[3]{req_id,id,given,when,then,feature}:\n",
+            "  r1,acc-1,\"pre\",\"trigger\",\"result\",true\n",
+            "  r2,note,\"\",\"trigger\",\"result\",false\n",
+            "  r404,orphan,\"\",\"trigger\",\"result\",true\n",
+        );
+        fs::write(dir.join(SPEC_FILE), toon).unwrap();
+
+        let args = MigrateArgs {
+            dry_run: false,
+            force: false,
+            yes: true,
+            no_interactive: true,
+        };
+        run_at(root, args).unwrap();
+
+        // Only acc-1 is converted (r1 paired); note and orphan are dropped.
+        let feature = fs::read_to_string(dir.join("demo.feature")).unwrap();
+        assert!(feature.contains("场景: acc-1"));
+        assert!(!feature.contains("场景: note"));
+        assert!(!feature.contains("场景: orphan"));
+        let doc = FEATURE_BACKEND
+            .parse_main_spec(&feature, "migrated")
+            .unwrap();
+        assert_eq!(
+            doc.scenarios.len(),
+            1,
+            "only the paired executable row survives"
         );
     }
     #[test]

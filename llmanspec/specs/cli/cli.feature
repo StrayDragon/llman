@@ -31,12 +31,16 @@
 
   @req:r112 @executable
   场景: prefix-match-baseline
-    假如 已存在多个 active change 和 archived change
-    当 使用 change id 的前缀运行 llman sdd show/validate/status/graph/change archive
+    假如 存在 active change 和 archived change 且含 c123-fix-bug
+    当 用前缀运行 llman sdd show c12
+    那么 退出码为零
     那么 对应的完整 change 被找到且输出正确
 
   @req:r112 @executable
   场景: prefix-match-hint
-    假如 活跃 change 中有 c123-fix-bug
-    当 用前缀 c123 运行 llman sdd show c123（以及 --json）
-    那么 命令提示命中的完整 change（'c123' -> 'c123-fix-bug' (prefix match)），--json 输出含 matchedViaPrefix=true
+    假如 存在 active change 和 archived change 且含 c123-fix-bug
+    当 用前缀 c123 运行 llman sdd show c123
+    那么 stderr 包含 'c123' -> 'c123-fix-bug' (prefix match)
+    当 用前缀 c123 运行 llman sdd show c123 --output json
+    那么 stdout 含 JSON 键 matchedViaPrefix
+    那么 stdout 的 JSON 键 matchedViaPrefix 为 true
