@@ -597,11 +597,6 @@ fn when_run_llman_noninteractive(args: String) {
     run_llman(&args);
 }
 
-#[when("使用 change id 的前缀运行 llman {args}")]
-fn when_run_llman_prefix(args: String) {
-    run_llman(&args);
-}
-
 #[when("用前缀 c123 运行 llman {args}")]
 fn when_run_llman_prefix_c123(args: String) {
     run_llman(&args);
@@ -697,27 +692,6 @@ fn then_prefix_resolved_correctly() {
         assert!(
             combined.contains("c123-fix-bug"),
             "expected output to mention the resolved change, got: {combined}"
-        );
-    });
-}
-
-#[then(
-    "命令提示命中的完整 change（'c123' -> 'c123-fix-bug' (prefix match)），--json 输出含 matchedViaPrefix=true"
-)]
-fn then_prefix_hint_and_json_flag() {
-    with_world(|w| {
-        let combined = format!("{}\n{}", w.stdout, w.stderr);
-        assert!(
-            combined.contains("c123-fix-bug"),
-            "expected hint to mention resolved change, got: {combined}"
-        );
-        // --json output carries matchedViaPrefix=true (checked by the scenario's
-        // first run; the JSON shape is asserted via stdout keys).
-        let json_ok = w.stdout.contains("matchedViaPrefix") && w.stdout.contains("c123-fix-bug");
-        assert!(
-            json_ok,
-            "expected --json output to contain matchedViaPrefix and the change, got: {}",
-            w.stdout
         );
     });
 }
