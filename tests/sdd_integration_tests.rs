@@ -713,58 +713,6 @@ fn test_sdd_show_change_prefix_match_emits_hint_and_json_flag() {
 }
 
 #[test]
-fn test_sdd_validate_change_json_succeeds() {
-    let env = TestEnvironment::new();
-    let work_dir = env.path();
-
-    let init_output = run_llman(
-        &["sdd", "init", work_dir.to_str().unwrap()],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&init_output);
-
-    let llmanspec_dir = work_dir.join("llmanspec");
-    let change_dir = llmanspec_dir.join("changes").join("add-sample");
-    let change_specs_dir = change_dir.join("specs").join("sample");
-    fs::create_dir_all(&change_specs_dir).expect("create change spec dir");
-    fs::write(
-        change_dir.join("proposal.md"),
-        "## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n",
-    )
-    .expect("write proposal");
-    fs::write(
-        change_dir.join("design.md"),
-        "# Design\n\nSimple change, no trade-offs.\n",
-    )
-    .expect("write design");
-    fs::write(change_dir.join("tasks.md"), "- [x] Implement the change\n").expect("write tasks");
-    let delta_spec = "kind: llman.sdd.delta\nops[1]{op,req_id,title,statement,from,to,name}:\n  add_requirement,added,Added behavior,System MUST support the added behavior.,null,null,null\nop_scenarios[1]{req_id,id,given,when,then}:\n  added,added,,a new action is taken,the new behavior happens\n";
-    fs::write(change_specs_dir.join("spec.toon"), delta_spec).expect("write delta spec");
-
-    let validate_output = run_llman(
-        &[
-            "sdd",
-            "validate",
-            "add-sample",
-            "--type",
-            "change",
-            "--strict",
-            "--no-interactive",
-            "--json",
-        ],
-        work_dir,
-        work_dir,
-    );
-    assert_success(&validate_output);
-
-    let validate_json: Value =
-        serde_json::from_slice(&validate_output.stdout).expect("validate change json");
-    assert_eq!(validate_json["items"][0]["type"], "change");
-    assert_eq!(validate_json["items"][0]["valid"], true);
-}
-
-#[test]
 fn test_sdd_update_recreates_root_agents_md() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
@@ -1508,28 +1456,6 @@ fn test_sdd_config_skills_non_interactive() {
 // ---------------------------------------------------------------------------
 // bdd.bindings: harness bound/unbound split (sdd-workflow r2/r3)
 // ---------------------------------------------------------------------------
-
-const SAMPLE_FEATURE_WITH_TAGS: &str = "\
-Feature: sample harness
-
-  @executable @req:r1
-  Scenario: tagged-runs
-    Given a precondition
-    When an action occurs
-    Then the outcome is observed
-
-  @req:r1
-  Scenario: untagged-docs
-    Given another precondition
-    When something happens
-    Then nothing executes
-";
-
-fn config_with_bindings(bindings_block: &str) -> String {
-    format!(
-        "schema: spec-driven\nlocale: en\nbdd:\n  run_command: \"cargo test --features bdd\"\n{bindings_block}"
-    )
-}
 
 /// Init a project, author `sample` with r1, and plant a two-scenario feature.
 fn setup_spec_with_feature(work_dir: &Path) {

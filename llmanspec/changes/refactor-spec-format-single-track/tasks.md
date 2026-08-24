@@ -28,14 +28,14 @@
   - 跑 toon2features 迁移 28 个 capability；人工审阅生成物中 @human 场景；config.yaml 保持 runner 开关语义；`bdd.bindings` 退役。
   - 验证：`llman sdd validate --all --strict` 全绿；`cargo test --features bdd` 通过
 
-- [ ] t7 compat tests 与受影响 specs 重写 `[blocked-by: t2]`
+- [x] t7 compat tests 与受影响 specs 重写 `[blocked-by: t2]`
   - `tests/sdd_bdd_compat_tests.rs` smoke/read_only 列表更新；sdd-bdd-mode-compat 相关 `.feature` 按 runner 开关收缩后的合约重写（可执行场景走泛化 step）。
   - 验证：`cargo +nightly test --test sdd_bdd_compat_tests`
 
-- [ ] t8 模板、skills 与文档改版 `[blocked-by: t6]`
+- [x] t8 模板、skills 与文档改版 `[blocked-by: t6]`
   - `templates/sdd/**`、`.agents/skills/llman-sdd-*`、根/llmanspec AGENTS.md 托管块同步单轨叙事；产出下游迁移 prompt 文档；术语债清理（harness → rule 三态口径）。
   - 验证：`just check-sdd-templates`
 
-- [ ] t9 死码清除与收尾 `[blocked-by: t6, t7]`
+- [x] t9 死码清除与收尾 `[blocked-by: t6, t7]`
   - 删 ToonBackend/toon-format 依赖/partitioned.rs 双写机器；`just check-all` 全绿（含 release build 与 rustdoc -D warnings）。
   - 验证：`just check-all`

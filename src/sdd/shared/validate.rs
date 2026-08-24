@@ -12,8 +12,7 @@ use crate::sdd::spec::validation::{
     ChangeStage, ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
     check_completeness_stage, check_dag_cycles, check_design_md, check_design_tasks_constraint,
     check_proposal_exists, check_proposal_frontmatter, check_tasks_completion, check_tasks_exists,
-    determine_stage, has_spec_files, validate_change_delta_specs,
-    validate_spec_content_with_frontmatter_and_bdd,
+    determine_stage, has_spec_files, validate_spec_content_with_frontmatter_and_bdd,
 };
 use anyhow::{Result, anyhow};
 use inquire::Select;
@@ -526,21 +525,13 @@ fn validate_change_full(
         issues.extend(check_bdd_on_change_gates(change_dir, Some(&frontmatter)));
     }
 
-    // Non-draft stages: BDD-off still validates TOON deltas. BDD-on live specs are
-    // on the feature branch; leftover change TOON deltas are warned, not merged.
-    if stage != ChangeStage::Draft {
-        if bdd_on {
-            if has_spec_files(&change_dir.join("specs")) {
-                issues.push(ValidationIssue {
-                    level: ValidationLevel::Info,
-                    path: "specs".to_string(),
-                    message: "BDD-on ignores change TOON deltas (Git-native branch is SSOT); migrate leftover deltas into live llmanspec/specs before archive".to_string(),
-                });
-            }
-        } else {
-            let delta_report = validate_change_delta_specs(change_dir, strict);
-            issues.extend(delta_report.issues);
-        }
+    // Non-draft stages: leftover `changes/<id>/specs/` are warned (live tree is SSOT).
+    if stage != ChangeStage::Draft && has_spec_files(&change_dir.join("specs")) {
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Warning,
+            path: "specs".to_string(),
+            message: "leftover change specs directory; live llmanspec/specs is SSOT — run toon2features and delete leftovers before archive".to_string(),
+        });
     }
 
     // tasks.md without design.md is inconsistent at any stage

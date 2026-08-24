@@ -4,14 +4,27 @@
   "description": "Project-level configuration for llman. This is a subset of the global config.",
   "type": "object",
   "properties": {
-    "version": {
-      "description": "Configuration version for tool settings.",
-      "type": "string"
-    },
     "tools": {
       "description": "Tool configuration.",
       "type": "object",
       "properties": {
+        "agents-md": {
+          "description": "Settings for the agents-md (agent init files) tool.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "files": {
+              "description": "Agent init file/directory names to scan for (relative to project root).",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
         "clean-useless-comments": {
           "description": "Settings for the clean-useless-comments tool.",
           "type": [
@@ -19,426 +32,6 @@
             "null"
           ],
           "properties": {
-            "scope": {
-              "description": "File scope configuration.",
-              "type": "object",
-              "properties": {
-                "include": {
-                  "description": "Glob patterns to include.",
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "default": [
-                    "**/*.py",
-                    "**/*.js",
-                    "**/*.ts",
-                    "**/*.rs",
-                    "**/*.go"
-                  ]
-                },
-                "exclude": {
-                  "description": "Glob patterns to exclude.",
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "default": [
-                    "**/node_modules/**",
-                    "**/target/**",
-                    "**/.git/**",
-                    "**/dist/**",
-                    "**/build/**"
-                  ]
-                }
-              }
-            },
-            "lang-rules": {
-              "description": "Language-specific rules.",
-              "type": "object",
-              "properties": {
-                "python": {
-                  "description": "Python rule overrides.",
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "single-line-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "multi-line-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "docstrings": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "jsdoc": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "doc-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "godoc": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "preserve-patterns": {
-                      "type": [
-                        "array",
-                        "null"
-                      ],
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "min-comment-length": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ],
-                      "format": "uint",
-                      "minimum": 0
-                    },
-                    "min-code-complexity": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ],
-                      "format": "uint32",
-                      "minimum": 0
-                    },
-                    "remove-duplicate-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    }
-                  }
-                },
-                "javascript": {
-                  "description": "JavaScript rule overrides.",
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "single-line-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "multi-line-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "docstrings": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "jsdoc": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "doc-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "godoc": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "preserve-patterns": {
-                      "type": [
-                        "array",
-                        "null"
-                      ],
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "min-comment-length": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ],
-                      "format": "uint",
-                      "minimum": 0
-                    },
-                    "min-code-complexity": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ],
-                      "format": "uint32",
-                      "minimum": 0
-                    },
-                    "remove-duplicate-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    }
-                  }
-                },
-                "typescript": {
-                  "description": "TypeScript rule overrides.",
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "single-line-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "multi-line-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "docstrings": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "jsdoc": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "doc-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "godoc": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "preserve-patterns": {
-                      "type": [
-                        "array",
-                        "null"
-                      ],
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "min-comment-length": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ],
-                      "format": "uint",
-                      "minimum": 0
-                    },
-                    "min-code-complexity": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ],
-                      "format": "uint32",
-                      "minimum": 0
-                    },
-                    "remove-duplicate-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    }
-                  }
-                },
-                "rust": {
-                  "description": "Rust rule overrides.",
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "single-line-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "multi-line-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "docstrings": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "jsdoc": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "doc-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "godoc": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "preserve-patterns": {
-                      "type": [
-                        "array",
-                        "null"
-                      ],
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "min-comment-length": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ],
-                      "format": "uint",
-                      "minimum": 0
-                    },
-                    "min-code-complexity": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ],
-                      "format": "uint32",
-                      "minimum": 0
-                    },
-                    "remove-duplicate-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    }
-                  }
-                },
-                "go": {
-                  "description": "Go rule overrides.",
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "single-line-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "multi-line-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "docstrings": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "jsdoc": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "doc-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "godoc": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "preserve-patterns": {
-                      "type": [
-                        "array",
-                        "null"
-                      ],
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "min-comment-length": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ],
-                      "format": "uint",
-                      "minimum": 0
-                    },
-                    "min-code-complexity": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ],
-                      "format": "uint32",
-                      "minimum": 0
-                    },
-                    "remove-duplicate-comments": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    }
-                  }
-                }
-              }
-            },
             "global-rules": {
               "description": "Global rules applied across languages.",
               "type": [
@@ -446,6 +39,29 @@
                 "null"
               ],
               "properties": {
+                "max-comment-density": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "format": "double"
+                },
+                "min-code-complexity": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "uint32",
+                  "minimum": 0
+                },
+                "min-comment-length": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "uint",
+                  "minimum": 0
+                },
                 "preserve-empty-lines": {
                   "type": [
                     "boolean",
@@ -463,29 +79,431 @@
                     "boolean",
                     "null"
                   ]
-                },
-                "max-comment-density": {
+                }
+              }
+            },
+            "lang-rules": {
+              "description": "Language-specific rules.",
+              "type": "object",
+              "properties": {
+                "go": {
+                  "description": "Go rule overrides.",
                   "type": [
-                    "number",
+                    "object",
                     "null"
                   ],
-                  "format": "double"
+                  "properties": {
+                    "doc-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "docstrings": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "godoc": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "jsdoc": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "min-code-complexity": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint32",
+                      "minimum": 0
+                    },
+                    "min-comment-length": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint",
+                      "minimum": 0
+                    },
+                    "multi-line-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "preserve-patterns": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "remove-duplicate-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "single-line-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  }
                 },
-                "min-comment-length": {
+                "javascript": {
+                  "description": "JavaScript rule overrides.",
                   "type": [
-                    "integer",
+                    "object",
                     "null"
                   ],
-                  "format": "uint",
-                  "minimum": 0
+                  "properties": {
+                    "doc-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "docstrings": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "godoc": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "jsdoc": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "min-code-complexity": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint32",
+                      "minimum": 0
+                    },
+                    "min-comment-length": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint",
+                      "minimum": 0
+                    },
+                    "multi-line-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "preserve-patterns": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "remove-duplicate-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "single-line-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  }
                 },
-                "min-code-complexity": {
+                "python": {
+                  "description": "Python rule overrides.",
                   "type": [
-                    "integer",
+                    "object",
                     "null"
                   ],
-                  "format": "uint32",
-                  "minimum": 0
+                  "properties": {
+                    "doc-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "docstrings": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "godoc": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "jsdoc": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "min-code-complexity": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint32",
+                      "minimum": 0
+                    },
+                    "min-comment-length": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint",
+                      "minimum": 0
+                    },
+                    "multi-line-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "preserve-patterns": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "remove-duplicate-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "single-line-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "rust": {
+                  "description": "Rust rule overrides.",
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "doc-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "docstrings": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "godoc": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "jsdoc": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "min-code-complexity": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint32",
+                      "minimum": 0
+                    },
+                    "min-comment-length": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint",
+                      "minimum": 0
+                    },
+                    "multi-line-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "preserve-patterns": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "remove-duplicate-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "single-line-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "typescript": {
+                  "description": "TypeScript rule overrides.",
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "doc-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "docstrings": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "godoc": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "jsdoc": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "min-code-complexity": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint32",
+                      "minimum": 0
+                    },
+                    "min-comment-length": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint",
+                      "minimum": 0
+                    },
+                    "multi-line-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "preserve-patterns": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "remove-duplicate-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "single-line-comments": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "output": {
+              "description": "Output reporting configuration.",
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "generate-report": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "report-format": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "show-changed-files": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "show-removed-comments": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "show-statistics": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 }
               }
             },
@@ -516,42 +534,37 @@
                 }
               }
             },
-            "output": {
-              "description": "Output reporting configuration.",
-              "type": [
-                "object",
-                "null"
-              ],
+            "scope": {
+              "description": "File scope configuration.",
+              "type": "object",
               "properties": {
-                "show-changed-files": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ]
+                "exclude": {
+                  "description": "Glob patterns to exclude.",
+                  "type": "array",
+                  "default": [
+                    "**/node_modules/**",
+                    "**/target/**",
+                    "**/.git/**",
+                    "**/dist/**",
+                    "**/build/**"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
                 },
-                "show-removed-comments": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ]
-                },
-                "show-statistics": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ]
-                },
-                "generate-report": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ]
-                },
-                "report-format": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                "include": {
+                  "description": "Glob patterns to include.",
+                  "type": "array",
+                  "default": [
+                    "**/*.py",
+                    "**/*.js",
+                    "**/*.ts",
+                    "**/*.rs",
+                    "**/*.go"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -578,19 +591,19 @@
                 "mode": {
                   "description": "List mode: extend or override.",
                   "type": "string",
+                  "default": "extend",
                   "enum": [
                     "extend",
                     "override"
-                  ],
-                  "default": "extend"
+                  ]
                 },
                 "names": {
                   "description": "Directory names to apply for the selected mode.",
                   "type": "array",
+                  "default": [],
                   "items": {
                     "type": "string"
-                  },
-                  "default": []
+                  }
                 }
               }
             },
@@ -604,42 +617,29 @@
                 "mode": {
                   "description": "List mode: extend or override.",
                   "type": "string",
+                  "default": "extend",
                   "enum": [
                     "extend",
                     "override"
-                  ],
-                  "default": "extend"
+                  ]
                 },
                 "names": {
                   "description": "Directory names to apply for the selected mode.",
                   "type": "array",
+                  "default": [],
                   "items": {
                     "type": "string"
-                  },
-                  "default": []
+                  }
                 }
               }
             }
           }
-        },
-        "agents-md": {
-          "description": "Settings for the agents-md (agent init files) tool.",
-          "type": [
-            "object",
-            "null"
-          ],
-          "properties": {
-            "files": {
-              "description": "Agent init file/directory names to scan for (relative to project root).",
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": []
-            }
-          }
         }
       }
+    },
+    "version": {
+      "description": "Configuration version for tool settings.",
+      "type": "string"
     }
   },
   "required": [

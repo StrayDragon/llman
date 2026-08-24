@@ -1,7 +1,6 @@
-use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{extract_archived_change_id, list_specs, resolve_change_dir};
 use crate::sdd::shared::tasks;
-use crate::sdd::spec::backend::{BACKEND as SPEC_BACKEND, SpecBackend};
 use crate::sdd::spec::validation::{ChangeStage, determine_stage};
 use anyhow::{Result, anyhow};
 use serde::Serialize;
@@ -349,85 +348,37 @@ fn toon_single_change(ci: &ChangeInfo, root: &Path) -> String {
     ));
     out.push('\n');
 
-    if ci.is_archived {
-        // Archived: show ops from delta specs — parse directly for req_id + title
-        let archive_dir = root
-            .join(LLMANSPEC_DIR_NAME)
-            .join("changes")
-            .join("archive")
-            .join(&ci.dir_name);
-        let specs_dir = archive_dir.join("specs");
-        if specs_dir.exists() {
-            let mut ops: Vec<(String, String, String)> = Vec::new(); // (op_str, req_id, title)
-            if let Ok(entries) = std::fs::read_dir(&specs_dir) {
-                for entry in entries.flatten() {
-                    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                        continue;
-                    }
-                    let spec_file = entry.path().join(SPEC_FILE);
-                    if !spec_file.exists() {
-                        continue;
-                    }
-                    if let Ok(content) = std::fs::read_to_string(&spec_file) {
-                        let ctx = format!("archived {}", ci.dir_name);
-                        if let Ok(doc) = SPEC_BACKEND.parse_delta_spec(&content, &ctx) {
-                            for op in &doc.ops {
-                                let op_str = match op.op.trim().to_ascii_lowercase().as_str() {
-                                    "add_requirement" => "add_req",
-                                    "modify_requirement" => "mod_req",
-                                    "remove_requirement" => "rm_req",
-                                    "rename_requirement" => "ren_req",
-                                    _ => continue,
-                                };
-                                let title = op.title.as_deref().unwrap_or("?");
-                                ops.push((
-                                    op_str.to_string(),
-                                    op.req_id.clone(),
-                                    title.to_string(),
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-            if !ops.is_empty() {
-                out.push_str(&format!("ops[{}]{{op,req_id,title}}:\n", ops.len()));
-                for (op_str, req_id, title) in &ops {
-                    out.push_str(&format!("  {},{},{}\n", op_str, req_id, maybe_quote(title)));
-                }
-            }
+    // Legacy archived-change delta-ops display was removed with the delta
+    // format; archived changes render through the active branch below.
+    // Active: show incomplete tasks
+    let change_dir = match resolve_change_dir(root, &ci.dir_name) {
+        Ok(p) => p,
+        Err(_) => {
+            return out;
         }
-    } else {
-        // Active: show incomplete tasks
-        let change_dir = match resolve_change_dir(root, &ci.dir_name) {
-            Ok(p) => p,
-            Err(_) => {
-                return out;
-            }
-        };
-        if let Ok(Some(report)) = tasks::parse_tasks_file(&change_dir.join("tasks.md")) {
-            let incomplete: Vec<_> = report
-                .items
-                .iter()
-                .filter(|t| matches!(t.status, tasks::TaskStatus::Pending))
-                .collect();
-            if !incomplete.is_empty() {
-                out.push_str(&format!("tasks[{}]{{id,title,test}}:\n", incomplete.len()));
-                for (i, task) in incomplete.iter().enumerate() {
-                    let task_id = format!("t{}", i + 1);
-                    // Try to extract a test command from the task text (look for backtick command)
-                    let test_cmd = extract_test_command(&task.text);
-                    out.push_str(&format!(
-                        "  {},{},{}\n",
-                        task_id,
-                        maybe_quote(&task.text),
-                        if test_cmd.is_empty() {
-                            "".to_string()
-                        } else {
-                            maybe_quote(&test_cmd)
-                        }
-                    ));
-                }
+    };
+    if let Ok(Some(report)) = tasks::parse_tasks_file(&change_dir.join("tasks.md")) {
+        let incomplete: Vec<_> = report
+            .items
+            .iter()
+            .filter(|t| matches!(t.status, tasks::TaskStatus::Pending))
+            .collect();
+        if !incomplete.is_empty() {
+            out.push_str(&format!("tasks[{}]{{id,title,test}}:\n", incomplete.len()));
+            for (i, task) in incomplete.iter().enumerate() {
+                let task_id = format!("t{}", i + 1);
+                // Try to extract a test command from the task text (look for backtick command)
+                let test_cmd = extract_test_command(&task.text);
+                out.push_str(&format!(
+                    "  {},{},{}\n",
+                    task_id,
+                    maybe_quote(&task.text),
+                    if test_cmd.is_empty() {
+                        "".to_string()
+                    } else {
+                        maybe_quote(&test_cmd)
+                    }
+                ));
             }
         }
     }

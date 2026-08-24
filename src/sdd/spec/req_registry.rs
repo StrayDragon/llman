@@ -6,12 +6,9 @@
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::list_specs;
-use crate::sdd::spec::backend::{FEATURE_BACKEND, SpecBackend};
+use crate::sdd::spec::backend::FEATURE_BACKEND;
 use crate::sdd::spec::ir::MainSpecDoc;
-use crate::sdd::spec::partitioned::parse_feature_scenarios;
-use crate::sdd::spec::validation::{
-    ValidationIssue, ValidationLevel, discover_features, resolve_spec_file,
-};
+use crate::sdd::spec::validation::{ValidationIssue, ValidationLevel, resolve_spec_file};
 use anyhow::{Result, anyhow, bail};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -191,25 +188,22 @@ fn harness_refs_for_req(
     req_id: &str,
     lang: &str,
 ) -> Result<Vec<HarnessRefJson>> {
-    let spec_dir = specs_dir(root).join(capability);
+    let _ = lang;
+    let spec_file = resolve_spec_file(&specs_dir(root), capability)?;
+    // Single-track: acceptance scenarios live in the capability `.feature`.
+    let content = std::fs::read_to_string(&spec_file)?;
+    let parsed = FEATURE_BACKEND.parse_content(&content, &format!("spec `{capability}`"))?;
     let mut out = Vec::new();
-    for feature_path in discover_features(&spec_dir) {
-        let feature_name = feature_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("feature")
-            .to_string();
-        let scenarios = match parse_feature_scenarios(&feature_path, lang) {
-            Ok(s) => s,
-            Err(_) => continue,
-        };
-        for sc in scenarios {
-            if sc.req_ids.iter().any(|r| r.trim() == req_id) {
-                out.push(HarnessRefJson {
-                    feature: feature_name.clone(),
-                    scenario: sc.id.clone(),
-                });
-            }
+    for sc in parsed.acceptance_scenarios() {
+        if sc.req_ids.iter().any(|r| r.trim() == req_id) {
+            out.push(HarnessRefJson {
+                feature: spec_file
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("feature")
+                    .to_string(),
+                scenario: sc.name.clone(),
+            });
         }
     }
     Ok(out)
