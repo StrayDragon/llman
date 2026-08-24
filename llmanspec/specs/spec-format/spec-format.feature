@@ -27,7 +27,7 @@
 
   @req:r136 @human
   场景: toon2features 一次性迁移
-    - llman sdd project migrate --kind toon2features MUST 把 requirements[] 无损转换为 @req/@human 场景（statement 全文入 description）、丢弃 feature:false note 行、合并同目录既有 .feature 并保持幂等；迁移报告 MUST 列出三态初值。--kind spec-md2toon MUST 以非零退出拒绝并提示仅支持 toon2features。
+    - llman sdd project migrate --kind toon2features MUST 把 requirements[] 无损转换为 @req/@human 场景（statement 全文入 description）、合并同目录既有 .feature 并保持幂等；内嵌 scenarios[] 中 feature=true 且 req_id 配对的行 MUST 转写为 @req:<req_id> @executable 场景（id 入场景标题，given/when/then 入 假如/当/那么 步骤，空列跳过，不得产生空步骤）；feature=false 行按 note 处理且 MUST 计入 dropped_notes；feature=true 但 req_id 未配对的行 MUST 计入 dropped_unpaired 且不得转写（避免悬空 @req）；迁移报告 MUST 区分 merged / converted_from_toon / dropped_notes / dropped_unpaired 计数并列出三态初值。--kind spec-md2toon MUST 以非零退出拒绝并提示仅支持 toon2features。
   @executable
   @req:r136
   场景: migrate-toon2features-converts-and-cleans
@@ -36,6 +36,19 @@
     那么 退出码为零
     那么 相对路径 llmanspec/specs/sample/spec.toon 不存在
     那么 相对路径 llmanspec/specs/sample/sample.feature 存在
+
+
+  @executable
+  @req:r136
+  场景: migrate-toon2features-converts-embedded-executable-scenarios
+    假如 已初始化含遗留 spec.toon 且内嵌 feature=true 可执行场景的 sdd 项目且 bdd 配置为 "off"
+    当 运行 llman sdd project migrate --kind toon2features --yes
+    那么 退出码为零
+    那么 相对路径 llmanspec/specs/sample/spec.toon 不存在
+    那么 相对路径 llmanspec/specs/sample/sample.feature 存在
+    那么 相对路径 llmanspec/specs/sample/sample.feature 内容包含 @executable
+    那么 stderr 包含 converted_from_toon 2
+    那么 stderr 包含 dropped_notes 1
 
 
   @executable

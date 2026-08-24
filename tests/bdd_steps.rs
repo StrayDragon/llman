@@ -29,6 +29,7 @@
 //!     - 那么 stdout 含 JSON 键 {key}       (stdout JSON has top-level key)
 //!     - 那么 相对路径 {rel} 存在           (path under fixture cwd)
 //!     - 那么 相对路径 {rel} 不存在         (path under fixture cwd absent)
+//!     - 那么 相对路径 {rel} 内容包含 {text} (substring on file content)
 
 #![cfg(feature = "bdd")]
 
@@ -382,6 +383,32 @@ fn given_sdd_project_legacy_toon(mode: String) {
     .expect("write legacy toon");
 }
 
+/// BDD fixture whose legacy `spec.toon` embeds executable GWT scenario rows
+/// (feature=true) plus a note row (feature=false) — exercises the r136
+/// conversion and accounting.
+#[given("已初始化含遗留 spec.toon 且内嵌 feature=true 可执行场景的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_legacy_toon_embedded_scenarios(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    std::fs::write(
+        dir.join("llmanspec/specs/sample/spec.toon"),
+        concat!(
+            "kind: llman.sdd.spec\n",
+            "name: \"sample\"\n",
+            "purpose: \"sample legacy\"\n",
+            "valid_scope[1]: \"llmanspec/specs/sample\"\n",
+            "requirements[2]{req_id,title,statement}:\n",
+            "  r1,R1,\"System MUST do X.\"\n",
+            "  r2,R2,\"System MUST do Y.\"\n",
+            "scenarios[3]{req_id,id,given,when,then,feature}:\n",
+            "  r1,acc-1,\"precondition ready\",\"run llman sdd validate sample\",\"exit code is zero\",true\n",
+            "  r2,acc-2,\"\",\"run llman sdd status\",\"status shows sample\",true\n",
+            "  r2,note,\"\",\"a trigger\",\"an outcome\",false\n",
+        ),
+    )
+    .expect("write legacy toon with embedded scenarios");
+}
+
 /// BDD-on fixture whose acceptance `@req` points at a missing rule id.
 #[given("已初始化含无效 @req 的 sdd 项目且 bdd 配置为 {mode}")]
 fn given_sdd_project_bad_req(mode: String) {
@@ -715,6 +742,20 @@ fn then_rel_path_absent(rel: String) {
         !path.exists(),
         "expected path to be absent: {}",
         path.display()
+    );
+}
+
+#[then("相对路径 {rel} 内容包含 {text}")]
+fn then_rel_path_contains(rel: String, text: String) {
+    let path = fixture_cwd().join(rel.trim().trim_matches('"'));
+    let content = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let needle = text.trim().trim_matches('"');
+    assert!(
+        content.contains(needle),
+        "expected {} to contain {:?}, got: {:?}",
+        path.display(),
+        needle,
+        content
     );
 }
 
