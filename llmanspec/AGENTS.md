@@ -21,6 +21,7 @@ rules, context, or conventions that AI agents should follow.
 | `checkpointed` | 否 | **CLI**（`checkpoint`） | 是否已 checkpoint |
 | `checkpoint_sha`（或 `checkpointSha`） | 否 | **CLI** | checkpoint 的 SHA |
 | `skip_specs_landing` | 否 | agent | `true` 时无 live `llmanspec/specs/**` 变更也可 `readyToImplement` |
+| `rules_edit_acked` | 否 | 人工确认后由 agent 写入 | `true` 时允许本 change 修改/删除锁定的 `@human` 规则场景（spec-format r135） |
 
 > **生命周期阶段不是 frontmatter 字段**：它由 `determine_stage`（r93）实时从磁盘 artifacts 推断（Draft/Designed/Full），用 `llman sdd status` / `llman sdd show` 查看。`status` 字段已废弃——不要再写进 frontmatter，CLI 会拒绝。
 

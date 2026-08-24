@@ -29,7 +29,7 @@ Run the propose-equivalent path quickly: planning shell → Branch binding → S
    - `design.md` (if needed)
    - `tasks.md`
 5. **Branch binding**: `llman sdd change start <id>` (clean tree on default branch) or create a branch then `change attach <id>`.
-6. **Specs landing**: on the bound branch, edit live `llmanspec/specs/<capability>/spec.toon` (+ `*.feature` when bdd-on) and commit; or set `skip_specs_landing: true` when there is no contract edit.
+6. **Specs landing**: on the bound branch, edit live `llmanspec/specs/<capability>/<capability>.feature` and commit; or set `skip_specs_landing: true` when there is no contract edit.
 7. Validate: `llman sdd validate <id> --strict --no-interactive`.
 8. Confirm `readyToImplement=true` via `llman sdd show <id> --json`, then suggest `llman-sdd-apply` (do not suggest apply before ready).
 

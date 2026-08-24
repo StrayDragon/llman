@@ -12,16 +12,16 @@
 
 ## SDD 可选增强能力
 
-主 pipeline（explore→propose→apply→verify→archive）之外的**可选增强**，按需触发，默认行为不变。能力借鉴自 [mattpocock/skills](https://github.com/mattpocock/skills)（MIT，见下方致谢），经内化重写以 llman 的单 SSOT（`spec.toon`）为根，不引入 `CONTEXT.md`。
+主 pipeline（explore→propose→apply→verify→archive）之外的**可选增强**，按需触发，默认行为不变。能力借鉴自 [mattpocock/skills](https://github.com/mattpocock/skills)（MIT，见下方致谢），经内化重写以 llman 的单 SSOT（单轨 feature-as-spec）为根，不引入 `CONTEXT.md`。
 
 ### pipeline 阶段内增强（触发词进入分支）
 
 | 阶段 | 增强能力 | 触发词 | 说明 |
 |------|---------|--------|------|
-| explore | 逐问深挖 | 「深挖」「逐个问」 | 一次只问一个问题并附推荐答案；能查到的事实不问用户，只有决策才问；术语冲突时回写 `spec.toon`（不另建词表） |
+| explore | 逐问深挖 | 「深挖」「逐个问」 | 一次只问一个问题并附推荐答案；能查到的事实不问用户，只有决策才问；术语冲突时回写 live `.feature`（不另建词表） |
 | propose | 测试边界前置 + 垂直切片 | 写 tasks 前自动 | 先列将测试的边界（seam，来自 `*.feature` GWT）并确认；tasks 按垂直切片拆 + `[blocked-by]` 依赖 |
 | apply | 紧反馈诊断 | 自修复失败且判定为难定位 bug | 先建一个能复现失败的命令，再排查；禁止没有复现命令就猜原因 |
-| verify | 双轴审查 | 用户要求或规范疑似 | 合约轴（spec.toon/.feature 合约）+ 标准轴（AGENTS.md 编码规范 + 12 项代码坏味）分离呈现 |
+| verify | 双轴审查 | 用户要求或规范疑似 | 合约轴（`.feature` 中 @human 规约与 @executable 验收）+ 标准轴（AGENTS.md 编码规范 + 12 项代码坏味）分离呈现 |
 
 ### 独立可选 skill（不属于线性 pipeline）
 
@@ -85,165 +85,53 @@ Cargo equivalents use `cargo +nightly ...`.
 - Avoid parallel test collisions: don’t use fixed relative paths/identifiers in the repo root (e.g. `config`, `config.yaml`); prefer unique temp paths and guard env/cwd changes with `crate::test_utils::TestProcess`.
 - When editing `templates/sdd/**`, run `just check-sdd-templates` (also in `just check-all`).
 
-## 统一 Git-native 变更流程
-
-本项目采用统一 Git-native 流程（不再区分 BDD-on/off）。
-
-### 领域概念区分（勿混淆两层）
+## 统一 Git-native 变更流程（单轨 feature-as-spec）
 
 标准术语（禁止用「车道」等隐喻替代）：
 
-| 标准说法 | 是什么 | 不是什么 / 禁止说法 |
-|----------|--------|---------------------|
-| **Skill 导航** | agent 技能顺序：explore → propose → apply → verify → archive | **不是** Git-native 生命周期；图上的 propose ≠ 已可 apply。勿写「Skill 链 vs Git 车道」 |
-| **Git-native 生命周期** | Draft → Designed → Branch binding → Specs landing → apply → verify → finalize/archive | **不是**一组独立 skill；Specs landing 不是 skill。勿写「完整车道」「独占车道」 |
-| **CLI 三态 `stage`** | `draft` / `designed` / `full`（Full = Designed 规划壳 + Branch binding） | **不是** apply-ready；`full` 仍可能 `readyToImplement=false` |
-| **Branch binding（分支绑定）** | `change start` 或 `change attach`：绑到非默认 `sdd/<id>`（或已有 feature），写入 `branch`/`base_sha` | **不等于** Specs landing；**不等于**可 apply；start 须干净树+默认分支。勿单写含糊的「Binding」而不点名 |
-| **Specs landing（合约落地）** | 仅在**绑定分支**编辑 `llmanspec/specs/**` 并留下相对 `base_sha` 的 diff/commit（`specsLanded`） | **不是**在默认分支改 live specs；**不是**写 `changes/<id>/specs/` |
-| **规划壳** | `proposal.md` / `design.md` / `tasks.md`（可短暂在默认分支） | **不是**已 Specs-landed；**不是** live 合约正文 |
-| **`skip_specs_landing`** | frontmatter 豁免：本次无 live 合约变更 | **不是**跳过 Branch binding |
-| **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | **不是**「完整工件」口头说法；用 `show`/`status --json` 查 |
-| **Change 文档** | `llmanspec/changes/` 下含 `proposal.md` 的目录（可用分组：`changes/<group>/…/<id>/`；CLI id 仍为叶子目录名） | **不是** live 合约；合约 SSOT 在 `llmanspec/specs/**` |
-| **Live specs** | 绑定分支上的 `spec.toon` +（bdd-on）`*.feature` | **禁止**未 binding 时在默认分支编辑；不是已移除的 `change delta` / `*.feature.delta.toon` |
+| 标准说法 | 是什么 | 不是什么 |
+|----------|--------|---------|
+| **Skill 导航** | explore → propose → apply → verify → archive 的 agent 技能顺序 | **不是** Git-native 生命周期 |
+| **Git-native 生命周期** | Draft → Designed → Branch binding → Specs landing → apply → verify → finalize/archive | Specs landing 不是 skill |
+| **CLI 三态 `stage`** | `draft` / `designed` / `full` | full 仍可能 `readyToImplement=false` |
+| **Branch binding** | `change start`/`attach` 绑定非默认 `sdd/<id>` 分支 + `base_sha` | 不等于 Specs landing，不等于可 apply |
+| **Specs landing** | 在绑定分支编辑 `llmanspec/specs/**/<capability>.feature` 并留相对 base_sha 的 diff | 不是在默认分支改 live specs |
+| **`skip_specs_landing`** | frontmatter 豁免：本次无 live 合约变更 | 不是跳过 Branch binding |
+| **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | 用 `show`/`status --json` 查 |
+| **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于 base_sha | 新增规则无需 ack；改/删须 `rules_edit_acked: true` |
 
-```mermaid
-flowchart TB
-  subgraph main_ok["允许短暂在默认分支"]
-    A["change new → Draft<br/>仅 proposal.md"]
-    B["充实 design + tasks → Designed"]
-  end
-
-  subgraph gate_start["Branch binding"]
-    C{"工作区干净<br/>且在默认分支？"}
-    D["change start<br/>建 sdd/&lt;id&gt; + 写 branch/base_sha"]
-    E["或手动 checkout -b<br/>再 change attach"]
-  end
-
-  subgraph specs_only["仅在本 change 分支"]
-    F["编辑 live llmanspec/specs/**<br/>toon / feature"]
-    G["commit → Specs landing<br/>base...HEAD 含 specs 路径"]
-  end
-
-  subgraph implement["实现"]
-    H["apply：按 tasks 改代码<br/>可继续改 specs"]
-    I["verify"]
-    J["finalize / archive<br/>ff-merge → 默认分支才首次合入 specs"]
-  end
-
-  A --> B --> C
-  C -->|是| D --> F
-  C -->|已在 feature| E --> F
-  F --> G --> H --> I --> J
-```
-
-线性对照：
+线性流程：
 
 ```
 draft [proposal.md]
-  → designed [+design+tasks；仍可不碰 live specs；规划壳可短暂在默认分支]
-  → bound [change start|attach → sdd/<id>；仅 Branch binding]
-  → specs-landed [仅在绑定分支改 llmanspec/specs/** 并留下相对 base_sha 的 diff/commit]
-  → apply [代码；可继续在同分支改 specs]
-  → verify
-  → archive [docs rename + ff-merge → 默认分支首次合入该 change 的 specs]
+  → designed [+design+tasks]
+  → bound [change start|attach]
+  → specs-landed [绑定分支编辑 <capability>.feature 并 commit]
+  → apply → verify → finalize/archive
 ```
 
-CLI 三态仍为 Draft / Designed / Full（Full = designed 工件 + attach binding）。**Apply-ready** 另看 `readyToImplement`：`Full ∧ (specsLanded ∨ skip_specs_landing)`。`show`/`status --json` 暴露 `specsLanded` / `skipSpecsLanding` / `readyToImplement`。
+### 单轨格式（spec-format r131-r136）
 
-### Specs landing（硬规则）
+- 每个 capability 目录只有**一个** `<capability>.feature`；`spec.toon` 已废除（出现即 ERROR，跑 toon2features）。
+- 头注释 `# capability:` / `# purpose:` / `# scope:` 必填（scope 驱动 staleness）。
+- 约束 = `@req:<id> @human` 场景（statement 全文放描述）；验收 = `@executable` 场景（用 `@req:<id>` 挂回）。
+- 三态分级：enforced / manual(`@manual`) / pending —— `list --specs` 与 `show` 输出。
+- 禁止把场景嵌进 `Rule:` 块（rstest-bdd scenarios! 会静默跳过）。
+- `change delta` / solidify / `*.feature.delta.toon` / `bdd.bindings` 均已移除。
 
-- **任意阶段**：对公共 `llmanspec/specs/**` 的编辑，只允许发生在该 change 已绑定的非默认分支上。
-- **禁止**为过 `change start` 干净树门禁，把未实现 live specs commit 进默认分支。
-- `change start` 只做 Branch binding，**不等于** Specs landing，也**不等于**可 apply。
-- 丢失绑定分支上的 specs 改动 → checkout/重建分支并必要时 `attach --force` 后重写；**不要**对已 attach 的 change 再跑 `start`。
-- 无 live 合约变更的 change 可在 proposal frontmatter 设 `skip_specs_landing: true`。
 
-`bdd:` 段降级为**仅 runner 开关**（决定 `validate --check` 是否跑 `bdd.run_command`，不影响变更生命周期）。
 
-| 阶段 | 状态 | 触发命令 |
-|------|------|----------|
-| draft | proposal.md only | `change new` |
-| designed | +design.md +tasks.md | 手动补充 artifact |
-| full（bound） | +attach binding | `change start`（推荐）或 `change attach` |
-| specs-landed | 绑定分支上 `llmanspec/specs/**` 相对 base 有 diff（或 skip） | 在绑定分支编辑并 commit |
-| apply | 实现代码 | `llman-sdd-apply`（须 `readyToImplement=true`） |
-| verify | 验证一致性 | `llman-sdd-verify` |
-| archive | docs rename + ff-merge | `change archive` 或 `change finalize` |
+## BDD 兼容测试维护规则
 
-- **`change start <id>`**：clean-tree 门禁 → **须在默认分支** → 自动建分支 `sdd/<id>` → 写入 attach binding
-- **`change attach <id>`**：手动绑已有 feature 分支（共存命令；拒绝绑到默认分支）
-- **`change start --worktree <id>`**：`git worktree add` 并行工作（路径 `<repo>/.git/sdd/worktrees/`）
-- **`change finalize <id>`**：checkpoint + docs rename + ff-merge 单进程（工作区可脏）
-- **`change archive <id>`**：docs rename + `git merge --ff-only` 到默认分支
-- **无 `change delta`**：编辑 live `llmanspec/specs/**/spec.toon` + `*.feature`；已移除
-- **无 `solidify`**：不保留兼容别名
+`tests/sdd_bdd_compat_tests.rs` 承载实现细节层（init 结构、serde 向后兼容、子命令 smoke）；
+行为合约在 `llmanspec/specs/sdd-bdd-mode-compat/*.feature`。改动以下内容必须同步适配：
+validate `--check` 语义、change 生命周期命令面、锁定门禁、index rebuild embed、
+sdd 子命令增删（smoke 列表）、step 库（保持泛化 step 可驱动全部 @executable 场景；
+注意 rstest-bdd 占位符引号陷阱：`{mode}` 含引号需 trim）。
 
-BFD-on（`bdd:` 段存在）时 `.feature` harness 为 SSOT：
+判定新增断言归属：用户可见 MUST/SHALL 行为 → `.feature` + `@executable`；
+内部实现（serde、字段结构、smoke 兜底）→ Rust 测试文件。
 
-| 层 | 权威 | 内容 |
-|---|---|---|
-| 约束 | `llmanspec/specs/<name>/spec.toon` | `requirements` + **不可执行** scenarios |
-| Harness | `llmanspec/specs/<name>/*.feature` | 可执行 GWT 唯一正文；场景带 `@req:<req_id>` |
-
-`req_id` 是**全库唯一的短别名**（`r12` 或自定义 tag）。归属用
-`llman sdd spec resolve-req <id>` / `next-req-id` 查询与分配。
-
-`spec scaffold <cap>` 生成框架 spec.toon + 可选 `.feature`（BDD-on 时），自动分配首个 `req_id`。
-
-禁止同一 scenario id 的可执行 GWT 双写在 toon 与 feature。
-
-### BDD runner 开关
-`bdd:` 段不再影响变更生命周期，仅控制 validate runner：
-- `bdd:` 存在时 `validate --check` 执行 `bdd.run_command`
-- 无 `bdd:` 时 `validate --check` 给出 INFO 提示
-- `--no-check` 始终跳过 runner
-
-- **fast mode（默认）**：`llman sdd validate <spec> --strict` 做 Gherkin + Partitioned 链接/双写门禁，
-  不执行 runner（可用项目约定；本仓常用 `--no-check` 跳过 runner）。
-- **full mode（执行验证）**：`llman sdd validate <spec> --check` 或 `cargo test --features bdd`
-  实际运行 step 绑定。full mode 需要有可匹配的 step 定义。
-- **泛化 step 库**：`tests/bdd_steps.rs` 提供一组可复用的「运行 llman → 断言输出」step
-  （如 `当 运行 llman {args}`、`那么 退出码为 {code:i32}`、`那么 stderr 包含 {text}`）。
-  新增可执行场景时优先复用这些泛化 step；仅在确实需要新断言模式时才添加新 step 定义。
-- **判定一个 spec 是否可启用 full mode**：该 spec 的 feature 触发步骤应能由 CLI 子进程驱动
-  （即 `假如`/`当` 步骤实际调用 `llman` 命令，而非描述内部状态如「管理器扫描」）。
-  描述内部行为的 feature（约占全库 86%）不适合 full mode，保持 fast mode 即可。
-- **scenario 绑定机制**：本仓用 `tests/bdd_steps.rs` 底部的
-  `scenarios!("llmanspec/specs", tags = "@executable")` **目录发现宏**——编译期扫描 specs 下全部
-  `.feature`，仅展开带 `@executable` 标签的场景（无需逐场景写 `#[scenario(path, name)]`；
-  该形态是 rstest-bdd 的另一种用法，下游项目在用）。`list --specs`/`show` 的 harness
-  bound/unbound 拆分口径由 `llmanspec/config.yaml` 的 `bdd.bindings` 声明（本仓配 `kind: tags`
-  + `[executable]`），未声明则保持单一 harness 计数。
-- rstest-bdd **不支持正则**（字面文本经 `regex::escape` 全锚定 `^...$`）；泛化靠 `{name}`
-  /`{name:type}` 占位符实现，「包含」语义在 step 函数体内用 Rust 子串断言表达。
-- **占位符引号陷阱**：`.feature` 里写 `bdd 配置为 "on"` 时，rstest-bdd 会把引号也捕获进
-  `{mode}`（值为 `"on"` 而非 `on`）。step 函数体内比较前必须 `trim_matches('"')`。
-
-## BDD 模式兼容性测试维护规则
-
-`llmanspec/specs/sdd-bdd-mode-compat/` 承载 BDD on/off 切换的行为合约（合约层，
-`*.feature`，经 `tests/bdd_steps.rs` 的 `scenarios!` 目录发现绑定）；`tests/sdd_bdd_compat_tests.rs`
-承载实现细节层（init 结构、serde 向后兼容、13 子命令 smoke）。当 llman sdd 流程变动时，
-以下变更**必须**同步适配这些测试：
-
-- **改 validate 的 `--check`/`--no-check` 语义** → 同步 `validate-check.feature`（runner
-  触发条件、降级行为）。
-- **改 change 生命周期命令**（`new` / `change archive` 等）→ 同步
-  `git-binding.feature`、skills、`tests/sdd_bdd_compat_tests.rs` smoke 列表。
-- **改 Partitioned 门禁**（`@req`、双写、合并前 docs-only archive）→ 同步 `sdd-bdd-mode-compat`
-  相关 `.feature` 与 `tests/sdd_bdd_compat_tests.rs`。
-- **改 project migrate**（当前仅 `--kind spec-md2toon`；`partitioned` 已移除）→ 同步
-  `sdd-bdd-mode-compat` 相关 `.feature` / `spec.toon`（r85）。
-- **改 index rebuild 的 `.feature` embed 逻辑** → 同步 `index-embed.feature` +
-  `tests/sdd_bdd_compat_tests.rs::test_index_rebuild_backward_compat_old_tree_loads`。
-- **新增/移除 sdd 子命令** → 更新 `tests/sdd_bdd_compat_tests.rs::test_all_subcommands_smoke_bdd_on_and_off`
-  的 `read_only` 命令列表。
-- **改 step 库** → 确保 `已初始化 sdd 项目且 bdd 配置为 {mode}` step 仍能驱动所有场景
-  （注意引号陷阱：`{mode}` 含引号，需 `trim_matches('"')`）。
-
-判定新增断言的归属：
-- 描述「MUST/SHALL 用户可见行为」（合约）→ 写 `.feature` + `@executable` 标签（目录发现）。
-- 描述内部实现（serde、字段结构、smoke 兜底）→ 写 `tests/sdd_bdd_compat_tests.rs`。
 
 ## Commit and Pull Request Guidelines
 - Commit messages use a short type prefix such as `feat:`, `fix:`, `refactor:`, `doc:`, or `bump:` with an optional scope, for example `fix(security): ...`.
