@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/refactor-spec-format-single-track
+base_sha: be851c07c4ef5fa961d0fe82f0f7a5fdc7aa9309
+checkpointed: false
 ---
 
 ## Why
