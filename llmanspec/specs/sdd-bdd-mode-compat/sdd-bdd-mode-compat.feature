@@ -1,12 +1,6 @@
 # language: zh-CN
-# managed by llman sdd (Partitioned SSOT harness)
+# managed by llman sdd (single-track feature-as-spec)
 功能: sdd-bdd-mode-compat
-
-  @executable @req:r6
-  场景: @req 指向缺失 requirement 时 validate --strict 失败
-    假如 已初始化含无效 @req 的 sdd 项目且 bdd 配置为 on
-    当 在非交互终端运行 llman sdd validate sample --strict --no-check
-    那么 stderr 包含 @req
 
   @executable @req:r83
   场景: BDD-off 时 validate 静默忽略 .feature 文件
@@ -26,16 +20,3 @@
     当 在非交互终端运行 llman sdd project migrate --kind partitioned --dry-run
     那么 退出码非零
     那么 stderr 包含 spec-md2toon
-
-  @executable @req:r5
-  场景: 双写可执行 GWT 时 validate --strict 失败
-    假如 已初始化含可执行双写的 sdd 项目且 bdd 配置为 on
-    当 在非交互终端运行 llman sdd validate sample --strict --no-check
-    那么 stderr 包含 dual-write
-
-  @executable @req:r6
-  场景: 双写错误消息列出具体冲突对
-    假如 已初始化含可执行双写的 sdd 项目且 bdd 配置为 on
-    当 在非交互终端运行 llman sdd validate sample --strict --no-check
-    那么 stderr 包含 dual-write
-    那么 stderr 包含 (r1, happy)
