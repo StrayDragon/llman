@@ -1,6 +1,6 @@
 use crate::sdd::change::freeze::FREEZE_ARCHIVE_NAME;
 use crate::sdd::project::config::{ArchiveConfig, BddConfig, load_required_config};
-use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{
     list_archived_changes, list_changes, list_specs, resolve_change_dir,
 };
@@ -707,15 +707,17 @@ fn validate_by_type(
         }
         ItemType::Spec => {
             validate_sdd_id(id, "spec")?;
-            let spec_path = root
-                .join(LLMANSPEC_DIR_NAME)
-                .join("specs")
-                .join(id)
-                .join(SPEC_FILE);
-            match fs::read_to_string(&spec_path) {
+            let specs_root = root.join(LLMANSPEC_DIR_NAME).join("specs");
+            match crate::sdd::spec::validation::resolve_spec_file(&specs_root, id)
+                .and_then(|p| fs::read_to_string(&p).map_err(|e| anyhow!(e)))
+            {
                 Ok(content) => {
+                    // `content` is the capability's single-track `.feature` text;
+                    // staleness scope comes from the `# scope:` header via the
+                    // parsed doc's valid_scope (r133).
+                    let spec_path = specs_root.join(id);
                     let validation = validate_spec_content_with_frontmatter_and_bdd(
-                        &spec_path,
+                        &spec_path.join("spec.feature"),
                         &content,
                         strict,
                         Some(root),
@@ -1035,13 +1037,15 @@ fn run_bulk_validation(
     for id in specs {
         let start = Instant::now();
         validate_sdd_id(&id, "spec")?;
-        let spec_path = root
-            .join(LLMANSPEC_DIR_NAME)
-            .join("specs")
-            .join(&id)
-            .join(SPEC_FILE);
-        match fs::read_to_string(&spec_path) {
-            Ok(content) => {
+        let specs_root = root.join(LLMANSPEC_DIR_NAME).join("specs");
+        let loaded =
+            crate::sdd::spec::validation::resolve_spec_file(&specs_root, &id).and_then(|p| {
+                fs::read_to_string(&p)
+                    .map(|c| (p, c))
+                    .map_err(|e| anyhow!(e))
+            });
+        match loaded {
+            Ok((spec_path, content)) => {
                 let validation = validate_spec_content_with_frontmatter_and_bdd(
                     &spec_path,
                     &content,
@@ -1059,7 +1063,7 @@ fn run_bulk_validation(
                 let staleness_frontmatter = validation.frontmatter.clone();
                 let staleness = staleness_evaluator.evaluate(
                     &id,
-                    &spec_path,
+                    spec_path.parent().unwrap_or(&spec_path),
                     staleness_frontmatter.as_ref(),
                     None,
                 );

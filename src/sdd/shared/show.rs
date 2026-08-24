@@ -6,7 +6,9 @@ use crate::sdd::shared::discovery::{
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
-use crate::sdd::spec::parser::{Requirement, parse_change, parse_spec};
+use crate::sdd::spec::backend::feature_backend;
+use crate::sdd::spec::backend::feature_backend::{ScenarioTier, compute_rule_morphology};
+use crate::sdd::spec::parser::parse_change;
 use crate::sdd::spec::validation::determine_stage;
 use anyhow::{Result, anyhow};
 use inquire::Select;
@@ -286,88 +288,70 @@ fn list_change_artifacts(change_dir: &Path) -> Vec<&'static str> {
 fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
     validate_sdd_id(spec_id, "spec")?;
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    let config = load_required_config(&llmanspec_dir)?;
+    let _config = load_required_config(&llmanspec_dir)?;
 
-    let spec_dir = root.join(LLMANSPEC_DIR_NAME).join("specs").join(spec_id);
-    let spec_path = spec_dir.join(SPEC_FILE);
-    if !spec_path.exists() {
+    // Single-track (r131): the capability's `.feature` is the spec.
+    let specs_root = root.join(LLMANSPEC_DIR_NAME).join("specs");
+    let Ok(spec_path) = crate::sdd::spec::validation::resolve_spec_file(&specs_root, spec_id)
+    else {
         return Err(anyhow!(t!("sdd.show.spec_not_found", id = spec_id)));
-    }
-
-    let lang = crate::sdd::spec::validation::locale_to_gherkin_lang(
-        Some(&config.locale),
-        config.bdd.as_ref(),
-    );
+    };
     let content = fs::read_to_string(&spec_path)?;
-    let resolved_bindings = crate::sdd::spec::bindings::resolve_from_config(root, Some(&config))?;
-    let morphology = {
-        use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-        use crate::sdd::spec::partitioned::{compute_morphology, load_spec_harness_files_soft};
-        let mut soft = Vec::new();
-        let harness_pairs = load_spec_harness_files_soft(&spec_dir, &lang, &mut soft);
-        let harness: Vec<_> = harness_pairs.iter().map(|(_, sc)| sc.clone()).collect();
-        BACKEND
-            .parse_main_spec(&content, &format!("spec `{spec_id}`"))
-            .ok()
-            .map(|doc| {
-                let mut m = compute_morphology(&doc, &harness);
-                if let Some(resolved) = &resolved_bindings {
-                    resolved.attach_to_morphology(spec_id, &harness_pairs, &mut m);
-                }
-                m
+
+    let parsed = crate::sdd::spec::backend::FEATURE_BACKEND
+        .parse_content(&content, &format!("spec `{spec_id}`"))?;
+    let morphology = Some(compute_rule_morphology(&parsed));
+
+    // Harness summaries cover both tiers: acceptance scenarios carry GWT;
+    // constraint rules surface their statement text.
+    let harness_summaries: Vec<serde_json::Value> = parsed
+        .scenarios
+        .iter()
+        .map(|sc| {
+            serde_json::json!({
+                "id": sc.name,
+                "tier": match sc.tier {
+                    Some(ScenarioTier::Constraint) => "constraint",
+                    Some(ScenarioTier::Manual) => "manual",
+                    Some(ScenarioTier::Acceptance) => "acceptance",
+                    None => "untagged",
+                },
+                "reqIds": sc.req_ids,
+                "given": sc.given.join("\n"),
+                "when": sc.when_.join("\n"),
+                "then": sc.then_.join("\n"),
+                "statement": feature_backend::rule_statement(sc),
             })
-    };
-    let harness_summaries = {
-        use crate::sdd::spec::partitioned::load_spec_harness_soft;
-        let mut soft = Vec::new();
-        load_spec_harness_soft(&spec_dir, &lang, &mut soft)
-            .into_iter()
-            .map(|sc| {
-                serde_json::json!({
-                    "id": sc.id,
-                    "reqIds": sc.req_ids,
-                    "given": sc.given,
-                    "when": sc.when_,
-                    "then": sc.then_,
-                })
-            })
-            .collect::<Vec<_>>()
-    };
+        })
+        .collect::<Vec<_>>();
 
     if args.json {
         if args.requirements && args.requirement.is_some() {
             return Err(anyhow!(t!("sdd.show.requirements_conflict")));
         }
-        let spec = parse_spec(&content, spec_id)?;
         if args.meta_only {
             let output = serde_json::json!({
                 "id": spec_id,
-                "featureId": spec.name,
-                "title": spec.name,
-                "purpose": spec.overview,
-                "overview": spec.overview,
-                "requirementCount": spec.requirements.len(),
-                "metadata": spec.metadata,
+                "featureId": parsed.name,
+                "title": parsed.feature_title,
+                "purpose": parsed.purpose,
+                "overview": parsed.purpose,
+                "requirementCount": parsed.rule_scenarios().count(),
                 "morphology": morphology,
             });
             print_json(&output, args.compact_json)?;
             return Ok(());
         }
 
-        let requirements = filter_requirements(&spec.requirements, args)?;
-        // Partitioned isomorphic JSON: constraints carry toon rows; harness is
-        // first-class; also project @req-linked harness ids onto requirements
-        // so agents don't see empty scenarios when GWT lives only in .feature.
-        let requirements_json =
-            enrich_requirements_json(&content, spec_id, &requirements, &harness_summaries, args)?;
+        let requirements_json = requirements_json_from_parsed(&parsed, args)?;
+        let rule_count = parsed.rule_scenarios().count();
         let output = serde_json::json!({
             "id": spec_id,
-            "title": spec.name,
-            "purpose": spec.overview,
-            "overview": spec.overview,
-            "requirementCount": requirements.len(),
+            "title": parsed.feature_title,
+            "purpose": parsed.purpose,
+            "overview": parsed.purpose,
+            "requirementCount": rule_count,
             "requirements": requirements_json,
-            "metadata": spec.metadata,
             "morphology": morphology,
             "constraints": requirements_json,
             "harness": harness_summaries,
@@ -376,141 +360,52 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
         return Ok(());
     }
 
-    println!("## Constraints");
+    println!("## Spec");
     println!("{content}");
-    println!("\n## Harness");
-    if harness_summaries.is_empty() {
-        println!("(no .feature scenarios)");
-    } else {
-        for h in &harness_summaries {
-            println!(
-                "- {} @req={:?}",
-                h.get("id").and_then(|v| v.as_str()).unwrap_or("?"),
-                h.get("reqIds")
-            );
-        }
-    }
+    println!("\n## Morphology");
     if let Some(m) = morphology {
-        match (m.harness_bound_count, m.harness_unbound_count) {
-            (Some(bound), Some(unbound)) => println!(
-                "\n## Morphology\nconstraintsReqCount={} harnessScenarioCount={} harnessBoundCount={} harnessUnboundCount={} dualWriteCount={} reqLinkCoverage={:.2}",
-                m.constraints_req_count,
-                m.harness_scenario_count,
-                bound,
-                unbound,
-                m.dual_write_count,
-                m.req_link_coverage
-            ),
-            _ => println!(
-                "\n## Morphology\nconstraintsReqCount={} harnessScenarioCount={} dualWriteCount={} reqLinkCoverage={:.2}",
-                m.constraints_req_count,
-                m.harness_scenario_count,
-                m.dual_write_count,
-                m.req_link_coverage
-            ),
-        }
+        println!(
+            "ruleCount={} enforced={} manual={} pending={} acceptanceCount={}",
+            m.rule_count,
+            m.rule_enforced_count,
+            m.rule_manual_count,
+            m.rule_pending_count,
+            m.acceptance_count
+        );
     }
     Ok(())
 }
 
-fn filter_requirements(requirements: &[Requirement], args: &ShowArgs) -> Result<Vec<Requirement>> {
-    let requirement_index = match args.requirement {
-        Some(index) => {
-            if index == 0 || index > requirements.len() {
-                return Err(anyhow!(t!(
-                    "sdd.show.requirement_not_found",
-                    id = index,
-                    count = requirements.len()
-                )));
-            }
-            Some(index - 1)
-        }
-        None => None,
-    };
-
-    let include_scenarios = !args.requirements && !args.no_scenarios;
-    let selected: Vec<Requirement> = if let Some(index) = requirement_index {
-        vec![requirements[index].clone()]
-    } else {
-        requirements.to_vec()
-    };
-
-    Ok(selected
-        .into_iter()
-        .map(|req| Requirement {
-            text: req.text,
-            scenarios: if include_scenarios {
-                req.scenarios
-            } else {
-                Vec::new()
-            },
-        })
-        .collect())
-}
-
-/// Build requirements JSON with `reqId`/`title` and harness scenarios linked via `@req`.
-fn enrich_requirements_json(
-    content: &str,
-    spec_id: &str,
-    filtered: &[Requirement],
-    harness: &[serde_json::Value],
+/// Build the requirements JSON array straight from the rich parse (r132).
+fn requirements_json_from_parsed(
+    parsed: &feature_backend::ParsedFeatureSpec,
     args: &ShowArgs,
 ) -> Result<Vec<serde_json::Value>> {
-    use crate::sdd::spec::backend::{BACKEND, SpecBackend};
-    let doc = BACKEND.parse_main_spec(content, &format!("spec `{spec_id}`"))?;
     let include_scenarios = !args.requirements && !args.no_scenarios;
-
-    // Map statement text → req entry for filtered subset matching.
-    let wanted: std::collections::HashSet<&str> =
-        filtered.iter().map(|r| r.text.as_str()).collect();
-
     let mut out = Vec::new();
-    for req in &doc.requirements {
-        let text = req.statement.trim();
-        if !wanted.contains(text) {
-            continue;
-        }
+    for rule in parsed.rule_scenarios() {
         let mut scenarios = Vec::new();
         if include_scenarios {
-            for sc in filtered
-                .iter()
-                .find(|r| r.text == text)
-                .map(|r| r.scenarios.as_slice())
-                .unwrap_or(&[])
-            {
-                scenarios.push(serde_json::json!({
-                    "rawText": sc.raw_text,
-                    "source": "constraints",
-                }));
-            }
-            for h in harness {
-                let req_ids = h
-                    .get("reqIds")
-                    .and_then(|v| v.as_array())
-                    .cloned()
-                    .unwrap_or_default();
-                let linked = req_ids
-                    .iter()
-                    .any(|v| v.as_str() == Some(req.req_id.as_str()));
-                if linked {
+            for acc in parsed.acceptance_scenarios() {
+                if acc.req_ids.iter().any(|r| rule.req_ids.contains(r)) {
                     scenarios.push(serde_json::json!({
-                        "id": h.get("id"),
+                        "id": acc.name,
                         "rawText": format!(
                             "GIVEN: {}\nWHEN: {}\nTHEN: {}",
-                            h.get("given").and_then(|v| v.as_str()).unwrap_or(""),
-                            h.get("when").and_then(|v| v.as_str()).unwrap_or(""),
-                            h.get("then").and_then(|v| v.as_str()).unwrap_or(""),
+                            acc.given.join("\n"),
+                            acc.when_.join("\n"),
+                            acc.then_.join("\n"),
                         ),
-                        "source": "harness",
-                        "reqIds": req_ids,
+                        "source": "acceptance",
+                        "reqIds": acc.req_ids,
                     }));
                 }
             }
         }
         out.push(serde_json::json!({
-            "reqId": req.req_id,
-            "title": req.title,
-            "text": text,
+            "reqId": rule.req_ids.first().cloned().unwrap_or_default(),
+            "title": rule.name,
+            "text": feature_backend::rule_statement(rule),
             "scenarios": scenarios,
         }));
     }

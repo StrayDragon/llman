@@ -7,16 +7,16 @@
   - 锁定哈希规范化函数（D4 规则）+ 中文场景名/步骤的单元测试。
   - 验证：`cargo +nightly test --lib feature_backend`
 
-- [ ] t2 validate 门禁换血
+- [x] t2 validate 门禁换血
   - 删 dual-write、Partitioned 权威、BDD-off 分叉检查；增 tag 语法学、@human 归一化查重、孤儿 acceptance WARNING、三态计数。
   - 遗留 spec.toon → ERROR 指向 toon2features。
   - 验证：`cargo +nightly test --lib validation` + 手工 smoke `llman sdd validate --all --strict --no-check`
 
-- [ ] t3 子命令输出适配 `[blocked-by: t1]`
+- [x] t3 子命令输出适配 `[blocked-by: t1]`
   - `list --specs`/`show` 三态 morphology + 覆盖矩阵；`index rebuild` 两类场景带 req_id 入树（r78 改写）；`context` 携带分级标记；`resolve-req`/`next-req-id` 改扫 feature 标签；`spec scaffold` 单文件骨架。
   - 验证：对应集成测试 `tests/*_tests.rs`
 
-- [ ] t4 migrate --kind toon2features `[blocked-by: t1]`
+- [x] t4 migrate --kind toon2features `[blocked-by: t1]`
   - 幂等转换（D5）；迁移报告含三态初值；`--kind spec-md2toon` 退役为 ERROR 提示合法 kind。
   - 验证：临时目录 fixture 集成测试（TempDir，禁止污染仓库根）
 

@@ -1,9 +1,12 @@
 use crate::sdd::project::config::{ArchiveConfig, BddConfig};
 use crate::sdd::shared::constants::SPEC_FILE;
 use crate::sdd::shared::tasks::{self, TaskStatus};
-use crate::sdd::spec::backend::{BACKEND, SpecBackend};
+use crate::sdd::spec::backend::SpecBackend;
+use crate::sdd::spec::backend::feature_backend::{
+    self, FeatureBackend, ParsedFeatureSpec, ScenarioTier,
+};
 use crate::sdd::spec::frontmatter::split_frontmatter;
-use crate::sdd::spec::ir::{DeltaSpecDoc, MainSpecDoc};
+use crate::sdd::spec::ir::DeltaSpecDoc;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
@@ -102,6 +105,8 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
     check_mode: bool,
     full_mode_cache: Option<&mut FullModeCache>,
 ) -> SpecValidation {
+    let _ = locale;
+    let _ = project_root; // retained for upcoming lock-hash git context (t5)
     let spec_name = path
         .parent()
         .and_then(|p| p.file_name())
@@ -112,63 +117,45 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
     let context = format!("spec `{}`", spec_name);
     let bdd_enabled = bdd_config.is_some();
 
-    // Specs are standalone TOON documents: parse the whole file directly.
-    let parse_result = if strict {
-        BACKEND.parse_main_spec_strict(content, &context)
-    } else {
-        BACKEND.parse_main_spec(content, &context)
-    };
+    // Single-track feature-as-spec (r131): `content` is the capability's
+    // `.feature` text. The rich parse covers Gherkin legality, header metadata
+    // and the tag grammar in one pass.
+    let parse_result = FeatureBackend.parse_content(content, &context);
     match parse_result {
-        Ok(doc) => {
+        Ok(parsed) => {
             let mut issues = Vec::new();
 
-            // Validation scope lives inside the TOON document (valid_scope),
-            // replacing the YAML frontmatter. Drives the staleness check.
-            // Unified path: all specs (BDD-on or off) must declare valid_scope.
-            validate_spec_meta(&doc, &spec_name, &mut issues);
+            validate_spec_meta(&parsed.valid_scope, &spec_name, &mut issues);
             let frontmatter = if has_meta_errors(&issues) {
                 None
             } else {
                 Some(SpecFrontmatter {
-                    valid_scope: doc.valid_scope.clone(),
+                    valid_scope: parsed.valid_scope.clone(),
                 })
             };
 
-            if doc.name.trim() != spec_name {
+            if parsed.name.trim() != spec_name {
                 issues.push(ValidationIssue {
                     level: ValidationLevel::Warning,
                     path: format!("{}/meta.name", spec_name),
                     message: format!(
-                        "Spec feature id must match spec directory name: `{}` != `{}`",
-                        doc.name.trim(),
+                        "Spec `# capability:` header must match spec directory name: `{}` != `{}`",
+                        parsed.name.trim(),
                         spec_name
                     ),
                 });
             }
 
-            // BDD-on: Gherkin fast/full mode + Partitioned SSOT link/dual-write gates.
+            // Single-track grammar gates run regardless of the runner switch:
+            // with no `bdd:` section the feature is still the spec (r83).
+            issues.extend(validate_single_track(&parsed, &spec_name));
+
             if bdd_enabled
-                && let Some(root) = project_root
+                && check_mode
                 && let Some(spec_dir) = path.parent()
+                && let Some(bdd) = bdd_config
             {
-                let lang = locale_to_gherkin_lang(locale, bdd_config);
-                issues.extend(validate_features_dir(spec_dir, root, &lang));
-                let harness = crate::sdd::spec::partitioned::load_spec_harness_soft(
-                    spec_dir,
-                    &lang,
-                    &mut issues,
-                );
-                issues.extend(crate::sdd::spec::partitioned::validate_partitioned(
-                    &spec_name, &doc, &harness, strict,
-                ));
-                issues.extend(validate_main_spec_doc_partitioned(
-                    &doc, &spec_name, &harness,
-                ));
-                if check_mode && let Some(bdd) = bdd_config {
-                    issues.extend(run_full_mode_cached(spec_dir, bdd, full_mode_cache));
-                }
-            } else {
-                issues.extend(validate_main_spec_doc(&doc, &spec_name));
+                issues.extend(run_full_mode_cached(spec_dir, bdd, full_mode_cache));
             }
 
             SpecValidation {
@@ -190,10 +177,203 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
     }
 }
 
-/// Validate the in-document scope (valid_scope). Must be present and non-empty
-/// for a main spec; drives the staleness check.
-fn validate_spec_meta(doc: &MainSpecDoc, spec_name: &str, issues: &mut Vec<ValidationIssue>) {
-    validate_meta_list(&doc.valid_scope, spec_name, "valid_scope", issues);
+/// Resolve a capability's single-track spec file (r131).
+///
+/// - exactly one `*.feature` → that file;
+/// - a legacy `spec.toon` present → error pointing at `toon2features`;
+/// - zero or multiple `.feature` files → error.
+pub fn resolve_spec_file(specs_root: &Path, id: &str) -> Result<std::path::PathBuf, anyhow::Error> {
+    let dir = specs_root.join(id);
+    if !dir.is_dir() {
+        return Err(anyhow::anyhow!(
+            "spec directory not found: {}",
+            dir.display()
+        ));
+    }
+    if dir.join(SPEC_FILE).exists() {
+        return Err(anyhow::anyhow!(
+            "legacy `spec.toon` found for `{id}`; the single-track format no longer reads it — \
+             run `llman sdd project migrate --kind toon2features`"
+        ));
+    }
+    let features = discover_features(&dir);
+    let mut features = features;
+    match features.len() {
+        1 => Ok(features.remove(0)),
+        0 => Err(anyhow::anyhow!(
+            "no `.feature` spec found under {} (r131: one .feature per capability)",
+            dir.display()
+        )),
+        n => Err(anyhow::anyhow!(
+            "{n} `.feature` files found under {} but r131 mandates exactly one; merge them",
+            dir.display()
+        )),
+    }
+}
+
+/// Validate the rich parse of one capability against the single-track grammar
+/// (spec-format r132 / r135 semantics).
+fn validate_single_track(parsed: &ParsedFeatureSpec, spec_name: &str) -> Vec<ValidationIssue> {
+    use ValidationLevel::{Error, Warning};
+    let mut issues = Vec::new();
+    if parsed.feature_title.trim().is_empty() {
+        issues.push(ValidationIssue {
+            level: Error,
+            path: format!("{spec_name}/feature"),
+            message: "Feature line must carry a title".to_string(),
+        });
+    }
+    if parsed.rule_scenarios().count() == 0 {
+        issues.push(ValidationIssue {
+            level: Error,
+            path: format!("{spec_name}/rules"),
+            message: "spec must define at least one @human constraint scenario".to_string(),
+        });
+    }
+
+    let mut rule_req_ids: Vec<String> = Vec::new();
+    let mut rule_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut rule_hashes: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+
+    for sc in &parsed.scenarios {
+        match sc.tier {
+            Some(ScenarioTier::Constraint) | Some(ScenarioTier::Manual) => {
+                let path = format!("{}/rule/{}", spec_name, sc.name);
+                match sc.req_ids.len() {
+                    0 => issues.push(ValidationIssue {
+                        level: Error,
+                        path: path.clone(),
+                        message: "@human constraint scenario must carry an @req:<req_id> tag"
+                            .to_string(),
+                    }),
+                    1 => {}
+                    _ => issues.push(ValidationIssue {
+                        level: Error,
+                        path: path.clone(),
+                        message: format!(
+                            "constraint scenario carries multiple @req tags {:?}; split the scenario per requirement",
+                            sc.req_ids
+                        ),
+                    }),
+                }
+                if !rule_names.insert(sc.name.clone()) {
+                    issues.push(ValidationIssue {
+                        level: Error,
+                        path: path.clone(),
+                        message: format!("duplicate constraint scenario name `{}`", sc.name),
+                    });
+                }
+                let hash = feature_backend::lock_hash(sc);
+                if let Some(prev) = rule_hashes.get(&hash) {
+                    issues.push(ValidationIssue {
+                        level: Error,
+                        path: path.clone(),
+                        message: format!(
+                            "constraint scenarios `{prev}` and `{}` are identical after normalization",
+                            sc.name
+                        ),
+                    });
+                } else {
+                    rule_hashes.insert(hash, sc.name.clone());
+                }
+                let statement = feature_backend::rule_statement(sc);
+                if !contains_normative_keyword(&statement) {
+                    issues.push(ValidationIssue {
+                        level: Error,
+                        path: path.clone(),
+                        message: format!(
+                            "constraint statement must contain MUST/SHALL (or 必须/不得/禁止): {}",
+                            statement.trim()
+                        ),
+                    });
+                }
+                if let Some(rid) = sc.req_ids.first() {
+                    rule_req_ids.push(rid.clone());
+                }
+            }
+            Some(ScenarioTier::Acceptance) => {
+                let path = format!("{}/acceptance/{}", spec_name, sc.name);
+                if sc.req_ids.is_empty() {
+                    issues.push(ValidationIssue {
+                        level: Warning,
+                        path: path.clone(),
+                        message: format!(
+                            "orphan acceptance scenario `{}` has no @req:<req_id> link",
+                            sc.name
+                        ),
+                    });
+                }
+                if sc.when_.is_empty() || sc.then_.is_empty() {
+                    issues.push(ValidationIssue {
+                        level: Warning,
+                        path: path.clone(),
+                        message: format!(
+                            "acceptance scenario `{}` is missing When/Then steps (runner will not bind)",
+                            sc.name
+                        ),
+                    });
+                }
+            }
+            None => {
+                issues.push(ValidationIssue {
+                    level: Warning,
+                    path: format!("{}/scenario/{}", spec_name, sc.name),
+                    message: format!(
+                        "scenario `{}` carries neither @human nor @executable; tag it or drop it",
+                        sc.name
+                    ),
+                });
+            }
+        }
+    }
+
+    // Every acceptance @req must point at a defined rule (dangling link gate).
+    let defined: std::collections::HashSet<&String> = rule_req_ids.iter().collect();
+    for sc in parsed.acceptance_scenarios() {
+        for rid in &sc.req_ids {
+            if !defined.contains(rid) {
+                issues.push(ValidationIssue {
+                    level: Error,
+                    path: format!("{}/acceptance/{}/@req", spec_name, sc.name),
+                    message: format!(
+                        "@req:{rid} on acceptance scenario `{}` has no matching @human constraint",
+                        sc.name
+                    ),
+                });
+            }
+        }
+    }
+
+    // Rule coverage tiers (r134): pending rules surface as INFO so gaps stay
+    // visible without blocking spec-first workflows under --strict.
+    for req_id in &rule_req_ids {
+        let enforced = parsed
+            .acceptance_scenarios()
+            .any(|sc| sc.req_ids.iter().any(|r| r == req_id));
+        if !enforced {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Info,
+                path: format!("{spec_name}/coverage"),
+                message: format!("rule {req_id} is pending: no @executable acceptance scenario and no @manual waiver"),
+            });
+        }
+    }
+
+    issues
+}
+
+/// Normative-keyword check tolerant of CJK statements.
+fn contains_normative_keyword(text: &str) -> bool {
+    ["MUST", "SHALL", "必须", "不得", "禁止"]
+        .iter()
+        .any(|kw| text.contains(kw))
+}
+
+/// Validate the in-document scope (header `# scope:` line). Must be present
+/// and non-empty for a main spec; drives the staleness check.
+fn validate_spec_meta(valid_scope: &[String], spec_name: &str, issues: &mut Vec<ValidationIssue>) {
+    validate_meta_list(valid_scope, spec_name, "valid_scope", issues);
 }
 
 fn validate_meta_list(
@@ -232,34 +412,102 @@ mod tests {
 
     #[test]
     fn meta_missing_is_error() {
-        // A spec with no valid_scope is invalid.
-        let doc = MainSpecDoc {
-            kind: "llman.sdd.spec".to_string(),
-            name: "sample".to_string(),
-            purpose: "x".to_string(),
-            valid_scope: Vec::new(),
-            requirements: Vec::new(),
-            scenarios: Vec::new(),
-        };
+        // A spec with no `# scope:` header is invalid (r133).
         let mut issues = Vec::new();
-        validate_spec_meta(&doc, "sample", &mut issues);
+        validate_spec_meta(&[], "sample", &mut issues);
         assert_eq!(issues.len(), 1);
         assert!(issues.iter().all(|i| i.level == ValidationLevel::Error));
     }
 
     #[test]
     fn meta_present_no_error() {
-        let doc = MainSpecDoc {
-            kind: "llman.sdd.spec".to_string(),
-            name: "sample".to_string(),
-            purpose: "x".to_string(),
-            valid_scope: vec!["src/".to_string(), "tests/".to_string()],
-            requirements: Vec::new(),
-            scenarios: Vec::new(),
-        };
         let mut issues = Vec::new();
-        validate_spec_meta(&doc, "sample", &mut issues);
+        validate_spec_meta(
+            &["src/".to_string(), "tests/".to_string()],
+            "sample",
+            &mut issues,
+        );
         assert!(issues.is_empty(), "{issues:?}");
+    }
+
+    #[test]
+    fn single_track_grammar_gates() {
+        let content = "\
+# language: zh-CN
+# capability: sample
+# purpose: p
+# scope: src
+
+功能: sample
+
+  @req:r1 @human
+  场景: rule-a
+    系统 MUST do x。
+
+  @req:r1 @executable
+  场景: acc-a
+    假如 given
+    当 when step
+    那么 then step
+";
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("sample");
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("spec.feature");
+        fs::write(&path, content).unwrap();
+
+        let validation = validate_spec_content_with_frontmatter_and_bdd(
+            &path, content, false, None, None, None, false, None,
+        );
+        assert!(
+            validation.report.valid,
+            "issues: {:?}",
+            validation.report.issues
+        );
+        assert_eq!(validation.frontmatter.unwrap().valid_scope, vec!["src"]);
+
+        // Dangling acceptance link is an ERROR.
+        let dangling = content.replace("@req:r1 @executable", "@req:r404 @executable");
+        let v2 = validate_spec_content_with_frontmatter_and_bdd(
+            &path, &dangling, false, None, None, None, false, None,
+        );
+        assert!(
+            v2.report
+                .issues
+                .iter()
+                .any(|i| i.message.contains("no matching @human"))
+        );
+
+        // Orphan acceptance (no @req) is a WARNING.
+        let orphan = content.replace("@req:r1 @executable", "@executable");
+        let v3 = validate_spec_content_with_frontmatter_and_bdd(
+            &path, &orphan, false, None, None, None, false, None,
+        );
+        assert!(v3.report.issues.iter().any(
+            |i| i.level == ValidationLevel::Warning && i.message.contains("orphan acceptance")
+        ));
+    }
+
+    #[test]
+    fn resolve_spec_file_rejects_legacy_toon_and_multi_features() {
+        let tmp = tempfile::tempdir().unwrap();
+        let specs_root = tmp.path().join("specs");
+        let legacy = specs_root.join("legacy");
+        fs::create_dir_all(&legacy).unwrap();
+        fs::write(legacy.join(SPEC_FILE), "kind: llman.sdd.spec\n").unwrap();
+        let err = resolve_spec_file(&specs_root, "legacy")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("toon2features"), "got: {err}");
+
+        let multi = specs_root.join("multi");
+        fs::create_dir_all(&multi).unwrap();
+        fs::write(multi.join("a.feature"), "# capability: multi\n").unwrap();
+        fs::write(multi.join("b.feature"), "# capability: multi\n").unwrap();
+        let err = resolve_spec_file(&specs_root, "multi")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("exactly one"), "got: {err}");
     }
 
     // --- Change-level validation tests ---
@@ -669,64 +917,6 @@ mod tests {
     }
 
     #[test]
-    fn validate_features_dir_valid() {
-        let tmp = tempfile::tempdir().unwrap();
-        let dir = spec_dir(&tmp, "cli");
-        fs::write(
-            dir.join("status.feature"),
-            "Feature: Status\n  Scenario: ok\n    Given x\n    When y\n    Then z\n",
-        )
-        .unwrap();
-        let issues = validate_features_dir(&dir, tmp.path(), "en");
-        assert!(issues.is_empty(), "{issues:?}");
-    }
-
-    #[test]
-    fn validate_features_dir_syntax_error() {
-        let tmp = tempfile::tempdir().unwrap();
-        let dir = spec_dir(&tmp, "cli");
-        fs::write(dir.join("broken.feature"), "this is not gherkin at all\n").unwrap();
-        let issues = validate_features_dir(&dir, tmp.path(), "en");
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].level, ValidationLevel::Error);
-        assert!(issues[0].path.ends_with("broken.feature"));
-    }
-
-    #[test]
-    fn validate_features_dir_chinese_keywords() {
-        let tmp = tempfile::tempdir().unwrap();
-        let dir = spec_dir(&tmp, "cli");
-        fs::write(
-            dir.join("status.feature"),
-            "功能: 状态\n  场景: 正常\n    假如 x\n    当 y\n    那么 z\n",
-        )
-        .unwrap();
-        let issues = validate_features_dir(&dir, tmp.path(), "zh-CN");
-        assert!(issues.is_empty(), "{issues:?}");
-    }
-
-    #[test]
-    fn validate_features_dir_empty_no_issues() {
-        let tmp = tempfile::tempdir().unwrap();
-        let dir = spec_dir(&tmp, "cli");
-        // No .feature files → no issues from this function (guardrail handled
-        // by validate_main_spec_doc).
-        let issues = validate_features_dir(&dir, tmp.path(), "en");
-        assert!(issues.is_empty());
-    }
-
-    #[test]
-    fn validate_features_dir_uses_relative_path() {
-        let tmp = tempfile::tempdir().unwrap();
-        let dir = spec_dir(&tmp, "cli");
-        fs::write(dir.join("broken.feature"), "not gherkin\n").unwrap();
-        let issues = validate_features_dir(&dir, tmp.path(), "en");
-        // Path should be relative to project root (tmp), not absolute.
-        assert!(issues[0].path.contains("cli/broken.feature"));
-        assert!(!issues[0].path.starts_with('/'));
-    }
-
-    #[test]
     fn locale_to_gherkin_lang_zh_hans_maps_to_zh_cn() {
         assert_eq!(locale_to_gherkin_lang(Some("zh-Hans"), None), "zh-CN");
         assert_eq!(locale_to_gherkin_lang(Some("zh-Hans-CN"), None), "zh-CN");
@@ -751,65 +941,84 @@ mod tests {
         assert_eq!(locale_to_gherkin_lang(Some("zh-Hans"), Some(&bdd)), "ja");
     }
 
-    fn empty_spec_doc() -> MainSpecDoc {
-        MainSpecDoc {
-            kind: "llman.sdd.spec".to_string(),
-            name: "cli".to_string(),
-            purpose: "x".to_string(),
-            valid_scope: Vec::new(),
-            requirements: Vec::new(),
-            scenarios: Vec::new(),
+    /// Test helper: parse single-track content and run the grammar gates.
+    fn validate_single_track_content(content: &str, name: &str) -> Vec<ValidationIssue> {
+        match FeatureBackend.parse_content(content, &format!("spec `{name}`")) {
+            Ok(parsed) => validate_single_track(&parsed, name),
+            Err(err) => vec![ValidationIssue {
+                level: ValidationLevel::Error,
+                path: "file".to_string(),
+                message: err.to_string(),
+            }],
         }
     }
 
     #[test]
-    fn empty_requirements_is_error() {
-        // Unified path: empty requirements is always an Error (spec.toon is SSOT).
-        let doc = empty_spec_doc();
-        let issues = validate_main_spec_doc(&doc, "cli");
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].level, ValidationLevel::Error);
-        assert_eq!(issues[0].path, "cli/requirements");
-    }
+    fn empty_rules_is_error() {
+        // Single-track: a capability with no @human rule scenario is invalid.
+        let content = "\
+# capability: cli
+# purpose: x
+# scope: src
 
-    #[test]
-    fn requirement_without_scenario_is_error() {
-        // A requirement MUST have at least one scenario (coverage check, unified).
-        let mut doc = empty_spec_doc();
-        doc.requirements = vec![crate::sdd::spec::ir::RequirementEntry {
-            req_id: "r1".to_string(),
-            title: "T".to_string(),
-            statement: "System MUST do x".to_string(),
-        }];
-        let issues = validate_main_spec_doc(&doc, "cli");
+Feature: cli
+  Scenario: plain
+    Given a
+";
+        let issues = validate_single_track_content(content, "cli");
         assert!(
             issues
                 .iter()
-                .any(|i| i.level == ValidationLevel::Error && i.path == "cli/requirements[0]"),
+                .any(|i| i.level == ValidationLevel::Error
+                    && i.message.contains("at least one @human")),
             "{issues:?}"
         );
     }
 
     #[test]
-    fn requirement_with_scenario_is_ok() {
-        let mut doc = empty_spec_doc();
-        doc.requirements = vec![crate::sdd::spec::ir::RequirementEntry {
-            req_id: "r1".to_string(),
-            title: "T".to_string(),
-            statement: "System MUST do x".to_string(),
-        }];
-        doc.scenarios = vec![crate::sdd::spec::ir::ScenarioEntry {
-            req_id: "r1".to_string(),
-            id: "happy".to_string(),
-            given: String::new(),
-            when_: "trigger".to_string(),
-            then_: "result".to_string(),
-            feature: true,
-        }];
-        let issues = validate_main_spec_doc(&doc, "cli");
+    fn rule_without_normative_keyword_is_error() {
+        let content = "\
+# capability: cli
+# purpose: x
+# scope: src
+
+Feature: cli
+  @req:r1 @human
+  Scenario: weak rule
+    System does something nice sometimes.
+";
+        let issues = validate_single_track_content(content, "cli");
         assert!(
-            issues.iter().all(|i| i.level != ValidationLevel::Error),
-            "{issues:?}"
+            issues
+                .iter()
+                .any(|i| i.level == ValidationLevel::Error && i.message.contains("MUST/SHALL"))
+        );
+    }
+
+    #[test]
+    fn dangling_acceptance_link_is_error() {
+        let content = "\
+# capability: cli
+# purpose: x
+# scope: src
+
+Feature: cli
+  @req:r1 @human
+  Scenario: real rule
+    MUST behave.
+
+  @req:r404 @executable
+  Scenario: ghost link
+    Given a
+    When b
+    Then c
+";
+        let issues = validate_single_track_content(content, "cli");
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.level == ValidationLevel::Error
+                    && i.message.contains("no matching @human"))
         );
     }
 
@@ -1093,9 +1302,10 @@ pub fn validate_change_delta_specs(change_dir: &Path, strict: bool) -> Validatio
         };
         let context = format!("delta spec `{}`", spec_name);
         let parse_result = if strict {
-            BACKEND.parse_delta_spec_strict(&content, &context)
+            crate::sdd::spec::backend::toon_backend::BACKEND
+                .parse_delta_spec_strict(&content, &context)
         } else {
-            BACKEND.parse_delta_spec(&content, &context)
+            crate::sdd::spec::backend::toon_backend::BACKEND.parse_delta_spec(&content, &context)
         };
         let doc = match parse_result {
             Ok(doc) => doc,
@@ -1147,82 +1357,6 @@ pub fn locale_to_gherkin_lang(locale: Option<&str>, bdd_config: Option<&BddConfi
         Some(l) => l.to_string(),
         None => "en".to_string(),
     }
-}
-
-/// Fast-mode feature-as-spec validation (r52): parse every `.feature` in the
-/// spec directory as Gherkin. Structural legality only — no test runner.
-fn validate_features_dir(spec_dir: &Path, project_root: &Path, lang: &str) -> Vec<ValidationIssue> {
-    let mut issues = Vec::new();
-    let features = discover_features(spec_dir);
-    if features.is_empty() {
-        return issues;
-    }
-
-    let env_result = gherkin::GherkinEnv::new(lang);
-    if env_result.is_err() {
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Error,
-            path: format!("{}", spec_dir.display()),
-            message: t!(
-                "sdd.validate.feature_unsupported_language",
-                lang = lang,
-                dir = spec_dir.display()
-            )
-            .to_string(),
-        });
-        return issues;
-    }
-
-    for feature_path in &features {
-        let rel = feature_path
-            .strip_prefix(project_root)
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|_| feature_path.clone());
-        let rel_str = rel.display().to_string();
-        match fs::read_to_string(feature_path) {
-            Ok(content) => {
-                // GherkinEnv is not Clone; rebuild it per feature.
-                let env = match gherkin::GherkinEnv::new(lang) {
-                    Ok(env) => env,
-                    Err(_) => {
-                        issues.push(ValidationIssue {
-                            level: ValidationLevel::Error,
-                            path: rel_str,
-                            message: t!(
-                                "sdd.validate.feature_unsupported_language",
-                                lang = lang,
-                                dir = spec_dir.display()
-                            )
-                            .to_string(),
-                        });
-                        continue;
-                    }
-                };
-                if let Err(e) = gherkin::Feature::parse(&content, env) {
-                    issues.push(ValidationIssue {
-                        level: ValidationLevel::Error,
-                        path: rel_str.clone(),
-                        message: t!(
-                            "sdd.validate.feature_parse_error",
-                            path = rel_str,
-                            error = e
-                        )
-                        .to_string(),
-                    });
-                }
-            }
-            Err(e) => {
-                issues.push(ValidationIssue {
-                    level: ValidationLevel::Error,
-                    path: rel_str.clone(),
-                    message: t!("sdd.validate.feature_read_error", path = rel_str, error = e)
-                        .to_string(),
-                });
-            }
-        }
-    }
-
-    issues
 }
 
 /// Full-mode execution (r52 / r91): shell out the BDD run command once for the
@@ -1292,7 +1426,9 @@ fn run_full_mode(spec_dir: &Path, bdd_config: &BddConfig) -> Vec<ValidationIssue
         .stderr(std::process::Stdio::piped());
 
     // Prefer running from the project root (parent of llmanspec/) when possible.
-    if let Some(root) = project_root_from_spec_dir(spec_dir) {
+    // Guard the empty relative ancestor (`""` for paths like
+    // `llmanspec/specs/<cap>`): current_dir("") is ENOENT.
+    if let Some(root) = project_root_from_spec_dir(spec_dir).filter(|p| !p.as_os_str().is_empty()) {
         shell.current_dir(root);
         if looks_like_cargo_test(&expanded)
             && let Ok(sha) = short_head_sha(root)
@@ -1400,135 +1536,6 @@ fn expand_run_command_placeholders(command: &str, spec_dir: &Path) -> String {
         )
 }
 
-fn validate_main_spec_doc(doc: &MainSpecDoc, spec_name: &str) -> Vec<ValidationIssue> {
-    validate_main_spec_doc_partitioned(doc, spec_name, &[])
-}
-
-/// Like [`validate_main_spec_doc`], but harness `@req` links count toward
-/// "each requirement has ≥1 scenario" under Partitioned SSOT.
-fn validate_main_spec_doc_partitioned(
-    doc: &MainSpecDoc,
-    spec_name: &str,
-    harness: &[crate::sdd::spec::partitioned::FeatureScenario],
-) -> Vec<ValidationIssue> {
-    let mut issues = Vec::new();
-
-    if doc.requirements.is_empty() {
-        issues.push(ValidationIssue {
-            level: ValidationLevel::Error,
-            path: format!("{spec_name}/requirements"),
-            message: t!("sdd.validate.empty_requirements").to_string(),
-        });
-    }
-
-    let mut req_id_seen = std::collections::HashSet::new();
-    for (idx, req) in doc.requirements.iter().enumerate() {
-        if !req_id_seen.insert(req.req_id.trim()) {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: format!("{}/requirements[{}]", spec_name, idx),
-                message: format!("Duplicate requirement req_id: {}", req.req_id),
-            });
-        }
-
-        if !contains_shall_or_must(req.statement.trim()) {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: format!("{}/requirements[{}]", spec_name, idx),
-                message: format!(
-                    "Requirement must contain SHALL or MUST: {}",
-                    req.statement.trim()
-                ),
-            });
-        }
-    }
-
-    let mut scenario_key_seen = std::collections::HashSet::new();
-    let mut scenarios_by_req: std::collections::HashMap<&str, usize> =
-        std::collections::HashMap::new();
-
-    for scenario in &doc.scenarios {
-        let req_id = scenario.req_id.trim();
-        if !req_id_seen.contains(req_id) {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: format!("{spec_name}/scenarios"),
-                message: format!(
-                    "Scenario references unknown requirement `req_id` `{}`",
-                    scenario.req_id
-                ),
-            });
-        }
-
-        let scenario_id = scenario.id.trim();
-        let key = format!("{}::{}", req_id, scenario_id);
-        if !scenario_key_seen.insert(key) {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: format!("{spec_name}/scenarios"),
-                message: format!(
-                    "Duplicate scenario `(req_id, id)` = (`{}`, `{}`)",
-                    scenario.req_id, scenario.id
-                ),
-            });
-        }
-
-        if scenario.when_.trim().is_empty() {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: format!("{spec_name}/scenarios"),
-                message: "Scenario `when` must not be empty".to_string(),
-            });
-        }
-        if scenario.then_.trim().is_empty() {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: format!("{spec_name}/scenarios"),
-                message: "Scenario `then` must not be empty".to_string(),
-            });
-        }
-
-        *scenarios_by_req.entry(req_id).or_insert(0) += 1;
-    }
-
-    for sc in harness {
-        for rid in &sc.req_ids {
-            let rid = rid.trim();
-            if req_id_seen.contains(rid) {
-                *scenarios_by_req.entry(rid).or_insert(0) += 1;
-            }
-        }
-    }
-
-    for (idx, req) in doc.requirements.iter().enumerate() {
-        let count = scenarios_by_req
-            .get(req.req_id.trim())
-            .copied()
-            .unwrap_or(0);
-        if count == 0 {
-            issues.push(ValidationIssue {
-                level: ValidationLevel::Error,
-                path: format!("{}/requirements[{}]", spec_name, idx),
-                message: scenario_missing_message(),
-            });
-        }
-    }
-
-    issues
-}
-
-fn contains_shall_or_must(text: &str) -> bool {
-    text.contains("SHALL") || text.contains("MUST")
-}
-
-fn scenario_missing_message() -> String {
-    format!(
-        "{}\n{}",
-        t!("sdd.validate.scenario_missing"),
-        t!("sdd.validate.scenario_example")
-    )
-}
-
 fn validate_delta_doc(spec_name: &str, doc: &DeltaSpecDoc) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let entry_path = format!("{}/spec.md", spec_name);
@@ -1586,7 +1593,7 @@ fn validate_delta_doc(spec_name: &str, doc: &DeltaSpecDoc) -> Vec<ValidationIssu
                             op_kind, op.req_id
                         ),
                     });
-                } else if !contains_shall_or_must(statement) {
+                } else if !contains_normative_keyword(statement) {
                     issues.push(ValidationIssue {
                         level: ValidationLevel::Error,
                         path: entry_path.clone(),
@@ -1744,7 +1751,7 @@ fn validate_delta_doc(spec_name: &str, doc: &DeltaSpecDoc) -> Vec<ValidationIssu
             issues.push(ValidationIssue {
                 level: ValidationLevel::Warning,
                 path: entry_path.clone(),
-                message: scenario_missing_message(),
+                message: "delta op req_id has no scenario coverage".to_string(),
             });
         }
     }

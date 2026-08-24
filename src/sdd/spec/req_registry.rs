@@ -4,12 +4,14 @@
 //! Ownership / display is resolved via CLI (`resolve-req`), not encoded in the id.
 
 use crate::fs_utils::atomic_write_with_mode;
-use crate::sdd::shared::constants::{LLMANSPEC_DIR_NAME, SPEC_FILE};
+use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::list_specs;
-use crate::sdd::spec::backend::{BACKEND, SpecBackend};
+use crate::sdd::spec::backend::{FEATURE_BACKEND, SpecBackend};
 use crate::sdd::spec::ir::MainSpecDoc;
 use crate::sdd::spec::partitioned::parse_feature_scenarios;
-use crate::sdd::spec::validation::{ValidationIssue, ValidationLevel, discover_features};
+use crate::sdd::spec::validation::{
+    ValidationIssue, ValidationLevel, discover_features, resolve_spec_file,
+};
 use anyhow::{Result, anyhow, bail};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -68,17 +70,10 @@ pub fn build_req_index(root: &Path) -> Result<BTreeMap<String, Vec<ReqLocation>>
 }
 
 pub fn load_main_doc(root: &Path, capability: &str) -> Result<MainSpecDoc> {
-    let path = spec_toon_path(root, capability);
+    let path = resolve_spec_file(&specs_dir(root), capability)?;
     let content = fs::read_to_string(&path)
         .map_err(|err| anyhow!("failed to read {}: {err}", path.display()))?;
-    BACKEND.parse_main_spec(&content, &format!("spec `{capability}`"))
-}
-
-fn spec_toon_path(root: &Path, capability: &str) -> PathBuf {
-    root.join(LLMANSPEC_DIR_NAME)
-        .join("specs")
-        .join(capability)
-        .join(SPEC_FILE)
+    FEATURE_BACKEND.parse_main_spec(&content, &format!("spec `{capability}`"))
 }
 
 fn specs_dir(root: &Path) -> PathBuf {
@@ -269,29 +264,14 @@ pub fn dedupe_colliding_req_ids(root: &Path, dry_run: bool) -> Result<DedupeRepo
 }
 
 fn rewrite_capability_req_id(root: &Path, capability: &str, from: &str, to: &str) -> Result<()> {
-    let path = spec_toon_path(root, capability);
-    let content = fs::read_to_string(&path)?;
-    let mut doc = BACKEND.parse_main_spec(&content, &format!("spec `{capability}`"))?;
-    for req in &mut doc.requirements {
-        if req.req_id.trim() == from {
-            req.req_id = to.to_string();
-        }
-    }
-    for sc in &mut doc.scenarios {
-        if sc.req_id.trim() == from {
-            sc.req_id = to.to_string();
-        }
-    }
-    let payload = BACKEND.dump_main_spec(&doc)?;
-    atomic_write_with_mode(&path, payload.as_bytes(), None)?;
-
-    let spec_dir = specs_dir(root).join(capability);
-    for feature_path in discover_features(&spec_dir) {
-        let body = fs::read_to_string(&feature_path)?;
-        let updated = replace_req_tags(&body, from, to);
-        if updated != body {
-            atomic_write_with_mode(&feature_path, updated.as_bytes(), None)?;
-        }
+    // Single-track (r131): the whole spec is one `.feature`; requirement
+    // definitions and acceptance links are both `@req:` tags, so a boundary-
+    // aware textual replacement round-trips losslessly.
+    let path = resolve_spec_file(&specs_dir(root), capability)?;
+    let body = fs::read_to_string(&path)?;
+    let updated = replace_req_tags(&body, from, to);
+    if updated != body {
+        atomic_write_with_mode(&path, updated.as_bytes(), None)?;
     }
     Ok(())
 }
@@ -391,41 +371,22 @@ pub fn ensure_req_id_globally_free(root: &Path, req_id: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sdd::spec::ir::{MainSpecDoc, RequirementEntry, ScenarioEntry};
+
     use tempfile::tempdir;
 
     fn write_spec(root: &Path, name: &str, reqs: &[(&str, &str)]) {
+        // Single-track: seed one `.feature` with @human rule scenarios (r131).
         let dir = root.join(LLMANSPEC_DIR_NAME).join("specs").join(name);
         fs::create_dir_all(&dir).unwrap();
-        let requirements: Vec<RequirementEntry> = reqs
-            .iter()
-            .map(|(id, title)| RequirementEntry {
-                req_id: id.to_string(),
-                title: title.to_string(),
-                statement: format!("MUST {title}"),
-            })
-            .collect();
-        let scenarios: Vec<ScenarioEntry> = requirements
-            .iter()
-            .map(|r| ScenarioEntry {
-                req_id: r.req_id.clone(),
-                id: "baseline".into(),
-                given: String::new(),
-                when_: "trigger".into(),
-                then_: "result".into(),
-                feature: false,
-            })
-            .collect();
-        let doc = MainSpecDoc {
-            kind: "llman.sdd.spec".into(),
-            name: name.into(),
-            purpose: "test".into(),
-            valid_scope: vec!["src/".into()],
-            requirements,
-            scenarios,
-        };
-        let payload = BACKEND.dump_main_spec(&doc).unwrap();
-        fs::write(dir.join(SPEC_FILE), payload).unwrap();
+        let mut body = String::from("# capability: {name}\n# purpose: test\n# scope: src/\n\n");
+        body = body.replace("{name}", name);
+        body.push_str(&format!("功能: {name}\n"));
+        for (id, title) in reqs {
+            body.push_str(&format!(
+                "\n  @req:{id} @human\n  场景: {title}\n    MUST {title}.\n"
+            ));
+        }
+        fs::write(dir.join(format!("{name}.feature")), body).unwrap();
         // minimal config
         let cfg = root.join(LLMANSPEC_DIR_NAME);
         if !cfg.join("config.yaml").exists() {

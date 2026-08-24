@@ -329,8 +329,9 @@ pub enum SddProjectCommands {
     },
     /// Convert legacy `spec.md` (YAML frontmatter + fenced \`\`\`toon) to canonical `spec.toon`
     Migrate {
-        /// Migration kind (only `spec-md2toon` is supported)
-        #[arg(long, default_value = "spec-md2toon", value_parser = ["spec-md2toon"])]
+        /// Migration kind (only `toon2features` is supported; legacy
+        /// `spec-md2toon` is rejected here so agents see the valid kind)
+        #[arg(long, default_value = "toon2features", value_parser = ["toon2features"])]
         kind: String,
         /// Scan and report without writing files (no confirmation prompt)
         #[arg(long)]

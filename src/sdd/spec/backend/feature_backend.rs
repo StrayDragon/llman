@@ -107,11 +107,32 @@ impl FeatureBackend {
             .filter(|s| !s.is_empty())
             .collect();
 
-        let lang = detect_language(content);
-        let env = gherkin::GherkinEnv::new(&lang)
-            .map_err(|err| anyhow!("{context}: build gherkin env for `{lang}`: {err}"))?;
-        let parsed = gherkin::Feature::parse(content, env)
-            .map_err(|err| anyhow!("{context}: failed to parse Gherkin: {err}"))?;
+        // Language resolution: explicit `# language:` header wins; otherwise
+        // try English then fall back to Chinese keywords (most llman-authored
+        // specs are zh-CN even when the header is omitted).
+        let header_lang = detect_language(content);
+        let mut candidates: Vec<String> = vec![header_lang.clone(), "zh-CN".to_string()];
+        candidates.dedup();
+        let mut parsed: Option<(gherkin::Feature, String)> = None;
+        let mut last_err = String::new();
+        for lang in &candidates {
+            match gherkin::GherkinEnv::new(lang)
+                .map_err(|err| anyhow!("{context}: gherkin env `{lang}`: {err}"))
+                .and_then(|env| {
+                    gherkin::Feature::parse(content, env)
+                        .map_err(|err| anyhow!("{context}: failed to parse Gherkin: {err}"))
+                }) {
+                Ok(feature) => {
+                    parsed = Some((feature, lang.clone()));
+                    break;
+                }
+                Err(err) => last_err = err.to_string(),
+            }
+        }
+        let Some((parsed_feature, _lang)) = parsed else {
+            return Err(anyhow!("{last_err}"));
+        };
+        let parsed = parsed_feature;
 
         // Rule-blocked scenarios would be silently skipped by the runner macros.
         for rule in &parsed.rules {
@@ -395,8 +416,50 @@ impl SpecBackend for FeatureBackend {
     }
 }
 
-/// Project a parsed single-track spec onto the stable IR.
-///
+/// Rule-tier morphology for `list --specs` / `show` (spec-format r134).
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RuleMorphology {
+    pub rule_count: usize,
+    pub rule_enforced_count: usize,
+    pub rule_manual_count: usize,
+    pub rule_pending_count: usize,
+    pub acceptance_count: usize,
+    pub orphan_acceptance_count: usize,
+}
+
+/// Compute the three-tier coverage counts from a parsed spec.
+pub fn compute_rule_morphology(parsed: &ParsedFeatureSpec) -> RuleMorphology {
+    let rules: Vec<&RichScenario> = parsed.rule_scenarios().collect();
+    let rule_count = rules.len();
+    let mut enforced = 0usize;
+    let mut manual = 0usize;
+    let mut pending = 0usize;
+    for sc in &rules {
+        let has_acceptance = parsed
+            .acceptance_scenarios()
+            .any(|acc| acc.req_ids.iter().any(|r| sc.req_ids.contains(r)));
+        match (sc.tier, has_acceptance) {
+            (Some(ScenarioTier::Manual), _) => manual += 1,
+            (_, true) => enforced += 1,
+            _ => pending += 1,
+        }
+    }
+    let orphan = parsed
+        .acceptance_scenarios()
+        .filter(|acc| acc.req_ids.is_empty())
+        .count();
+    RuleMorphology {
+        rule_count,
+        rule_enforced_count: enforced,
+        rule_manual_count: manual,
+        rule_pending_count: pending,
+        acceptance_count: parsed.acceptance_scenarios().count(),
+        orphan_acceptance_count: orphan,
+    }
+}
+
+/// Project a parsed single-track spec onto the stable IR.///
 /// - `@human` scenarios become `requirements[]` rows (statement from
 ///   description or synthesized from steps).
 /// - Only `@executable` scenarios land in `scenarios[]` (`feature: true`).
