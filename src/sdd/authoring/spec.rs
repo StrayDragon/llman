@@ -2,7 +2,7 @@ use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
-use crate::sdd::spec::backend::feature_backend::{self, ScenarioTier};
+use crate::sdd::spec::backend::feature_backend;
 use crate::sdd::spec::validation::{locale_to_gherkin_lang, resolve_spec_file};
 use anyhow::{Result, anyhow};
 use std::fs;
@@ -32,62 +32,23 @@ pub struct SpecAddScenarioArgs {
     pub then_: String,
 }
 
-/// Gherkin keyword set for the configured language.
-struct Kw {
-    feature: &'static str,
-    scenario: &'static str,
-    given: &'static str,
-    when: &'static str,
-    then: &'static str,
-}
-
-fn keywords_for(lang: &str) -> Kw {
-    if lang.starts_with("zh") {
-        Kw {
-            feature: "功能",
-            scenario: "场景",
-            given: "假如",
-            when: "当",
-            then: "那么",
-        }
-    } else {
-        Kw {
-            feature: "Feature",
-            scenario: "Scenario",
-            given: "Given",
-            when: "When",
-            then: "Then",
-        }
-    }
-}
-
 fn spec_file_path(root: &Path, capability: &str) -> Result<PathBuf> {
     let specs_dir = root.join(LLMANSPEC_DIR_NAME).join("specs");
     resolve_spec_file(&specs_dir, capability)
 }
 
 fn spec_lang(root: &Path) -> String {
-    root.join(LLMANSPEC_DIR_NAME)
-        .join("config.yaml")
-        .pipe(|p| fs::read_to_string(p).ok())
-        .and_then(|raw| {
-            raw.lines().find_map(|l| {
-                let l = l.trim();
-                l.strip_prefix("locale:")
-                    .map(|v| v.trim().trim_matches('"').to_string())
-            })
+    let raw = fs::read_to_string(root.join(LLMANSPEC_DIR_NAME).join("config.yaml")).ok();
+    raw.and_then(|text| {
+        text.lines().find_map(|l| {
+            let l = l.trim();
+            l.strip_prefix("locale:")
+                .map(|v| v.trim().trim_matches('"').to_string())
         })
-        .map(|locale| locale_to_gherkin_lang(Some(&locale), None))
-        .unwrap_or_else(|| "en".to_string())
+    })
+    .map(|locale| locale_to_gherkin_lang(Some(&locale), None))
+    .unwrap_or_else(|| "en".to_string())
 }
-
-/// Small pipe helper to keep `spec_lang` readable.
-trait Pipe: Sized {
-    fn pipe<T>(self, f: impl FnOnce(Self) -> T) -> T {
-        f(self)
-    }
-}
-impl<T> Pipe for T {}
 
 pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
@@ -110,7 +71,7 @@ pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
         crate::sdd::spec::req_registry::next_req_id(root).unwrap_or_else(|_| "r1".to_string());
 
     let lang = spec_lang(root);
-    let kw = keywords_for(&lang);
+    let kw = feature_backend::keywords_for(&lang);
     // The skeleton is valid single-track from day one (r133 headers + one
     // placeholder @human rule carrying a MUST statement).
     let body = format!(
@@ -146,13 +107,10 @@ pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<
         return Err(anyhow!("title must not be empty"));
     }
     let statement = args.statement.trim();
-    if !statement.contains("MUST")
-        && !statement.contains("SHALL")
-        && !statement.contains("必须")
-        && !statement.contains("不得")
-        && !statement.contains("禁止")
-    {
-        return Err(anyhow!("statement must contain MUST or SHALL"));
+    if !crate::sdd::spec::validation::contains_normative_keyword(statement) {
+        return Err(anyhow!(
+            "statement must contain a normative keyword (MUST/SHALL or 必须/不得/禁止)"
+        ));
     }
 
     crate::sdd::spec::req_registry::ensure_req_id_globally_free(root, &args.req_id)?;
@@ -174,8 +132,8 @@ pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<
         ));
     }
 
-    let lang = detect_language_of(&content);
-    let kw = keywords_for(&lang);
+    let lang = feature_backend::detect_language(&content);
+    let kw = feature_backend::keywords_for(&lang);
     // Append the rule block at the end of the file (textual, lossless).
     let mut updated = content.clone();
     if !updated.ends_with('\n') {
@@ -233,8 +191,8 @@ pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs) -> Result<()> {
         ));
     }
 
-    let lang = detect_language_of(&content);
-    let kw = keywords_for(&lang);
+    let lang = feature_backend::detect_language(&content);
+    let kw = feature_backend::keywords_for(&lang);
     let mut updated = content.clone();
     if !updated.ends_with('\n') {
         updated.push('\n');
@@ -260,20 +218,3 @@ pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs) -> Result<()> {
     println!("{}", spec_path.display());
     Ok(())
 }
-
-fn detect_language_of(content: &str) -> String {
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        if let Some(rest) = trimmed.strip_prefix("# language:") {
-            return rest.trim().to_string();
-        }
-        break;
-    }
-    "en".to_string()
-}
-
-// Silence unused-import lint while ScenarioTier is only referenced in docs.
-const _: Option<ScenarioTier> = None;

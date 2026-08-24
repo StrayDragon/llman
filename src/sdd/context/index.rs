@@ -11,8 +11,7 @@ fn hex_encode(bytes: &[u8]) -> String {
 
 /// Compute sha256 hash of all spec files (sorted by path).
 ///
-/// Hashes `spec.toon` (constraints SSOT) and every `*.feature` harness file in
-/// each spec directory. Including harness content means a hand-edited `.feature`
+/// Hashes every `*.feature` spec file in each spec directory. Including harness content means a hand-edited `.feature`
 /// still triggers staleness — there should be no silent divergence between the
 /// index and the on-disk behavior artifacts.
 pub fn compute_spec_hash(specs_dir: &Path) -> Result<String> {
@@ -23,13 +22,8 @@ pub fn compute_spec_hash(specs_dir: &Path) -> Result<String> {
             continue;
         }
         let spec_dir = entry.path();
-        // SSOT first (always hashed when present).
-        let spec_file = spec_dir.join("spec.toon");
-        if spec_file.exists() {
-            entries.push(spec_file);
-        }
-        // Defensively include derived `.feature` files so direct edits flip
-        // staleness. Sorted for determinism.
+        // Single-track (r131): `.feature` files are the only spec artifacts;
+        // a leftover spec.toon is ignored here (validate reports it).
         if let Ok(features) = feature_paths_in(&spec_dir) {
             entries.extend(features);
         }
@@ -406,27 +400,26 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_spec_hash_includes_feature_files() {
+    fn test_compute_spec_hash_tracks_feature_files_only() {
         let tmp = tempfile::TempDir::new().unwrap();
         let specs_dir = tmp.path().join("specs");
         let spec_dir = specs_dir.join("demo");
         std::fs::create_dir_all(&spec_dir).unwrap();
+
+        // Legacy spec.toon alone must NOT produce a hash input (r131).
         std::fs::write(spec_dir.join("spec.toon"), "kind: llman.sdd.spec\n").unwrap();
+        let hash_toon_only = compute_spec_hash(&specs_dir).unwrap();
 
-        // Baseline hash with only spec.toon.
-        let hash_before = compute_spec_hash(&specs_dir).unwrap();
-
-        // Adding a .feature file MUST change the hash (defensive: derived files
-        // are part of the staleness signal).
-        std::fs::write(spec_dir.join("a.feature"), "功能: x\n").unwrap();
+        // Adding the single-track feature flips the hash.
+        std::fs::write(spec_dir.join("demo.feature"), "功能: x\n").unwrap();
         let hash_after_add = compute_spec_hash(&specs_dir).unwrap();
         assert_ne!(
-            hash_before, hash_after_add,
+            hash_toon_only, hash_after_add,
             "adding a .feature must flip staleness"
         );
 
-        // Editing the .feature MUST also change the hash.
-        std::fs::write(spec_dir.join("a.feature"), "功能: y\n").unwrap();
+        // Editing the .feature must also change the hash.
+        std::fs::write(spec_dir.join("demo.feature"), "功能: y\n").unwrap();
         let hash_after_edit = compute_spec_hash(&specs_dir).unwrap();
         assert_ne!(
             hash_after_add, hash_after_edit,

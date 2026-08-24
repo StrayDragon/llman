@@ -1543,6 +1543,8 @@ sdd:
       en: "Change '%{id}' not found."
     spec_not_found:
       en: "Spec '%{id}' not found."
+    spec_not_found_with_reason:
+      en: "Spec '%{id}' unavailable: %{reason}"
     change_stage:
       en: "Stage: %{stage}"
     requirements_only_deprecated:

@@ -7,7 +7,7 @@ use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
 use crate::sdd::shared::match_utils::nearest_matches;
 use crate::sdd::spec::backend::feature_backend;
-use crate::sdd::spec::backend::feature_backend::{ScenarioTier, compute_rule_morphology};
+use crate::sdd::spec::backend::feature_backend::compute_rule_morphology;
 use crate::sdd::spec::parser::parse_change;
 use crate::sdd::spec::validation::determine_stage;
 use anyhow::{Result, anyhow};
@@ -292,10 +292,14 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
 
     // Single-track (r131): the capability's `.feature` is the spec.
     let specs_root = root.join(LLMANSPEC_DIR_NAME).join("specs");
-    let Ok(spec_path) = crate::sdd::spec::validation::resolve_spec_file(&specs_root, spec_id)
-    else {
-        return Err(anyhow!(t!("sdd.show.spec_not_found", id = spec_id)));
-    };
+    let spec_path =
+        crate::sdd::spec::validation::resolve_spec_file(&specs_root, spec_id).map_err(|err| {
+            anyhow!(t!(
+                "sdd.show.spec_not_found_with_reason",
+                id = spec_id,
+                reason = err.to_string()
+            ))
+        })?;
     let content = fs::read_to_string(&spec_path)?;
 
     let parsed = crate::sdd::spec::backend::FEATURE_BACKEND
@@ -310,12 +314,7 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
         .map(|sc| {
             serde_json::json!({
                 "id": sc.name,
-                "tier": match sc.tier {
-                    Some(ScenarioTier::Constraint) => "constraint",
-                    Some(ScenarioTier::Manual) => "manual",
-                    Some(ScenarioTier::Acceptance) => "acceptance",
-                    None => "untagged",
-                },
+                "tier": sc.tier.map(|t| t.as_str()).unwrap_or("untagged"),
                 "reqIds": sc.req_ids,
                 "given": sc.given.join("\n"),
                 "when": sc.when_.join("\n"),

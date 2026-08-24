@@ -226,12 +226,27 @@ fn migrate_capability(plan: &Plan) -> Result<String> {
     fs::remove_file(plan.dir.join(SPEC_FILE))
         .with_context(|| format!("remove legacy {}", plan.dir.join(SPEC_FILE).display()))?;
 
-    Ok(format!(
-        "wrote {} (merged {merged_files} feature file(s); rules {}, acceptance {}, dropped {dropped}); removed legacy spec.toon",
-        feature_path.display(),
-        merged.requirements.len(),
-        acceptance_blocks.len(),
-    ))
+    // r136: the report MUST carry the three-tier initial values.
+    let tiers = FEATURE_BACKEND
+        .parse_content(&payload, &format!("migrated `{}`", plan.capability))
+        .map(|p| crate::sdd::spec::backend::feature_backend::compute_rule_morphology(&p));
+    match tiers {
+        Ok(t) => Ok(format!(
+            "wrote {} (merged {merged_files} feature file(s); rules {} enforced {} manual {} pending {}; acceptance {}; dropped {dropped}); removed legacy spec.toon",
+            feature_path.display(),
+            t.rule_count,
+            t.rule_enforced_count,
+            t.rule_manual_count,
+            t.rule_pending_count,
+            t.acceptance_count,
+        )),
+        Err(e) => Ok(format!(
+            "wrote {} (merged {merged_files} feature file(s); rules {}, acceptance {}, dropped {dropped}); removed legacy spec.toon; tier report unavailable: {e}",
+            feature_path.display(),
+            merged.requirements.len(),
+            acceptance_blocks.len(),
+        )),
+    }
 }
 
 /// Extract top-level scenario blocks (`tags + 场景/Scenario + body`) from a

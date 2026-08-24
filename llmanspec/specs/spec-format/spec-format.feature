@@ -15,7 +15,7 @@
 
   @req:r133 @human
   场景: 头注释元数据
-    - .feature 头部 MUST 携带 # capability、# purpose、# scope 三行注释元数据；scope 供 staleness 消费且路径 MUST 存在；llman sdd spec skeleton 生成的骨架 MUST 自带合法头注释与示例规则。
+    - .feature 头部 MUST 携带 # capability、# purpose、# scope 三行注释元数据；scope 供 staleness 消费（路径尚不存在时校验给 INFO 提示，支持 spec-first）；llman sdd spec skeleton 生成的骨架 MUST 自带合法头注释与示例规则。
 
   @req:r134 @human
   场景: 三态强制分级计数
@@ -23,7 +23,7 @@
 
   @req:r135 @human
   场景: 锁定哈希门禁
-    - 所有 @human 场景按规范化规则（id+name+description+steps 逐行 trim 尾随空白后 SHA-256）计算哈希；validate --strict 与 change finalize/checkpoint/diff MUST 对比 base_sha...HEAD 内哈希集合，任何增删改 MUST 报 ERROR，除非该 change proposal frontmatter 含 rules_edit_acked: true。rules_edit_acked MUST 加入 proposal frontmatter 合法字段集并同步 JSON Schema。
+    - 所有 @human 场景按规范化规则（id+name+description+steps 逐行 trim 尾随空白后 SHA-256）计算哈希；validate --strict 与 change finalize/checkpoint/diff MUST 对比 base_sha...HEAD 内哈希集合，修改或删除既有锁定场景 MUST 报 ERROR（新增规则属正常 Specs landing，无需 ack），除非该 change proposal frontmatter 含 rules_edit_acked: true。rules_edit_acked MUST 加入 proposal frontmatter 合法字段集并同步 JSON Schema。
 
   @req:r136 @human
   场景: toon2features 一次性迁移

@@ -7,7 +7,7 @@
 
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::spec::backend::FEATURE_BACKEND;
-use crate::sdd::spec::backend::feature_backend::{self, ScenarioTier};
+use crate::sdd::spec::backend::feature_backend::{self};
 use crate::sdd::spec::validation::{ValidationIssue, ValidationLevel};
 use anyhow::Context;
 use std::collections::BTreeMap;
@@ -141,9 +141,11 @@ fn fs_read(path: std::path::PathBuf) -> std::io::Result<String> {
 fn hashes_from_content(content: &str) -> Hashes {
     let mut hashes: Hashes = BTreeMap::new();
     if let Ok(parsed) = FEATURE_BACKEND.parse_content(content, "lock-gate") {
-        for sc in parsed.scenarios.iter().filter(|sc| {
-            sc.tier == Some(ScenarioTier::Constraint) || sc.tier == Some(ScenarioTier::Manual)
-        }) {
+        for sc in parsed
+            .scenarios
+            .iter()
+            .filter(|sc| sc.tier.map(|t| t.is_locked()).unwrap_or(false))
+        {
             *hashes.entry(feature_backend::lock_hash(sc)).or_insert(0) += 1;
         }
     }
@@ -178,12 +180,7 @@ pub fn rules_edit_acked_for(root: &Path, change_name: &str) -> bool {
     };
     serde_yaml::from_str::<serde_yaml::Value>(&yaml)
         .ok()
-        .and_then(|v| {
-            v.get("rules_edit_acked").and_then(|b| match b {
-                serde_yaml::Value::Bool(t) => Some(*t),
-                _ => None,
-            })
-        })
+        .map(|v| crate::sdd::spec::validation::parse_yaml_optional_bool(&v, "rules_edit_acked"))
         .unwrap_or(false)
 }
 
