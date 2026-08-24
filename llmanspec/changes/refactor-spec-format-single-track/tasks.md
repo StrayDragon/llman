@@ -20,7 +20,7 @@
   - 幂等转换（D5）；迁移报告含三态初值；`--kind spec-md2toon` 退役为 ERROR 提示合法 kind。
   - 验证：临时目录 fixture 集成测试（TempDir，禁止污染仓库根）
 
-- [ ] t5 change 门禁挂点 `[blocked-by: t2]`
+- [x] t5 change 门禁挂点 `[blocked-by: t2]`
   - specsLanding glob 收窄 `*.feature`；finalize/checkpoint/diff 接锁定哈希对比（base_sha...HEAD）；frontmatter 合法字段集增 `rules_edit_acked`（r124 + schema 同步）。
   - 验证：Git-native fixture 测试（拦截路径 + acked 解锁路径两案例）
 

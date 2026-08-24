@@ -71,6 +71,9 @@ pub struct ProposalFrontmatter {
     /// When true, apply-ready does not require a live `llmanspec/specs/**` diff
     /// on the bound branch (docs/governance changes with no contract edit).
     pub skip_specs_landing: bool,
+    /// Human acknowledgement (spec-format r135): allows the change to modify
+    /// locked `@human` rule scenarios under `llmanspec/specs/**/*.feature`.
+    pub rules_edit_acked: bool,
 }
 
 pub fn validate_spec_content_with_frontmatter(
@@ -1787,6 +1790,7 @@ const PROPOSAL_FRONTMATTER_ALLOWED_FIELDS: &[&str] = &[
     "checkpoint_sha",
     "checkpointSha",
     "skip_specs_landing",
+    "rules_edit_acked",
 ];
 
 pub fn check_proposal_frontmatter(
@@ -1838,6 +1842,7 @@ pub fn check_proposal_frontmatter(
     let checkpoint_sha = parse_yaml_optional_string(&parsed, "checkpoint_sha")
         .or_else(|| parse_yaml_optional_string(&parsed, "checkpointSha"));
     let skip_specs_landing = parse_yaml_optional_bool(&parsed, "skip_specs_landing");
+    let rules_edit_acked = parse_yaml_optional_bool(&parsed, "rules_edit_acked");
 
     // r124: reject unknown frontmatter fields (e.g. `status`, `title`,
     // `priority`, `author`). The allowed set is exactly the keys this parser
@@ -1920,6 +1925,7 @@ pub fn check_proposal_frontmatter(
             checkpointed,
             checkpoint_sha,
             skip_specs_landing,
+            rules_edit_acked,
         },
     )
 }
