@@ -24,7 +24,7 @@
   - specsLanding glob 收窄 `*.feature`；finalize/checkpoint/diff 接锁定哈希对比（base_sha...HEAD）；frontmatter 合法字段集增 `rules_edit_acked`（r124 + schema 同步）。
   - 验证：Git-native fixture 测试（拦截路径 + acked 解锁路径两案例）
 
-- [ ] t6 全库自迁移 `[blocked-by: t2, t4]`
+- [x] t6 全库自迁移 `[blocked-by: t2, t4]`
   - 跑 toon2features 迁移 28 个 capability；人工审阅生成物中 @human 场景；config.yaml 保持 runner 开关语义；`bdd.bindings` 退役。
   - 验证：`llman sdd validate --all --strict` 全绿；`cargo test --features bdd` 通过
 

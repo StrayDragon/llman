@@ -330,7 +330,12 @@ pub fn rule_statement(sc: &RichScenario) -> String {
     if let Some(desc) = sc.description.as_deref()
         && !desc.trim().is_empty()
     {
-        return desc.trim().to_string();
+        // Strip the renderer's `- ` bullet prefixes so dump→parse round-trips.
+        let stripped: Vec<&str> = desc
+            .lines()
+            .map(|l| l.trim().strip_prefix("- ").unwrap_or(l.trim()))
+            .collect();
+        return stripped.join("\n");
     }
     let mut parts: Vec<String> = Vec::new();
     if !sc.given.is_empty() {
@@ -384,11 +389,16 @@ impl SpecBackend for FeatureBackend {
             let _ = writeln!(out);
             let _ = writeln!(out, "  @req:{} @human", req.req_id);
             let _ = writeln!(out, "  场景: {}", req.title);
-            for line in req.statement.lines() {
-                let _ = writeln!(out, "    {line}");
-            }
-            if req.statement.is_empty() {
-                let _ = writeln!(out, "    （约束陈述待补充）");
+            // Bullet-prefix each statement line: free text starting with a
+            // Gherkin keyword (e.g. a line beginning with `场景`/`当`) would
+            // otherwise be parsed as structure and break the file.
+            let statement = if req.statement.is_empty() {
+                "（约束陈述待补充）"
+            } else {
+                req.statement.as_str()
+            };
+            for line in statement.lines() {
+                let _ = writeln!(out, "    - {line}");
             }
         }
         for sc in &doc.scenarios {
@@ -398,11 +408,17 @@ impl SpecBackend for FeatureBackend {
             let _ = writeln!(out);
             let _ = writeln!(out, "  @req:{} @executable", sc.req_id);
             let _ = writeln!(out, "  场景: {}", sc.id);
+            // Collapse multi-line step values to one physical line: bare
+            // continuation lines would re-parse as bogus steps.
             for (kw, field) in [("假如", &sc.given), ("当", &sc.when_), ("那么", &sc.then_)] {
-                if !field.trim().is_empty() {
-                    for line in field.lines() {
-                        let _ = writeln!(out, "    {kw} {line}");
-                    }
+                let value = field
+                    .split('\n')
+                    .map(str::trim)
+                    .filter(|l| !l.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if !value.is_empty() {
+                    let _ = writeln!(out, "    {kw} {value}");
                 }
             }
         }

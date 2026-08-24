@@ -1,68 +1,18 @@
 # language: zh-CN
-# 对应 spec: tool-agents-md-management — `llman tool agents-md` 命令组 MUST 提供 scan/clean/revert
-# 三个子命令，登记、按需清理与从主干恢复 agent init 文件（AGENTS.md / CLAUDE.md / .cursor/ 等）。
+# capability: tool-agents-md-management
+# purpose: 规范 `llman tool agents-md` 命令组（scan/clean/revert）对项目内 agent init 文件（AGENTS.md、CLAUDE.md、.cursor/ 等）的登记、按需清理与从主干恢复行为，解决个人 PR 开发时的 init 文件语义过期冲突。
+# scope: llmanspec/specs/tool-agents-md-management
 
-功能: agents-md 命令组登记清理与恢复 agent init 文件
+功能: tool-agents-md-management
 
-  @req:r121
-  场景: scan 列出项目内已发现的 agent init 文件
-    假如 项目内存在 AGENTS.md 与 CLAUDE.md 文件
-    当 运行 llman tool agents-md scan
-    那么 退出码为 0
-    那么 stdout 包含 AGENTS.md
-    那么 stdout 包含 CLAUDE.md
+  @req:r121 @human
+  场景: scan 发现与登记
+    - 对应 spec: tool-agents-md-management — `llman tool agents-md scan` MUST 递归扫描项目内 agent init 文件并输出相对项目根的路径列表；扫描文件名清单来源为内置默认 `[AGENTS.md, CLAUDE.md, GEMINI.md, .cursorrules, .cursor/, .claude/, .windsurfrules, .github/copilot-instructions.md]` 经 global config `tools.agents-md` 覆盖（非多级并集）；传入 `--upsert-project-configs` 时 MUST 将发现的路径（文件或目录名）写入项目 `.llman/config.yaml` 的 `tools.agents-md.files` 段，文件不存在则创建。
 
-  @req:r121
-  场景: scan 带 upsert 写入项目 config 清单
-    假如 项目内存在 AGENTS.md 文件且 .llman/config.yaml 不存在
-    当 运行 llman tool agents-md scan --upsert-project-configs
-    那么 退出码为 0
-    那么 项目 .llman/config.yaml 含 agents-md.files 段
+  @req:r122 @human
+  场景: clean 删除与默认分支安全门禁
+    - 对应 spec: tool-agents-md-management — `llman tool agents-md clean` MUST 读取项目 config `tools.agents-md.files` 清单并将目录项展开为 git-tracked 文件逐个删除；默认 dry-run（仅预览），`--commit` 时 MUST 单次 `git add <files>` 并以固定前缀 `chore(agents-md):` 提交；当前分支为默认分支（main/master）时 MUST 拒绝 `--commit` 执行，除非显式传入 `--force`。
 
-  @req:r121
-  场景: scan 文件名清单经 global config 覆盖内置默认
-    假如 global config 的 tools.agents-md.files 仅含 AGENTS.md
-    当 项目内存在 AGENTS.md 与 CLAUDE.md 且运行 llman tool agents-md scan
-    那么 stdout 包含 AGENTS.md
-    那么 stdout 不包含 CLAUDE.md
-
-  @req:r122
-  场景: clean 默认 dry-run 仅预览不删除
-    假如 项目 config 清单含 AGENTS.md 且文件存在于工作区
-    当 运行 llman tool agents-md clean
-    那么 退出码为 0
-    那么 AGENTS.md 仍存在于工作区
-
-  @req:r122
-  场景: clean 在默认分支上带 commit 被拒绝
-    假如 当前分支为 main 且项目 config 清单含 AGENTS.md
-    当 运行 llman tool agents-md clean --commit
-    那么 退出码为 1
-    那么 stderr 包含 默认分支
-
-  @req:r122
-  场景: clean 在默认分支上带 commit 与 force 仍执行
-    假如 当前分支为 main 且项目 config 清单含 AGENTS.md
-    当 运行 llman tool agents-md clean --commit --force
-    那么 退出码为 0
-
-  @req:r122
-  场景: clean 目录清单项展开为 tracked 文件逐个删除
-    假如 项目 config 清单含 .cursor/ 目录且其下有 tracked 文件
-    当 运行 llman tool agents-md clean --yes
-    那么 退出码为 0
-    那么 .cursor 目录下 tracked 文件已被删除
-
-  @req:r123
-  场景: revert 从默认分支逐个恢复清单文件
-    假如 默认分支含 AGENTS.md 主干版本且当前工作区该文件已被删除
-    当 运行 llman tool agents-md revert --yes
-    那么 退出码为 0
-    那么 AGENTS.md 恢复为默认分支版本
-
-  @req:r123
-  场景: revert 带 commit 自动创建分支并提交
-    假如 当前分支为非默认分支且清单含 AGENTS.md
-    当 运行 llman tool agents-md revert --commit
-    那么 退出码为 0
-    那么 新分支已创建并含恢复提交
+  @req:r123 @human
+  场景: revert 从默认分支恢复
+    - 对应 spec: tool-agents-md-management — `llman tool agents-md revert` MUST 将清单（含展开后的目录内文件）逐个从默认分支（探测顺序 origin/HEAD → origin/main → origin/master → main → master）`git checkout <default> -- <file>` 恢复到工作区；传入 `--commit` 时 MUST 自动创建分支并提交恢复结果。
