@@ -435,6 +435,20 @@ pub fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
     if is_default_branch(root, &branch)? {
         bail!("cannot checkpoint on the default branch");
     }
+    // Locked-rule integrity (spec-format r135).
+    {
+        let acked = crate::sdd::change::lock_gate::rules_edit_acked_for(root, &change_name);
+        let lock_issues = crate::sdd::change::lock_gate::check(root, &binding.base_sha, acked);
+        for issue in &lock_issues {
+            match issue.level {
+                crate::sdd::spec::validation::ValidationLevel::Error => {
+                    eprintln!("{}", issue.message);
+                    anyhow::bail!("locked-rule gate failed");
+                }
+                _ => eprintln!("{}", issue.message),
+            }
+        }
+    }
     if !working_tree_clean(root)? {
         bail!("working tree is dirty; commit all changes before checkpoint");
     }

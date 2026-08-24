@@ -49,6 +49,20 @@ pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
     let mut binding =
         crate::sdd::change::git_native::enforce_bdd_archive_gates_relaxed(root, &change_name)?;
 
+    // Locked-rule integrity (spec-format r135): @human scenarios under
+    // llmanspec/specs/** must be untouched vs base_sha unless acked.
+    let acked = crate::sdd::change::lock_gate::rules_edit_acked_for(root, &change_name);
+    let lock_issues = crate::sdd::change::lock_gate::check(root, &binding.base_sha, acked);
+    for issue in &lock_issues {
+        match issue.level {
+            crate::sdd::spec::validation::ValidationLevel::Error => {
+                eprintln!("{}", issue.message);
+                anyhow::bail!("locked-rule gate failed");
+            }
+            _ => eprintln!("{}", issue.message),
+        }
+    }
+
     let already_checkpointed = binding.checkpointed && binding.checkpoint_sha.is_some();
     if already_checkpointed {
         eprintln!(
