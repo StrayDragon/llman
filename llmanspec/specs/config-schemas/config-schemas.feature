@@ -20,3 +20,25 @@
   @req:r125 @human
   场景: 多技能仓库源配置 schema
     - 对应 spec: config-schemas — 全局配置 schema MUST 支持 skills.repo[]（每项含 name/path）；MUST NOT 接受旧 skills.dir（schema 校验失败）；skills.repo[] 中路径不存在或不是目录时 MUST 在启动解析阶段输出警告并过滤该条目，不因此失败。
+  @req:r125
+  @executable
+  场景: 多 repo 配置通过 schema 校验
+    假如 全局 config.yaml 含 multi-repo skills 配置
+    当 在非交互终端运行 llman self schema check
+    那么 退出码为零
+
+
+  @req:r125
+  @executable
+  场景: 旧 skills.dir 配置 schema 校验失败
+    假如 全局 config.yaml 含 legacy-dir skills 配置
+    当 在非交互终端运行 llman self schema check
+    那么 退出码非零
+
+
+  @req:r125
+  @executable
+  场景: 缺失 repo 路径启动时警告并过滤
+    假如 全局 config.yaml 含 missing-path skills 配置
+    当 在非交互终端运行 llman skills
+    那么 stderr 包含 skipping

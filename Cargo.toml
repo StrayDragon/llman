@@ -111,7 +111,10 @@ debug = 1
 [profile.test.package."*"]
 debug = 0
 
-# Local fork: adds zh-CN 规则 rule keyword (upstream only has "Rule").
-# Patch applies workspace-wide, including rstest-bdd's gherkin dependency.
+# Fork of gherkin adding the missing zh-CN 规则 rule keyword
+# (upstream zh-CN dict only localizes part of Gherkin 6 keywords).
+# NOTE: semver-scoped — replaces gherkin 0.16 consumers (llman itself).
+# rstest-bdd-macros pins gherkin 0.14 and keeps upstream; harmless because it
+# never collects Rule-block scenarios anyway (llman's gate rejects them first).
 [patch.crates-io]
-gherkin = { path = "../gherkin.rs" }
+gherkin = { git = "https://github.com/StrayDragon/gherkin.git" }

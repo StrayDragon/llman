@@ -11,7 +11,7 @@
 
   @req:r39 @human
   场景: SDD list JSON 含 morphology
-    - llman sdd list --specs --json output MUST include purpose validScope health staleness 以及 morphology 对象。morphology MUST 含 ruleCount ruleEnforcedCount ruleManualCount rulePendingCount acceptanceCount orphanAcceptanceCount（数值，camelCase；spec-format r134 三态口径）。purpose 仍来自 spec；health 与 staleness 在质量检测未实现前可为 null。legacy harnessBound/harnessUnbound/dualWrite 键 MUST NOT 再出现。
+    - llman sdd list --specs --json output MUST include purpose validScope health staleness 以及 morphology 对象。morphology MUST 含 constraintsReqCount harnessScenarioCount reqLinkCoverage dualWriteCount（数值；BDD-off 时 harness 相关可为 0）。purpose 仍来自 spec；health 与 staleness 在质量检测未实现前可为 null。当 config 声明 bdd.bindings 时 morphology MUST 另含 harnessBoundCount 与 harnessUnboundCount 数值键；未声明时两键 MUST 为 null。
 
   @req:r47 @human
   场景: Context JSON semantic protocol
@@ -139,12 +139,138 @@
 
   @req:r130 @human
   场景: specs landing 单轨口径与锁定门禁
-    - Specs landing 的 live specs 路径口径 MUST 收窄为 llmanspec/specs/**/*.feature（spec.toon 不再是合约载体）。change finalize/checkpoint/diff 与 validate --strict MUST 执行 @human 场景锁定哈希对比（base_sha...HEAD，规则见 spec-format r135）；未带 rules_edit_acked: true 的 proposal MUST NOT 能改动已锁定场景。
+    - Specs landing 的 live specs 路径口径 MUST 收窄为 llmanspec/specs/**/*.feature（spec.toon 不再是合约载体）。change finalize/checkpoint/diff 与 validate --strict MUST 执行 @human 场景锁定哈希对比（base_sha...HEAD，规则见 spec-format r24）；未带 rules_edit_acked: true 的 proposal MUST NOT 能改动已锁定场景。
 
   @req:r2 @human
-  场景: bdd.bindings 绑定源口径退役
-    - spec-format r134 起 harness bound 口径退役：`@executable` tag 即绑定声明，MUST NOT 依赖 bdd.bindings 决定计数。config.yaml 中遗留的 bindings 段 MAY 被解析器容忍但 MUST NOT 影响任何输出；未来如需下游自定义 tag 口径，仅允许以可选 override 形式重新引入。
+  场景: bdd.bindings 可声明绑定源
+    - llmanspec 配置 MUST 支持在 bdd 段下声明 bindings 列表作为 harness bound 口径的绑定源：kind=tags 时场景 tags 含全部所列 tag 即视为 bound（@ 前缀归一化）；kind=scenario-attrs 时对 files glob 匹配的文件提取 scenario 属性块内 path 与 name 字面量对，feature 路径按 capability 目录归属，specs 目录外的路径忽略。多个源结果取并集去重；未知 kind 或空 tags 或空 files MUST 解析失败。未声明 bindings 时 bound 口径 MUST NOT 生效且现有输出形态不变。
 
   @req:r3 @human
-  场景: 计数输出为三态而非 bound/unbound
-    - llman sdd list --specs 文本行与 --json morphology、llman sdd show 的 Morphology 输出 MUST 采用 rule 三态口径（enforced/manual/pending + acceptance），MUST NOT 再出现 harness-bound/harness-unbound/dualWrite 字样或键名（spec-format r134）。
+  场景: harness 计数拆分为 bound 与 unbound
+    - 当项目声明至少一个 bdd.bindings 源时：llman sdd list --specs 文本行 MUST 将 harness 计数拆分为 harness-bound 与 harness-unbound 且两者之和等于场景总数；llman sdd list --specs --json 的 morphology 对象 MUST 含 harnessBoundCount 与 harnessUnboundCount 数值键；llman sdd show spec-id 的 Morphology 行与 --json 同构字段 MUST 同口径。未声明任何源时上述输出形态 MUST 与拆分前一致且 JSON 两键为 null，MUST NOT 出现误导性零值。
+  @executable
+  @req:r92
+  场景: freeze-list-无归档文件时提示并退出零
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd archive freeze --list
+    那么 退出码为零
+    而且 stdout 包含 No freeze archive found
+
+  @executable
+  @req:r88
+  场景: add-req-rejects-global-collision
+    假如 已初始化含已占用全局 req_id 的 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd spec add-req sample occupied-id --title t --statement "MUST keep unique"
+    那么 退出码非零且 stderr 包含 occupied-id
+
+
+  @executable
+  @req:r87
+  场景: next-req-id-json
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd spec next-req-id --json
+    那么 退出码为零且 stdout 为合法 JSON 且含 JSON 键 reqId
+
+
+  @executable
+  @req:r89
+  场景: resolve-req-json
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd spec resolve-req r1 --json
+    那么 退出码为零且 stdout 为合法 JSON 且含 JSON 键 reqId 且含 JSON 键 capability
+
+  @executable
+  @req:r90
+  场景: init --update 清理废弃 llman-sdd 技能
+    假如 已初始化 sdd 项目且 bdd 配置为 "off"
+    假如 项目中存在技能目录 llman-sdd-solidify
+    假如 项目中存在技能目录 my-custom-skill
+    当 在非交互终端运行 llman sdd init --update
+    那么 退出码为零
+    那么 stderr 包含 Cleaned up stale skill
+    那么 相对路径 .agents/skills/llman-sdd-solidify 不存在
+    那么 相对路径 .agents/skills/my-custom-skill 存在
+    那么 相对路径 .agents/skills/llman-sdd-explore 存在
+
+
+  @executable
+  @req:r90
+  场景: extra_skills 扩展候选不被清理
+    假如 已初始化 sdd 项目且 bdd 配置为 "off"
+    假如 项目 extra_skills 包含 llman-sdd-continue
+    当 在非交互终端运行 llman sdd init --update
+    那么 退出码为零
+    那么 相对路径 .agents/skills/llman-sdd-continue 存在
+
+
+  @executable
+  @req:r95
+  场景: validate 拒绝缺少 llman_sdd 元信息的托管 skill
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    假如 项目中存在技能目录 llman-sdd-explore
+    当 运行 llman sdd validate --all --strict --no-check --no-interactive
+    那么 退出码非零
+    那么 stderr 包含 init --update
+
+
+  @executable
+  @req:r95
+  场景: init --update 写入 bdd_mode 后 validate 通过
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    假如 项目中存在技能目录 llman-sdd-explore
+    当 在非交互终端运行 llman sdd init --update
+    那么 退出码为零
+    当 运行 llman sdd validate --all --strict --no-check --no-interactive
+    那么 退出码为零
+
+  @executable
+  @req:r93
+  场景: attached-full-unified-bdd-on
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 变更 r93-attached 含 proposal design tasks 且 attach 状态为 "yes"
+    当 在非交互终端运行 llman sdd show r93-attached --type change --output json
+    那么 退出码为零
+    而且 stdout 为合法 JSON
+    而且 stdout 的 JSON 键 stage 为 "full"
+    而且 stdout 的 JSON 键 attached 为 "true"
+    而且 stdout 的 JSON 键 readyToImplement 为 "false"
+    而且 stdout 的 JSON 键 specsLanded 为 "false"
+
+
+  @executable
+  @req:r93
+  场景: unattached-designed-stays-not-full
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 变更 r93-bare 含 proposal design tasks 且 attach 状态为 "no"
+    当 在非交互终端运行 llman sdd show r93-bare --type change --output json
+    那么 退出码为零
+    而且 stdout 为合法 JSON
+    而且 stdout 的 JSON 键 stage 为 "designed"
+    而且 stdout 的 JSON 键 readyToImplement 为 "false"
+
+
+  @executable
+  @req:r93
+  场景: attached-full-unified-bdd-off
+    假如 已初始化 sdd 项目且 bdd 配置为 "off"
+    而且 变更 r93-off 含 proposal design tasks 且 attach 状态为 "yes"
+    当 在非交互终端运行 llman sdd show r93-off --type change --output json
+    那么 退出码为零
+    而且 stdout 为合法 JSON
+    而且 stdout 的 JSON 键 stage 为 "full"
+    而且 stdout 的 JSON 键 readyToImplement 为 "false"
+    而且 stdout 的 JSON 键 specsLanded 为 "false"
+
+
+  @executable
+  @req:r1
+  场景: attached-with-skip-specs-landing-is-ready
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 变更 r1-skip 含 proposal design tasks 且 attach 状态为 "skip"
+    当 在非交互终端运行 llman sdd show r1-skip --type change --output json
+    那么 退出码为零
+    而且 stdout 为合法 JSON
+    而且 stdout 的 JSON 键 stage 为 "full"
+    而且 stdout 的 JSON 键 skipSpecsLanding 为 "true"
+    而且 stdout 的 JSON 键 readyToImplement 为 "true"
+    而且 stdout 的 JSON 键 specsLanded 为 "false"

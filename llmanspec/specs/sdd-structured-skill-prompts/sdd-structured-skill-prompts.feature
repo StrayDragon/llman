@@ -28,3 +28,21 @@
   @req:r117 @human
   场景: 独立 draft 技能默认安装与职责分离
     - llman SDD MUST 提供一个名为 `llman-sdd-draft` 的默认技能（在 `DEFAULT_SKILL_FILES` 中，随 `llman sdd init --update` 默认安装），职责单一化为「仅创建 draft proposal shell（`change new --from`，不强制 tasks/design/specs/attach）」。该技能 MUST NOT 承担 triage 或完整 propose 职责。`llman-sdd-propose` 技能 MUST NOT 内联完整 draft 路径步骤，MUST 以一句指引导向 `llman-sdd-draft`（如「仅记草案用 llman-sdd-draft」）。曾名为 `llman-sdd-new-change` 的可选技能 MUST 被此默认 `llman-sdd-draft` 取代（从 `OPTIONAL_SKILL_FILES` 移除）；已 init 项目里残留的 `extra_skills: [llman-sdd-new-change]` 条目 MUST 在下次 `init --update` 时被静默忽略（不匹配 optional 列表即过滤），旧 `llman-sdd-new-change` 目录 MUST 被 `cleanup_stale_skills` 自动清理——无需显式迁移代码。
+  @executable
+  @req:r99
+  场景: change new --from 从描述生成合法 id
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change new --from "add user login"
+    那么 退出码为零
+    那么 stdout 包含 proposal.md
+    那么 stdout 包含 derived change id
+
+
+  @executable
+  @req:r99
+  场景: change new --from 冲突既有 change 时失败
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change new add-user-login
+    而且 在非交互终端运行 llman sdd change new --from "add user login"
+    那么 退出码非零
+    那么 stderr 包含 --force

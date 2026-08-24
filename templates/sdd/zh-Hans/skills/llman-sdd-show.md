@@ -21,6 +21,6 @@ metadata:
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit("skills/validation-hints-toon") }}
+{{ unit("skills/validation-hints") }}
 
 {{ unit("skills/ethics-governance") }}

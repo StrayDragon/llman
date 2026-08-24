@@ -115,6 +115,6 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 > 💡 Proposal done → next: `llman-sdd-apply` (implement)
 
 {{ unit("skills/sdd-commands") }}
-{{ unit("skills/validation-hints-toon") }}
+{{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}
