@@ -123,7 +123,7 @@ pub fn run_at(root: &Path, args: MigrateArgs) -> Result<()> {
                 println!("  ✔ {}: {summary}", p.capability);
                 migrated += 1;
             }
-            Err(e) => failures.push(format!("{}: {e}", p.capability)),
+            Err(e) => failures.push(format!("{}: {e:#}", p.capability)),
         }
     }
 
@@ -149,9 +149,8 @@ fn migrate_capability(plan: &Plan) -> Result<String> {
     };
     let feature_path = plan.dir.join(format!("{}.feature", plan.capability));
 
-    // Merge: toon requirements + any rules already authored in the feature;
-    // executable scenarios come from the existing feature untouched.
-    let mut merged = MainSpecDoc {
+    // Rules come from legacy toon requirements (statement verbatim).
+    let merged = MainSpecDoc {
         kind: "llman.sdd.spec".to_string(),
         name: toon_doc.name.trim().to_string(),
         purpose: toon_doc.purpose.clone(),
@@ -160,55 +159,134 @@ fn migrate_capability(plan: &Plan) -> Result<String> {
         scenarios: Vec::new(),
     };
 
-    if feature_path.exists() {
-        let raw = fs::read_to_string(&feature_path)?;
-        let parsed = FEATURE_BACKEND
-            .parse_content(&raw, &format!("existing `{}`", plan.capability))
-            .context("merge existing .feature")?;
-        let existing =
-            FEATURE_BACKEND.parse_main_spec(&raw, &format!("existing `{}`", plan.capability))?;
-        let known: std::collections::HashSet<String> = merged
-            .requirements
-            .iter()
-            .map(|r| r.req_id.trim().to_string())
-            .collect();
-        for req in &existing.requirements {
-            if !known.contains(req.req_id.trim()) {
-                merged.requirements.push(req.clone());
+    // Acceptance scenarios are copied VERBATIM from every legacy feature:
+    // the IR loses step boundaries within a type, and rstest-bdd binds by
+    // exact step text, so byte-faithful blocks are the only safe carrier.
+    let legacy_features = crate::sdd::spec::validation::discover_features(&plan.dir);
+    let merged_files = legacy_features.len();
+    let mut seen_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut acceptance_blocks: Vec<String> = Vec::new();
+    let mut dropped = 0usize;
+    for legacy in &legacy_features {
+        let raw = fs::read_to_string(legacy)?;
+        for (name, tags, block) in extract_scenario_blocks(&raw) {
+            let executable = tags.iter().any(|t| {
+                t.trim()
+                    .trim_start_matches('@')
+                    .eq_ignore_ascii_case("executable")
+            });
+            // Bare `@req:` (empty id) marks obsolete-contract scenarios — drop.
+            let bare_req = tags.iter().any(|t| {
+                t.trim()
+                    .trim_start_matches('@')
+                    .eq_ignore_ascii_case("req:")
+            });
+            let has_req = tags.iter().any(|t| {
+                let t = t.trim().trim_start_matches('@');
+                t.starts_with("req:") && t.len() > "req:".len()
+            });
+            if !executable || bare_req || !has_req {
+                dropped = dropped.saturating_add(1);
+                continue;
+            }
+            if seen_names.insert(name.clone()) {
+                acceptance_blocks.push(block);
+            } else {
+                eprintln!(
+                    "Warning: duplicate scenario `{name}` across merged features of `{}`; kept first",
+                    plan.capability
+                );
             }
         }
-        merged.scenarios.extend(existing.scenarios);
-        let _ = parsed;
     }
 
-    let payload = FEATURE_BACKEND.dump_main_spec(&merged)?;
+    // Header + rules via the canonical renderer, then verbatim acceptance.
+    let mut payload = FEATURE_BACKEND.dump_main_spec(&merged)?;
+    if !payload.ends_with('\n') {
+        payload.push('\n');
+    }
+    for block in &acceptance_blocks {
+        payload.push_str(block);
+        payload.push('\n');
+    }
     atomic_write_with_mode(&feature_path, payload.as_bytes(), None)?;
+
+    // Remove every legacy source file EXCEPT the freshly written target.
+    // Compare canonically: glob paths may differ textually (`./` prefix).
+    let target_canon = feature_path
+        .canonicalize()
+        .unwrap_or_else(|_| feature_path.clone());
+    for legacy in &legacy_features {
+        if legacy
+            .canonicalize()
+            .map(|c| c == target_canon)
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        fs::remove_file(legacy).with_context(|| format!("remove merged {}", legacy.display()))?;
+    }
     fs::remove_file(plan.dir.join(SPEC_FILE))
         .with_context(|| format!("remove legacy {}", plan.dir.join(SPEC_FILE).display()))?;
 
-    // Tier summary for the migration report (r136: three-tier initial values).
-    let reparsed =
-        FEATURE_BACKEND.parse_main_spec(&payload, &format!("migrated `{}`", plan.capability))?;
-    let rules = merged.requirements.len();
-    let enforced = reparsed
-        .scenarios
-        .iter()
-        .filter(|sc| sc.feature)
-        .filter(|sc| {
-            merged
-                .requirements
-                .iter()
-                .any(|r| r.req_id == sc.req_id || sc.req_id.is_empty())
-        })
-        .count()
-        .min(rules);
     Ok(format!(
-        "wrote {} (rules {rules}, enforced ≥{enforced}, acceptance {}); removed legacy spec.toon",
+        "wrote {} (merged {merged_files} feature file(s); rules {}, acceptance {}, dropped {dropped}); removed legacy spec.toon",
         feature_path.display(),
-        reparsed.scenarios.iter().filter(|s| s.feature).count(),
+        merged.requirements.len(),
+        acceptance_blocks.len(),
     ))
 }
 
+/// Extract top-level scenario blocks (`tags + 场景/Scenario + body`) from a
+/// legacy feature file, verbatim. Returns `(scenario name, tags, block)` with
+/// the block starting at its first tag line.
+fn extract_scenario_blocks(content: &str) -> Vec<(String, Vec<String>, String)> {
+    use std::fmt::Write as _;
+    let mut out: Vec<(String, Vec<String>, String)> = Vec::new();
+    let mut current_tags: Vec<String> = Vec::new();
+    let mut current: Option<(String, Vec<String>, String)> = None;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        let is_tag = trimmed.starts_with('@');
+        let is_scenario = trimmed.starts_with("场景:") || trimmed.starts_with("Scenario:");
+        if is_tag {
+            if let Some(done) = current.take() {
+                out.push(done);
+            }
+            current_tags.push(trimmed.to_string());
+            continue;
+        }
+        if is_scenario {
+            if let Some(done) = current.take() {
+                out.push(done);
+            }
+            let name = trimmed
+                .split_once(':')
+                .map(|(_, rest)| rest.trim().to_string())
+                .unwrap_or_default();
+            let mut block = String::new();
+            for t in &current_tags {
+                let _ = writeln!(block, "  {t}");
+            }
+            let _ = writeln!(block, "  {trimmed}");
+            current = Some((name, current_tags.clone(), block));
+            current_tags.clear();
+            continue;
+        }
+        if let Some((_, _, block)) = current.as_mut() {
+            block.push_str(line);
+            block.push('\n');
+        } else if !current_tags.is_empty() && !trimmed.is_empty() {
+            // Tags followed by a non-scenario line: orphaned tag run — reset.
+            current_tags.clear();
+        }
+    }
+    if let Some(done) = current.take() {
+        out.push(done);
+    }
+    out
+}
 fn collect_capability_dirs(specs_root: &Path) -> Result<Vec<PathBuf>> {
     let mut out = Vec::new();
     let entries =

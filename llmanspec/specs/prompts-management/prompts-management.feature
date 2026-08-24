@@ -1,0 +1,22 @@
+# language: zh-CN
+# capability: prompts-management
+# purpose: 规范 prompts 编排入口、多 app 隔离、冲突策略与 skills 更新引导。
+# scope: llmanspec/specs/prompts-management
+
+功能: prompts-management
+
+  @req:r24 @human
+  场景: codex target 选择与 claude-code 双 scope 注入
+    - Codex prompts MUST support `--target project-doc|prompts` (default prompts) with `--override` only for project-doc. Codex and claude-code MUST support global/project dual-scope writes. Claude memory injection MUST use managed-block strategy preserving user content and MUST NOT silently overwrite on read failure.
+
+  @req:r55 @human
+  场景: 冲突策略、模板列举、删除确认与 project scope repo root 解析
+    - Conflict/overwrite policy MUST be consistent (managed targets need interactive confirm or non-interactive `--force`; unmanaged files need secondary confirm). List MUST show readable templates only. Non-interactive rm MUST require `--yes`. Project scope MUST resolve via repo root discovery; missing git root MUST require `--force`.
+
+  @req:r77 @human
+  场景: prompts 编排入口、app 隔离与 scope 解析
+    - `llman prompts` MUST run interactively as the orchestrator for `llman x <app> prompts`, keep the `prompt` alias, isolate cursor/codex/claude-code apps, and resolve `--scope` to global|project target sets.
+
+  @req:r82 @human
+  场景: init --update 含 quick 路径与 triage 引导
+    - `llman sdd init --update` generated workflow skills MUST include `llman-sdd-quick`, embed `llman sdd context` as the preferred specs lookup with async rebuild guidance when unavailable, and include triage rules distinguishing behavioral-contract vs implementation vs governance vs meta-spec changes.

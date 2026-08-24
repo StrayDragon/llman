@@ -1,0 +1,14 @@
+# language: zh-CN
+# capability: claude-code-runner
+# purpose: 规范 `llman x cc`（Claude Code runner）的交互参数解析、引号处理与执行行为合约。
+# scope: llmanspec/specs/claude-code-runner
+
+功能: claude-code-runner
+
+  @req:r12 @human
+  场景: 交互参数引号解析与 -- 参数透传
+    - 对应 spec: claude-code-runner — llman x cc/claude-code run 交互模式收集参数 MUST 支持引号解析 （未闭合引号报错且不执行）；主命令 MUST 接受通过 -- 分隔的 trailing args 原样透传给 claude。
+
+  @req:r41 @human
+  场景: 危险模式匹配、环境变量注入与安全告警中止
+    - 对应 spec: claude-code-runner — 危险 pattern 匹配 MUST 大小写不敏感；环境变量注入 MUST SecurityChecker 发现告警时 MUST 中止执行不启动 claude。

@@ -1,50 +1,22 @@
 # language: zh-CN
-# Partitioned: unique harness only (duplicates removed)
+# capability: sdd-context
+# purpose: 规范 `llman sdd context` 命令的后端选项、默认值与 pageindex 检索行为。
+# scope: llmanspec/specs/sdd-context
+
 功能: sdd-context
 
-  @req:r79
-  场景: rebuild-embeds-feature-scenarios
-    假如 某 spec 目录同时含 spec.toon（含 1 个 feature:true 场景）与 1 个 .feature 文件（含 2 个场景）
-    当 执行 sdd index rebuild
-    那么 tree.json 中该 spec 的 scenarios 含 3 个场景（toon 与 feature 合并去重）
-    而且 feature 来源场景的 req_id 为空
+  @req:r27 @human
+  场景: pageindex backend and config isolation
+    - llman sdd index/context MUST only support `--backend pageindex`. Chat model and embedding model configuration MUST be separated. The default chat host MUST be a safe empty value: when unset (and without OpenAI host fallback), ChatConfig MUST error with guidance to set `LLMAN_SDD_INDEX_CHAT_API_HOST` rather than routing to an implicit endpoint.
 
-  @req:r79
-  场景: get-spec-content-returns-spec-level-scenarios
-    假如 tree.json 中某 spec 含 req_id 为空的 spec 级别场景
-    当 调用 get_spec_content(spec_id, req_ids)
-    那么 返回结果含一个 req_id 为空的额外条目
-    而且 该条目含全部 spec 级别场景的 given/when/then 全文
+  @req:r58 @human
+  场景: Scenario-Aware Retrieval Partitioned
+    - build_docs 与检索工具 MUST 按 Partitioned SSOT 暴露场景：可执行 GWT 以 *.feature 为权威；spec.toon 仅提供 requirements 与不可执行 scenarios。compute_spec_hash MUST 仍哈希 *.feature 与 spec.toon。get_document_structure MUST 能列出 requirement 下经由 @req 关联的 harness 场景 id。get_spec_content MUST 返回对应 given/when/then 全文且同一 scenario id MUST NOT 出现两份正文。旧 tree.json 无 scenarios 字段 MUST 仍可加载；无 .feature 的 spec MUST 行为与仅 toon 一致。
 
-  @req:r79
-  场景: non-bdd-spec-unchanged
-    假如 某 spec 目录无 .feature 文件
-    当 执行 sdd index rebuild 后调用检索工具
-    那么 scenarios 仅来自 spec.toon
-    而且 检索输出与无 feature 嵌入前完全一致
+  @req:r79 @human
+  场景: Feature Embedding 单次且 feature 优先
+    - index_rebuild 在 BDD-on 时 MUST 解析 *.feature 并编入索引；与 toon 可执行行同 id 碰撞时 MUST 以 feature 为准且 MUST NOT 再 embed toon 副本。toon 中不可执行 scenarios MUST 仍编入。req_id 优先取自 @req 标签；无标签时可为 spec-level 空 req_id 并在 validate 中按门禁告警。畸形 .feature MUST 跳过并警告而非中止 rebuild。BDD-off 或无 .feature 时输出 MUST 与仅 toon 一致。
 
-  @req:r58
-  场景: rebuild-includes-scenarios
-    假如 存在一个 sdd spec，其 spec.toon 含若干 feature:true 的场景
-    当 执行 sdd index rebuild --backend pageindex
-    那么 生成的 tree.json 中对应 DocNode 的 scenarios 字段非空
-    而且 场景含 req_id/id/given/when/then
-
-  @req:r58
-  场景: get-document-structure-lists-scenarios
-    假如 tree.json 中某 DocNode 含 scenarios 字段
-    当 调用 get_document_structure(spec_id)
-    那么 返回的每个 req 节点下含 scenarios 列表（仅 id，省 token）
-
-  @req:r58
-  场景: get-spec-content-includes-scenarios
-    假如 tree.json 中某 DocNode 含 scenarios 字段
-    当 调用 get_spec_content(spec_id, req_ids)
-    那么 返回的条目含 scenarios 数组
-    而且 每个场景含 given/when/then 全文
-
-  @req:r58
-  场景: spec-hash-includes-feature
-    假如 某 spec 目录下存在 .feature 文件
-    当 修改该 .feature 文件后执行 sdd index check
-    那么 索引状态为 stale（staleness hash 变化触发）
+  @req:r97 @human
+  场景: context 对 stale/missing 懒刷新
+    - llman sdd context 在 pageindex 索引为 stale 或 missing 时 MUST 自动执行一次 index rebuild（无需 chat model）后再进行 retrieval，MUST NOT 仅因 stale 或 missing 返回 status.quality=unavailable 或 errorKind index_stale/index_missing。索引 corrupted 时 MUST 尝试 rebuild；rebuild 失败则非零或 JSON error。chat model 未配置时，在成功 rebuild 后仍可按既有 api_error 语义失败。
