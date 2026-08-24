@@ -266,7 +266,10 @@ fn extract_scenario_blocks(content: &str) -> Vec<(String, Vec<String>, String)> 
             if let Some(done) = current.take() {
                 out.push(done);
             }
-            current_tags.push(trimmed.to_string());
+            // Gherkin allows several space-separated tags on one line
+            // (`@req:r1 @executable`) — split them so downstream checks see
+            // each tag individually.
+            current_tags.extend(trimmed.split_whitespace().map(str::to_string));
             continue;
         }
         if is_scenario {
@@ -322,14 +325,11 @@ fn parse_legacy_toon(content: &str) -> Result<MainSpecDoc> {
         let mut chars = line.chars().peekable();
         while let Some(c) = chars.next() {
             match c {
-                '"' => {
-                    if in_quotes && chars.peek() == Some(&'"') {
-                        cur.push('"');
-                        chars.next();
-                    } else {
-                        in_quotes = !in_quotes;
-                    }
+                '"' if in_quotes && chars.peek() == Some(&'"') => {
+                    cur.push('"');
+                    chars.next();
                 }
+                '"' => in_quotes = !in_quotes,
                 ',' if !in_quotes => out.push(std::mem::take(&mut cur)),
                 _ => cur.push(c),
             }
@@ -338,12 +338,42 @@ fn parse_legacy_toon(content: &str) -> Result<MainSpecDoc> {
         out
     }
 
-    fn unquote(v: String) -> String {
-        let t = v.trim();
+    fn unquote(v: impl AsRef<str>) -> String {
+        let t = v.as_ref().trim();
         if t.starts_with('"') && t.ends_with('"') && t.len() >= 2 {
             t[1..t.len() - 1].to_string()
         } else {
             t.to_string()
+        }
+    }
+
+    fn push_requirement_row(
+        cells: &[String],
+        requirements: &mut Vec<crate::sdd::spec::ir::RequirementEntry>,
+    ) {
+        if cells.len() >= 3 {
+            requirements.push(crate::sdd::spec::ir::RequirementEntry {
+                req_id: unquote(cells[0].clone()).trim().to_string(),
+                title: unquote(cells[1].clone()).trim().to_string(),
+                statement: unquote(cells[2..].join(",")),
+            });
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn push_scenario_row(
+        cells: &[String],
+        scenarios: &mut Vec<crate::sdd::spec::ir::ScenarioEntry>,
+    ) {
+        if cells.len() >= 6 {
+            scenarios.push(crate::sdd::spec::ir::ScenarioEntry {
+                req_id: unquote(cells[0].clone()).trim().to_string(),
+                id: unquote(cells[1].clone()).trim().to_string(),
+                given: unquote(cells[2].clone()),
+                when_: unquote(cells[3].clone()),
+                then_: unquote(cells[4].clone()),
+                feature: unquote(cells[5].clone()).trim() != "false",
+            });
         }
     }
 
@@ -360,15 +390,16 @@ fn parse_legacy_toon(content: &str) -> Result<MainSpecDoc> {
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
-        if let Some((key, rest)) = trimmed.split_once(':') {
+        let indented = line.starts_with(char::is_whitespace);
+        if !indented && let Some((key, rest)) = trimmed.split_once(':') {
             match key.trim() {
-                "kind" => kind = unquote(rest.to_string()),
-                "name" => name = unquote(rest.to_string()),
-                "purpose" => purpose = unquote(rest.to_string()),
+                "kind" => kind = unquote(rest),
+                "name" => name = unquote(rest),
+                "purpose" => purpose = unquote(rest),
                 k if k.starts_with("valid_scope") => {
                     valid_scope = rest
                         .split(',')
-                        .map(|v| unquote(v.to_string()).trim().to_string())
+                        .map(|v| unquote(v).trim().to_string())
                         .filter(|v| !v.is_empty())
                         .collect();
                     section = None;
@@ -384,60 +415,11 @@ fn parse_legacy_toon(content: &str) -> Result<MainSpecDoc> {
                 }
                 _ => {}
             }
-            // Tabular row under the active section.
-            if section == Some("requirements") {
-                let cells = split_row(trimmed);
-                if cells.len() >= 3 {
-                    requirements.push(crate::sdd::spec::ir::RequirementEntry {
-                        req_id: unquote(cells[0].clone()).trim().to_string(),
-                        title: unquote(cells[1].clone()).trim().to_string(),
-                        statement: unquote(cells[2..].join(",")),
-                    });
-                }
-                continue;
-            }
-            if section == Some("scenarios") {
-                let cells = split_row(trimmed);
-                if cells.len() >= 6 {
-                    scenarios.push(crate::sdd::spec::ir::ScenarioEntry {
-                        req_id: unquote(cells[0].clone()).trim().to_string(),
-                        id: unquote(cells[1].clone()).trim().to_string(),
-                        given: unquote(cells[2].clone()),
-                        when_: unquote(cells[3].clone()),
-                        then_: unquote(cells[4].clone()),
-                        feature: unquote(cells[5].clone()).trim() != "false",
-                    });
-                }
-                continue;
-            }
         }
-        // Rows are indented under their section header.
-        if line.starts_with(char::is_whitespace) {
-            if section == Some("requirements") {
-                let cells = split_row(trimmed);
-                if cells.len() >= 3 {
-                    requirements.push(crate::sdd::spec::ir::RequirementEntry {
-                        req_id: unquote(cells[0].clone()).trim().to_string(),
-                        title: unquote(cells[1].clone()).trim().to_string(),
-                        statement: unquote(cells[2..].join(",")),
-                    });
-                }
-                continue;
-            }
-            if section == Some("scenarios") {
-                let cells = split_row(trimmed);
-                if cells.len() >= 6 {
-                    scenarios.push(crate::sdd::spec::ir::ScenarioEntry {
-                        req_id: unquote(cells[0].clone()).trim().to_string(),
-                        id: unquote(cells[1].clone()).trim().to_string(),
-                        given: unquote(cells[2].clone()),
-                        when_: unquote(cells[3].clone()),
-                        then_: unquote(cells[4].clone()),
-                        feature: unquote(cells[5].clone()).trim() != "false",
-                    });
-                }
-                continue;
-            }
+        match section {
+            Some("requirements") => push_requirement_row(&split_row(trimmed), &mut requirements),
+            Some("scenarios") => push_scenario_row(&split_row(trimmed), &mut scenarios),
+            _ => {}
         }
     }
 
@@ -507,5 +489,81 @@ mod tests {
                 .iter()
                 .all(|r| r.statement.contains("MUST"))
         );
+    }
+    #[test]
+    fn extract_blocks_drops_orphans_and_bare_req_keeps_executable() {
+        let raw = concat!(
+            "# language: zh-CN\n",
+            "功能: t\n",
+            "\n",
+            "  @req:r1 @executable\n",
+            "  场景: linked\n",
+            "    假如 a\n",
+            "\n",
+            "  @executable\n",
+            "  场景: orphan\n",
+            "    假如 b\n",
+            "\n",
+            "  @req: @executable\n",
+            "  场景: obsolete-bare-req\n",
+            "    假如 c\n",
+            "\n",
+            "  @req:r9 @human\n",
+            "  场景: locked-rule\n",
+            "    System MUST z.\n",
+        );
+        let blocks = extract_scenario_blocks(raw);
+        // Extraction is faithful; filtering happens in migrate_capability.
+        let names: Vec<&str> = blocks.iter().map(|(n, _, _)| n.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["linked", "orphan", "obsolete-bare-req", "locked-rule"],
+            "{names:?}"
+        );
+        let executable: Vec<bool> = blocks
+            .iter()
+            .map(|(_, tags, _)| {
+                tags.iter().any(|t| {
+                    t.trim()
+                        .trim_start_matches('@')
+                        .eq_ignore_ascii_case("executable")
+                })
+            })
+            .collect();
+        assert_eq!(executable, vec![true, true, true, false]);
+    }
+
+    #[test]
+    fn extract_blocks_resets_tags_on_non_scenario_line() {
+        let raw = concat!(
+            "# capability: t\n",
+            "功能: t\n",
+            "  @orphan-run\n",
+            "  free description text\n",
+            "  @executable\n",
+            "  场景: clean\n",
+            "    假如 x\n",
+        );
+        let blocks = extract_scenario_blocks(raw);
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].1.len(), 1, "only the executable tag remains");
+    }
+
+    #[test]
+    fn extract_blocks_exposes_all_for_caller_dedupe() {
+        let raw = concat!(
+            "功能: t\n",
+            "  @req:r1 @executable\n",
+            "  场景: same-name\n",
+            "    假如 a\n",
+            "\n",
+            "  @req:r2 @executable\n",
+            "  场景: same-name\n",
+            "    假如 b\n",
+        );
+        let blocks = extract_scenario_blocks(raw);
+        assert_eq!(blocks.len(), 2, "extract returns all; caller dedupes");
+        assert_eq!(blocks[0].0, "same-name");
+        assert_eq!(blocks[1].0, "same-name");
     }
 }

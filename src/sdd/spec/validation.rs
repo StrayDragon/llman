@@ -79,8 +79,17 @@ pub fn validate_spec_content_with_frontmatter(
     content: &str,
     strict: bool,
 ) -> SpecValidation {
-    validate_spec_content_with_frontmatter_and_bdd(
-        path, content, strict, None, None, None, false, None,
+    validate_spec_content(
+        path,
+        content,
+        strict,
+        SpecValidateCtx {
+            project_root: None,
+            bdd_config: None,
+            locale: None,
+            check_mode: false,
+            full_mode_cache: None,
+        },
     )
 }
 
@@ -95,19 +104,31 @@ pub struct FullModeCacheEntry {
 
 pub type FullModeCache = HashMap<String, FullModeCacheEntry>;
 
-#[allow(clippy::too_many_arguments)]
-pub fn validate_spec_content_with_frontmatter_and_bdd(
+/// Context bundle for [`validate_spec_content`], replacing an 8-argument
+/// signature (M11): two of the old params were placeholders.
+pub struct SpecValidateCtx<'a> {
+    pub project_root: Option<&'a Path>,
+    pub bdd_config: Option<&'a BddConfig>,
+    /// Config locale; single-track parsing auto-detects per-file language, so
+    /// this is currently unused. Kept for future locale-aware messaging.
+    pub locale: Option<&'a str>,
+    pub check_mode: bool,
+    pub full_mode_cache: Option<&'a mut FullModeCache>,
+}
+
+pub fn validate_spec_content(
     path: &Path,
     content: &str,
     strict: bool,
-    project_root: Option<&Path>,
-    bdd_config: Option<&BddConfig>,
-    locale: Option<&str>,
-    check_mode: bool,
-    full_mode_cache: Option<&mut FullModeCache>,
+    ctx: SpecValidateCtx<'_>,
 ) -> SpecValidation {
-    let _ = locale;
-    let _ = project_root; // retained for upcoming lock-hash git context (t5)
+    let SpecValidateCtx {
+        project_root,
+        bdd_config,
+        locale: _locale,
+        check_mode,
+        full_mode_cache,
+    } = ctx;
     let spec_name = path
         .parent()
         .and_then(|p| p.file_name())
@@ -135,8 +156,6 @@ pub fn validate_spec_content_with_frontmatter_and_bdd(
                         .to_string(),
                 });
             }
-            // Spec-first friendly: a not-yet-existing scope path is an INFO
-            // (staleness simply cannot fire until the path exists), not an error.
             if let Some(root) = project_root {
                 let missing: Vec<&str> = parsed
                     .valid_scope
@@ -310,11 +329,9 @@ fn validate_single_track(parsed: &ParsedFeatureSpec, spec_name: &str) -> Vec<Val
 
     // Rule coverage tiers (r134): pending rules surface as INFO so gaps stay
     // visible without blocking spec-first workflows under --strict.
+    let acceptance = feature_backend::acceptance_index(parsed);
     for req_id in &rule_req_ids {
-        let enforced = parsed
-            .acceptance_scenarios()
-            .any(|sc| sc.req_ids.iter().any(|r| r == req_id));
-        if !enforced {
+        if acceptance.get(req_id).copied().unwrap_or(0) == 0 {
             issues.push(ValidationIssue {
                 level: ValidationLevel::Info,
                 path: format!("{spec_name}/coverage"),
@@ -512,8 +529,17 @@ mod tests {
         let path = dir.join("spec.feature");
         fs::write(&path, content).unwrap();
 
-        let validation = validate_spec_content_with_frontmatter_and_bdd(
-            &path, content, false, None, None, None, false, None,
+        let validation = validate_spec_content(
+            &path,
+            content,
+            false,
+            SpecValidateCtx {
+                project_root: None,
+                bdd_config: None,
+                locale: None,
+                check_mode: false,
+                full_mode_cache: None,
+            },
         );
         assert!(
             validation.report.valid,
@@ -524,8 +550,17 @@ mod tests {
 
         // Dangling acceptance link is an ERROR.
         let dangling = content.replace("@req:r1 @executable", "@req:r404 @executable");
-        let v2 = validate_spec_content_with_frontmatter_and_bdd(
-            &path, &dangling, false, None, None, None, false, None,
+        let v2 = validate_spec_content(
+            &path,
+            &dangling,
+            false,
+            SpecValidateCtx {
+                project_root: None,
+                bdd_config: None,
+                locale: None,
+                check_mode: false,
+                full_mode_cache: None,
+            },
         );
         assert!(
             v2.report
@@ -536,8 +571,17 @@ mod tests {
 
         // Orphan acceptance (no @req) is a WARNING.
         let orphan = content.replace("@req:r1 @executable", "@executable");
-        let v3 = validate_spec_content_with_frontmatter_and_bdd(
-            &path, &orphan, false, None, None, None, false, None,
+        let v3 = validate_spec_content(
+            &path,
+            &orphan,
+            false,
+            SpecValidateCtx {
+                project_root: None,
+                bdd_config: None,
+                locale: None,
+                check_mode: false,
+                full_mode_cache: None,
+            },
         );
         assert!(v3.report.issues.iter().any(
             |i| i.level == ValidationLevel::Warning && i.message.contains("orphan acceptance")

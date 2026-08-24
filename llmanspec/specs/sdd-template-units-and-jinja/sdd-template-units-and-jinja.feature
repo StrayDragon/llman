@@ -7,7 +7,7 @@
 
   @req:r33 @human
   场景: 共享内容单一真源且渲染产物自包含稳定
-    - 对应 spec: sdd-template-units-and-jinja — 模板体系 MUST 避免保留易被误认为"共享真源" 的影子文件；共享内容真源 MUST 位于 templates/**/units/** 经 unit() 注入。 渲染产物 MUST 自包含且保持稳定输出顺序以减少维护 diff 噪声。
+    - 对应 spec: sdd-template-units-and-jinja — 模板体系 MUST 避免保留易被误认为\共享真源\ 的影子文件；共享内容真源 MUST 位于 templates/**/units/** 经 unit() 注入。 渲染产物 MUST 自包含且保持稳定输出顺序以减少维护 diff 噪声。
 
   @req:r66 @human
   场景: 模板单元独立可发现并经 MiniJinja 注入渲染

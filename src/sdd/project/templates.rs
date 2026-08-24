@@ -36,12 +36,12 @@ const OPTIONAL_SKILL_FILES: &[&str] = &[
 
 const UNIT_FILES: &[&str] = &[
     "skills/sdd-commands.md",
-    "skills/validation-hints-toon.md",
+    "skills/validation-hints.md",
     "skills/git-native-flow.md",
     "skills/git-native-flow-brief.md",
     "skills/stage-guard.md",
     "skills/ethics-governance.md",
-    "spec/toon-contract.md",
+    "spec/feature-contract.md",
     "skills/structured-protocol.md",
     "workflow/archive-freeze-guidance.md",
 ];
@@ -336,9 +336,9 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/units/skills/sdd-commands.md"
         ))),
-        "templates/sdd/en/units/skills/validation-hints-toon.md" => Some(include_str!(concat!(
+        "templates/sdd/en/units/skills/validation-hints.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/units/skills/validation-hints-toon.md"
+            "/templates/sdd/en/units/skills/validation-hints.md"
         ))),
         "templates/sdd/en/units/skills/git-native-flow.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -356,9 +356,9 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/units/skills/ethics-governance.md"
         ))),
-        "templates/sdd/en/units/spec/toon-contract.md" => Some(include_str!(concat!(
+        "templates/sdd/en/units/spec/feature-contract.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/en/units/spec/toon-contract.md"
+            "/templates/sdd/en/units/spec/feature-contract.md"
         ))),
         "templates/sdd/en/units/skills/structured-protocol.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -424,12 +424,10 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/units/skills/sdd-commands.md"
         ))),
-        "templates/sdd/zh-Hans/units/skills/validation-hints-toon.md" => {
-            Some(include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/templates/sdd/zh-Hans/units/skills/validation-hints-toon.md"
-            )))
-        }
+        "templates/sdd/zh-Hans/units/skills/validation-hints.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/units/skills/validation-hints.md"
+        ))),
         "templates/sdd/zh-Hans/units/skills/git-native-flow.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/units/skills/git-native-flow.md"
@@ -448,9 +446,9 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/units/skills/ethics-governance.md"
         ))),
-        "templates/sdd/zh-Hans/units/spec/toon-contract.md" => Some(include_str!(concat!(
+        "templates/sdd/zh-Hans/units/spec/feature-contract.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/templates/sdd/zh-Hans/units/spec/toon-contract.md"
+            "/templates/sdd/zh-Hans/units/spec/feature-contract.md"
         ))),
         "templates/sdd/zh-Hans/units/skills/structured-protocol.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

@@ -31,6 +31,6 @@ metadata:
 - locale 仅影响模板与 skills，CLI 仍为英文。
 - 使用 `llman sdd init --update` 刷新技能。
 
-{{ unit("skills/validation-hints-toon") }}
+{{ unit("skills/validation-hints") }}
 
 {{ unit("skills/ethics-governance") }}

@@ -38,6 +38,6 @@ metadata:
 
 {{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}
-{{ unit("skills/validation-hints-toon") }}
+{{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

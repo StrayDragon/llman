@@ -29,6 +29,6 @@ Use this skill to validate change/spec format and staleness.
 
 {{ unit("skills/sdd-commands") }}
 
-{{ unit("skills/validation-hints-toon") }}
+{{ unit("skills/validation-hints") }}
 
 {{ unit("skills/ethics-governance") }}

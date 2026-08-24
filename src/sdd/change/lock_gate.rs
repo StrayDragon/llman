@@ -268,4 +268,21 @@ mod tests {
             "{issues:?}"
         );
     }
+
+    #[test]
+    fn rules_edit_acked_accepts_yaml_string_bool() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let change_dir = root.join(LLMANSPEC_DIR_NAME).join("changes").join("c-ack");
+        std::fs::create_dir_all(&change_dir).unwrap();
+        std::fs::write(
+            change_dir.join("proposal.md"),
+            "---\ndepends_on: []\nrules_edit_acked: \"true\"\n---\n## Why\nx\n",
+        )
+        .unwrap();
+        assert!(
+            rules_edit_acked_for(root, "c-ack"),
+            "string \"true\" must be honored like a YAML bool (H2)"
+        );
+    }
 }

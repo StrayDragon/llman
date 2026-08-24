@@ -483,6 +483,17 @@ pub struct RuleMorphology {
     pub orphan_acceptance_count: usize,
 }
 
+/// Map rule id -> number of `@executable` scenarios linked to it.
+pub fn acceptance_index(parsed: &ParsedFeatureSpec) -> std::collections::HashMap<String, usize> {
+    let mut idx: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for acc in parsed.acceptance_scenarios() {
+        for rid in &acc.req_ids {
+            *idx.entry(rid.clone()).or_insert(0) += 1;
+        }
+    }
+    idx
+}
+
 /// Compute the three-tier coverage counts from a parsed spec.
 pub fn compute_rule_morphology(parsed: &ParsedFeatureSpec) -> RuleMorphology {
     let rules: Vec<&RichScenario> = parsed.rule_scenarios().collect();
@@ -490,10 +501,12 @@ pub fn compute_rule_morphology(parsed: &ParsedFeatureSpec) -> RuleMorphology {
     let mut enforced = 0usize;
     let mut manual = 0usize;
     let mut pending = 0usize;
+    let idx = acceptance_index(parsed);
     for sc in &rules {
-        let has_acceptance = parsed
-            .acceptance_scenarios()
-            .any(|acc| acc.req_ids.iter().any(|r| sc.req_ids.contains(r)));
+        let has_acceptance = sc
+            .req_ids
+            .iter()
+            .any(|r| idx.get(r).copied().unwrap_or(0) > 0);
         match (sc.tier, has_acceptance) {
             (Some(ScenarioTier::Manual), _) => manual += 1,
             (_, true) => enforced += 1,

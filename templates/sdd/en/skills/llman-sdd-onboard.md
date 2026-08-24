@@ -31,6 +31,6 @@ Use this skill to onboard to llman SDD in a repository.
 - Locale affects templates/skills only; CLI stays English.
 - Refresh skills with `llman sdd init --update`.
 
-{{ unit("skills/validation-hints-toon") }}
+{{ unit("skills/validation-hints") }}
 
 {{ unit("skills/ethics-governance") }}

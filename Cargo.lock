@@ -1439,6 +1439,7 @@ dependencies = [
 [[package]]
 name = "gherkin"
 version = "0.16.0"
+source = "git+https://github.com/StrayDragon/gherkin.git#3077d9d0f0c5485e264cccea91cc1120346989af"
 dependencies = [
  "heck 0.5.0",
  "peg",

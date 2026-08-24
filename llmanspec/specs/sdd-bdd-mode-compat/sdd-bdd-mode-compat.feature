@@ -26,8 +26,8 @@
     - `llman sdd change archive` 统一行为（不再按 bdd 段分叉）：MUST 先自动 ff-merge feature 分支回分叉点分支，再移动 change 文档到 changes/archive/YYYY-MM-DD-<id>/（详见 sdd-workflow r113）。MUST NOT merge TOON delta（已废除 change/specs 路径）、MUST NOT apply feature_delta。活跃 `*.feature.delta.toon` MUST 作为迁移阻断（ERROR，提示人工清理遗留 delta；partitioned migrate 已移除）。顶层 `sdd archive run` 为兼容别名但 MUST 走统一的 ff-merge 路径。
 
   @req:r85 @human
-  场景: migrate 合法 kind 收敛为 toon2features
-    - `llman sdd project migrate` 仅接受 --kind toon2features（spec-format r136）：--kind spec-md2toon / partitioned MUST 以非零退出拒绝且错误信息含合法 kind 名 toon2features。
+  场景: partition-migrate 已移除（零兼容）
+    - `llman sdd project migrate --kind partitioned`（及隐藏别名 partition-migrate）MUST 以非零退出拒绝；clap/帮助仅接受 `spec-md2toon`。遗留 change/specs/ 或活跃 *.feature.delta.toon 须人工清理或另开 change（不再提供自动 partitioned 迁移）。错误信息 MUST 提示合法 kind（含 spec-md2toon）。
 
   @req:r86 @human
   场景: 全局 req_id 唯一性
@@ -40,3 +40,150 @@
   @req:r94 @human
   场景: finalize 单 commit 收尾（统一流程）
     - `llman sdd change finalize <id>` MUST 在单进程内执行（统一流程，不再仅限 BDD-on）：门禁（已 start/attach、当前分支 == binding.branch、非默认分支、无遗留 *.feature.delta.toon）→ validate 门禁（live strict + change stage，除非 --no-check）→ 写 frontmatter（checkpointed=true、checkpoint_sha=base_sha）→ 自动 ff-merge → docs-only archive rename（详见 sdd-workflow r113）。finalize MUST NOT 检查工作区 clean tree（使实现 diff + frontmatter + ff-merge + archive rename 可由调用方一次 git commit 收尾；ff-merge 失败时降级为提示且不回滚后续 rename）。finalize 写入的 checkpoint_sha MUST 等于 start/attach 时的 base_sha。finalize MUST 在任何写入前退出非零且不改 frontmatter / 不移动文件（gate 失败或 validate 失败时）。finalize MUST 幂等：重试时若 frontmatter 已含 checkpointed=true 且 checkpoint_sha 非空，MUST 跳过写入直接尝试 ff-merge + archive rename。finalize MUST 接受并忽略 --no-interactive。旧路径 checkpoint + archive（含双重 clean-tree 门禁与严格 sha 语义）MUST 保持不变作 fallback。
+  @executable
+  @req:r57
+  场景: 默认分支上 change attach 拒绝
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change attach add-scen
+    那么 退出码非零
+    那么 stderr 包含 default branch
+
+
+  @executable
+  @req:r57
+  场景: 无 bdd 段时 change attach 仍可用（统一流程）
+    假如 已初始化 sdd 项目且 bdd 配置为 "off"
+    而且 变更 add-scen 含 proposal design tasks 且 attach 状态为 "no"
+    当 在非交互终端运行 llman sdd change attach add-scen
+    那么 stderr 不含 BDD-on
+
+
+  @executable
+  @req:r57
+  场景: solidify 子命令不存在
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd solidify add-scen
+    那么 退出码非零
+
+
+  @executable
+  @req:r57
+  场景: change new 创建 proposal 草稿
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change new add-cli-new
+    那么 退出码为零
+    那么 stdout 包含 proposal.md
+
+
+  @executable
+  @req:r57
+  场景: change delta 在任何模式下都被拒绝（统一流程）
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change delta skeleton add-scen sample
+    那么 退出码非零
+    那么 stderr 包含 removed
+
+
+  @executable
+  @req:r57
+  场景: 无 bdd 段时 change delta 同样被拒绝
+    假如 已初始化 sdd 项目且 bdd 配置为 "off"
+    当 在非交互终端运行 llman sdd change delta skeleton add-scen sample
+    那么 退出码非零
+    那么 stderr 包含 removed
+
+
+  @executable
+  @req:r57
+  场景: change checkpoint 接受 --no-interactive flag
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change checkpoint add-scen --no-interactive
+    那么 stderr 不含 unexpected argument
+
+
+  @executable
+  @req:r57
+  场景: change start 接受 --no-interactive flag
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change start add-scen --no-interactive
+    那么 stderr 不含 unexpected argument
+
+
+  @executable
+  @req:r94
+  场景: finalize 接受 --no-interactive flag
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change finalize add-scen --no-interactive
+    那么 stderr 不含 unexpected argument
+
+
+  @executable
+  @req:r94
+  场景: 无 bdd 段时 change finalize 仍可用（统一流程）
+    假如 已初始化 sdd 项目且 bdd 配置为 "off"
+    当 在非交互终端运行 llman sdd change finalize add-scen
+    那么 stderr 不含 BDD-on
+
+
+  @executable
+  @req:r57
+  场景: change start 在干净工作区成功创建分支
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd change start add-scen
+    那么 退出码为零
+    那么 stdout 包含 started
+
+  @executable
+  @req:r86
+  场景: global-req-collision-default
+    假如 已初始化含跨 spec 重复 req_id 的 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd validate --specs --no-check
+    那么 退出码非零且 stderr 包含 next-req-id
+
+
+  @executable
+  @req:r86
+  场景: global-req-collision-strict
+    假如 已初始化含跨 spec 重复 req_id 的 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd validate --all --strict --no-check
+    那么 退出码非零且 stderr 包含 Global duplicate req_id
+
+  @executable
+  @req:r83
+  场景: BDD-off 时 validate 静默忽略 .feature 文件
+    假如 已初始化 sdd 项目且 bdd 配置为 "off"
+    当 在非交互终端运行 llman sdd validate sample --strict --no-check
+    那么 退出码为零
+
+
+  @executable
+  @req:r78
+  场景: BDD-on 时 index rebuild 编入 feature 派生的 scenario
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd index rebuild
+    那么 stdout 包含 rebuilt
+
+
+  @executable
+  @req:r85
+  场景: migrate --kind partitioned 已移除
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd project migrate --kind partitioned --dry-run
+    那么 退出码非零
+    那么 stderr 包含 toon2features
+
+  @executable
+  @req:r26
+  场景: BDD-on 时 validate 默认执行 BDD runner
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd validate sample --strict
+    那么 stderr 包含 BDD check failed
+
+
+  @executable
+  @req:r91
+  场景: 批量 validate 对无占位符 run_command 只执行一次 harness
+    假如 已初始化含多个 capability 且无占位符计数 run_command 的 sdd 项目
+    当 在非交互终端运行 llman sdd validate --specs --strict
+    那么 退出码为零
+    那么 相对路径 ".bdd-run-count" 行数为 1

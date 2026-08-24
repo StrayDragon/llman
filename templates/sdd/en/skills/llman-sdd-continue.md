@@ -38,6 +38,6 @@ Use this skill to continue an existing change and create the next missing artifa
 
 {{ unit("skills/git-native-flow") }}
 {{ unit("skills/sdd-commands") }}
-{{ unit("skills/validation-hints-toon") }}
+{{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

@@ -12,7 +12,7 @@ use crate::sdd::spec::validation::{
     ChangeStage, ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
     check_completeness_stage, check_dag_cycles, check_design_md, check_design_tasks_constraint,
     check_proposal_exists, check_proposal_frontmatter, check_tasks_completion, check_tasks_exists,
-    determine_stage, has_spec_files, validate_spec_content_with_frontmatter_and_bdd,
+    determine_stage, has_spec_files, validate_spec_content,
 };
 use anyhow::{Result, anyhow};
 use inquire::Select;
@@ -722,15 +722,17 @@ fn validate_by_type(
                     // staleness scope comes from the `# scope:` header via the
                     // parsed doc's valid_scope (r133).
                     let spec_path = specs_root.join(id);
-                    let validation = validate_spec_content_with_frontmatter_and_bdd(
+                    let validation = validate_spec_content(
                         &spec_path.join("spec.feature"),
                         &content,
                         strict,
-                        Some(root),
-                        bdd_config,
-                        Some(locale),
-                        check_mode,
-                        None,
+                        crate::sdd::spec::validation::SpecValidateCtx {
+                            project_root: Some(root),
+                            bdd_config,
+                            locale: Some(locale),
+                            check_mode,
+                            full_mode_cache: None,
+                        },
                     );
                     // Staleness scope: spec.toon's valid_scope is the single
                     // source of truth (unified path, BDD-on or off).
@@ -1052,18 +1054,20 @@ fn run_bulk_validation(
             });
         match loaded {
             Ok((spec_path, content)) => {
-                let validation = validate_spec_content_with_frontmatter_and_bdd(
+                let validation = validate_spec_content(
                     &spec_path,
                     &content,
                     strict,
-                    Some(root),
-                    bdd_config,
-                    Some(locale),
-                    check_mode,
-                    if check_mode {
-                        Some(&mut full_mode_cache)
-                    } else {
-                        None
+                    crate::sdd::spec::validation::SpecValidateCtx {
+                        project_root: Some(root),
+                        bdd_config,
+                        locale: Some(locale),
+                        check_mode,
+                        full_mode_cache: if check_mode {
+                            Some(&mut full_mode_cache)
+                        } else {
+                            None
+                        },
                     },
                 );
                 let staleness_frontmatter = validation.frontmatter.clone();
