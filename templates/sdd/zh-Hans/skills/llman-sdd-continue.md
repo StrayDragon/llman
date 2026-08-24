@@ -24,7 +24,7 @@ metadata:
    2) `design.md`（仅当涉及设计权衡时）
    3) `tasks.md`
    4) `llman sdd change start <id>`（或分支已存在时用 `change attach <id>`）——Branch binding
-   5) 在**绑定分支**上编辑 live `llmanspec/specs/<capability>/spec.toon`（配置了 `bdd:` 时再加 `*.feature`）并 commit——Specs landing（无合约变更可设 `skip_specs_landing: true`）
+   5) 在**绑定分支**上编辑 live `llmanspec/specs/<capability>/<capability>.feature` 并 commit——Specs landing（无合约变更可设 `skip_specs_landing: true`）
 4. 只创建**一个**缺失 artifact（或在绑定分支上做一次 live spec/feature 编辑）。
    - continue 模式**不要**实现应用代码。
    - **不要**创建 `*.feature.delta.toon` 或 `changes/<id>/specs/` 下的文件。

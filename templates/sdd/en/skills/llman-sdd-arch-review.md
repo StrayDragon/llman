@@ -34,7 +34,7 @@ A set of words about module shape, used to articulate "where it's worth changing
 ### 1. Explore (scope first, YAGNI)
 - If the user named a direction (module/subsystem/pain point), accept it; skip inference.
 - Otherwise walk `git log --oneline` for hot spots (files/areas that keep coming up).
-- Prefer reading live `spec.toon` (BDD-on, domain SSOT) and `design.md` (existing ADRs); MUST NOT create a `CONTEXT.md`.
+- Prefer reading live `<capability>.feature` (single-track SSOT) and `design.md` (existing ADRs); MUST NOT create a `CONTEXT.md`.
 - Use the Agent tool (`subagent_type=Explore`) to walk the codebase, noting friction:
   - Does understanding one concept require bouncing between many small modules?
   - Where are modules **shallow** (interface nearly as complex as the implementation)?
@@ -56,10 +56,10 @@ For each candidate:
 ### 3. Grilling (after the user picks a candidate)
 Run `llman-sdd-explore`'s **grilling branch** (trigger "deep-dig") to walk the decision tree — constraints, dependencies, the deepened module's shape, what sits behind the seam, which tests survive.
 
-- A deepened module uses a concept not in `spec.toon`? → update live `spec.toon` **only** if the change already has Branch binding and you are on the bound branch (Specs landing); otherwise STOP and route to `llman-sdd-propose` / `change start` — **never** edit live specs on the default branch.
+- A deepened module uses a concept not in the capability `.feature`? → update live `.feature` **only** if the change already has Branch binding and you are on the bound branch (Specs landing); otherwise STOP and route to `llman-sdd-propose` / `change start` — **never** edit live specs on the default branch.
 - User rejects the candidate with a load-bearing reason? → offer an ADR only when "hard to reverse + surprising without context + real trade-off" all hold; record in `design.md`.
 
 ## Output
-Candidate list (text; optional HTML report written to OS temp dir, not the repo) + the grilling decision record after the user picks one (write back to proposal; contract edits only via Specs landing into live `spec.toon`).
+Candidate list (text; optional HTML report written to OS temp dir, not the repo) + the grilling decision record after the user picks one (write back to proposal; contract edits only via Specs landing into live `.feature`).
 
 {{ unit("skills/structured-protocol") }}

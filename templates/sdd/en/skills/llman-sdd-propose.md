@@ -10,7 +10,7 @@ metadata:
 
 # LLMAN SDD Propose
 
-Create a new change with planning artifacts (proposal + tasks; design optional), **first** `change start` (or `attach`) for Branch binding, **then** edit live `spec.toon` / `*.feature` on the bound branch (Specs landing), validate, and suggest next actions.
+Create a new change with planning artifacts (proposal + tasks; design optional), **first** `change start` (or `attach`) for Branch binding, **then** edit live `llmanspec/specs/<capability>/*.feature` on the bound branch (Specs landing), validate, and suggest next actions.
 
 ## Pipeline Position
 
@@ -84,7 +84,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
    - **Confirm seams before writing tasks.md**: list the seams to be tested and confirm with the user. A seam = the public boundary driven by `*.feature` GWT steps (CLI subprocess or public interface) — MUST reuse existing harness seams, MUST NOT invent seams detached from `.feature`. Without `.feature`, seam = the CLI subcommand or public function boundary under test.
    - `tasks.md`: split into **vertical slices** (each task cuts a narrow but complete path through schema→API→UI→tests, independently verifiable), with `[blocked-by: <task-id>]` dependency markers. **Wide-refactor exception** (one mechanical change sweeping the codebase, single edit breaks many call sites): sequence as expand-contract (add new beside old → migrate call sites in batches → delete old), don't force into a vertical slice.
    - **First** `llman sdd change start <change-id>` (recommended; clean tree on the default branch) or manually create a branch then `change attach <change-id>` to reach Full (bound).
-   - **Then** edit live `llmanspec/specs/<capability>/spec.toon` (+ `*.feature` when `bdd:` is configured) on the bound non-default branch and commit (Specs landing). **Do not** edit live specs before start; **do not** commit live specs to the default branch just to satisfy the clean-tree gate. If already attached, do not re-run `start` (recover lost specs by checkout/recreate + `attach --force` if needed).
+   - **Then** edit live `llmanspec/specs/<capability>/<capability>.feature` on the bound non-default branch and commit (Specs landing). **Do not** edit live specs before start; **do not** commit live specs to the default branch just to satisfy the clean-tree gate. If already attached, do not re-run `start` (recover lost specs by checkout/recreate + `attach --force` if needed).
    - For changes with no live contract edits, set frontmatter `skip_specs_landing: true`. Enter apply only when `llman sdd show <id> --json` has `readyToImplement=true`.
 
 ### 4) Validate:
@@ -96,24 +96,17 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 
 ### 4a) Optional BDD runner (`bdd:` block)
 - Read `llmanspec/config.yaml`. Is there a `bdd:` block?
-  - **Yes**: follow section 4b for Partitioned SSOT authoring (`validate --check` runs the harness).
+  - **Yes**: `validate --check` runs the harness; authoring follows 4b regardless.
   - **No**: if this change involves executable behavior scenarios (Given/When/Then the user will want to run), ask **once, up front**: "This change looks like it has executable behavior. Enable a `bdd:` runner block so scenarios can be validated as `.feature` files? (adds a `bdd:` block to `config.yaml` — runner only, does not change the lifecycle.)"
     - If **yes**: show the exact `bdd:` block to add (pick a `run_command` matching the project's test framework — `cargo test --features bdd` for rstest-bdd, `pytest {feature_dir} -k {feature_name} -v` for pytest-bdd). Let the user confirm or edit it, write it to `config.yaml`, then proceed with 4b rules.
-    - If **no**: keep scenarios in `spec.toon` as documentation-only rows.
+    - If **no**: features still validate structurally; only runner execution is skipped.
 - **Do NOT silently add the `bdd:` block** — always ask first. Adding it changes how `validate --check` behaves project-wide.
 
-### 4b) Git-native spec authoring (Partitioned SSOT when `bdd:` is configured)
+### 4b) Single-track feature authoring
 - Planning shell (proposal/design/tasks) may briefly live on the default branch; **do not** edit live `llmanspec/specs/**` on the default branch. After Branch binding, Specs landing and implementation happen on the bound branch.
-- **Partitioned SSOT** (when `bdd:` exists): edit live `spec.toon` (constraints) and `*.feature` (executable GWT + `@req`); never dual-write the same scenario id.
-
-  | Scenario type | `spec.toon` `scenarios[]` | `*.feature` |
-  |---|---|---|
-  | Executable (`@req` / harness-driven) | **MUST NOT** appear (requirements in toon, examples in .feature) | **only** place for executable GWT |
-  | Non-executable (doc-only) | `feature: false` + GWT ok | n/a (do not place) |
-
-  Key point: under Partitioned SSOT, do **not** write `feature: true` rows in toon at all; requirement statements live in toon, executable examples live in `.feature` linked back via `@req:<req_id>`.
+- **Single-track**: each capability is ONE `<capability>.feature`. Constraint rules are `@req:<id> @human` scenarios (statement verbatim in the description); executable acceptance scenarios carry `@executable` and link back via `@req:<req_id>`. Never nest scenarios in `Rule:` blocks (the runner skips them).
 - Change shell: `llman sdd change new <change-id>` → fill proposal/design/tasks → `llman sdd change start <change-id>` (or `change attach`) → **then** edit live specs on the bound branch and commit (Specs landing).
-- Do **not** use `change delta` / solidify / `*.feature.delta.toon`; if an active `*.feature.delta.toon` already exists, migrate first.
+- Do **not** use `change delta` / solidify / `*.feature.delta.toon`; if an active `*.feature.delta.toon` or a legacy `spec.toon` exists, run `llman sdd project migrate --kind toon2features` first.
 
 ### 5) Summarize and suggest next step:
    - Enter implementation phase: `llman-sdd-apply`.

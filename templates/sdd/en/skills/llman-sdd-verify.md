@@ -41,12 +41,12 @@ flowchart LR
    - `llman sdd validate <id> --strict --no-interactive`
    - **When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / global req_id uniqueness), prefer adding `--no-check`** (skips the potentially slow `bdd.run_command` under BDD-on); run the full `--check` (full mode) only after structural gates are green. Each `FAIL <item_type>/<id>` line lists a failing item (above the Totals line).
 4. Read:
-   - Live specs on the feature branch: `llmanspec/specs/**` (`spec.toon` + `*.feature` when `bdd:` configured) — SSOT
+   - Live specs on the feature branch: `llmanspec/specs/**` (`<capability>.feature`) — SSOT
    - `proposal.md` and `design.md` if present
    - `tasks.md` to understand what was implemented
    - `llmanspec/changes/<id>/specs/` only if residual old docs exist — ignore; SSOT is live specs
 5. **Dual-axis review (Standards + Spec, kept separate so neither masks the other)** — diff against `git diff <merge-base>...HEAD` (merge-base = the attach base_sha or `main`) on two axes:
-   - **Spec axis**: does the implementation satisfy the `spec.toon` MUST/SHALL and the `*.feature` GWT?
+   - **Spec axis**: does the implementation satisfy the `@human` rule MUST/SHALL and the `@executable` GWT?
      - Missing/partial behaviors, wrong implementations, and scope creep in the diff not asked for by the spec.
      - Suggest minimal fixes or artifact updates.
    - **Standards axis**: does the code follow `AGENTS.md` coding style + the Fowler smell baseline?
@@ -58,7 +58,7 @@ flowchart LR
    - Confirm the change is attached and you are on that feature branch.
    - `llman sdd validate --specs`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
    - Optional read-only review: `llman sdd change diff <id>` (or `--export-patch <path>`). Diff is review/export only — never treat it as an apply step.
-   - Check: executable GWT only in live `.feature`; `morphology.dualWriteCount` should be 0; if an active `*.feature.delta.toon` already exists, migrate first (do not invent a solidify / repair hunt).
+   - Check: legacy `spec.toon` / `*.feature.delta.toon` absent; if present, run toon2features first (do not invent a solidify / repair hunt).
    - Next step after verify passes: `llman-sdd-archive` (not inline finalize here).
 {% if bdd_verify_prompt %}
    - Extra requirement: {{ bdd_verify_prompt }}

@@ -24,10 +24,10 @@ Use this skill to continue an existing change and create the next missing artifa
    2) `design.md` (only if design tradeoffs matter)
    3) `tasks.md`
    4) `llman sdd change start <id>` (or `change attach <id>` if the branch already exists) — Branch binding
-   5) Edit live `llmanspec/specs/<capability>/spec.toon` (+ `*.feature` when `bdd:` configured) on the **bound branch** and commit — Specs landing (or set `skip_specs_landing: true` when there is no contract edit)
+   5) Edit live `llmanspec/specs/<capability>/<capability>.feature` on the **bound branch** and commit — Specs landing (or set `skip_specs_landing: true` when there is no contract edit)
 4. Create exactly ONE missing artifact (or one live spec/feature edit on the bound branch).
    - Do NOT implement application code in continue mode.
-   - Do NOT create `*.feature.delta.toon` or files under `changes/<id>/specs/`.
+   - Do NOT create `*.feature.delta.toon`, `spec.toon`, or files under `changes/<id>/specs/`.
    - Do NOT edit shared `llmanspec/specs/**` before start/attach.
 5. If all artifacts already exist, suggest next actions from `llman sdd show <id> --json`:
    - `readyToImplement=false` → finish Specs landing (or `skip_specs_landing`); do **not** suggest apply yet

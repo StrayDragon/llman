@@ -52,8 +52,8 @@ flowchart LR
 2. Clarify the goal and constraints (ask 1–3 questions).
 3. **Grilling branch (optional, only when the user explicitly triggers)**: triggers on "deep-dig" / "grill" / "one at a time" / "nail it down". Walks the decision tree one question at a time:
    - **Ask one question at a time**, with your recommended answer, waiting for feedback before the next.
-   - **Facts vs decisions**: look up anything verifiable by reading `spec.toon`/code/running commands yourself — **don't ask** the user; only **decisions** (tradeoffs, preferences, scope boundaries) go to the user.
-   - **Terminology sharpening**: when a term conflicts or is fuzzy, call it out immediately ("your spec.toon defines 'X' as A, but you just said B — which is it?"); on resolution: if the change already has Branch binding and you are on the bound branch, update live `spec.toon` (Specs landing); otherwise record only in `proposal.md` — **never** edit live specs on the default branch. MUST NOT create a `CONTEXT.md` glossary as a second authority.
+   - **Facts vs decisions**: look up anything verifiable by reading the capability `.feature`/code/running commands yourself — **don't ask** the user; only **decisions** (tradeoffs, preferences, scope boundaries) go to the user.
+   - **Terminology sharpening**: when a term conflicts or is fuzzy, call it out immediately ("your spec defines 'X' as A, but you just said B — which is it?"); on resolution: if the change already has Branch binding and you are on the bound branch, update live `.feature` (Specs landing); otherwise record only in `proposal.md` — **never** edit live specs on the default branch. MUST NOT create a `CONTEXT.md` glossary as a second authority.
    - **Write decisions back**: resolved decisions go into the change's `proposal.md` "Open Questions" section (planning shell; OK briefly on the default branch).
    - **Completion criterion**: every pending decision is resolved or explicitly deferred. When not triggered, the default (ask 1–3 questions) behavior is unchanged.
 4. If a change id is relevant, read its artifacts under `llmanspec/changes/<id>/`.
@@ -62,9 +62,9 @@ flowchart LR
 6. Assess change scale (triage) to determine if full SDD is needed.
 7. When something crystallizes, offer to capture it (don't auto-write):
    - Scope / design / work items → planning shell (`proposal.md` / `design.md` / `tasks.md`)
-   - Constraints / executable harness → **suggest** live `llmanspec/specs/**` (`spec.toon` / `*.feature`); actual edits require Branch binding then Specs landing. If not bound yet in explore, record only in proposal — do not edit live specs.
+   - Constraints / executable harness → **suggest** live `llmanspec/specs/**` (one `.feature` per capability); actual edits require Branch binding then Specs landing. If not bound yet in explore, record only in proposal — do not edit live specs.
 
-> Git-native: first `change start`/`attach` (Branch binding) to enter Full, then edit live `.feature`/`spec.toon` on the bound branch (Specs landing); no `change delta` / solidify / feature_delta.
+> Git-native: first `change start`/`attach` (Branch binding) to enter Full, then edit live `.feature` on the bound branch (Specs landing); no `change delta` / solidify / feature_delta.
 
 ## Exiting explore mode
 When the user is ready to implement, choose based on change scale:

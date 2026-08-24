@@ -1,79 +1,29 @@
-## Canonical TOON Spec Contract
+## Canonical Single-Track Feature Contract
 
-SDD 主 spec 以**独立的 `.toon` 文件**承载——每个文件一份 TOON 文档，没有 Markdown 外壳，也没有 fenced code block。所有结构化信息（包括原先位于 YAML frontmatter 的校验元数据）都在 TOON 文档内部。
-
-### Main spec（`llmanspec/specs/<feature-id>/spec.toon`）
-
-```toon
-kind: llman.sdd.spec
-name: sample
-purpose: "One-line overview."
-valid_scope[2]: src/,tests/
-requirements[1]{req_id,title,statement}:
-  r1,Requirement title,System MUST do something.
-scenarios[1]{req_id,id,given,when,then}:
-  r1,happy,"",a trigger happens,the outcome is observed
-```
-
-- `kind` 必须为 `llman.sdd.spec`。
-- `name` 应与 spec 目录名一致。
-- `valid_scope` 是校验作用域（驱动 staleness 检查）。必须存在且非空，为扁平单列表格化数组（例如 `valid_scope[2]: src/,tests/`）。（`valid_commands` 与 `evidence` 已移除——仅有 `valid_scope` 被实际消费。）
-
-### Partitioned SSOT（配置了 `bdd:` 时）
-
-当 `config.yaml` 定义了 `bdd` 块时，`bdd:` 段是**仅 runner 开关**（`validate --check` 执行 `bdd.run_command`）；**不会**分叉变更生命周期。可执行场景采用 **Partitioned SSOT**：
-
-| 层 | 权威 | 内容 |
-|---|---|---|
-| 约束 | `spec.toon` | `requirements` + **不可执行** scenarios（`feature: false`） |
-| Harness | `*.feature` | 可执行 GWT 唯一正文；场景带 `@req:<req_id>` |
-
-```toon
-kind: llman.sdd.spec
-name: sample
-purpose: "约束在 toon；可执行例子在 .feature。"
-valid_scope[1]: llmanspec/specs/sample
-requirements[1]{req_id,title,statement}:
-  r1,新增需求,系统 MUST 完成新功能。
-scenarios[1]{req_id,id,given,when,then,feature}:
-  r1,internal-only,"管理器扫描","内部检查","通过",false
-```
+Each capability is ONE Gherkin file: `llmanspec/specs/<capability>/<capability>.feature`.
+It is the only spec artifact — there is no `spec.toon`.
 
 ```gherkin
-# sample.feature
+# language: zh-CN
+# capability: sample
+# purpose: One-line overview.
+# scope: src/
+
 功能: sample
-  @req:r1
+
+  @req:r1 @human
+  场景: Rule title
+    System MUST do something.
+
+  @req:r1 @executable
   场景: happy
-    假如 llman 二进制已构建
-    当 运行 llman sample --flag
-    那么 退出码为 0
+    假如 a precondition
+    当 a trigger happens
+    那么 the outcome is observed
 ```
 
-- **Git-native 生命周期（两步勿混）**：
-  1. **Branch binding（分支绑定）**：`llman sdd change start <id>`（推荐；须在默认分支干净树）或 `change attach` → Full。规划壳（proposal/design/tasks）可短暂在默认分支。
-  2. **Specs landing（合约落地）**：仅在绑定的非默认分支编辑 live `.feature` / `spec.toon` 并 commit。**禁止**在默认分支改 live specs。无合约变更可设 `skip_specs_landing: true`。apply 前须 `readyToImplement=true`（`Full ∧ (specsLanded ∨ skip)`）。
-  - **收尾**（verify 之后）：优先 `change finalize`；或 `checkpoint` → `change archive`。archive/finalize 自动 ff-merge 到默认分支，再改名 change 文档（脏改名留一次 `git commit`）。`diff` 只读。
-  - **禁止**编写 `changes/<id>/specs/` 或 `*.feature.delta.toon`。没有 `change delta`、solidify、`llman-sdd-sync`。
-- 下游升级：人工清理遗留 `llmanspec/changes/<id>/specs/` 或 `*.feature.delta.toon`（`partitioned` migrate 已移除）。
-- `bdd:` 已启用且 `requirements` 为空、又无 `.feature` 是 ERROR。
-
-### 表格化行的引号规则
-
-在表格化数组行中（值以逗号分隔），如果值包含**空格**、**逗号**、**冒号**、**方括号**（`[`, `]`, `{`, `}`）或首尾有空白字符，**必须使用双引号包裹**：
-
-```
-# 错误：未加引号的空格值会被拆成多个值
-r1,happy,"",a trigger happens,the outcome is observed
-
-# 正确：多词值加引号
-r1,happy,"","a trigger happens","the outcome is observed"
-```
-
-- 空字符串：`""`
-- 未设置的可选字段：`null`
-- 不确定时，优先使用引号。
-
-### 备注
-- 每个 spec 一个 `.toon` 文件；没有 Markdown，没有 ```` ```toon ```` fence。
-- `null` 表示该字段缺失（可选字段未设置）。
-- 从旧版 `.md`+fence 迁移请使用 `llman sdd migrate`。
+- Header comments (`# capability:` / `# purpose:` / `# scope:`) are REQUIRED; `scope` drives staleness.
+- `@human` scenarios are human-owned constraints; their description carries the normative statement verbatim. Modifying/removing them requires `rules_edit_acked: true` in the change proposal frontmatter.
+- `@executable` scenarios are runner-bound acceptance; they link rules via `@req:<req_id>`.
+- Coverage tiers: enforced (has acceptance) / manual (`@manual`) / pending. `list --specs` reports all three.
+- Scenarios MUST stay top-level: `Rule:` blocks are rejected (the runner skips them silently).

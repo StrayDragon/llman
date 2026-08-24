@@ -1,79 +1,29 @@
-## Canonical TOON Spec Contract
+## Canonical Single-Track Feature Contract
 
-SDD main specs are authored as **standalone `.toon` files** — one TOON document per file, with no Markdown shell and no fenced code block. All structured information, including the validation proof-metadata (formerly a YAML frontmatter), lives inside the TOON document.
-
-### Main spec (`llmanspec/specs/<feature-id>/spec.toon`)
-
-```toon
-kind: llman.sdd.spec
-name: sample
-purpose: "One-line overview."
-valid_scope[2]: src/,tests/
-requirements[1]{req_id,title,statement}:
-  r1,Requirement title,System MUST do something.
-scenarios[1]{req_id,id,given,when,then}:
-  r1,happy,"",a trigger happens,the outcome is observed
-```
-
-- `kind` MUST be `llman.sdd.spec`.
-- `name` SHOULD match the spec directory name.
-- `valid_scope` is the validation scope (drives the staleness check). It MUST be present and non-empty, as a flat single-column tabular array (e.g. `valid_scope[2]: src/,tests/`). (`valid_commands` and `evidence` were dropped — only `valid_scope` is functionally consumed.)
-
-### Partitioned SSOT (when `bdd:` is configured)
-
-When `config.yaml` defines a `bdd` block, the `bdd:` section is a **runner-only** switch (`validate --check` runs `bdd.run_command`); it does **not** fork the change lifecycle. Use **Partitioned SSOT** for executable scenarios:
-
-| Layer | Authority | Contents |
-|---|---|---|
-| Constraints | `spec.toon` | `requirements` + **non-executable** scenarios (`feature: false`) |
-| Harness | `*.feature` | Executable GWT only; scenarios tagged `@req:<req_id>` |
-
-```toon
-kind: llman.sdd.spec
-name: sample
-purpose: "Constraints in toon; executable examples in .feature."
-valid_scope[1]: llmanspec/specs/sample
-requirements[1]{req_id,title,statement}:
-  r1,New Requirement,System MUST do the new thing.
-scenarios[1]{req_id,id,given,when,then,feature}:
-  r1,internal-only,"manager scans","internal check","passes",false
-```
+Each capability is ONE Gherkin file: `llmanspec/specs/<capability>/<capability>.feature`.
+It is the only spec artifact — there is no `spec.toon`.
 
 ```gherkin
-# sample.feature
-Feature: sample
-  @req:r1
-  Scenario: happy
-    Given llman binary built
-    When run llman sample --flag
-    Then exit code 0
+# language: zh-CN
+# capability: sample
+# purpose: One-line overview.
+# scope: src/
+
+功能: sample
+
+  @req:r1 @human
+  场景: Rule title
+    System MUST do something.
+
+  @req:r1 @executable
+  场景: happy
+    假如 a precondition
+    当 a trigger happens
+    那么 the outcome is observed
 ```
 
-- **Git-native lifecycle (two steps — do not conflate)**:
-  1. **Branch binding**: `llman sdd change start <id>` (recommended; clean tree on the default branch) or `change attach` → Full. The planning shell (proposal/design/tasks) may briefly live on the default branch.
-  2. **Specs landing**: edit live `.feature` / `spec.toon` only on the bound non-default branch and commit. **Do not** edit live specs on the default branch. No contract edits → `skip_specs_landing: true`. Apply requires `readyToImplement=true` (`Full ∧ (specsLanded ∨ skip)`).
-  - **Close-out** (after verify): prefer `change finalize`; or `checkpoint` → `change archive`. Archive/finalize auto ff-merges into the default branch, then renames change docs (one follow-up `git commit` for the dirty rename). `diff` is read-only.
-  - **Do not** author under `changes/<id>/specs/` or create `*.feature.delta.toon`. There is no `change delta`, solidify, or `llman-sdd-sync`.
-- Downstream upgrade: manually remove leftover `llmanspec/changes/<id>/specs/` or `*.feature.delta.toon` (`partitioned` migrate removed).
-- `bdd:` enabled with empty `requirements` and no `.feature` is an ERROR.
-
-### Quoting Rules for Tabular Rows
-
-In tabular array rows (values separated by commas), any value containing a **space**, **comma**, **colon**, **bracket** (`[`, `]`, `{`, `}`), or starts/ends with whitespace **must be double-quoted**:
-
-```
-# BAD: spaces in an unquoted value split it into multiple values
-r1,happy,"",a trigger happens,the outcome is observed
-
-# GOOD: multi-word values quoted
-r1,happy,"","a trigger happens","the outcome is observed"
-```
-
-- Empty strings: `""`
-- Optional fields not set: `null`
-- When in doubt, quote the value.
-
-### Notes
-- One `.toon` file per spec; no Markdown, no ```` ```toon ```` fence.
-- `null` represents missing optional fields.
-- Migrate legacy `.md`+fence specs with `llman sdd migrate`.
+- Header comments (`# capability:` / `# purpose:` / `# scope:`) are REQUIRED; `scope` drives staleness.
+- `@human` scenarios are human-owned constraints; their description carries the normative statement verbatim. Modifying/removing them requires `rules_edit_acked: true` in the change proposal frontmatter.
+- `@executable` scenarios are runner-bound acceptance; they link rules via `@req:<req_id>`.
+- Coverage tiers: enforced (has acceptance) / manual (`@manual`) / pending. `list --specs` reports all three.
+- Scenarios MUST stay top-level: `Rule:` blocks are rejected (the runner skips them silently).
