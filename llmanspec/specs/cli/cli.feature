@@ -28,3 +28,15 @@
   @req:r112 @human
   场景: Change 名参数前缀匹配
     - llman sdd show/validate/graph/change 等所有接收 change 名的命令，在解析 change id 时 MUST 遵循前缀匹配解析：1) 精确匹配活跃 changes（input 即为完整 id）；2) 前缀匹配活跃 changes（目录名前缀匹配）；3) 前缀匹配归档 changes。精确优先生效。MUST NOT 使用 substring contains 模糊匹配（避免意外命中子串）。前缀（非精确）命中时，命令 SHALL 在输出中提示实际命中的 change（格式 `'<input>' -> '<resolved>' (prefix match)`，人类可读输出走 stderr）；精确命中时不输出该提示。`--json` 输出 SHALL 包含 `matchedViaPrefix` 布尔字段（前缀命中为 true，精确为 false）。
+
+  @req:r112 @executable
+  场景: prefix-match-baseline
+    假如 已存在多个 active change 和 archived change
+    当 使用 change id 的前缀运行 llman sdd show/validate/status/graph/change archive
+    那么 对应的完整 change 被找到且输出正确
+
+  @req:r112 @executable
+  场景: prefix-match-hint
+    假如 活跃 change 中有 c123-fix-bug
+    当 用前缀 c123 运行 llman sdd show c123（以及 --json）
+    那么 命令提示命中的完整 change（'c123' -> 'c123-fix-bug' (prefix match)），--json 输出含 matchedViaPrefix=true
