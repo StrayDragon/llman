@@ -179,6 +179,14 @@
     当 在非交互终端运行 llman sdd validate sample --strict
     那么 stderr 包含 BDD check failed
 
+  @executable
+  @req:r26
+  场景: BDD-on 时 validate --no-check 跳过 runner
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd validate sample --strict --no-check
+    那么 退出码为零
+    那么 stderr 不含 BDD check failed
+
 
   @executable
   @req:r91
