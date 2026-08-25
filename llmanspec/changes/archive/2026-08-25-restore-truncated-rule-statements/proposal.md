@@ -1,6 +1,10 @@
 ---
 depends_on: []
 rules_edit_acked: true
+branch: sdd/restore-truncated-rule-statements
+base_sha: ddf37cd14adbe04c5fe73f09e0565006eb584a38
+checkpointed: true
+checkpoint_sha: ddf37cd14adbe04c5fe73f09e0565006eb584a38
 ---
 
 ## Why

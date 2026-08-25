@@ -7,7 +7,7 @@
 
   @req:r16 @human
   场景: codex agents 命令组、托管目录与确认门禁
-    - 对应 spec: codex-agents-management — 系统 MUST 提供 llman x codex agents 命令组
+    - 对应 spec: codex-agents-management — 系统 MUST 提供 llman x codex agents 命令组 （import/sync/inject/status）；status 只读；支持 --dry-run；非交互写操作需 --yes/--force； 交互向导收集参数；llman 托管目录为 source of truth；目标目录可解析可覆盖。
 
   @req:r45 @human
   场景: import/sync/inject 的文件操作与冲突备份

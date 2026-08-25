@@ -11,7 +11,7 @@
 
   @req:r56 @human
   场景: 可复现的 SDD prompts 评测套件与 Claude Code agentic 评测
-    - 对应 spec: sdd-ab-evaluation — SDD workflow MUST 提供可复现的 Promptfoo 评测套件对比不同风格/
+    - 对应 spec: sdd-ab-evaluation — SDD workflow MUST 提供可复现的 Promptfoo 评测套件对比不同风格/ 版本 SDD prompt；资产存放于 agentdev/promptfoo/；评测在隔离临时目录运行；Claude Code agentic 评测可用 Promptfoo 自动驱动并用硬门禁判定通过。
 
   @req:r118 @human
   场景: skill 模板评测基线: skill-in-prompt × sandbox 硬门禁组合
