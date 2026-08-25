@@ -27,28 +27,42 @@
 
   @req:r136 @human
   场景: toon2features 一次性迁移
-    - llman sdd project migrate --kind toon2features MUST 把 requirements[] 无损转换为 @req/@human 场景（statement 全文入 description）、合并同目录既有 .feature 并保持幂等；内嵌 scenarios[] 中 feature=true 且 req_id 配对的行 MUST 转写为 @req:<req_id> @executable 场景（id 入场景标题，given/when/then 入 假如/当/那么 步骤，空列跳过，不得产生空步骤）；feature=false 行按 note 处理且 MUST 计入 dropped_notes；feature=true 但 req_id 未配对的行 MUST 计入 dropped_unpaired 且不得转写（避免悬空 @req）；迁移报告 MUST 区分 merged / converted_from_toon / dropped_notes / dropped_unpaired 计数并列出三态初值。--kind spec-md2toon MUST 以非零退出拒绝并提示仅支持 toon2features。
+    - llman sdd project migrate --kind toon2features MUST 只处理遗留 spec.toon：requirements[] 无损转换为 @req:<id> @human 场景（statement 全文入 description）；同目录既有 *.feature 文件是活 harness 资产，MUST NOT 被读取、改写或删除，报告 MUST 计数 left 并提示按 r131 人工合并；已存在同名 <capability>.feature 的 capability MUST 跳过（保留 spec.toon，输出 skipped 警告，人工合并后重跑）。scenarios[] 行：given/when/then 任一非空且 req_id 配对 MUST 转写为 @req:<req_id> @human 场景（id 入场景标题，步骤关键字按项目 Gherkin 语言渲染：优先 config bdd.default_language，次 locale 映射，再次任一既有 .feature 的 # language: 头，兜底英文；单元格遗留关键字前缀 MUST 剥离；空列跳过，不得产生空步骤）；req_id 未配对 MUST 计入 dropped_unpaired 且不得转写（避免悬空 @req）；三列皆空 MUST 计入 dropped_notes；feature 列仅作历史记录不再分支。迁移 MUST 幂等，成功写出后删除 spec.toon，报告 MUST 区分 converted_from_toon / dropped_notes / dropped_unpaired / left 计数并列出规则三态初值。--kind spec-md2toon MUST 以非零退出拒绝并提示仅支持 toon2features。
   @executable
   @req:r136
   场景: migrate-toon2features-converts-and-cleans
-    假如 已初始化含遗留 spec.toon 的 sdd 项目且 bdd 配置为 "off"
+    假如 已初始化含仅遗留 spec.toon 的 legacy capability 且 bdd 配置为 "off"
     当 运行 llman sdd project migrate --kind toon2features --yes
     那么 退出码为零
-    那么 相对路径 llmanspec/specs/sample/spec.toon 不存在
-    那么 相对路径 llmanspec/specs/sample/sample.feature 存在
+    那么 相对路径 llmanspec/specs/legacy/spec.toon 不存在
+    那么 相对路径 llmanspec/specs/legacy/legacy.feature 存在
 
 
   @executable
   @req:r136
-  场景: migrate-toon2features-converts-embedded-executable-scenarios
-    假如 已初始化含遗留 spec.toon 且内嵌 feature=true 可执行场景的 sdd 项目且 bdd 配置为 "off"
+  场景: migrate-toon2features-keeps-features-and-converts-gwt-notes
+    假如 已初始化含遗留 spec.toon 与既有 .feature 的 sample3 capability 且 bdd 配置为 "off"
     当 运行 llman sdd project migrate --kind toon2features --yes
     那么 退出码为零
-    那么 相对路径 llmanspec/specs/sample/spec.toon 不存在
-    那么 相对路径 llmanspec/specs/sample/sample.feature 存在
-    那么 相对路径 llmanspec/specs/sample/sample.feature 内容包含 @executable
+    那么 相对路径 llmanspec/specs/sample3/spec.toon 不存在
+    那么 相对路径 llmanspec/specs/sample3/sample3.feature 存在
+    那么 相对路径 llmanspec/specs/sample3/sample3.feature 内容包含 @req:r1 @human
+    那么 相对路径 llmanspec/specs/sample3/sample3.feature 内容包含 Given precondition ready
+    那么 相对路径 llmanspec/specs/sample3/legacy-acc.feature 存在
     那么 stdout 包含 converted_from_toon 2
+    那么 stdout 包含 dropped_unpaired 1
     那么 stdout 包含 dropped_notes 1
+    那么 stdout 包含 left 1 legacy .feature
+
+
+  @executable
+  @req:r136
+  场景: migrate-toon2features-skips-when-main-feature-exists
+    假如 已初始化含遗留 spec.toon 的 sdd 项目且 bdd 配置为 "off"
+    当 运行 llman sdd project migrate --kind toon2features --yes
+    那么 退出码为零
+    那么 相对路径 llmanspec/specs/sample/spec.toon 存在
+    那么 stdout 包含 skipped
 
 
   @executable
