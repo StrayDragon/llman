@@ -7,7 +7,7 @@
 
   @req:r29 @human
   场景: playbook 采用 workflow/jobs/steps 模型与确定性依赖
-    - 对应 spec: sdd-eval-workflow-dsl — playbook MUST 为 YAML 文档，定义 workflow/jobs/steps 模型；
+    - 对应 spec: sdd-eval-workflow-dsl — playbook MUST 为 YAML 文档，定义 workflow/jobs/steps 模型； variants 按稳定 id 寻址并可经 matrix 展开；job needs 依赖确定性解析（拓扑序 + 声明序兜底）。
 
   @req:r62 @human
   场景: step 类型、内置 action、插值与 run 沙箱

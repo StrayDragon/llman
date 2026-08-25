@@ -7,7 +7,7 @@
 
   @req:r30 @human
   场景: OpenSpec 双向互转命令与安全门禁
-    - 对应 spec: sdd-openspec-interop — 系统 MUST 提供 import/export --style openspec 双向互转； --style 必填且仅允许 openspec；import/export MUST 默认先 dry-run，交互终端双确认后写入，
+    - 对应 spec: sdd-openspec-interop — 系统 MUST 提供 import/export --style openspec 双向互转； --style 必填且仅允许 openspec；import/export MUST 默认先 dry-run，交互终端双确认后写入， 非交互拒绝写入返回非零。
 
   @req:r63 @human
   场景: 迁移范围、冲突策略、旧目录删除与元数据补齐

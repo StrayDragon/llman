@@ -11,4 +11,4 @@
 
   @req:r66 @human
   场景: 模板单元独立可发现并经 MiniJinja 注入渲染
-    - 对应 spec: sdd-template-units-and-jinja — SDD 提示词组合 MUST 把可复用片段拆成独立的 模板单元文件（显式单元标识符 + 按 locale 的确定性查找）；渲染 MUST 基于 MiniJinja 注入，
+    - 对应 spec: sdd-template-units-and-jinja — SDD 提示词组合 MUST 把可复用片段拆成独立的 模板单元文件（显式单元标识符 + 按 locale 的确定性查找）；渲染 MUST 基于 MiniJinja 注入， 且在缺失单元引用或必需变量时快速失败。

@@ -11,4 +11,4 @@
 
   @req:r43 @human
   场景: 本地化消息与 stdout/stderr 约定
-    - 对应 spec: cli-experience — 运行时提示/状态/错误 MUST 优先用 t! 本地化键；locale 固定英文；
+    - 对应 spec: cli-experience — 运行时提示/状态/错误 MUST 优先用 t! 本地化键；locale 固定英文； 正常输出与交互提示到 stdout，错误到 stderr；单行消息使用一致前缀。

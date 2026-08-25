@@ -11,4 +11,4 @@
 
   @req:r64 @human
   场景: specs 压缩治理技能可生成且含 freeze 建议
-    - 对应 spec: sdd-specs-compaction-guidance — llman sdd init --update MUST 生成
+    - 对应 spec: sdd-specs-compaction-guidance — llman sdd init --update MUST 生成 llman-sdd-specs-compact 技能，提供 specs 压缩治理流程；且在 archive 历史噪声较大时 建议先执行 freeze。

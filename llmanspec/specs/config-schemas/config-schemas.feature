@@ -7,7 +7,7 @@
 
   @req:r18 @human
   场景: schema header 经 root discovery 应用且最小侵入
-    - 对应 spec: config-schemas — llman self schema apply MUST 通过 root discovery 定位 project/ llmanspec 配置（而非假设 cwd 为根）；应用 schema header MUST 最小侵入，确保顶部仅一条有效
+    - 对应 spec: config-schemas — llman self schema apply MUST 通过 root discovery 定位 project/ llmanspec 配置（而非假设 cwd 为根）；应用 schema header MUST 最小侵入，确保顶部仅一条有效 header 且不删除无关内容。
 
   @req:r49 @human
   场景: 配置 schema 生成与 YAML LSP 头注释
