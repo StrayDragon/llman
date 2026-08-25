@@ -14,5 +14,5 @@
 - [x] `spec-format.feature` r136 @human 描述更新（转写 feature=true、记账 converted/dropped_notes、配对守卫）
 - [x] `spec-format.feature` r136 增加 @executable 场景：migrate 转写 + 记账产物断言（含 converted_from_toon、@executable、spec.toon 移除）
 - [x] `cli.feature` 恢复 2 条 @executable（r112 baseline / prefix-hint，按修复后转写规则）
-- [ ] `llman sdd validate --all --strict` 全绿
-- [ ] `cargo +nightly test --features bdd`（BDD 可执行场景）通过
+- [x] `llman sdd validate --all --strict` 全绿
+- [x] `cargo +nightly test --features bdd`（BDD 可执行场景）通过
