@@ -8,8 +8,8 @@
 ## 垂直切片
 
 ### t1: Specs landing——恢复 r26 验收场景
-- [ ] 绑定分支上在 `sdd-bdd-mode-compat.feature` 现有 `@req:r26` executable 场景后,追加「BDD-on 时 validate --no-check 跳过 runner」(`@executable` + `@req:r26`,假如/当/那么三步)并 commit
+- [x] 绑定分支上在 `sdd-bdd-mode-compat.feature` 现有 `@req:r26` executable 场景后,追加「BDD-on 时 validate --no-check 跳过 runner」(`@executable` + `@req:r26`,假如/当/那么三步)并 commit
 
 ### t2: 验收全绿
-- [ ] `llman sdd validate restore-r26-no-check-acceptance --strict` 通过
-- [ ] `cargo +nightly test --features bdd` 49 场景全绿(48 + 恢复的 1)
+- [x] `llman sdd validate restore-r26-no-check-acceptance --strict` 通过
+- [x] `cargo +nightly test --features bdd` 49 场景全绿(48 + 恢复的 1)
