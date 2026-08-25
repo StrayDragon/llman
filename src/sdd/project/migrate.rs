@@ -80,15 +80,25 @@ pub fn run_at(root: &Path, args: MigrateArgs) -> Result<()> {
                 "none"
             };
             let doc = p.toon.as_ref();
-            let (converted, notes) = doc
+            let (converted, notes, unpaired) = doc
                 .map(|d| {
-                    d.scenarios.iter().fold((0usize, 0usize), |(c, n), sc| {
-                        if sc.feature { (c + 1, n) } else { (c, n + 1) }
-                    })
+                    let defined: std::collections::HashSet<&str> =
+                        d.requirements.iter().map(|r| r.req_id.as_str()).collect();
+                    d.scenarios
+                        .iter()
+                        .fold((0usize, 0usize, 0usize), |(c, n, u), sc| {
+                            if !sc.feature {
+                                (c, n + 1, u)
+                            } else if defined.contains(sc.req_id.as_str()) {
+                                (c + 1, n, u)
+                            } else {
+                                (c, n, u + 1)
+                            }
+                        })
                 })
-                .unwrap_or((0, 0));
+                .unwrap_or((0, 0, 0));
             println!(
-                "  {} → {}.feature (rules {}, acceptance {}; toon scenarios → converted {converted}, notes {notes})",
+                "  {} → {}.feature (rules {}, acceptance {}; toon scenarios → converted {converted}, notes {notes}, unpaired {unpaired})",
                 p.dir.display(),
                 p.capability,
                 doc.map(|d| d.requirements.len()).unwrap_or(0),
