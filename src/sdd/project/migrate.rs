@@ -13,7 +13,17 @@
 //!   `.feature` `# language:` header > English). Legacy keyword prefixes in
 //!   cell content are stripped before re-prefixing. Rows without GWT content
 //!   are counted `dropped_notes`; unpaired rows are counted `dropped_unpaired`.
-//!   The historical `feature` column no longer branches.
+//!   The historical `feature` column no longer branches and is optional — rows
+//!   from legacy 5-column sections (`{req_id,id,given,when,then}`) convert the
+//!   same way. Each note scenario carries a mechanically synthesized normative
+//!   description bullet (`MUST hold: Given …; When …; Then …`) so migrated
+//!   output passes `validate --strict`'s locked-rule keyword gate without any
+//!   information loss (the GWT steps render verbatim below it).
+//! - Row-level reconciliation: every data row under a table section is either
+//!   accepted or recorded as malformed (with its 1-based line number). Any
+//!   malformed row aborts that capability BEFORE anything is written —
+//!   spec.toon is kept, the failure is listed, and the command exits non-zero.
+//!   Nothing is dropped silently.
 //! - A capability already having `<capability>.feature` is skipped (spec.toon
 //!   kept; merge manually and re-run). `spec.toon` is deleted after a
 //!   successful write; re-running is a no-op.
@@ -43,6 +53,36 @@ struct Plan {
     dir: PathBuf,
     capability: String,
     toon: Option<MainSpecDoc>,
+    /// Row-level accounting from the legacy reader (drives the
+    /// reconcile-before-write gate).
+    stats: LegacyParseStats,
+}
+
+/// A legacy table row that could not be parsed against its section's declared
+/// columns. Migration refuses to proceed while any of these exist: silently
+/// dropping rows would corrupt the spec without a trace.
+#[derive(Debug)]
+struct MalformedRow {
+    line: usize,
+    section: &'static str,
+    reason: String,
+}
+
+impl MalformedRow {
+    fn describe(&self) -> String {
+        format!("line {}: [{}] {}", self.line, self.section, self.reason)
+    }
+}
+
+/// Row-level parse accounting for the legacy reader. Invariant enforced by the
+/// reader: `requirement_rows_seen == requirements.len() + malformed(requirements)`
+/// and likewise for scenarios, so "rows seen vs rows accepted" always
+/// reconciles through the malformed list.
+#[derive(Debug, Default)]
+struct LegacyParseStats {
+    requirement_rows_seen: usize,
+    scenario_rows_seen: usize,
+    malformed: Vec<MalformedRow>,
 }
 
 /// Per-capability apply outcome for reporting.
@@ -75,12 +115,13 @@ pub fn run_at(root: &Path, args: MigrateArgs) -> Result<()> {
         }
         let raw = fs::read_to_string(dir.join(SPEC_FILE))
             .with_context(|| format!("read {}", dir.join(SPEC_FILE).display()))?;
-        let doc: MainSpecDoc =
+        let (doc, stats) =
             parse_legacy_toon(&raw).with_context(|| format!("parse legacy `{capability}`"))?;
         plans.push(Plan {
             dir,
             capability,
             toon: Some(doc),
+            stats,
         });
     }
 
@@ -93,6 +134,7 @@ pub fn run_at(root: &Path, args: MigrateArgs) -> Result<()> {
 
     if args.dry_run {
         let mut skips = 0usize;
+        let mut problems: Vec<String> = Vec::new();
         for p in &plans {
             if p.dir.join(format!("{}.feature", p.capability)).exists() {
                 skips += 1;
@@ -104,30 +146,42 @@ pub fn run_at(root: &Path, args: MigrateArgs) -> Result<()> {
                 continue;
             }
             let doc = p.toon.as_ref();
-            let (converted, notes, unpaired) = doc
-                .map(|d| {
-                    let defined: std::collections::HashSet<&str> =
-                        d.requirements.iter().map(|r| r.req_id.as_str()).collect();
-                    d.scenarios
-                        .iter()
-                        .fold((0usize, 0usize, 0usize), |(c, n, u), sc| {
-                            if !has_gwt_content(sc) {
-                                (c, n + 1, u)
-                            } else if defined.contains(sc.req_id.as_str()) {
-                                (c + 1, n, u)
-                            } else {
-                                (c, n, u + 1)
-                            }
-                        })
-                })
-                .unwrap_or((0, 0, 0));
+            let (converted, notes, unpaired, _) =
+                doc.map(classify_note_rows).unwrap_or((0, 0, 0, Vec::new()));
             let left = crate::sdd::spec::validation::discover_features(&p.dir).len();
+            let malformed = &p.stats.malformed;
+            let malformed_note = if malformed.is_empty() {
+                String::new()
+            } else {
+                format!(", MALFORMED {}", malformed.len())
+            };
             println!(
-                "  {} → {}.feature (rules {}, toon scenarios → converted {converted}, notes {notes}, unpaired {unpaired}, left {left} legacy .feature; lang {lang})",
+                "  {} → {}.feature (rules {}, toon scenarios → converted {converted}, notes {notes}, unpaired {unpaired}{malformed_note}, left {left} legacy .feature; lang {lang})",
                 p.dir.display(),
                 p.capability,
                 doc.map(|d| d.requirements.len()).unwrap_or(0),
             );
+            if !malformed.is_empty() {
+                problems.push(format!(
+                    "{}: {} malformed legacy row(s) — {}",
+                    p.dir.display(),
+                    malformed.len(),
+                    malformed
+                        .iter()
+                        .map(MalformedRow::describe)
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                ));
+            }
+        }
+        if !problems.is_empty() {
+            eprintln!("\nMalformed legacy rows detected (dry-run):");
+            for p in &problems {
+                eprintln!("  - {p}");
+            }
+            return Err(anyhow!(
+                "dry-run found malformed legacy rows; fix or remove them in spec.toon before migrating"
+            ));
         }
         println!("\n(dry-run: no files written; {skips} capability(s) would be skipped)");
         return Ok(());
@@ -177,8 +231,9 @@ pub fn run_at(root: &Path, args: MigrateArgs) -> Result<()> {
             eprintln!("  - {f}");
         }
         return Err(anyhow!(
-            "migration completed with {} failure(s)",
-            failures.len()
+            "migration completed with {} failure(s): {}",
+            failures.len(),
+            failures.join("; ")
         ));
     }
 
@@ -207,33 +262,30 @@ fn migrate_capability(plan: &Plan, lang: &str) -> Result<Outcome> {
     // Existing .feature files are live harness assets: count only, never touch.
     let left = crate::sdd::spec::validation::discover_features(&plan.dir).len();
 
+    // Reconcile-before-write: any malformed legacy row means the conversion
+    // would silently lose spec content. Abort the capability (spec.toon kept,
+    // nothing written) and surface the offending line numbers.
+    if !plan.stats.malformed.is_empty() {
+        anyhow::bail!(
+            "{} malformed legacy row(s); nothing written, spec.toon kept — {}",
+            plan.stats.malformed.len(),
+            plan.stats
+                .malformed
+                .iter()
+                .map(MalformedRow::describe)
+                .collect::<Vec<_>>()
+                .join("; ")
+        );
+    }
+
     // Legacy toon `scenarios[]` rows: GWT-bearing rows paired with a defined
     // requirement become `@req:<id> @human` note scenarios (documented
     // constraints, NOT executable acceptance — the executable scenarios live
     // in the untouched legacy .feature files). Rows without GWT content are
     // note noise (`dropped_notes`); GWT rows with an undefined req_id would
     // dangle under `validate --strict` (`dropped_unpaired`).
-    let defined_reqs: std::collections::HashSet<&str> = toon_doc
-        .requirements
-        .iter()
-        .map(|r| r.req_id.as_str())
-        .collect();
-    let mut converted_from_toon = 0usize;
-    let mut dropped_notes = 0usize;
-    let mut dropped_unpaired = 0usize;
-    let mut note_rows: Vec<&crate::sdd::spec::ir::ScenarioEntry> = Vec::new();
-    for sc in &toon_doc.scenarios {
-        if !has_gwt_content(sc) {
-            dropped_notes += 1;
-            continue;
-        }
-        if !defined_reqs.contains(sc.req_id.as_str()) {
-            dropped_unpaired += 1;
-            continue;
-        }
-        note_rows.push(sc);
-        converted_from_toon += 1;
-    }
+    let (converted_from_toon, dropped_notes, dropped_unpaired, note_rows) =
+        classify_note_rows(toon_doc);
 
     // Rules come from legacy toon requirements (statement verbatim).
     let doc = MainSpecDoc {
@@ -251,7 +303,7 @@ fn migrate_capability(plan: &Plan, lang: &str) -> Result<Outcome> {
         payload.push('\n');
     }
     for sc in &note_rows {
-        payload.push_str(&render_note_scenario(sc, &kw));
+        payload.push_str(&render_note_scenario(sc, &kw, lang));
     }
     atomic_write_with_mode(&feature_path, payload.as_bytes(), None)?;
 
@@ -284,31 +336,109 @@ fn migrate_capability(plan: &Plan, lang: &str) -> Result<Outcome> {
 }
 
 /// A GWT-bearing toon row rendered as a `@req:<id> @human` note scenario with
-/// steps in the target Gherkin language.
-fn render_note_scenario(sc: &crate::sdd::spec::ir::ScenarioEntry, kw: &GherkinKw) -> String {
+/// steps in the target Gherkin language. A mechanically synthesized normative
+/// description bullet (`MUST hold: Given …; When …; Then …`) is emitted above
+/// the steps so `validate --strict`'s locked-rule keyword gate accepts the
+/// scenario (`rule_statement` prefers the description). No information is
+/// lost: the bullet restates exactly the step content below it.
+fn render_note_scenario(
+    sc: &crate::sdd::spec::ir::ScenarioEntry,
+    kw: &GherkinKw,
+    lang: &str,
+) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(out);
     let _ = writeln!(out, "  @req:{} @human", sc.req_id);
     let _ = writeln!(out, "  {}: {}", kw.scenario, sc.id);
-    for (kw_str, field) in [
-        (kw.given, &sc.given),
-        (kw.when, &sc.when_),
-        (kw.then, &sc.then_),
+    let given = flatten_cell(&sc.given);
+    let when = flatten_cell(&sc.when_);
+    let then = flatten_cell(&sc.then_);
+    // Synthesized normative statement: zh projects get 必须, everything else
+    // MUST (both accepted by validate's normative-keyword gate).
+    if !(given.is_empty() && when.is_empty() && then.is_empty()) {
+        let statement = if lang.trim().to_lowercase().starts_with("zh") {
+            let mut s = String::from("必须成立：");
+            if !given.is_empty() {
+                s.push_str(&format!("{} {given}；", kw.given));
+            }
+            if !when.is_empty() {
+                s.push_str(&format!("{} {when}；", kw.when));
+            }
+            if !then.is_empty() {
+                s.push_str(&format!("{} {then}", kw.then));
+            }
+            s
+        } else {
+            let mut parts = Vec::new();
+            if !given.is_empty() {
+                parts.push(format!("Given {given}"));
+            }
+            if !when.is_empty() {
+                parts.push(format!("When {when}"));
+            }
+            if !then.is_empty() {
+                parts.push(format!("Then {then}"));
+            }
+            format!("MUST hold: {}.", parts.join("; "))
+        };
+        let _ = writeln!(out, "    - {statement}");
+    }
+    for (kw_str, value) in [
+        (kw.given, given.as_str()),
+        (kw.when, when.as_str()),
+        (kw.then, then.as_str()),
     ] {
-        // Collapse multi-line cell values to one physical line and strip any
-        // legacy keyword prefix before re-prefixing with the target keyword.
-        let value = field
-            .split('\n')
-            .map(|l| strip_step_keyword(l.trim()))
-            .filter(|l| !l.is_empty())
-            .collect::<Vec<_>>()
-            .join(" ");
         if !value.is_empty() {
             let _ = writeln!(out, "    {kw_str} {value}");
         }
     }
     out
+}
+
+/// Collapse a multi-line cell value to one physical line and strip any legacy
+/// keyword prefix before re-prefixing with the target keyword.
+fn flatten_cell(field: &str) -> String {
+    field
+        .split('\n')
+        .map(|l| strip_step_keyword(l.trim()))
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Shared accounting + row selection for legacy GWT rows: returns the
+/// converted/notes/unpaired split and the rows selected as note scenarios.
+/// Used identically by dry-run reporting and the apply phase so both paths can
+/// never disagree about what would be / was converted.
+fn classify_note_rows(
+    toon_doc: &MainSpecDoc,
+) -> (
+    usize,
+    usize,
+    usize,
+    Vec<&crate::sdd::spec::ir::ScenarioEntry>,
+) {
+    let defined: std::collections::HashSet<&str> = toon_doc
+        .requirements
+        .iter()
+        .map(|r| r.req_id.as_str())
+        .collect();
+    let mut converted = 0usize;
+    let mut notes = 0usize;
+    let mut unpaired = 0usize;
+    let mut note_rows = Vec::new();
+    for sc in &toon_doc.scenarios {
+        if !has_gwt_content(sc) {
+            notes += 1;
+        } else if defined.contains(sc.req_id.as_str()) {
+            note_rows.push(sc);
+            converted += 1;
+        } else {
+            unpaired += 1;
+        }
+    }
+    (converted, notes, unpaired, note_rows)
 }
 
 /// Whether a toon scenario row carries any GWT content at all.
@@ -388,7 +518,16 @@ fn collect_capability_dirs(specs_root: &Path) -> Result<Vec<PathBuf>> {
 
 /// Minimal reader for the LEGACY strict-TOON spec shape (migration-only).
 /// Handles exactly the keys the old writer emitted; anything else fails loudly.
-fn parse_legacy_toon(content: &str) -> Result<MainSpecDoc> {
+/// Returns row-level stats so migrate can reconcile "rows seen vs rows
+/// accepted": every data row under a table section is either parsed into the
+/// doc or recorded as malformed (with its 1-based line number) — never dropped
+/// silently.
+///
+/// Escaping: quoted fields accept both historical styles — `""` doubling and
+/// backslash escapes (`\"` → literal `"`, `\\` → `\`). Hand-written and
+/// third-party legacy files commonly used `\"`; earlier versions of this
+/// reader treated each `"` as a quote toggle and shredded such rows.
+fn parse_legacy_toon(content: &str) -> Result<(MainSpecDoc, LegacyParseStats)> {
     fn split_row(line: &str) -> Vec<String> {
         let mut out = Vec::new();
         let mut cur = String::new();
@@ -396,6 +535,17 @@ fn parse_legacy_toon(content: &str) -> Result<MainSpecDoc> {
         let mut chars = line.chars().peekable();
         while let Some(c) = chars.next() {
             match c {
+                // Backslash escape inside quotes: keep the pair verbatim in
+                // the cell and consume the next char so an escaped quote or
+                // comma never toggles quoting / splits cells. Decoding happens
+                // once, later, in `unquote`.
+                '\\' if in_quotes => {
+                    cur.push(c);
+                    if let Some(&n) = chars.peek() {
+                        cur.push(n);
+                        chars.next();
+                    }
+                }
                 '"' if in_quotes && chars.peek() == Some(&'"') => {
                     cur.push('"');
                     chars.next();
@@ -411,41 +561,137 @@ fn parse_legacy_toon(content: &str) -> Result<MainSpecDoc> {
 
     fn unquote(v: impl AsRef<str>) -> String {
         let t = v.as_ref().trim();
-        if t.starts_with('"') && t.ends_with('"') && t.len() >= 2 {
-            t[1..t.len() - 1].to_string()
+        let inner = if t.starts_with('"') && t.ends_with('"') && t.len() >= 2 {
+            &t[1..t.len() - 1]
         } else {
-            t.to_string()
+            t
+        };
+        decode_escapes(inner)
+    }
+
+    /// Decode legacy backslash escapes left-to-right, exactly once. Only the
+    /// two escapes legacy writers emitted are mapped; any other `\x` sequence
+    /// is preserved verbatim.
+    fn decode_escapes(s: &str) -> String {
+        let mut out = String::with_capacity(s.len());
+        let mut chars = s.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                match chars.peek() {
+                    Some('"') => {
+                        out.push('"');
+                        chars.next();
+                    }
+                    Some('\\') => {
+                        out.push('\\');
+                        chars.next();
+                    }
+                    _ => out.push(c),
+                }
+            } else {
+                out.push(c);
+            }
         }
+        out
     }
 
     fn push_requirement_row(
         cells: &[String],
+        line_no: usize,
+        stats: &mut LegacyParseStats,
         requirements: &mut Vec<crate::sdd::spec::ir::RequirementEntry>,
     ) {
-        if cells.len() >= 3 {
-            requirements.push(crate::sdd::spec::ir::RequirementEntry {
-                req_id: unquote(cells[0].clone()).trim().to_string(),
-                title: unquote(cells[1].clone()).trim().to_string(),
-                statement: unquote(cells[2..].join(",")),
+        stats.requirement_rows_seen += 1;
+        if cells.len() < 3 {
+            stats.malformed.push(MalformedRow {
+                line: line_no,
+                section: "requirements",
+                reason: format!(
+                    "expected at least 3 cells (req_id,title,statement), got {}",
+                    cells.len()
+                ),
             });
+            return;
         }
+        requirements.push(crate::sdd::spec::ir::RequirementEntry {
+            req_id: unquote(cells[0].clone()).trim().to_string(),
+            title: unquote(cells[1].clone()).trim().to_string(),
+            statement: unquote(cells[2..].join(",")),
+        });
     }
 
     fn push_scenario_row(
         cells: &[String],
+        line_no: usize,
+        declared_cols: Option<&[String]>,
+        stats: &mut LegacyParseStats,
         scenarios: &mut Vec<crate::sdd::spec::ir::ScenarioEntry>,
     ) {
-        if cells.len() >= 6 {
-            scenarios.push(crate::sdd::spec::ir::ScenarioEntry {
-                req_id: unquote(cells[0].clone()).trim().to_string(),
-                id: unquote(cells[1].clone()).trim().to_string(),
-                given: unquote(cells[2].clone()),
-                when_: unquote(cells[3].clone()),
-                then_: unquote(cells[4].clone()),
-                // Historical flag; conversion branches on GWT content, not this.
-                feature: unquote(cells[5].clone()).trim() != "false",
-            });
+        stats.scenario_rows_seen += 1;
+        // Resolve the column layout: names declared in the section header win;
+        // a header without `{...}` falls back to the historical 5-column GWT
+        // shape (`feature` absent → defaults true; the flag never branched).
+        const REQUIRED: [&str; 5] = ["req_id", "id", "given", "when", "then"];
+        let schema: Vec<String> = declared_cols
+            .map(<[String]>::to_vec)
+            .unwrap_or_else(|| REQUIRED.iter().map(|s| (*s).to_string()).collect());
+        for name in REQUIRED {
+            if !schema.iter().any(|c| c.as_str() == name) {
+                stats.malformed.push(MalformedRow {
+                    line: line_no,
+                    section: "scenarios",
+                    reason: format!("declared columns {schema:?} missing required column `{name}`"),
+                });
+                return;
+            }
         }
+        if cells.len() != schema.len() {
+            stats.malformed.push(MalformedRow {
+                line: line_no,
+                section: "scenarios",
+                reason: format!(
+                    "expected {} cell(s) per declared columns {schema:?}, got {}",
+                    schema.len(),
+                    cells.len()
+                ),
+            });
+            return;
+        }
+        let idx = |name: &str| {
+            schema
+                .iter()
+                .position(|c| c.as_str() == name)
+                .expect("required column presence checked above")
+        };
+        let feature_idx = schema.iter().position(|c| c.as_str() == "feature");
+        scenarios.push(crate::sdd::spec::ir::ScenarioEntry {
+            req_id: unquote(cells[idx("req_id")].clone()).trim().to_string(),
+            id: unquote(cells[idx("id")].clone()).trim().to_string(),
+            given: unquote(cells[idx("given")].clone()),
+            when_: unquote(cells[idx("when")].clone()),
+            then_: unquote(cells[idx("then")].clone()),
+            // Historical flag; conversion branches on GWT content, not this.
+            // Absent column defaults to true.
+            feature: feature_idx
+                .map(|i| unquote(cells[i].clone()).trim() != "false")
+                .unwrap_or(true),
+        });
+    }
+
+    /// Column names declared in a section header (`scenarios[2]{a,b,c}:`).
+    fn declared_columns(header_line: &str) -> Option<Vec<String>> {
+        let open = header_line.find('{')?;
+        let close = header_line.rfind('}')?;
+        if close < open {
+            return None;
+        }
+        Some(
+            header_line[open + 1..close]
+                .split(',')
+                .map(|c| c.trim().to_string())
+                .filter(|c| !c.is_empty())
+                .collect(),
+        )
     }
 
     let mut kind = String::new();
@@ -455,8 +701,11 @@ fn parse_legacy_toon(content: &str) -> Result<MainSpecDoc> {
     let mut requirements: Vec<crate::sdd::spec::ir::RequirementEntry> = Vec::new();
     let mut scenarios: Vec<crate::sdd::spec::ir::ScenarioEntry> = Vec::new();
     let mut section: Option<&'static str> = None;
+    let mut section_cols: Option<Vec<String>> = None;
+    let mut stats = LegacyParseStats::default();
 
-    for line in content.lines() {
+    for (line_no, line) in content.lines().enumerate() {
+        let line_no = line_no + 1;
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
@@ -478,18 +727,28 @@ fn parse_legacy_toon(content: &str) -> Result<MainSpecDoc> {
                 }
                 k if k.starts_with("requirements") => {
                     section = Some("requirements");
+                    section_cols = declared_columns(trimmed);
                     continue;
                 }
                 k if k.starts_with("scenarios") => {
                     section = Some("scenarios");
+                    section_cols = declared_columns(trimmed);
                     continue;
                 }
                 _ => {}
             }
         }
         match section {
-            Some("requirements") => push_requirement_row(&split_row(trimmed), &mut requirements),
-            Some("scenarios") => push_scenario_row(&split_row(trimmed), &mut scenarios),
+            Some("requirements") => {
+                push_requirement_row(&split_row(trimmed), line_no, &mut stats, &mut requirements)
+            }
+            Some("scenarios") => push_scenario_row(
+                &split_row(trimmed),
+                line_no,
+                section_cols.as_deref(),
+                &mut stats,
+                &mut scenarios,
+            ),
             _ => {}
         }
     }
@@ -497,14 +756,17 @@ fn parse_legacy_toon(content: &str) -> Result<MainSpecDoc> {
     if kind.trim() != "llman.sdd.spec" {
         anyhow::bail!("legacy spec kind must be `llman.sdd.spec`, got `{kind}`");
     }
-    Ok(MainSpecDoc {
-        kind,
-        name,
-        purpose,
-        valid_scope,
-        requirements,
-        scenarios,
-    })
+    Ok((
+        MainSpecDoc {
+            kind,
+            name,
+            purpose,
+            valid_scope,
+            requirements,
+            scenarios,
+        },
+        stats,
+    ))
 }
 
 #[cfg(test)]
@@ -587,6 +849,20 @@ mod tests {
             "note row survives as a rule with synthesized statement"
         );
         assert!(doc.scenarios.is_empty(), "no acceptance scenarios minted");
+        // Every migrated rule statement must carry a normative keyword —
+        // otherwise the output fails `validate --strict` out of the box.
+        for r in &doc.requirements {
+            assert!(
+                crate::sdd::spec::validation::contains_normative_keyword(&r.statement),
+                "rule `{}` statement lacks a normative keyword: {}",
+                r.title,
+                r.statement
+            );
+        }
+        assert!(
+            feature.contains("MUST hold: Given precondition ready"),
+            "note scenario carries the synthesized normative bullet"
+        );
     }
 
     #[test]
@@ -614,6 +890,156 @@ mod tests {
             !feature.contains("Scenario: orphan"),
             "unpaired row dropped"
         );
+    }
+
+    #[test]
+    fn legacy_five_col_rows_convert_with_feature_defaulting_true() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        // The 5-column section shape ({req_id,id,given,when,then}) was emitted
+        // by llman's own historical writer (specs_landing empty template);
+        // rows must convert with `feature` defaulting to true.
+        seed_toon(
+            &root_spec_dir(root),
+            concat!(
+                "scenarios[2]{req_id,id,given,when,then}:\n",
+                "  r1,demo-row-a,\"\",\"map_id == 1005\",count == 4\n",
+                "  r2,demo-row-b,\"\",\"wind > 0\",arrow visible\n",
+            ),
+        );
+
+        run_at(root, args()).unwrap();
+
+        let feature = fs::read_to_string(root_spec_dir(root).join("demo.feature")).unwrap();
+        assert!(feature.contains("Scenario: demo-row-a"));
+        assert!(feature.contains("Scenario: demo-row-b"));
+        assert!(feature.contains("When map_id == 1005"));
+        assert!(feature.contains("Then count == 4"));
+    }
+
+    #[test]
+    fn backslash_escaped_quotes_survive_conversion() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        // Real-world legacy files escape embedded quotes as \" and freely
+        // embed commas inside quoted cells; neither may shred the row.
+        seed_toon(
+            &root_spec_dir(root),
+            concat!(
+                "scenarios[1]{req_id,id,given,when,then,feature}:\n",
+                "  r1,demo-row,\"\",\"`map_id == \\\"1005\\\" 且 default_point == \\\"940,657|809\\\"`\",`count == 2`,true\n",
+            ),
+        );
+
+        run_at(root, args()).unwrap();
+
+        let feature = fs::read_to_string(root_spec_dir(root).join("demo.feature")).unwrap();
+        assert!(
+            feature.contains(r#"When `map_id == "1005" 且 default_point == "940,657|809"`"#),
+            "when cell survives verbatim, got:\n{feature}"
+        );
+        assert!(
+            feature.contains("Then `count == 2`"),
+            "then cell must not absorb when fragments"
+        );
+        assert!(!feature.contains('\\'), "no stray escapes left behind");
+    }
+
+    #[test]
+    fn malformed_rows_abort_migration_and_preserve_toon() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        seed_toon(
+            &root_spec_dir(root),
+            concat!(
+                "scenarios[2]{req_id,id,given,when,then}:\n",
+                "  r1,good,\"\",\"trigger\",result\n",
+                "  r1,broken,\"\",\"missing columns\"\n",
+            ),
+        );
+
+        let err = run_at(root, args()).unwrap_err();
+
+        let msg = format!("{err:#}");
+        assert!(msg.contains("malformed"), "got: {msg}");
+        assert!(
+            msg.contains("line "),
+            "offending line number reported: {msg}"
+        );
+        // Nothing written: spec.toon kept, no .feature minted.
+        assert!(root_spec_dir(root).join(SPEC_FILE).exists());
+        assert!(!root_spec_dir(root).join("demo.feature").exists());
+    }
+
+    #[test]
+    fn dry_run_fails_loudly_on_malformed_rows() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        seed_toon(
+            &root_spec_dir(root),
+            concat!(
+                "scenarios[1]{req_id,id,given,when,then}:\n",
+                "  r1,broken,\"\",\"only four cells here\"\n",
+            ),
+        );
+        let dry_args = MigrateArgs {
+            dry_run: true,
+            ..args()
+        };
+
+        let err = run_at(root, dry_args).unwrap_err();
+
+        let msg = format!("{err:#}");
+        assert!(msg.contains("malformed legacy rows"), "got: {msg}");
+    }
+
+    #[test]
+    fn parse_legacy_handles_escapes_and_column_layouts() {
+        let raw = concat!(
+            "kind: llman.sdd.spec\n",
+            "name: \"sample-a\"\n",
+            "purpose: minimal repro\n",
+            "valid_scope[1]: game/\n",
+            "requirements[1]{req_id,title,statement}:\n",
+            "  r1,Demo rule,\"System MUST parse \\\"x,y|x,y|...\\\" format.\"\n",
+            "scenarios[1]{req_id,id,given,when,then,feature}:\n",
+            "  r1,demo-row,\"\",\"`map_id == \\\"1005\\\" 且 default_point == \\\"940,657|809\\\"`\",`count == 2`,true\n",
+        );
+        let (doc, stats) = parse_legacy_toon(raw).unwrap();
+        assert!(stats.malformed.is_empty(), "got: {:?}", stats.malformed);
+        assert_eq!(stats.scenario_rows_seen, 1);
+        assert_eq!(
+            doc.requirements[0].statement,
+            "System MUST parse \"x,y|x,y|...\" format."
+        );
+        let sc = &doc.scenarios[0];
+        assert_eq!(
+            sc.when_,
+            "`map_id == \"1005\" 且 default_point == \"940,657|809\"`"
+        );
+        assert_eq!(sc.then_, "`count == 2`");
+        assert!(sc.feature);
+    }
+
+    #[test]
+    fn parse_legacy_flags_malformed_rows_with_line_numbers() {
+        let raw = concat!(
+            "kind: llman.sdd.spec\n",
+            "name: x\n",
+            "purpose: p\n",
+            "valid_scope[1]: game/\n",
+            "requirements[1]{req_id,title,statement}:\n",
+            "  r1,Demo rule,System MUST demo.\n",
+            "scenarios[3]{req_id,id,given,when,then}:\n",
+            "  r1,a,\"\",\"t1\",ok\n",
+            "  r1,broken,\"\",\"only four\"\n",
+        );
+        let (doc, stats) = parse_legacy_toon(raw).unwrap();
+        assert_eq!(doc.scenarios.len(), 1);
+        assert_eq!(stats.scenario_rows_seen, 2);
+        assert_eq!(stats.malformed.len(), 1);
+        assert_eq!(stats.malformed[0].line, 9);
+        assert!(stats.malformed[0].reason.contains("expected 5"));
     }
 
     #[test]
@@ -731,6 +1157,7 @@ mod tests {
         let feature = fs::read_to_string(root_spec_dir(root).join("demo.feature")).unwrap();
         assert!(feature.contains("# language: zh-CN"));
         assert!(feature.contains("场景: acc-1"));
+        assert!(feature.contains("必须成立：假如 legacy precondition"));
         assert!(feature.contains("假如 legacy precondition"));
         assert!(feature.contains("当 legacy trigger"));
         assert!(feature.contains("那么 legacy result"));
