@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/restore-r26-no-check-acceptance
+base_sha: ddf37cd14adbe04c5fe73f09e0565006eb584a38
+checkpointed: false
 ---
 
 ## Why
