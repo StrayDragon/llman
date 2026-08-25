@@ -2,7 +2,7 @@
 name: "llman-sdd-propose"
 description: "Create an llman SDD change proposal with planning artifacts (proposal/tasks; `change start`/`attach` first, then edit live specs/features on the bound branch). Use for MUST/SHALL behavioral contract changes."
 metadata:
-  version: "0.0.68"
+  version: "0.0.69"
   llman_sdd:
     bdd_mode: "on"
     skill_set: "default"
