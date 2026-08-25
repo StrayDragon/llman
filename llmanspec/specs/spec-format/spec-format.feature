@@ -47,8 +47,8 @@
     那么 相对路径 llmanspec/specs/sample/spec.toon 不存在
     那么 相对路径 llmanspec/specs/sample/sample.feature 存在
     那么 相对路径 llmanspec/specs/sample/sample.feature 内容包含 @executable
-    那么 stderr 包含 converted_from_toon 2
-    那么 stderr 包含 dropped_notes 1
+    那么 stdout 包含 converted_from_toon 2
+    那么 stdout 包含 dropped_notes 1
 
 
   @executable

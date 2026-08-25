@@ -1,5 +1,9 @@
 ---
 depends_on: []
+branch: sdd/fix-migrate-toon-scenarios-conversion
+base_sha: 038a5eb95ec2620d4e347a093c5272b1c9ac440b
+checkpointed: false
+rules_edit_acked: true
 ---
 
 ## Why

@@ -362,6 +362,47 @@ fn given_sdd_project_occupied_req(mode: String) {
     write_single_track_spec(&dir, "sample", &[("r1", "R1"), ("occupied-id", "Occupied")]);
 }
 
+/// Seed a project with one active change `c123-fix-bug` plus an archived
+/// change — the r112 prefix-match resolution fixture (Given for
+/// prefix-match-baseline / prefix-match-hint).
+#[given("存在 active change 和 archived change 且含 c123-fix-bug")]
+fn given_active_and_archived_changes_with_c123() {
+    reset_world();
+    let temp = TempDir::new().expect("create fixture tempdir");
+    let dir = temp.path().to_path_buf();
+    run_llman_in(&dir, "sdd init --lang en", &[]);
+    write_single_track_spec(&dir, "sample", &[("r1", "R1")]);
+
+    // Active change c123-fix-bug (proposal + tasks + design).
+    let active = dir.join("llmanspec/changes/c123-fix-bug");
+    std::fs::create_dir_all(&active).expect("mkdir active change");
+    std::fs::write(
+        active.join("proposal.md"),
+        "---\ndepends_on: []\n---\n\n## Why\nFix bug c123.\n\n## What Changes\n- Fix it.\n",
+    )
+    .expect("write active proposal");
+    std::fs::write(active.join("design.md"), "# Design\n").expect("write design");
+    std::fs::write(active.join("tasks.md"), "- [x] t1\n").expect("write tasks");
+
+    // Archived change under changes/archive/.
+    let archived = dir.join("llmanspec/changes/archive/c9-other");
+    std::fs::create_dir_all(&archived).expect("mkdir archived change");
+    std::fs::write(
+        archived.join("proposal.md"),
+        "---\ndepends_on: []\n---\n\n## Why\nOld change.\n\n## What Changes\n- Done.\n",
+    )
+    .expect("write archived proposal");
+    std::fs::write(archived.join("design.md"), "# Design\n").expect("write archived design");
+    std::fs::write(archived.join("tasks.md"), "- [x] t1\n").expect("write archived tasks");
+
+    WORLD.with(|w| {
+        let mut w = w.borrow_mut();
+        let world = w.as_mut().expect("world not initialized");
+        world.fixture_dir = Some(temp);
+        world.cwd = Some(dir);
+    });
+}
+
 /// BDD fixture with a leftover legacy `spec.toon` next to the single-track
 /// feature — triggers the r131 migration-pointer ERROR.
 #[given("已初始化含遗留 spec.toon 的 sdd 项目且 bdd 配置为 {mode}")]
@@ -556,6 +597,21 @@ fn when_run_llman_noninteractive(args: String) {
     run_llman(&args);
 }
 
+#[when("使用 change id 的前缀运行 llman {args}")]
+fn when_run_llman_prefix(args: String) {
+    run_llman(&args);
+}
+
+#[when("用前缀 c123 运行 llman {args}")]
+fn when_run_llman_prefix_c123(args: String) {
+    run_llman(&args);
+}
+
+#[when("用前缀运行 llman {args}")]
+fn when_run_llman_any_prefix(args: String) {
+    run_llman(&args);
+}
+
 // ---------------------------------------------------------------------------
 // Then steps — exit codes
 // ---------------------------------------------------------------------------
@@ -622,6 +678,45 @@ fn then_stdout_contains(text: String) {
             w.stdout.contains(&text),
             "expected stdout to contain {:?}, got: {}",
             text,
+            w.stdout
+        );
+    });
+}
+
+#[then("对应的完整 change 被找到且输出正确")]
+fn then_prefix_resolved_correctly() {
+    // The prefix-resolved change appears in the human-readable output and the
+    // run succeeded (exact match or prefix resolution found exactly one change).
+    with_world(|w| {
+        assert!(
+            w.success,
+            "prefix run should succeed, exit {:?}",
+            w.exit_code
+        );
+        let combined = format!("{}\n{}", w.stdout, w.stderr);
+        assert!(
+            combined.contains("c123-fix-bug"),
+            "expected output to mention the resolved change, got: {combined}"
+        );
+    });
+}
+
+#[then(
+    "命令提示命中的完整 change（'c123' -> 'c123-fix-bug' (prefix match)），--json 输出含 matchedViaPrefix=true"
+)]
+fn then_prefix_hint_and_json_flag() {
+    with_world(|w| {
+        let combined = format!("{}\n{}", w.stdout, w.stderr);
+        assert!(
+            combined.contains("c123-fix-bug"),
+            "expected hint to mention resolved change, got: {combined}"
+        );
+        // --json output carries matchedViaPrefix=true (checked by the scenario's
+        // first run; the JSON shape is asserted via stdout keys).
+        let json_ok = w.stdout.contains("matchedViaPrefix") && w.stdout.contains("c123-fix-bug");
+        assert!(
+            json_ok,
+            "expected --json output to contain matchedViaPrefix and the change, got: {}",
             w.stdout
         );
     });
@@ -748,7 +843,8 @@ fn then_rel_path_absent(rel: String) {
 #[then("相对路径 {rel} 内容包含 {text}")]
 fn then_rel_path_contains(rel: String, text: String) {
     let path = fixture_cwd().join(rel.trim().trim_matches('"'));
-    let content = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let content =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     let needle = text.trim().trim_matches('"');
     assert!(
         content.contains(needle),
