@@ -1,6 +1,9 @@
 ---
 depends_on: []
 rules_edit_acked: true
+branch: sdd/fix-toon2features-preserve-features
+base_sha: ddf37cd14adbe04c5fe73f09e0565006eb584a38
+checkpointed: false
 ---
 
 ## Why

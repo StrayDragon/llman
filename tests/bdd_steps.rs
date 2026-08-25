@@ -424,30 +424,69 @@ fn given_sdd_project_legacy_toon(mode: String) {
     .expect("write legacy toon");
 }
 
-/// BDD fixture whose legacy `spec.toon` embeds executable GWT scenario rows
-/// (feature=true) plus a note row (feature=false) — exercises the r136
-/// conversion and accounting.
-#[given("已初始化含遗留 spec.toon 且内嵌 feature=true 可执行场景的 sdd 项目且 bdd 配置为 {mode}")]
-fn given_sdd_project_legacy_toon_embedded_scenarios(mode: String) {
+/// BDD fixture with a toon-ONLY `legacy` capability (no `.feature` in the
+/// dir) — migrate creates `legacy.feature` from spec.toon alone.
+#[given("已初始化含仅遗留 spec.toon 的 legacy capability 且 bdd 配置为 {mode}")]
+fn given_sdd_project_toon_only_capability(mode: String) {
     seed_bdd_project(&mode);
     let dir = fixture_cwd();
+    let spec_dir = dir.join("llmanspec/specs/legacy");
+    std::fs::create_dir_all(&spec_dir).expect("mkdir legacy capability");
     std::fs::write(
-        dir.join("llmanspec/specs/sample/spec.toon"),
+        spec_dir.join("spec.toon"),
         concat!(
             "kind: llman.sdd.spec\n",
-            "name: \"sample\"\n",
-            "purpose: \"sample legacy\"\n",
-            "valid_scope[1]: \"llmanspec/specs/sample\"\n",
-            "requirements[2]{req_id,title,statement}:\n",
+            "name: \"legacy\"\n",
+            "purpose: \"legacy notes\"\n",
+            "valid_scope[1]: \"llmanspec/specs/legacy\"\n",
+            "requirements[1]{req_id,title,statement}:\n",
             "  r1,R1,\"System MUST do X.\"\n",
-            "  r2,R2,\"System MUST do Y.\"\n",
-            "scenarios[3]{req_id,id,given,when,then,feature}:\n",
-            "  r1,acc-1,\"precondition ready\",\"run llman sdd validate sample\",\"exit code is zero\",true\n",
-            "  r2,acc-2,\"\",\"run llman sdd status\",\"status shows sample\",true\n",
-            "  r2,note,\"\",\"a trigger\",\"an outcome\",false\n",
+            "scenarios[0]:\n",
         ),
     )
-    .expect("write legacy toon with embedded scenarios");
+    .expect("write toon-only spec.toon");
+}
+
+/// BDD fixture: `sample3` has a legacy spec.toon (GWT rows: two paired, one
+/// unpaired, one contentless) plus a live legacy multi-file `.feature` with an
+/// @executable scenario — migrate must leave the .feature untouched and
+/// convert the GWT toon rows into @human note scenarios (r136).
+#[given("已初始化含遗留 spec.toon 与既有 .feature 的 sample3 capability 且 bdd 配置为 {mode}")]
+fn given_sdd_project_toon_with_existing_features(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    let spec_dir = dir.join("llmanspec/specs/sample3");
+    std::fs::create_dir_all(&spec_dir).expect("mkdir sample3 capability");
+    std::fs::write(
+        spec_dir.join("spec.toon"),
+        concat!(
+            "kind: llman.sdd.spec\n",
+            "name: \"sample3\"\n",
+            "purpose: \"sample3 legacy\"\n",
+            "valid_scope[1]: \"llmanspec/specs/sample3\"\n",
+            "requirements[1]{req_id,title,statement}:\n",
+            "  r1,R1,\"System MUST do X.\"\n",
+            "scenarios[4]{req_id,id,given,when,then,feature}:\n",
+            "  r1,acc-1,\"precondition ready\",\"run llman sdd validate sample3\",\"exit code is zero\",true\n",
+            "  r1,acc-2,\"\",\"run llman sdd status\",\"status shows sample3\",true\n",
+            "  r404,orphan,\"\",\"a trigger\",\"an outcome\",true\n",
+            "  r1,note,\"\",\"\",\"\",false\n",
+        ),
+    )
+    .expect("write sample3 spec.toon");
+    std::fs::write(
+        spec_dir.join("legacy-acc.feature"),
+        concat!(
+            "# language: en\n",
+            "Feature: sample3 legacy acceptance\n",
+            "  @req:r1 @executable\n",
+            "  Scenario: legacy-acc\n",
+            "    Given seeded\n",
+            "    When noop\n",
+            "    Then ok\n",
+        ),
+    )
+    .expect("write sample3 legacy .feature");
 }
 
 /// BDD-on fixture whose acceptance `@req` points at a missing rule id.

@@ -420,20 +420,27 @@ impl FeatureBackend {
     /// Deterministically render a main spec back to single-track gherkin
     /// (canonical form: zh-CN keywords, requirements as `@human` rules).
     pub fn dump_main_spec(&self, doc: &MainSpecDoc) -> Result<String> {
+        self.dump_main_spec_lang(doc, "zh-CN")
+    }
+
+    /// Language-aware variant of [`FeatureBackend::dump_main_spec`]: keywords
+    /// and the `# language:` header follow `lang` (see [`keywords_for`]).
+    pub fn dump_main_spec_lang(&self, doc: &MainSpecDoc, lang: &str) -> Result<String> {
+        let kw = keywords_for(lang);
         let mut out = String::new();
-        let _ = writeln!(out, "# language: zh-CN");
+        let _ = writeln!(out, "# language: {lang}");
         let _ = writeln!(out, "# capability: {}", doc.name.trim());
         let _ = writeln!(out, "# purpose: {}", doc.purpose.trim());
         if !doc.valid_scope.is_empty() {
             let _ = writeln!(out, "# scope: {}", doc.valid_scope.join(", "));
         }
         let _ = writeln!(out);
-        let _ = writeln!(out, "功能: {}", doc.name.trim());
+        let _ = writeln!(out, "{}: {}", kw.feature, doc.name.trim());
 
         for req in &doc.requirements {
             let _ = writeln!(out);
             let _ = writeln!(out, "  @req:{} @human", req.req_id);
-            let _ = writeln!(out, "  场景: {}", req.title);
+            let _ = writeln!(out, "  {}: {}", kw.scenario, req.title);
             // Bullet-prefix each statement line: free text starting with a
             // Gherkin keyword (e.g. a line beginning with `场景`/`当`) would
             // otherwise be parsed as structure and break the file.
@@ -452,10 +459,14 @@ impl FeatureBackend {
             }
             let _ = writeln!(out);
             let _ = writeln!(out, "  @req:{} @executable", sc.req_id);
-            let _ = writeln!(out, "  场景: {}", sc.id);
+            let _ = writeln!(out, "  {}: {}", kw.scenario, sc.id);
             // Collapse multi-line step values to one physical line: bare
             // continuation lines would re-parse as bogus steps.
-            for (kw, field) in [("假如", &sc.given), ("当", &sc.when_), ("那么", &sc.then_)] {
+            for (kw_str, field) in [
+                (kw.given, &sc.given),
+                (kw.when, &sc.when_),
+                (kw.then, &sc.then_),
+            ] {
                 let value = field
                     .split('\n')
                     .map(str::trim)
@@ -463,7 +474,7 @@ impl FeatureBackend {
                     .collect::<Vec<_>>()
                     .join(" ");
                 if !value.is_empty() {
-                    let _ = writeln!(out, "    {kw} {value}");
+                    let _ = writeln!(out, "    {kw_str} {value}");
                 }
             }
         }
@@ -729,5 +740,27 @@ Feature: t
         assert_eq!(doc.name, reparsed.name);
         assert_eq!(doc.requirements, reparsed.requirements);
         assert_eq!(doc.scenarios, reparsed.scenarios);
+    }
+
+    #[test]
+    fn dump_main_spec_lang_renders_keyword_sets() {
+        let doc = FEATURE_BACKEND.parse_main_spec(ZH_SAMPLE, "t").unwrap();
+        let zh = FEATURE_BACKEND.dump_main_spec_lang(&doc, "zh-CN").unwrap();
+        assert!(zh.contains("# language: zh-CN"));
+        assert!(zh.contains("功能: "));
+        assert!(zh.contains("场景: "));
+        assert!(zh.contains("假如 "));
+        // dump_main_spec stays the zh-CN canonical form.
+        assert_eq!(FEATURE_BACKEND.dump_main_spec(&doc).unwrap(), zh);
+
+        let en = FEATURE_BACKEND.dump_main_spec_lang(&doc, "en").unwrap();
+        assert!(en.contains("# language: en"));
+        assert!(en.contains("Feature: "));
+        assert!(en.contains("Scenario: "));
+        assert!(en.contains("Given "));
+        // English output must re-parse to the same IR.
+        let reparsed = FEATURE_BACKEND.parse_main_spec(&en, "en").unwrap();
+        assert_eq!(reparsed.requirements, doc.requirements);
+        assert_eq!(reparsed.scenarios, doc.scenarios);
     }
 }
