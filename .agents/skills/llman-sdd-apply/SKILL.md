@@ -108,7 +108,7 @@ llman sdd show <id> --json --type change
 运行项目门禁命令（根据项目实际选择）：
 - 相关测试集：`just test` 或 `cargo test --all`
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
-- Git-native：留在绑定 feature 分支；按需编辑 live `llmanspec/specs/<capability>/<capability>.feature`；spec 改动后跑 `llman sdd validate --specs`。勿在每个 task 后跑 `checkpoint`。勿使用 `change delta` / solidify / feature_delta。
+- Git-native：留在绑定 feature 分支；按需编辑 live `llmanspec/specs/<capability>/<capability>.feature`（规则 `@human`，验收 `@executable`）；spec 改动后跑 `llman sdd validate --specs`。勿在每个 task 后跑 `checkpoint`。勿使用 `change delta` / solidify / feature_delta。
 - SDD 校验：`llman sdd validate <id> --strict --no-interactive`
 
 **若失败 → 进入自修复循环（不要问要不要继续）：**
