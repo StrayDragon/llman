@@ -1,5 +1,6 @@
 ---
 depends_on: []
+rules_edit_acked: true
 ---
 
 本草案将走完整 SDD 流程（Branch binding → Specs landing）：必须编辑 live
