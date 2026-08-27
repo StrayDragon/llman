@@ -85,10 +85,10 @@ pub fn build_docs(parsed: &[(String, MainSpecDoc)]) -> Vec<DocNode> {
                     statement: r.statement.clone(),
                 })
                 .collect(),
-            // Keep only `feature: true` scenarios from toon as a legacy fallback;
-            // primary harness embed comes from `.feature` files when BDD-on.
-            // `feature: false` scenarios stay in `spec.toon` as documentation
-            // only and are intentionally excluded from the retrieval index.
+            // Single-track (r131/r79 landed): docs come only from parsed
+            // `.feature` files; `feature` is an IR-compat flag that is true
+            // for harness-derived scenarios. Non-harness rows never reach
+            // the retrieval index.
             scenarios: doc
                 .scenarios
                 .iter()

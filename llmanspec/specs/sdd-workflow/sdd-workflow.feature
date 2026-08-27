@@ -111,7 +111,7 @@
 
   @req:r114 @human
   场景: spec scaffold 脚手架与书写指引
-    - llman sdd spec skeleton <capability>（命令名对齐 spec-format r133）MUST 生成合规的单载体骨架：仅创建 llmanspec/specs/<capability>/<capability>.feature（含 # language/# capability/# purpose/# scope 头注释、一个 @req:<id> @human 示例约束场景与一个挂接该 req 的 @executable 示例验收场景）。skeleton MUST 通过 next-req-id 分配首个未占用 req_id 写入示例行。--help 与错误提示 MUST 嵌入格式示例（头注释规则、@req 链接规则），让 agent 一次写对。skeleton MUST 拒绝覆盖已存在的 spec 目录（除非 --force）。skeleton 创建的文件 MUST 能直接通过 validate --strict。
+    - llman sdd spec skeleton <capability>（命令名对齐 spec-format r133）MUST 生成合规的单载体骨架：仅创建 llmanspec/specs/<capability>/<capability>.feature（含 # language/# capability/# purpose/# scope 头注释与一个 @req:<id> @human 示例约束场景；@executable 示例默认不生成，避免下游 harness 绑定面扩大）。skeleton MUST 通过 next-req-id 分配首个未占用 req_id 写入示例行。--help 与错误提示 MUST 嵌入格式示例（头注释规则、@req 链接规则），让 agent 一次写对。skeleton MUST 拒绝覆盖已存在的 spec 目录（除非 --force）。skeleton 创建的文件 MUST 能直接通过 validate --strict。
 
   @req:r115 @human
   场景: 废除 change delta 与 change/specs 路径

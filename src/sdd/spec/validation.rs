@@ -240,8 +240,9 @@ pub fn resolve_spec_file(specs_root: &Path, id: &str) -> Result<std::path::PathB
     }
     if dir.join(SPEC_FILE).exists() {
         return Err(anyhow::anyhow!(
-            "legacy `spec.toon` found for `{id}`; the single-track format no longer reads it — \
-             run `llman sdd project migrate --kind toon2features`"
+            "legacy `spec.toon` found under `{}` (spec `{id}`): the single-track format reads \
+             only `<capability>.feature` files — run `llman sdd project migrate --kind toon2features`",
+            dir.display()
         ));
     }
     let features = discover_features(&dir);

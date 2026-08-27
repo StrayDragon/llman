@@ -1693,13 +1693,13 @@ sdd:
     next_steps:
       en: "Next steps:"
     change_step_1:
-      en: "- Edit live `llmanspec/specs/**` on the feature branch (`spec.toon` for constraints, `*.feature` for executable GWT when `bdd:` is configured); run `llman sdd change start <id>` or `change attach <id>`"
+      en: "- Edit the capability's single-track `llmanspec/specs/<capability>.feature` on the feature branch (@human constraints and @executable acceptance share one track, linked via @req); run `llman sdd change start <id>` or `change attach <id>`"
     change_step_2:
       en: "- Ensure proposal.md, design.md (if needed), and tasks.md are complete before apply"
     change_step_3:
       en: "- Debug change state: llman sdd show <id> --json --type change"
     change_step_1_bdd_on:
-      en: "- Edit live `llmanspec/specs/**` on the feature branch (`spec.toon` for constraints, `*.feature` for executable GWT when `bdd:` is configured); run `llman sdd change start <id>` or `change attach <id>`"
+      en: "- Edit the capability's single-track `llmanspec/specs/<capability>.feature` on the feature branch (@human constraints and @executable acceptance share one track, linked via @req); run `llman sdd change start <id>` or `change attach <id>`"
     spec_step_1:
       en: "- Ensure spec ISON includes `purpose` and `requirements`"
     spec_step_2:
@@ -1752,7 +1752,7 @@ sdd:
     meta_field_empty:
       en: "Spec %{key} must not be empty (add it inside the .toon document)."
     empty_requirements:
-      en: "Spec declares no requirements. Add at least one requirement with a MUST/SHALL statement to spec.toon."
+      en: "Spec declares no requirements. Add at least one rule scenario with a MUST/SHALL statement to the capability's `<capability>.feature`."
     check_deprecated_no_bdd:
       en: "--check has no effect without bdd configuration. Configure `bdd:` in llmanspec/config.yaml to enable BDD check."
     bdd_next_step_verify:
@@ -1857,53 +1857,6 @@ sdd:
     totals:
       en: "Totals: %{written} written, %{skipped} skipped."
       zh-Hans: "合计：%{written} 写入，%{skipped} 跳过。"
-    migrate_start:
-      en: "Solidify-migrate: scanning llmanspec/specs/ for BDD-on specs to upgrade…"
-      zh-Hans: "Solidify-migrate：扫描 llmanspec/specs/ 以升级 BDD-on spec…"
-    migrate_no_candidates:
-      en: "No BDD-on specs need migration (all specs already have full structure)."
-      zh-Hans: "没有需要迁移的 BDD-on spec（所有 spec 已为完整结构）。"
-    migrate_summary:
-      en: "Migrated %{count} spec(s) from .feature files into spec.toon (all scenarios feature=true)."
-      zh-Hans: "已从 .feature 文件迁移 %{count} 个 spec 到 spec.toon（所有 scenario 的 feature=true）。"
-    migrate_dry_run_summary:
-      en: "[dry-run] would migrate %{count} spec(s)."
-      zh-Hans: "[dry-run] 将迁移 %{count} 个 spec。"
-    migrate_spec_done:
-      en: "  migrated %{spec}: %{reqs} requirement(s), %{scenarios} scenario(s)"
-      zh-Hans: "  已迁移 %{spec}：%{reqs} 个 requirement，%{scenarios} 个 scenario"
-    consistency_ok:
-      en: "solidify: consistency ok"
-      zh-Hans: "solidify：consistency ok"
-    consistency_cap_ok:
-      en: "%{capability}: consistency ok"
-      zh-Hans: "%{capability}：consistency ok"
-    consistency_cap_fail:
-      en: "%{capability}: consistency failed (%{count} issue(s))"
-      zh-Hans: "%{capability}：consistency 失败（%{count} 个问题）"
-    consistency_failed:
-      en: "solidify consistency failed"
-      zh-Hans: "solidify consistency 失败"
-    partition_migrate_start:
-      en: "Partition-migrate: scanning llmanspec/specs/ for Partitioned SSOT…"
-      zh-Hans: "Partition-migrate：扫描 llmanspec/specs/ 以应用 Partitioned SSOT…"
-    partition_migrate_bdd_off:
-      en: "BDD is not configured — partition-migrate is a no-op."
-      zh-Hans: "BDD 未配置——partition-migrate 是 no-op。"
-    partition_migrate_none:
-      en: "No specs directory to migrate."
-      zh-Hans: "没有可迁移的 specs 目录。"
-    partition_migrate_already_done:
-      en: "No remaining Partitioned work (already migrated or constraints-only)."
-      zh-Hans: "没有剩余 Partitioned 工作（已迁移或仅约束层）。"
-    partition_migrate_summary:
-      en: "Partition-migrated %{count} spec(s)."
-      zh-Hans: "已 partition-migrate %{count} 个 spec。"
-    partition_migrate_dry_run:
-      en: "[dry-run] would partition-migrate %{count} spec(s)."
-      zh-Hans: "[dry-run] 将 partition-migrate %{count} 个 spec。"
-
-
 skills:
   not_implemented:
     en: "Skills manager is not implemented yet."

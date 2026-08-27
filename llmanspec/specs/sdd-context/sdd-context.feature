@@ -15,7 +15,7 @@
 
   @req:r79 @human
   场景: Feature Embedding 单次且 feature 优先
-    - index_rebuild 在 BDD-on 时 MUST 解析并编入全部 *.feature 场景。req_id 取自 @req 标签；无标签时可为 spec-level 空 req_id 并在 validate 中按门禁告警。畸形 .feature MUST 跳过并警告而非中止 rebuild；遇遗留 spec.toon MUST 按 spec-format r131 报 ERROR（rebuild 不静默吞掉）。
+    - index_rebuild 在 BDD-on 时 MUST 解析并编入全部 *.feature 场景。req_id 取自 @req 标签；无标签时可为 spec-level 空 req_id 并在 validate 中按门禁告警。畸形 .feature MUST 跳过并警告而非中止 rebuild；含遗留 spec.toon 的 capability 目录 MUST 被整目录跳过，stderr 输出警告并指引 `project migrate --kind toon2features`（不静默、不中止其余 capability 的编入）。
 
   @req:r97 @human
   场景: context 对 stale/missing 懒刷新
