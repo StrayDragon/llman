@@ -335,14 +335,9 @@ impl TreeSitterProcessor {
         }
 
         // Check preservation patterns
-        if preserve_regexes
+        !preserve_regexes
             .iter()
             .any(|regex| regex.is_match(&comment.text))
-        {
-            return false;
-        }
-
-        true
     }
 
     pub fn remove_comments_from_content(
