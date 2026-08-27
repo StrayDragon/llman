@@ -72,6 +72,7 @@ flowchart LR
 > 💡 验证通过 → 下一步 `llman-sdd-archive`（归档）；有 CRITICAL → 回到 `llman-sdd-apply`（修复）
 
 {{ unit("skills/git-native-flow-brief") }}
+{{ unit("skills/human-readable-summary") }}
 {{ unit("skills/sdd-commands") }}
 
 {{ unit("skills/structured-protocol") }}

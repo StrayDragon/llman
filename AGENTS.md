@@ -86,6 +86,19 @@ Cargo equivalents use `cargo +nightly ...`.
 - Editing `locales/*.yml` triggers rebuild automatically (`build.rs` declares `rerun-if-changed`); no need to touch sources after translation edits.
 - When editing `templates/sdd/**`, run `just check-sdd-templates` (also in `just check-all`).
 
+## Human Review Checkpoint (SDD)
+
+Run `llman sdd review` at three fixed moments: after each apply task batch, before
+verify→finalize, and before any archive.
+
+- Treat `pending`/`unbound` as planning debt to schedule, `stale` as spec-vs-code drift
+  to resolve.
+- `locked` hints are prompts to inspect `llman sdd change diff <id>` — never re-edit
+  locked rules without `rules_edit_acked`.
+- Nonzero exit = CRITICAL findings: stop and fix before proceeding.
+- Contract disputes discovered during review go back through explore/propose, never
+  edited ad-hoc.
+
 ## 统一 Git-native 变更流程（单轨 feature-as-spec）
 
 标准术语（禁止用「车道」等隐喻替代）：
