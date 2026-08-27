@@ -29,6 +29,12 @@ sdd-review-aggregate-html-view（命令化落地）、refactor-show-spec-deepen�
 - **T3 单文件 HTML 视图**：--export-html 输出离线静态页（capability 总览表 +
   capability↔req↔scenario 层级节点图 + 过滤器），零运行时依赖、无本地 server。
 
+## Capabilities
+
+- 新建 `sdd-review`：S1 命令面 / S2 HTML 产物 / S4 数据互恰的 @human 与 @executable 归属
+  （req id 自 r5 起全局分配）。
+- 行为冻结面引用既有 `spec-format`（r133/r134）与 `sdd-workflow`（r39 口径），不改动其文本。
+
 ## Non-goals
 
 - LSP/编辑器插件与常驻 watch 服务缓行；crate/workspace 拆分归属 workspace-split-build-tune。
