@@ -27,13 +27,26 @@ pub struct SddSpecArgs {
 
 #[derive(Subcommand)]
 pub enum SddSpecCommands {
-    /// Generate a main spec skeleton for a capability.
+    /// Generate a single-track spec skeleton for a capability (r114).
     ///
-    /// Produces `llmanspec/specs/<cap>/spec.toon` with empty requirements/scenarios
-    /// tables and a pre-allocated next-req-id hint. When `bdd:` is configured,
-    /// also writes `<cap>.feature` with `# language` + `@req:` placeholder.
+    /// Creates ONLY `llmanspec/specs/<cap>/<cap>.feature`:
     ///
-    /// Use `add-requirement` / `add-scenario` to fill content.
+    /// ```text
+    /// # language: en            (or zh-CN per config)
+    /// # capability: <cap>
+    /// # purpose: TODO: Describe this capability and its purpose.
+    /// # scope: src/
+    ///
+    /// Feature: <cap>
+    ///
+    ///   @req:rN @human
+    ///   Scenario: TODO-rule
+    ///     System MUST ...
+    /// ```
+    ///
+    /// `rN` is pre-allocated via `next-req-id`. The output passes
+    /// `validate --strict` as-is. Use `add-requirement` /
+    /// `add-scenario` to grow it; pass `--force` to overwrite.
     #[command(verbatim_doc_comment)]
     Skeleton {
         /// Capability / spec id
@@ -327,7 +340,12 @@ pub enum SddProjectCommands {
         #[arg(long)]
         no_interactive: bool,
     },
-    /// Convert legacy `spec.md` (YAML frontmatter + fenced \`\`\`toon) to canonical `spec.toon`
+    /// Convert legacy standalone `spec.toon` carriers into per-capability
+    /// single-track specs (`toon2features`, r136).
+    ///
+    /// This is the only migration kind: `--kind spec-md2toon`,
+    /// `--kind partitioned` and alias `partition-migrate` are rejected at the
+    /// parser so agents see the valid kind instead of a raw clap error.
     Migrate {
         /// Migration kind (only `toon2features` is supported; legacy
         /// `spec-md2toon` is rejected here so agents see the valid kind)
@@ -844,7 +862,7 @@ fn run_command(args: &SddArgs) -> Result<()> {
                 yes,
                 no_interactive,
             } => {
-                let _ = kind; // only "spec-md2toon" is accepted by clap
+                let _ = kind; // clap value_parser admits only "toon2features" (r136)
                 migrate::run(migrate::MigrateArgs {
                     dry_run: *dry_run,
                     force: *force,

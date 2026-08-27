@@ -306,23 +306,9 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
         .parse_content(&content, &format!("spec `{spec_id}`"))?;
     let morphology = Some(compute_rule_morphology(&parsed));
 
-    // Harness summaries cover both tiers: acceptance scenarios carry GWT;
-    // constraint rules surface their statement text.
-    let harness_summaries: Vec<serde_json::Value> = parsed
-        .scenarios
-        .iter()
-        .map(|sc| {
-            serde_json::json!({
-                "id": sc.name,
-                "tier": sc.tier.map(|t| t.as_str()).unwrap_or("untagged"),
-                "reqIds": sc.req_ids,
-                "given": sc.given.join("\n"),
-                "when": sc.when_.join("\n"),
-                "then": sc.then_.join("\n"),
-                "statement": feature_backend::rule_statement(sc),
-            })
-        })
-        .collect::<Vec<_>>();
+    // Single-track summaries (r60 retired): constraints and executable
+    // scenarios share one `.feature` source; `requirements` below carries
+    // the @human tier and `scenarios` on each entry carry GWT when present.
 
     if args.json {
         if args.requirements && args.requirement.is_some() {
@@ -352,8 +338,6 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
             "requirementCount": rule_count,
             "requirements": requirements_json,
             "morphology": morphology,
-            "constraints": requirements_json,
-            "harness": harness_summaries,
         });
         print_json(&output, args.compact_json)?;
         return Ok(());

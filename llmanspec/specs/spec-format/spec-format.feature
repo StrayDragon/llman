@@ -84,6 +84,16 @@
 
 
   @executable
+  @req:r131
+  场景: legacy-spec-toon-error-message-is-actionable
+    假如 已初始化含遗留 spec.toon 的 sdd 项目且 bdd 配置为 "off"
+    当 在非交互终端运行 llman sdd validate sample --strict --no-check
+    那么 退出码非零
+    那么 stderr 包含 spec.toon
+    那么 stderr 包含 project migrate
+
+
+  @executable
   @req:r132
   场景: dangling-req-link-fails-strict
     假如 已初始化含无效 @req 的 sdd 项目且 bdd 配置为 on
