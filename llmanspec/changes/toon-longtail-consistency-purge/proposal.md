@@ -1,6 +1,9 @@
 ---
 depends_on: []
 rules_edit_acked: true
+branch: sdd/toon-longtail-consistency-purge
+base_sha: 16f595920f03d725551128ed0e9c1ccbf1ac79b7
+checkpointed: false
 ---
 
 本草案将走完整 SDD 流程（Branch binding → Specs landing）：必须编辑 live
