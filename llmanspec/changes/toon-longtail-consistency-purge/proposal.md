@@ -41,13 +41,16 @@ spec.toon 废除（spec-format r130：live 口径收窄为 `llmanspec/specs/**/*
 - 不引入任何新的 spec 载体格式。
 - 不改变三态 stage、Specs landing、lock gate 的行为语义。
 
-## Open Questions
+## Resolved Decisions
 
-- r60（show 分段展示 Constraints 与 Harness）在 spec.toon 废除后，「来自 spec.toon 的
-  requirements」这一半已无对象：分段语义整体重述为 `@human/@executable` 两类场景摘要，
-  还是整条 requirement 删除？涉及锁定规则改动，须先走 ack 流程。
-- discovery 的 legacy resolver 宽容度：命中 spec.toon 时从"仍计入解析"改为"直接报 ERROR +
-  指引 toon2features"，还是维持现状？影响 sdd-bdd-mode-compat 既有断言。
+- **r60 处置：整条删除。** 单载体世界不存在「来自 spec.toon 的 requirements」，
+  Constraints/Harness 双源分段语义随之消亡；show/list 若保留了分段渲染代码一并拆除。
+  删除锁定 @human 规则须人工 ack —— 用户已于探索阶段显式确认本条删除，
+  propose 时据此写入 frontmatter `rules_edit_acked: true`。
+- **discovery 硬 ERROR，零债务。** 主库命中任何 spec.toon 即非零退出 +
+  指引 `project migrate --kind spec-md2toon`；移除 "Legacy spec.toon still counts"
+  的宽容解析路径及 `SPEC_FILE` 相关双载体兼容代码。走完全新逻辑，不保留旧分支。
+  迁移入口仅保留 md2toon 一个。
 
 ## Verification Sketch
 
