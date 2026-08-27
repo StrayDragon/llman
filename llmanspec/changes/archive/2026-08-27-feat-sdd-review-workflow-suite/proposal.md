@@ -2,8 +2,9 @@
 depends_on: []
 branch: sdd/feat-sdd-review-workflow-suite
 base_sha: 16f595920f03d725551128ed0e9c1ccbf1ac79b7
-checkpointed: false
+checkpointed: true
 rules_edit_acked: true
+checkpoint_sha: 16f595920f03d725551128ed0e9c1ccbf1ac79b7
 ---
 
 合并自三个草案：sdd-human-review-flow-tuneup（流程约定）、
