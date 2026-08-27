@@ -21,13 +21,9 @@
   场景: 变更规模分类与路径选择（Triage）
     - SDD 工作流 MUST 在提案阶段前引入变更规模分类步骤，帮助 agent 选择合适的工作路径。分类规则 MUST 包含：- 行为合约变更：修改 MUST/SHALL 定义的外部可观测行为 → 走完整 SDD 流程（proposal + tasks；design 可选；进 feature 分支编辑 live specs；archive + ff-merge）- 实现变更：不改变外部行为只改变内部实现 → 走快速路径（直接改代码，无需 change 目录）- 治理/工具变更：修改 CI/工具配置 → 仅创建 proposal.md 记录 why- 元规范变更：修改 SDD 规范/模板/流程本身 → 走完整 SDD 流程（自举）当变更性质不明确时 agent MUST 升级为完整 SDD 流程而非猜测。统一 Git-native 流程下不再有 change/specs/ delta 路径。
 
-  @req:r60 @human
-  场景: show 分段展示 Constraints 与 Harness
-    - llman sdd show <spec-id> --type spec MUST 分段展示 Constraints（来自 spec.toon 的 requirements 与不可执行 scenarios）与 Harness（来自 *.feature 的场景摘要）。--json MUST 提供同构字段。MUST NOT 将可执行 GWT 从 toon scenarios 再完整打印一份。
-
   @req:r61 @human
   场景: 统一 Git-native 流水线
-    - 流水线 propose/apply/verify/archive MUST 统一为 Git-native 单轨流程，不再区分 BDD-on / BDD-off 的命令分叉：Designed 阶段仅维护 changes/<id>/ 规划壳；change start（或 attach）完成 Branch binding 后，才在绑定分支编辑 live specs（约束与不可执行场景编辑 spec.toon；BDD-on 时可执行场景编辑 *.feature 并用 @req 挂回）形成 Specs landing；archive 在 docs rename 后自动 ff-merge 回分叉点（一般是默认分支）才是 specs 合入默认分支的正常窗口。Skills 与 validate 阶段感知 MUST 与此统一流程及 r1 Specs landing 门禁一致。MUST NOT 提供 change delta / solidify / feature_delta / change/specs/ delta 路径（已废除，零兼容）。
+    - 流水线 propose/apply/verify/archive MUST 统一为 Git-native 单轨流程，不再区分 BDD-on / BDD-off 的命令分叉：Designed 阶段仅维护 changes/<id>/ 规划壳；change start（或 attach）完成 Branch binding 后，才在绑定分支编辑 live specs（每个 capability 唯一的 <capability>.feature：@human 约束与 @executable 验收同轨单文件，@executable 用 @req 挂回约束，见 spec-format）形成 Specs landing；archive 在 docs rename 后自动 ff-merge 回分叉点（一般是默认分支）才是 specs 合入默认分支的正常窗口。Skills 与 validate 阶段感知 MUST 与此统一流程及 r1 Specs landing 门禁一致。MUST NOT 提供 change delta / solidify / feature_delta / change/specs/ delta 路径（已废除，零兼容）。
 
   @req:r87 @human
   场景: spec next-req-id 分配器
@@ -59,7 +55,7 @@
 
   @req:r100 @human
   场景: explore grilling 深对齐分支
-    - llman-sdd-explore 技能 MUST 支持可选 grilling 分支：仅当用户显式触发（如说『深挖』『grill』『逐个问』『彻底理清』）时进入。该分支 MUST 一次只问一个问题并附推荐答案；MUST 优先通过读取 spec.toon/代码/运行命令自行查证事实而非询问用户，仅把决策性问题交由用户；MUST 将已解决的决策回写到该 change 的 proposal.md（BDD-on 写 feature 分支）。完成判据 MUST 为决策树每一分支均已解决或显式 defer。默认 explore 行为（问 1-3 个问题）MUST 不变。
+    - llman-sdd-explore 技能 MUST 支持可选 grilling 分支：仅当用户显式触发（如说『深挖』『grill』『逐个问』『彻底理清』）时进入。该分支 MUST 一次只问一个问题并附推荐答案；MUST 优先通过读取 <capability>.feature/代码/运行命令自行查证事实而非询问用户，仅把决策性问题交由用户；MUST 将已解决的决策回写到该 change 的 proposal.md（BDD-on 写 feature 分支）。完成判据 MUST 为决策树每一分支均已解决或显式 defer。默认 explore 行为（问 1-3 个问题）MUST 不变。
 
   @req:r101 @human
   场景: propose seam 前置确认与垂直切片 tasks
@@ -71,7 +67,7 @@
 
   @req:r103 @human
   场景: verify 双轴审查
-    - llman-sdd-verify 技能的审查 MUST 分两轴分离呈现且互不污染：Spec 轴（实现是否满足 spec.toon 的 MUST/SHALL 与 *.feature 的 GWT，含缺失/部分/scope creep/错误实现）与 Standards 轴（代码是否符合 AGENTS.md coding style 加 Fowler smell baseline：Mysterious Name/Duplicated Code/Feature Envy/Data Clumps/Primitive Obsession/Repeated Switches/Shotgun Surgery/Divergent Change/Speculative Generality/Message Chains/Middle Man/Refused Bequest）。Standards 轴的权威优先级 MUST 为 AGENTS.md 文档标准高于 smell baseline，且 MUST 跳过 tooling 已强制项。smell 标记 MUST 为判断性启发而非硬违规。
+    - llman-sdd-verify 技能的审查 MUST 分两轴分离呈现且互不污染：Spec 轴（实现是否满足 *.feature 中 @human 约束场景的 MUST/SHALL 与 @executable 验收的 GWT，含缺失/部分/scope creep/错误实现）与 Standards 轴（代码是否符合 AGENTS.md coding style 加 Fowler smell baseline：Mysterious Name/Duplicated Code/Feature Envy/Data Clumps/Primitive Obsession/Repeated Switches/Shotgun Surgery/Divergent Change/Speculative Generality/Message Chains/Middle Man/Refused Bequest）。Standards 轴的权威优先级 MUST 为 AGENTS.md 文档标准高于 smell baseline，且 MUST 跳过 tooling 已强制项。smell 标记 MUST 为判断性启发而非硬违规。
 
   @req:r104 @human
   场景: arch-review 独立 skill
@@ -86,8 +82,8 @@
     - 系统 MUST 提供 llman-sdd-research 技能（model-invoked，metadata.llman_sdd.skill_set 为 optional，metadata.llman_sdd.bdd_mode 与 config 一致）：以后台 agent 委托外部文献调研，针对 primary sources（官方文档/源码/第一方 API）而非二手转述，产出 cited markdown 回写到该 change proposal 的 Further Notes 段。
 
   @req:r107 @human
-  场景: 领域语言治理回写 spec.toon
-    - llman-sdd-explore 的 grilling 分支与领域语言治理 MUST 在遇到术语冲突或模糊词时挑战并 sharpening：解决后 MUST 更新对应 spec.toon 的 requirement statement（BDD-on 在 feature 分支编辑 live 文件）。MUST NOT 另建 CONTEXT.md glossary 作为第二权威。ADR 记录 MUST 仅当『难逆转 + 无上下文会困惑 + 真实权衡』三者皆满足时建议，记入 design.md。
+  场景: 领域语言治理回写 .feature
+    - llman-sdd-explore 的 grilling 分支与领域语言治理 MUST 在遇到术语冲突或模糊词时挑战并 sharpening：解决后 MUST 更新对应 <capability>.feature 中的 @human 约束场景描述（在绑定分支编辑 live 文件）。MUST NOT 另建 CONTEXT.md glossary 作为第二权威。ADR 记录 MUST 仅当『难逆转 + 无上下文会困惑 + 真实权衡』三者皆满足时建议，记入 design.md。
 
   @req:r108 @human
   场景: AGENTS.md 增强能力路由
@@ -115,11 +111,11 @@
 
   @req:r114 @human
   场景: spec scaffold 脚手架与书写指引
-    - llman sdd spec scaffold <capability> MUST 生成合规的 spec 目录骨架：llmanspec/specs/<capability>/spec.toon（含 kind/name/purpose/valid_scope/requirements/scenarios 表头与一行示例）+ 可选 .feature 骨架（BDD-on 时，含 # language 头与一个 @req 示例场景）。scaffold MUST 通过 next-req-id 分配首个未占用 req_id 写入示例行。scaffold 的 --help 与错误提示 MUST 嵌入格式示例（表格化行引号规则、@req 链接规则、Partitioned SSOT 说明），让 agent 一次写对。scaffold MUST 拒绝覆盖已存在的 spec 目录（除非 --force）。scaffold 创建的文件 MUST 能直接通过 validate --strict。
+    - llman sdd spec skeleton <capability>（命令名对齐 spec-format r133）MUST 生成合规的单载体骨架：仅创建 llmanspec/specs/<capability>/<capability>.feature（含 # language/# capability/# purpose/# scope 头注释、一个 @req:<id> @human 示例约束场景与一个挂接该 req 的 @executable 示例验收场景）。skeleton MUST 通过 next-req-id 分配首个未占用 req_id 写入示例行。--help 与错误提示 MUST 嵌入格式示例（头注释规则、@req 链接规则），让 agent 一次写对。skeleton MUST 拒绝覆盖已存在的 spec 目录（除非 --force）。skeleton 创建的文件 MUST 能直接通过 validate --strict。
 
   @req:r115 @human
   场景: 废除 change delta 与 change/specs 路径
-    - llman sdd change delta（及其 skeleton/add-req/add-scenario 子命令）MUST 被移除：任何模式下调用 MUST 以非零退出失败并提示 'change delta is removed; edit live specs on a feature branch via change start / attach'。change/specs/ 目录 MUST 不再被 determine_stage / archive / validate / parser 读取或扫描。archive MUST 不再合并 TOON delta（r113 的 ff-merge 取代之）。llman-sdd-sync skill 模板 MUST 被移除（统一 Git-native 后无 sync 概念）。project migrate 仅保留 --kind spec-md2toon；`--kind partitioned` / 隐藏别名 partition-migrate MUST 以非零退出拒绝（零兼容），遗留 change/specs/ 或 *.feature.delta.toon 须人工清理或另开 change。
+    - llman sdd change delta（及其 skeleton/add-req/add-scenario 子命令）MUST 被移除：任何模式下调用 MUST 以非零退出失败并提示 'change delta is removed; edit live specs on a feature branch via change start / attach'。change/specs/ 目录 MUST 不再被 determine_stage / archive / validate / parser 读取或扫描。archive MUST 不再合并 TOON delta（r113 的 ff-merge 取代之）。llman-sdd-sync skill 模板 MUST 被移除（统一 Git-native 后无 sync 概念）。project migrate 仅保留 --kind toon2features；`--kind spec-md2toon` / `--kind partitioned` / 隐藏别名 partition-migrate MUST 以非零退出拒绝并友好提示仅支持 toon2features（见 spec-format r136，零兼容），遗留 change/specs/ 或 *.feature.delta.toon 须人工清理或另开 change。
 
   @req:r124 @human
   场景: proposal frontmatter schema 守卫

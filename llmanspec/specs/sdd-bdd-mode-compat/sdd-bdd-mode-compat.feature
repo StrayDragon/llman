@@ -7,7 +7,7 @@
 
   @req:r26 @human
   场景: validate 的 check 语义（runner 开关）
-    - validate 的 --check/--no-check 行为 MUST 按 bdd 段是否存在切换（此时 bdd 段仅作为 runner 开关，不再影响流程）：含 bdd 段时默认执行 bdd.run_command（对 live 分支树中的真实 .feature），--no-check 跳过；不含 bdd 段时 --check 不执行 runner 且不视为错误（仅输出 INFO）。统一流程下无论 bdd 段有无，validate 都校验 spec.toon 的 requirements 与 Gherkin 解析（若 .feature 存在）。
+    - validate 的 --check/--no-check 行为 MUST 按 bdd 段是否存在切换（此时 bdd 段仅作为 runner 开关，不再影响流程）：含 bdd 段时默认执行 bdd.run_command（对 live 分支树中的真实 .feature），--no-check 跳过；不含 bdd 段时 --check 不执行 runner 且不视为错误（仅输出 INFO）。统一流程下无论 bdd 段有无，validate 都按 spec-format r131 校验各 <capability>.feature 的结构与 Gherkin 解析；遇遗留 spec.toon MUST 报 ERROR 并提示 toon2features。
 
   @req:r57 @human
   场景: Git-native change binding（统一流程）

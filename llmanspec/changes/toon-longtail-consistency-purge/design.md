@@ -27,7 +27,7 @@
 | sdd-context r58 / r79 | Partitioned SSOT 双载体哈希/索引语义 | 重写为单载体：compute_spec_hash 仅哈希 `.feature`；索引仅编入 `.feature` |
 | structured-skill-prompts r65 / r96 | 「live `.feature`/`spec.toon`」 | 措辞收窄 |
 | bdd-mode-compat r26 | 「validate 校验 spec.toon …」 | 收窄 + 引用 spec-format r131 ERROR 门禁 |
-| root AGENTS.md 常用命令行 | 「仅保留 --kind spec-md2toon」 | 同步为 D2 口径（自由区文档，随 landing 一并提交） |
+| ~~root AGENTS.md 常用命令行~~ | 复查无此行：md2toon 字样只存在于 skill 渲染产物（templates 源头） | 归入 T1 的模板 parity，landing 不涉及 |
 
 合法保留（不动）：spec-format 全部；r115/r26 中历史语境句（`change/specs/`、delta 废除叙述）；
 templates 中「发现遗留请跑 toon2features」的教学句。

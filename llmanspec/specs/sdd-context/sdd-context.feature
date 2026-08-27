@@ -11,11 +11,11 @@
 
   @req:r58 @human
   场景: Scenario-Aware Retrieval Partitioned
-    - build_docs 与检索工具 MUST 按 Partitioned SSOT 暴露场景：可执行 GWT 以 *.feature 为权威；spec.toon 仅提供 requirements 与不可执行 scenarios。compute_spec_hash MUST 仍哈希 *.feature 与 spec.toon。get_document_structure MUST 能列出 requirement 下经由 @req 关联的 harness 场景 id。get_spec_content MUST 返回对应 given/when/then 全文且同一 scenario id MUST NOT 出现两份正文。旧 tree.json 无 scenarios 字段 MUST 仍可加载；无 .feature 的 spec MUST 行为与仅 toon 一致。
+    - build_docs 与检索工具 MUST 以 *.feature 为唯一规格内容源暴露场景：compute_spec_hash MUST 仅哈希各 <capability>.feature（遗留 spec.toon 出现时按 spec-format r131 报 ERROR，不参与哈希）。get_document_structure MUST 能列出 requirement 下经由 @req 关联的 harness 场景 id。get_spec_content MUST 返回对应 given/when/then 全文且同一 scenario id MUST NOT 出现两份正文。旧 tree.json 无 scenarios 字段 MUST 仍可加载（缓存结构兼容）。
 
   @req:r79 @human
   场景: Feature Embedding 单次且 feature 优先
-    - index_rebuild 在 BDD-on 时 MUST 解析 *.feature 并编入索引；与 toon 可执行行同 id 碰撞时 MUST 以 feature 为准且 MUST NOT 再 embed toon 副本。toon 中不可执行 scenarios MUST 仍编入。req_id 优先取自 @req 标签；无标签时可为 spec-level 空 req_id 并在 validate 中按门禁告警。畸形 .feature MUST 跳过并警告而非中止 rebuild。BDD-off 或无 .feature 时输出 MUST 与仅 toon 一致。
+    - index_rebuild 在 BDD-on 时 MUST 解析并编入全部 *.feature 场景。req_id 取自 @req 标签；无标签时可为 spec-level 空 req_id 并在 validate 中按门禁告警。畸形 .feature MUST 跳过并警告而非中止 rebuild；遇遗留 spec.toon MUST 按 spec-format r131 报 ERROR（rebuild 不静默吞掉）。
 
   @req:r97 @human
   场景: context 对 stale/missing 懒刷新
