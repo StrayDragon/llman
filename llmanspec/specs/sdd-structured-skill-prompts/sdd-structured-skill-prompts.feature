@@ -11,11 +11,11 @@
 
   @req:r65 @human
   场景: propose 与 archive 技能对齐 Git-native
-    - llman-sdd-propose 与 llman-sdd-archive 技能 MUST 声明：BDD-on 在非默认分支编辑 live `.feature`/`spec.toon`，attach/checkpoint 后 docs-only archive，再 Git merge；禁止要求 agent 双写可执行 GWT 或运行 solidify。Git merge 的默认叙事 MUST 为本地 `git merge`（ff-only）进默认分支；skill 正文 MUST NOT 默认导向 `git push` 或 Hosting PR（`gh pr create/merge`）——仅当用户或项目明确要求远程审查时才作为可选步骤出现。apply-cycle / toon-contract 单元与模板 MUST 遵守同一默认叙事。
+    - llman-sdd-propose 与 llman-sdd-archive 技能 MUST 声明：在绑定分支编辑 live `<capability>.feature`，attach/checkpoint 后 docs-only archive，再 Git merge；禁止要求 agent 双写可执行 GWT 或运行 solidify。Git merge 的默认叙事 MUST 为本地 `git merge`（ff-only）进默认分支；skill 正文 MUST NOT 默认导向 `git push` 或 Hosting PR（`gh pr create/merge`）——仅当用户或项目明确要求远程审查时才作为可选步骤出现。apply-cycle / toon-contract 单元与模板 MUST 遵守同一默认叙事。
 
   @req:r96 @human
   场景: Skill 模板按 BDD 模式条件渲染
-    - SDD skill 模板 MUST 经 MiniJinja 按项目 bdd_enabled（config 是否含 bdd:）条件渲染：BDD-on 产物的 propose/apply/verify/archive/explore description 与正文 MUST NOT 将 change 内 delta specs 表述为主要规划产物，MUST 以 feature 分支 live spec.toon 与 *.feature 加 attach/finalize 为主路径；BDD-off 与 BDD-on 统一 Git-native 收尾（change start/attach → finalize/archive）；bdd: 仅影响 runner。对 optional skills（continue/ff/validate/new-change/arch-review/wayfinder/research）的「下一步」推荐 MUST 仅在 config.extra_skills 包含对应项时出现，否则 MUST 给出不依赖该 skill 的替代指引。渲染产物 MUST 保留各 skill 内 mermaid pipeline 图。sdd-commands 等共享单元 SHOULD 按模式裁剪无关命令行。
+    - SDD skill 模板 MUST 经 MiniJinja 按项目 bdd_enabled（config 是否含 bdd:）条件渲染：BDD-on 产物的 propose/apply/verify/archive/explore description 与正文 MUST NOT 将 change 内 delta specs 表述为主要规划产物，MUST 以 feature 分支 live `<capability>.feature` 加 attach/finalize 为主路径；BDD-off 与 BDD-on 统一 Git-native 收尾（change start/attach → finalize/archive）；bdd: 仅影响 runner。对 optional skills（continue/ff/validate/new-change/arch-review/wayfinder/research）的「下一步」推荐 MUST 仅在 config.extra_skills 包含对应项时出现，否则 MUST 给出不依赖该 skill 的替代指引。渲染产物 MUST 保留各 skill 内 mermaid pipeline 图。sdd-commands 等共享单元 SHOULD 按模式裁剪无关命令行。
 
   @req:r98 @human
   场景: 收尾提示不默认导向 PR/push
