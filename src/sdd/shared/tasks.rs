@@ -36,17 +36,22 @@ impl TasksReport {
     }
 }
 
-fn is_checkbox_line(trimmed: &str) -> bool {
-    trimmed.starts_with("- [") || trimmed.starts_with("* [")
-}
-
-fn is_checked(trimmed: &str) -> bool {
-    let lower = trimmed.to_lowercase();
-    lower.starts_with("- [x]") || lower.starts_with("* [x]")
-}
-
-fn classify_unchecked(_text: &str) -> TaskStatus {
-    TaskStatus::Pending
+/// Recognize only real checkbox markers: `[ ]` (unchecked) or `[x]`/`[X]`
+/// (checked), optionally preceded by one space inside the brackets.
+/// Anything else starting with `- [` (e.g. `- [blocked-by: T1]`) is plain
+/// text and MUST NOT be counted as a task (r101 dependency markers are
+/// written inline after the task text, so line-leading bracket variants
+/// other than these markers are prose, not pending work).
+fn checkbox_marker(trimmed: &str) -> Option<bool> {
+    let body = trimmed
+        .strip_prefix("- ")
+        .or_else(|| trimmed.strip_prefix("* "))?;
+    for (marker, checked) in [("[ ]", false), ("[x]", true), ("[X]", true)] {
+        if body.starts_with(marker) {
+            return Some(checked);
+        }
+    }
+    None
 }
 
 pub fn parse_tasks(content: &str) -> TasksReport {
@@ -54,26 +59,25 @@ pub fn parse_tasks(content: &str) -> TasksReport {
 
     for (idx, line) in content.lines().enumerate() {
         let trimmed = line.trim_start();
-        if !is_checkbox_line(trimmed) {
+        let Some(checked) = checkbox_marker(trimmed) else {
             continue;
-        }
-
-        let status = if is_checked(trimmed) {
-            TaskStatus::Completed
-        } else {
-            classify_unchecked(trimmed)
         };
 
-        match &status {
-            TaskStatus::Completed => report.completed += 1,
-            TaskStatus::Pending => report.pending += 1,
+        if checked {
+            report.completed += 1;
+        } else {
+            report.pending += 1;
         }
 
         let checkbox_text = extract_task_text(trimmed);
         report.items.push(TaskItem {
             line_num: idx + 1,
             text: checkbox_text,
-            status,
+            status: if checked {
+                TaskStatus::Completed
+            } else {
+                TaskStatus::Pending
+            },
         });
     }
 
@@ -169,6 +173,17 @@ mod tests {
         let content = "## Header\nSome text\n- plain list item\n";
         let report = parse_tasks(content);
         assert_eq!(report.total(), 0);
+    }
+
+    #[test]
+    fn blocked_by_bracket_bullets_are_not_tasks() {
+        // Regression (fix-devx-tooling-traps): `- [blocked-by: T1]` used to be
+        // parsed as a pending checkbox and failed `validate --strict`.
+        let content = "- task one [blocked-by: none]\n- [blocked-by: T1]\n* [depends-on: x]\n";
+        let report = parse_tasks(content);
+        assert_eq!(report.total(), 0, "no real checkbox in any line");
+        assert_eq!(report.completed, 0);
+        assert_eq!(report.pending, 0);
     }
 
     #[test]
