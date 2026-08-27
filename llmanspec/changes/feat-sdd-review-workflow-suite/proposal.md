@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/feat-sdd-review-workflow-suite
+base_sha: 16f595920f03d725551128ed0e9c1ccbf1ac79b7
+checkpointed: false
 ---
 
 合并自三个草案：sdd-human-review-flow-tuneup（流程约定）、
@@ -28,6 +31,16 @@ sdd-review-aggregate-html-view（命令化落地）、refactor-show-spec-deepen�
   bindings/pageindex），零第二套解析器。
 - **T3 单文件 HTML 视图**：--export-html 输出离线静态页（capability 总览表 +
   capability↔req↔scenario 层级节点图 + 过滤器），零运行时依赖、无本地 server。
+
+## What Changes
+
+- T0 展示层深化：`show_spec` 拆分 presenter 小接口，JSON schema 冻结。
+- T1 人审流程落档：root AGENTS.md 自由区新增 Human Review Checkpoint；
+  propose/verify 技能模板补人读摘要段要求。
+- T2 新命令 `llman sdd review [--capability] [--json]`：聚合 pending/manual、
+  unbound、staleness、locked-diff 提示与 validate 清单；CRITICAL 非零退出。
+- T3 `--export-html` 单文件离线 HTML 视图（mermaid 层级图 + 过滤器）。
+- T4 文档/locales/check-sdd-templates 白名单收口与全量门禁。
 
 ## Capabilities
 
