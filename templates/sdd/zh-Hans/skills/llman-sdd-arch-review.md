@@ -60,6 +60,6 @@ metadata:
 - 用户以关键理由拒绝候选？→ 仅当「难逆转 + 无上下文会困惑 + 真实权衡」三者皆满足时，建议记入 `design.md`。
 
 ## 输出
-候选清单（文本；可选 HTML 报告写 OS temp dir 不落 repo）+ 用户选定后的逐问深挖决策记录（回写 proposal；合约变更须经 Specs landing 才回写 live `spec.toon`）。
+候选清单（文本；可选 HTML 报告写 OS temp dir 不落 repo）+ 用户选定后的逐问深挖决策记录（回写 proposal；合约变更须经 Specs landing 才回写 live `<capability>.feature`）。
 
 {{ unit("skills/structured-protocol") }}
