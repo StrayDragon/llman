@@ -3,6 +3,7 @@ use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
 use crate::sdd::change::git_native;
 use crate::sdd::project::{init, interop, migrate};
+use crate::sdd::review;
 use crate::sdd::shared::{graph, list, show, status, validate};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -105,6 +106,22 @@ pub enum SddSpecCommands {
 
 #[derive(Subcommand)]
 pub enum SddCommands {
+    /// Aggregate review: pending/manual rules, unbound scenarios, staleness,
+    /// locked-rule hints and a validate --all sweep (sdd-review r5-r51)
+    Review {
+        /// Restrict the sweep to one capability/spec id
+        #[arg(long)]
+        capability: Option<String>,
+        /// Emit structured JSON (signals + summary)
+        #[arg(long)]
+        json: bool,
+        /// Write a single self-contained HTML report (r51)
+        #[arg(long = "export-html")]
+        export_html: Option<PathBuf>,
+        /// Treat the terminal as non-interactive
+        #[arg(long)]
+        no_interactive: bool,
+    },
     /// Initialize llmanspec in your project (use --update to refresh existing)
     Init {
         /// Target path (default: current directory)
@@ -536,6 +553,20 @@ pub fn run(args: &SddArgs) -> Result<()> {
 
 fn run_command(args: &SddArgs) -> Result<()> {
     match &args.command {
+        SddCommands::Review {
+            capability,
+            json,
+            export_html,
+            no_interactive,
+        } => review::run(
+            std::path::Path::new("."),
+            &review::ReviewArgs {
+                capability: capability.clone(),
+                json: *json,
+                export_html: export_html.clone(),
+                no_interactive: *no_interactive,
+            },
+        ),
         SddCommands::Init { path, lang, update } => init::run(
             path.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
             lang.as_deref(),

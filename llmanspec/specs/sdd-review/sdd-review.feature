@@ -56,7 +56,7 @@
     当 在非交互终端运行 llman sdd review --json
     那么 退出码为零
     那么 stdout 为合法 JSON 且含 JSON 键 summary
-    那么 stdout 的 JSON 键 criticalCount 为数字
+    那么 stdout 的 JSON 键 summary.criticalCount 为数字
 
   @executable
   @req:r51

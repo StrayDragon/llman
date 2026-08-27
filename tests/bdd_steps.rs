@@ -362,6 +362,22 @@ fn given_sdd_project_occupied_req(mode: String) {
     write_single_track_spec(&dir, "sample", &[("r1", "R1"), ("occupied-id", "Occupied")]);
 }
 
+/// Seed a project then corrupt an extra change proposal (unknown depends_on
+/// ref) so `validate --all` reports a change-level ERROR — review CRITICAL
+/// exit-code fixture.
+#[given("已初始化含损坏 proposal 的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_corrupted_proposal(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    let changes_dir = dir.join("llmanspec/changes/broken");
+    std::fs::create_dir_all(&changes_dir).expect("create change dir");
+    std::fs::write(
+        changes_dir.join("proposal.md"),
+        "---\ndepends_on: [nonexistent-change]\n---\n\n## Why\nx\n\n## What Changes\n- y\n",
+    )
+    .expect("write corrupted proposal");
+}
+
 /// Seed a project with one active change `c123-fix-bug` plus an archived
 /// change — the r112 prefix-match resolution fixture (Given for
 /// prefix-match-baseline / prefix-match-hint).
@@ -780,6 +796,38 @@ fn then_stdout_is_json() {
     with_world(|w| {
         serde_json::from_str::<serde_json::Value>(&w.stdout)
             .unwrap_or_else(|e| panic!("stdout is not valid JSON: {e}\n{}", w.stdout));
+    });
+}
+
+#[then("stdout 为合法 JSON 且含 JSON 键 {key}")]
+fn then_stdout_is_json_with_key(key: String) {
+    with_world(|w| {
+        let v: serde_json::Value = serde_json::from_str(&w.stdout)
+            .unwrap_or_else(|e| panic!("stdout is not valid JSON: {e}\n{}", w.stdout));
+        assert!(
+            v.get(&key).is_some(),
+            "JSON key `{key}` missing\n{}",
+            w.stdout
+        );
+    });
+}
+
+#[then("stdout 的 JSON 键 {key} 为数字")]
+fn then_stdout_json_key_is_number(key: String) {
+    with_world(|w| {
+        let v: serde_json::Value = serde_json::from_str(&w.stdout)
+            .unwrap_or_else(|e| panic!("stdout is not valid JSON: {e}\n{}", w.stdout));
+        let mut cur = &v;
+        for part in key.split('.') {
+            cur = cur
+                .get(part)
+                .unwrap_or_else(|| panic!("JSON key `{key}` missing\n{}", w.stdout));
+        }
+        assert!(
+            cur.is_number(),
+            "JSON key `{key}` is not a number\n{}",
+            w.stdout
+        );
     });
 }
 
