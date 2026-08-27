@@ -306,57 +306,75 @@ fn show_spec(root: &Path, spec_id: &str, args: &ShowArgs) -> Result<()> {
         .parse_content(&content, &format!("spec `{spec_id}`"))?;
     let morphology = Some(compute_rule_morphology(&parsed));
 
-    // Single-track summaries (r60 retired): constraints and executable
-    // scenarios share one `.feature` source; `requirements` below carries
-    // the @human tier and `scenarios` on each entry carry GWT when present.
+    // T0 presenters (feat-sdd-review-workflow-suite): JSON and text rendering
+    // are pure functions over the parsed spec so the review suite can reuse
+    // the exact same shapes. Output is byte-frozen (r134 keys / r39 morph).
 
     if args.json {
-        if args.requirements && args.requirement.is_some() {
-            return Err(anyhow!(t!("sdd.show.requirements_conflict")));
-        }
-        if args.meta_only {
-            let output = serde_json::json!({
-                "id": spec_id,
-                "featureId": parsed.name,
-                "title": parsed.feature_title,
-                "purpose": parsed.purpose,
-                "overview": parsed.purpose,
-                "requirementCount": parsed.rule_scenarios().count(),
-                "morphology": morphology,
-            });
-            print_json(&output, args.compact_json)?;
-            return Ok(());
-        }
-
-        let requirements_json = requirements_json_from_parsed(&parsed, args)?;
-        let rule_count = parsed.rule_scenarios().count();
-        let output = serde_json::json!({
-            "id": spec_id,
-            "title": parsed.feature_title,
-            "purpose": parsed.purpose,
-            "overview": parsed.purpose,
-            "requirementCount": rule_count,
-            "requirements": requirements_json,
-            "morphology": morphology,
-        });
+        let output = render_spec_json(spec_id, &parsed, morphology, args)?;
         print_json(&output, args.compact_json)?;
         return Ok(());
     }
 
-    println!("## Spec");
-    println!("{content}");
-    println!("\n## Morphology");
+    println!("{}", render_spec_text(&content, morphology));
+    Ok(())
+}
+
+/// Pure JSON renderer. Key sets are behavior-frozen: meta branch
+/// `{id,featureId,title,purpose,overview,requirementCount,morphology}` and
+/// full branch adds `requirements`. `requirements`/`--requirement` conflict
+/// is only observable in JSON mode (preserved here).
+fn render_spec_json(
+    spec_id: &str,
+    parsed: &feature_backend::ParsedFeatureSpec,
+    morphology: Option<feature_backend::RuleMorphology>,
+    args: &ShowArgs,
+) -> Result<serde_json::Value> {
+    if args.requirements && args.requirement.is_some() {
+        return Err(anyhow!(t!("sdd.show.requirements_conflict")));
+    }
+    if args.meta_only {
+        return Ok(serde_json::json!({
+            "id": spec_id,
+            "featureId": parsed.name,
+            "title": parsed.feature_title,
+            "purpose": parsed.purpose,
+            "overview": parsed.purpose,
+            "requirementCount": parsed.rule_scenarios().count(),
+            "morphology": morphology,
+        }));
+    }
+
+    let requirements_json = requirements_json_from_parsed(parsed, args)?;
+    let rule_count = parsed.rule_scenarios().count();
+    Ok(serde_json::json!({
+        "id": spec_id,
+        "title": parsed.feature_title,
+        "purpose": parsed.purpose,
+        "overview": parsed.purpose,
+        "requirementCount": rule_count,
+        "requirements": requirements_json,
+        "morphology": morphology,
+    }))
+}
+
+/// Pure text renderer (byte-frozen): header, full feature source, morphology line.
+fn render_spec_text(content: &str, morphology: Option<feature_backend::RuleMorphology>) -> String {
+    let mut out = String::new();
+    out.push_str("## Spec\n");
+    out.push_str(content);
+    out.push_str("\n## Morphology\n");
     if let Some(m) = morphology {
-        println!(
+        out.push_str(&format!(
             "ruleCount={} enforced={} manual={} pending={} acceptanceCount={}",
             m.rule_count,
             m.rule_enforced_count,
             m.rule_manual_count,
             m.rule_pending_count,
             m.acceptance_count
-        );
+        ));
     }
-    Ok(())
+    out
 }
 
 /// Build the requirements JSON array straight from the rich parse (r132).
@@ -466,4 +484,89 @@ fn non_interactive_hint_message() -> String {
         t!("sdd.show.non_interactive.line5"),
     ]
     .join("\n")
+}
+
+#[cfg(test)]
+mod t0_freeze_tests {
+    use super::*;
+
+    const SAMPLE: &str = "# language: en\n# capability: demo\n# purpose: demo\n# scope: src/\n\nFeature: demo\n\n  @req:r1 @human\n  Scenario: rule-one\n    System MUST behave.\n";
+
+    fn parse_sample() -> feature_backend::ParsedFeatureSpec {
+        crate::sdd::spec::backend::FEATURE_BACKEND
+            .parse_content(SAMPLE, "test")
+            .expect("sample parses")
+    }
+
+    #[test]
+    fn text_renderer_shape_frozen() {
+        let parsed = parse_sample();
+        let morph = Some(compute_rule_morphology(&parsed));
+        let out = render_spec_text(SAMPLE, morph);
+        assert!(out.starts_with("## Spec\n"));
+        assert!(out.contains("\n## Morphology\n"));
+        assert!(
+            out.contains("ruleCount=1 enforced=0 manual=0 pending=1 acceptanceCount=0"),
+            "got: {out}"
+        );
+    }
+
+    #[test]
+    fn json_meta_keyset_frozen() {
+        let parsed = parse_sample();
+        let morph = Some(compute_rule_morphology(&parsed));
+        let args = ShowArgs {
+            item: None,
+            item_type: None,
+            json: true,
+            compact_json: false,
+            meta_only: true,
+            requirements: false,
+            requirements_only: false,
+            requirement: None,
+            no_scenarios: false,
+            deltas_only: false,
+            no_interactive: false,
+        };
+        let v = render_spec_json("demo", &parsed, morph, &args).unwrap();
+        let obj = v.as_object().unwrap();
+        let mut keys: Vec<_> = obj.keys().cloned().collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                "featureId",
+                "id",
+                "morphology",
+                "overview",
+                "purpose",
+                "requirementCount",
+                "title"
+            ]
+        );
+    }
+
+    #[test]
+    fn json_full_keyset_frozen() {
+        let parsed = parse_sample();
+        let morph = Some(compute_rule_morphology(&parsed));
+        let args = ShowArgs {
+            item: None,
+            item_type: None,
+            json: true,
+            compact_json: false,
+            meta_only: false,
+            requirements: false,
+            requirements_only: false,
+            requirement: None,
+            no_scenarios: false,
+            deltas_only: false,
+            no_interactive: false,
+        };
+        let v = render_spec_json("demo", &parsed, morph, &args).unwrap();
+        let obj = v.as_object().unwrap();
+        assert!(obj.contains_key("requirements"));
+        assert!(obj.contains_key("morphology"));
+        assert_eq!(obj["requirementCount"], 1);
+    }
 }
