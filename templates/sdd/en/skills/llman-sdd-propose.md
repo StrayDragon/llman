@@ -15,6 +15,7 @@ Create a new change with planning artifacts (proposal + tasks; design optional),
 ## Pipeline Position
 
 {{ unit("skills/git-native-flow") }}
+{{ unit("skills/human-readable-summary") }}
 
 ### Skill navigation (not the lifecycle; shows current skill only)
 

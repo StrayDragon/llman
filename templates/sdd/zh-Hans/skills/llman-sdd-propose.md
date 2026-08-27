@@ -15,6 +15,7 @@ metadata:
 ## Pipeline 位置
 
 {{ unit("skills/git-native-flow") }}
+{{ unit("skills/human-readable-summary") }}
 
 ### Skill 导航（非生命周期；仅指示当前 skill）
 
