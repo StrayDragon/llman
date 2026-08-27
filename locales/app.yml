@@ -1693,13 +1693,13 @@ sdd:
     next_steps:
       en: "Next steps:"
     change_step_1:
-      en: "- Edit the capability's single-track `llmanspec/specs/<capability>.feature` on the feature branch (@human constraints and @executable acceptance share one track, linked via @req); run `llman sdd change start <id>` or `change attach <id>`"
+      en: "- Edit live single-track specs (`llmanspec/specs/<capability>.feature`) on the feature branch (@human constraints and @executable acceptance share one track, linked via @req); run `llman sdd change start <id>` or `change attach <id>`"
     change_step_2:
       en: "- Ensure proposal.md, design.md (if needed), and tasks.md are complete before apply"
     change_step_3:
       en: "- Debug change state: llman sdd show <id> --json --type change"
     change_step_1_bdd_on:
-      en: "- Edit the capability's single-track `llmanspec/specs/<capability>.feature` on the feature branch (@human constraints and @executable acceptance share one track, linked via @req); run `llman sdd change start <id>` or `change attach <id>`"
+      en: "- Edit live single-track specs (`llmanspec/specs/<capability>.feature`) on the feature branch (@human constraints and @executable acceptance share one track, linked via @req); run `llman sdd change start <id>` or `change attach <id>`"
     spec_step_1:
       en: "- Ensure spec ISON includes `purpose` and `requirements`"
     spec_step_2:
