@@ -185,7 +185,15 @@ def validate_markdown_root(templates_root: Path, errors: List[str]) -> List[str]
         errors.append(f"ERROR: {templates_root} not found")
         return []
 
-    locale_dirs = sorted([p for p in templates_root.iterdir() if p.is_dir()])
+    # Locale roots are exactly the dirs that carry a `skills/` tree; other
+    # first-level dirs (e.g. `shared/` locale-agnostic assets) are skipped.
+    locale_dirs = sorted(
+        [
+            p
+            for p in templates_root.iterdir()
+            if p.is_dir() and (p / "skills").is_dir()
+        ]
+    )
     if not locale_dirs:
         errors.append(f"ERROR: no locale directories found under {templates_root}")
         return []
@@ -230,6 +238,24 @@ def main() -> int:
 
     locale_list = ", ".join(sdd_locales)
     print(f"SDD template checks passed for locales: {locale_list}")
+
+    # Shared (locale-agnostic) assets: light sanity checks only — existence and
+    # a closing html tag. Deep checks would duplicate the runtime renderer.
+    shared_dir = sdd_root / "shared"
+    if shared_dir.is_dir():
+        for path in sorted(shared_dir.glob("*.html")):
+            text = path.read_text(encoding="utf-8")
+            if "</html>" not in text:
+                errors.append(f"{path}: missing closing </html>")
+    else:
+        errors.append(f"{shared_dir}: missing shared templates directory")
+
+    if errors:
+        print("SDD template checks failed:")
+        for err in errors:
+            print(f"- {err}")
+        return 1
+
     return 0
 
 
