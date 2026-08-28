@@ -1,5 +1,5 @@
 use crate::config::{home_dir, try_home_dir};
-use crate::skills::shared::git::find_git_root;
+use crate::git_utils::find_git_root;
 use anyhow::{Result, anyhow};
 use inquire::Confirm;
 use std::env;

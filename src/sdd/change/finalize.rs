@@ -137,7 +137,7 @@ pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         change_name, feature_branch, binding.base_sha,
     );
 
-    let default_branch = crate::sdd::change::git_native::resolve_default_branch_ref(root)
+    let default_branch = crate::git_utils::resolve_default_branch_ref(root)
         .map(|r| r.strip_prefix("origin/").unwrap_or(r.as_str()).to_string())
         .unwrap_or_else(|_| "<default>".to_string());
     println!(
@@ -331,7 +331,7 @@ mod tests {
         );
 
         // r94: auto ff-merge leaves us on the default branch.
-        let branch = crate::sdd::change::git_native::current_branch(root).unwrap();
+        let branch = crate::git_utils::current_branch(root).unwrap();
         assert_eq!(branch, "main");
     }
 

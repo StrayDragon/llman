@@ -13,6 +13,7 @@ pub mod editor;
 pub mod env_safety;
 pub mod error;
 pub(crate) mod fs_utils;
+pub mod git_utils;
 pub mod managed_block;
 pub mod path_utils;
 pub mod prompts;

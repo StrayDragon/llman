@@ -1,3 +1,4 @@
+use crate::path_utils::is_symlink_dir;
 use crate::skills::catalog::types::{RepoSource, SkillCandidate};
 use anyhow::Result;
 use ignore::WalkBuilder;
@@ -230,12 +231,6 @@ pub fn check_skill_version_compat(skill_path: &Path) -> Option<String> {
         }
         _ => None,
     }
-}
-
-fn is_symlink_dir(path: &Path) -> bool {
-    fs::symlink_metadata(path)
-        .map(|meta| meta.file_type().is_symlink())
-        .unwrap_or(false)
 }
 
 fn resolve_symlink_skill_file(path: &Path) -> Option<PathBuf> {
