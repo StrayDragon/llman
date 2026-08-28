@@ -693,7 +693,7 @@ mod tests {
     use crate::tool::command::CleanUselessCommentsArgs;
     use crate::tool::config::{
         CleanUselessCommentsConfig, LanguageRules, LanguageSpecificRules, ScopeConfig, ToolConfig,
-        ToolsConfig,
+        ToolsSection,
     };
     use tempfile::TempDir;
 
@@ -707,7 +707,7 @@ mod tests {
 
         let config = ToolConfig {
             version: "0.1".to_string(),
-            tools: ToolsConfig {
+            tools: ToolsSection {
                 rm_useless_dirs: None,
                 agents_md: None,
                 clean_useless_comments: Some(CleanUselessCommentsConfig {
@@ -776,7 +776,7 @@ mod tests {
 
         let config = ToolConfig {
             version: "0.1".to_string(),
-            tools: ToolsConfig {
+            tools: ToolsSection {
                 rm_useless_dirs: None,
                 agents_md: None,
                 clean_useless_comments: Some(CleanUselessCommentsConfig {

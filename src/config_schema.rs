@@ -32,7 +32,7 @@ pub struct GlobalConfig {
     #[schemars(description = "Global-only settings for llman.")]
     pub skills: Option<GlobalSkillsConfig>,
     #[schemars(description = "Tool configuration.")]
-    pub tools: tool_config::ToolsConfig,
+    pub tools: tool_config::ToolsSection,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -44,7 +44,7 @@ pub struct ProjectConfig {
     #[schemars(description = "Configuration version for tool settings.")]
     pub version: String,
     #[schemars(description = "Tool configuration.")]
-    pub tools: tool_config::ToolsConfig,
+    pub tools: tool_config::ToolsSection,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

@@ -2,7 +2,7 @@ use crate::arg_utils::split_shell_args;
 use crate::editor::{parse_editor_command, select_editor_raw};
 use crate::fs_utils::atomic_write_new_with_mode;
 use crate::x::codex::agents::CodexAgentsArgs;
-use crate::x::codex::config::{Config, upsert_to_codex_config};
+use crate::x::codex::config::{CodexConfig, upsert_to_codex_config};
 use crate::x::codex::interactive;
 use crate::x::codex::prompts::CodexPromptsArgs;
 use anyhow::{Context, Result, bail};
@@ -91,7 +91,7 @@ pub fn run(args: &CodexArgs) -> Result<()> {
 
 /// `llman x codex` — interactive select → upsert provider → inject env → exec codex (supports `-- <codex-args...>`)
 fn handle_main_command(args: &[String]) -> Result<()> {
-    let config = Config::load().context(t!("codex.error.load_config_failed"))?;
+    let config = CodexConfig::load().context(t!("codex.error.load_config_failed"))?;
 
     if config.is_empty() {
         bail!(no_configs_message());
@@ -113,7 +113,7 @@ fn handle_account_command(action: Option<&AccountAction>) -> Result<()> {
 }
 
 fn handle_account_edit() -> Result<()> {
-    let config_path = Config::config_file_path()?;
+    let config_path = CodexConfig::config_file_path()?;
     let editor_raw = select_editor_raw();
     handle_account_edit_with(&config_path, &editor_raw)
 }
@@ -171,7 +171,7 @@ fn handle_account_edit_with(config_path: &Path, editor_raw: &str) -> Result<()> 
 
 fn handle_account_import() -> Result<()> {
     if let Some((key, provider)) = interactive::prompt_import()? {
-        let mut config = Config::load().context(t!("codex.error.load_config_failed"))?;
+        let mut config = CodexConfig::load().context(t!("codex.error.load_config_failed"))?;
 
         if config.model_providers.contains_key(&key) {
             bail!(t!("codex.error.group_exists", name = key));
@@ -189,7 +189,7 @@ fn handle_run_command(
     group_name: Option<&str>,
     args: Vec<String>,
 ) -> Result<()> {
-    let config = Config::load().context(t!("codex.error.load_config_failed"))?;
+    let config = CodexConfig::load().context(t!("codex.error.load_config_failed"))?;
 
     if config.is_empty() {
         bail!(no_configs_message());
@@ -215,7 +215,7 @@ fn handle_run_command(
 }
 
 /// Core: upsert provider to codex config, inject env vars, exec codex.
-fn activate_and_exec(config: &Config, provider_key: &str, args: &[String]) -> Result<()> {
+fn activate_and_exec(config: &CodexConfig, provider_key: &str, args: &[String]) -> Result<()> {
     let provider = config
         .get_provider(provider_key)
         .ok_or_else(|| anyhow::anyhow!(t!("codex.error.group_not_found", name = provider_key)))?;
@@ -271,7 +271,7 @@ fn activate_and_exec(config: &Config, provider_key: &str, args: &[String]) -> Re
 }
 
 fn no_configs_message() -> String {
-    let config_path = Config::config_file_path()
+    let config_path = CodexConfig::config_file_path()
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| "unknown".to_string());
 
@@ -286,7 +286,7 @@ fn no_configs_message() -> String {
     )
 }
 
-fn handle_interactive_mode(config: &Config) -> Result<(String, Vec<String>)> {
+fn handle_interactive_mode(config: &CodexConfig) -> Result<(String, Vec<String>)> {
     let selected = interactive::select_provider(config)?
         .ok_or_else(|| anyhow::anyhow!(t!("codex.error.no_configuration_selected")))?;
 
@@ -470,7 +470,7 @@ MINIMAX_KEY = "sk-minimax"
 "#;
         fs::write(&config_path, content).expect("write config");
 
-        let config = Config::load_from_path(&config_path).expect("load config");
+        let config = CodexConfig::load_from_path(&config_path).expect("load config");
         assert_eq!(config.provider_names(), vec!["minimax", "openai"]);
         assert!(!config.is_empty());
 

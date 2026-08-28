@@ -15,12 +15,12 @@ pub struct ToolConfig {
     #[schemars(description = "Configuration version for tool settings.")]
     pub version: String,
     #[schemars(description = "Tool-specific configuration.")]
-    pub tools: ToolsConfig,
+    pub tools: ToolsSection,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[schemars(description = "Configuration for individual tools.")]
-pub struct ToolsConfig {
+pub struct ToolsSection {
     #[serde(rename = "clean-useless-comments")]
     #[schemars(description = "Settings for the clean-useless-comments tool.")]
     pub clean_useless_comments: Option<CleanUselessCommentsConfig>,
@@ -384,7 +384,7 @@ impl Default for ToolConfig {
     fn default() -> Self {
         Self {
             version: "0.1".to_string(),
-            tools: ToolsConfig {
+            tools: ToolsSection {
                 rm_useless_dirs: None,
                 agents_md: None,
                 clean_useless_comments: Some(CleanUselessCommentsConfig {
