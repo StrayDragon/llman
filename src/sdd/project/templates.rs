@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 
 const TEMPLATES_ROOT: &str = "templates/sdd";
 
-pub struct SkillTemplate {
-    pub name: &'static str,
-    pub content: String,
+pub(crate) struct SkillTemplate {
+    pub(crate) name: &'static str,
+    pub(crate) content: String,
 }
 
 const DEFAULT_SKILL_FILES: &[&str] = &[
@@ -77,7 +77,7 @@ fn resolve_optional_skills(config: &SddConfig) -> Vec<&'static str> {
         .collect()
 }
 
-pub fn skill_templates(config: &SddConfig, root: &Path) -> Result<Vec<SkillTemplate>> {
+pub(crate) fn skill_templates(config: &SddConfig, root: &Path) -> Result<Vec<SkillTemplate>> {
     let mut files = Vec::new();
     for name in DEFAULT_SKILL_FILES {
         let content = load_skill_template(config, root, name, "default")?;
@@ -90,7 +90,7 @@ pub fn skill_templates(config: &SddConfig, root: &Path) -> Result<Vec<SkillTempl
     Ok(files)
 }
 
-pub fn root_stub_content(config: &SddConfig, root: &Path) -> Result<String> {
+pub(crate) fn root_stub_content(config: &SddConfig, root: &Path) -> Result<String> {
     load_template(config, root, "agents-root-stub.md")
 }
 

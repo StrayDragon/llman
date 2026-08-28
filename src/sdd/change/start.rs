@@ -3,15 +3,16 @@
 //! Creates a linked worktree at `<repo>/.git/sdd/worktrees/<dir>/` so
 //! multiple changes can be worked on in parallel without switching branches.
 
+use crate::git_utils::{git_common_dir, worktree_add, worktree_exists};
 use crate::sdd::project::config::SddConfig;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, bail};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Create a linked worktree for a change and return its absolute path.
-pub fn run_start_worktree(
+pub(crate) fn run_start_worktree(
     root: &Path,
     change_id: &str,
     branch: &str,
@@ -19,7 +20,7 @@ pub fn run_start_worktree(
     config: &SddConfig,
 ) -> Result<PathBuf> {
     // Resolve worktree root: config override or default `<repo>/.git/sdd/worktrees/`.
-    let git_dir = git_dir_absolute(root)?;
+    let git_dir = git_common_dir(root)?;
     let wt_root = worktree_root(&git_dir, config);
 
     // Compute directory name.
@@ -28,7 +29,7 @@ pub fn run_start_worktree(
 
     // Reuse-if-checked-out.
     if wt_path.exists() {
-        if git_worktree_exists(root, &wt_path)? {
+        if worktree_exists(root, &wt_path)? {
             println!(
                 "worktree `{}` already checked out; reusing {}",
                 wt_name,
@@ -48,23 +49,7 @@ pub fn run_start_worktree(
     fs::create_dir_all(&wt_root)?;
 
     // git worktree add <path> <base_sha> (creates and checks out the branch)
-    let output = Command::new("git")
-        .args([
-            "worktree",
-            "add",
-            wt_path.to_str().unwrap(),
-            "-b",
-            branch,
-            base_sha,
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|e| anyhow!("git worktree add failed to spawn: {e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        bail!("worktree create failed: {stderr}");
-    }
+    worktree_add(root, &wt_path, branch, base_sha)?;
 
     println!("created worktree `{}` → {}", wt_name, wt_path.display());
     Ok(wt_path)
@@ -123,43 +108,6 @@ fn worktree_root(git_dir: &Path, config: &SddConfig) -> PathBuf {
         return root.to_path_buf();
     }
     git_dir.join("sdd").join("worktrees")
-}
-
-/// Resolve the absolute `.git` directory path.
-fn git_dir_absolute(root: &Path) -> Result<PathBuf> {
-    let output = Command::new("git")
-        .args(["rev-parse", "--git-common-dir"])
-        .current_dir(root)
-        .output()
-        .map_err(|e| anyhow!("git rev-parse --git-common-dir failed to spawn: {e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        bail!("not a git repository: {stderr}");
-    }
-
-    let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let path = Path::new(&raw);
-    if path.is_absolute() {
-        Ok(path.to_path_buf())
-    } else {
-        Ok(root.join(path))
-    }
-}
-
-/// Check if a directory is already a git worktree.
-fn git_worktree_exists(root: &Path, path: &Path) -> Result<bool> {
-    let output = Command::new("git")
-        .args(["worktree", "list", "--porcelain"])
-        .current_dir(root)
-        .output()
-        .map_err(|e| anyhow!("git worktree list failed to spawn: {e}"))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let target = path.display().to_string();
-    Ok(stdout
-        .lines()
-        .any(|line| line.starts_with("worktree ") && line.contains(&target)))
 }
 
 /// Check depends_on guard: any dependency not in archive or Full stage → bail.
@@ -239,8 +187,8 @@ fn check_depends_on_guard(root: &Path, change_id: &str) -> Result<()> {
 
 /// Prune stale worktrees: remove directories under `<repo>/.git/sdd/worktrees/`
 /// whose change has been archived or whose proposal no longer exists.
-pub fn run_worktree_prune(root: &Path, config: &SddConfig) -> Result<()> {
-    let git_dir = git_dir_absolute(root)?;
+pub(crate) fn run_worktree_prune(root: &Path, config: &SddConfig) -> Result<()> {
+    let git_dir = git_common_dir(root)?;
     let wt_root = worktree_root(&git_dir, config);
     if !wt_root.exists() {
         println!("no worktrees to prune (directory does not exist)");

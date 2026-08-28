@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::Path;
 
-pub fn run(target: &Path, locale: Option<&str>, update: bool) -> Result<()> {
+pub(crate) fn run(target: &Path, locale: Option<&str>, update: bool) -> Result<()> {
     ensure_directory(target)?;
     let llmanspec_path = target.join(LLMANSPEC_DIR_NAME);
 

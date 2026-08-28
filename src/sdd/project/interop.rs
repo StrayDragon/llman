@@ -9,12 +9,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
-pub struct ImportArgs {
-    pub source: Option<PathBuf>,
-    pub scope: Option<String>,
-    pub dry_run: bool,
-    pub force: bool,
-    pub no_interactive: bool,
+pub(crate) struct ImportArgs {
+    pub(crate) source: Option<PathBuf>,
+    pub(crate) scope: Option<String>,
+    pub(crate) dry_run: bool,
+    pub(crate) force: bool,
+    /// Accepted and ignored: this subcommand has no interactive mode.
+    /// Kept so the flag matrix stays uniform across sibling subcommands.
+    #[allow(dead_code)]
+    pub(crate) no_interactive: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -68,7 +71,7 @@ impl std::fmt::Display for MigrationStatus {
     }
 }
 
-pub fn run(root: &Path, args: ImportArgs) -> Result<()> {
+pub(crate) fn run(root: &Path, args: ImportArgs) -> Result<()> {
     let source = args
         .source
         .unwrap_or_else(|| root.join("openspec").join("specs"));

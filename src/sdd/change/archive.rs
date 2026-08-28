@@ -10,15 +10,21 @@ use std::path::Path;
 use std::process::Command;
 
 #[derive(Debug, Clone)]
-pub struct ArchiveArgs {
-    pub change: Option<String>,
-    pub skip_specs: bool,
-    pub dry_run: bool,
-    pub force: bool,
-    pub no_interactive: bool,
+pub(crate) struct ArchiveArgs {
+    pub(crate) change: Option<String>,
+    /// Accepted and ignored: archive never lands specs; flag exists so
+    /// change subcommands share one flag matrix.
+    #[allow(dead_code)]
+    pub(crate) skip_specs: bool,
+    pub(crate) dry_run: bool,
+    pub(crate) force: bool,
+    /// Accepted and ignored: archive has no interactive mode. Flag-matrix
+    /// uniformity across change subcommands.
+    #[allow(dead_code)]
+    pub(crate) no_interactive: bool,
 }
 
-pub fn run(args: ArchiveArgs) -> Result<()> {
+pub(crate) fn run(args: ArchiveArgs) -> Result<()> {
     run_with_root(Path::new("."), args)
 }
 

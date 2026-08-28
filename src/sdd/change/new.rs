@@ -12,18 +12,19 @@
 use crate::fs_utils::atomic_write_with_mode;
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::discovery::{change_dir, proposal_path};
 use crate::sdd::shared::ids::validate_sdd_id;
 use anyhow::{Result, anyhow, bail};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone)]
-pub struct NewArgs {
+pub(crate) struct NewArgs {
     /// Explicit change id. `None` when the caller passes `--from` instead.
-    pub change: Option<String>,
+    pub(crate) change: Option<String>,
     /// Free-form description to derive the change id from (r99 lightweight path).
-    pub from: Option<String>,
-    pub force: bool,
+    pub(crate) from: Option<String>,
+    pub(crate) force: bool,
 }
 
 const PROPOSAL_SKELETON: &str = "\
@@ -45,7 +46,7 @@ TODO: Bullet list of what changes.
 /// is whatever the repo's `llmanspec/AGENTS.md` declares.
 const DERIVED_ID_MAX_LEN: usize = 60;
 
-pub fn run(root: &Path, args: NewArgs) -> Result<()> {
+pub(crate) fn run(root: &Path, args: NewArgs) -> Result<()> {
     match (args.change.as_deref(), args.from.as_deref()) {
         (Some(_), Some(_)) => {
             bail!("<CHANGE> and --from are mutually exclusive; pass one or the other");
@@ -96,7 +97,7 @@ fn create_draft(root: &Path, id: &str, derived: bool, force: bool) -> Result<()>
 /// (lowercase, collapse whitespace/punctuation to `-`, trim, cap length) keep
 /// the id readable and filesystem-safe. The agent or user reading the repo's
 /// `llmanspec/AGENTS.md` is the authority on project-specific naming style.
-pub fn derive_change_id(desc: &str) -> Result<String> {
+pub(crate) fn derive_change_id(desc: &str) -> Result<String> {
     let trimmed = desc.trim();
     if trimmed.is_empty() {
         bail!("--from <DESCRIPTION> must be non-empty");
@@ -143,16 +144,6 @@ pub fn derive_change_id(desc: &str) -> Result<String> {
     }
     validate_sdd_id(&id, "change")?;
     Ok(id)
-}
-
-fn change_dir(root: &Path, change_id: &str) -> PathBuf {
-    root.join(LLMANSPEC_DIR_NAME)
-        .join("changes")
-        .join(change_id)
-}
-
-fn proposal_path(root: &Path, change_id: &str) -> PathBuf {
-    change_dir(root, change_id).join("proposal.md")
 }
 
 #[cfg(test)]

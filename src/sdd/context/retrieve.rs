@@ -13,10 +13,10 @@ use serde::{Deserialize, Serialize};
 
 /// Maximum number of assistant→tool round trips before the loop forces a
 /// no-tools final answer (see decision #5 in design.md).
-pub const MAX_TOOL_ROUNDS: usize = 12;
+pub(crate) const MAX_TOOL_ROUNDS: usize = 12;
 
 /// Navigation protocol given to the chat model as the system message.
-pub const SYSTEM_PROMPT: &str = "\
+pub(crate) const SYSTEM_PROMPT: &str = "\
 You are a spec retrieval agent for an SDD (spec-driven development) project.
 Given a task and optional file paths, find which specs are relevant.
 
@@ -52,7 +52,7 @@ CLASSIFICATION RULES:
 
 /// A conversation message in the agentic loop.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Msg {
+pub(crate) enum Msg {
     System(String),
     User(String),
     Assistant {
@@ -67,25 +67,25 @@ pub enum Msg {
 
 /// A tool function schema presented to the model.
 #[derive(Clone, Debug)]
-pub struct ToolSchema {
-    pub name: &'static str,
-    pub description: &'static str,
-    pub parameters: serde_json::Value,
+pub(crate) struct ToolSchema {
+    pub(crate) name: &'static str,
+    pub(crate) description: &'static str,
+    pub(crate) parameters: serde_json::Value,
 }
 
 /// A tool call the model wants the host to execute.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ToolCall {
-    pub id: String,
-    pub name: String,
-    pub arguments: String,
+pub(crate) struct ToolCall {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) arguments: String,
 }
 
 /// One chat turn returned by the model.
 #[derive(Clone, Debug, Default)]
-pub struct ChatTurn {
-    pub content: Option<String>,
-    pub tool_calls: Vec<ToolCall>,
+pub(crate) struct ChatTurn {
+    pub(crate) content: Option<String>,
+    pub(crate) tool_calls: Vec<ToolCall>,
 }
 
 /// What the model invoker must provide. Implemented by the real async-openai
@@ -94,7 +94,7 @@ pub struct ChatTurn {
 /// Uses a native `async fn` (stable on edition 2024), so no `async-trait`
 /// dependency is needed; the loop is generic over `I: ChatInvoker`.
 #[allow(async_fn_in_trait)]
-pub trait ChatInvoker {
+pub(crate) trait ChatInvoker {
     /// Perform one chat completion given the conversation so far and the tools.
     async fn chat_turn(&self, messages: &[Msg], tools: &[ToolSchema]) -> Result<ChatTurn>;
 }
@@ -103,22 +103,22 @@ pub trait ChatInvoker {
 
 /// A spec classified into `direct` or `related`.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TierEntry {
-    pub id: String,
-    pub reason: String,
+pub(crate) struct TierEntry {
+    pub(crate) id: String,
+    pub(crate) reason: String,
 }
 
 /// Pageindex retrieval result (converted to JSON by `mod.rs`).
 #[derive(Clone, Debug, Default)]
-pub struct RetrievalOutput {
-    pub direct: Vec<TierEntry>,
-    pub related: Vec<TierEntry>,
-    pub tool_calls: usize,
-    pub truncated: bool,
+pub(crate) struct RetrievalOutput {
+    pub(crate) direct: Vec<TierEntry>,
+    pub(crate) related: Vec<TierEntry>,
+    pub(crate) tool_calls: usize,
+    pub(crate) truncated: bool,
 }
 
 impl RetrievalOutput {
-    pub fn truncated(tool_calls: usize) -> Self {
+    pub(crate) fn truncated(tool_calls: usize) -> Self {
         Self {
             direct: Vec::new(),
             related: Vec::new(),
@@ -131,7 +131,7 @@ impl RetrievalOutput {
 // ---- tool schemas -----------------------------------------------------------
 
 /// Build the three tool schemas presented to the model.
-pub fn build_tool_schemas() -> Vec<ToolSchema> {
+pub(crate) fn build_tool_schemas() -> Vec<ToolSchema> {
     vec![
         ToolSchema {
             name: "list_specs",
@@ -165,7 +165,7 @@ pub fn build_tool_schemas() -> Vec<ToolSchema> {
 // ---- tool dispatch (local, no network) --------------------------------------
 
 /// Execute a tool call locally against the tree, returning a JSON string result.
-pub fn dispatch_tool(name: &str, arguments: &str, tree: &TreeIndex) -> String {
+pub(crate) fn dispatch_tool(name: &str, arguments: &str, tree: &TreeIndex) -> String {
     let args: serde_json::Value =
         serde_json::from_str(arguments).unwrap_or_else(|_| serde_json::json!({}));
     match name {
@@ -338,7 +338,7 @@ fn get_spec_content(tree: &TreeIndex, spec_id: &str, req_ids: &[String]) -> Stri
 /// The loop asks the model to navigate the tree via tools until it returns a
 /// final `direct`/`related` JSON answer, or until [`MAX_TOOL_ROUNDS`] is reached
 /// (in which case the result is marked truncated).
-pub async fn retrieve<I: ChatInvoker>(
+pub(crate) async fn retrieve<I: ChatInvoker>(
     invoker: &I,
     tree: &TreeIndex,
     task: &str,
@@ -438,7 +438,7 @@ pub async fn retrieve<I: ChatInvoker>(
 // ---- final answer parsing ---------------------------------------------------
 
 /// Parse the model's final `direct`/`related` JSON answer out of its content.
-pub fn parse_final_answer(content: &str) -> Result<RetrievalOutput> {
+pub(crate) fn parse_final_answer(content: &str) -> Result<RetrievalOutput> {
     let json_str = extract_json_object(content)
         .ok_or_else(|| anyhow::anyhow!("model did not return a JSON object; got: {content}"))?;
     #[derive(Deserialize)]

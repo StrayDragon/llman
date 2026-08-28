@@ -14,7 +14,7 @@ fn hex_encode(bytes: &[u8]) -> String {
 /// Hashes every `*.feature` spec file in each spec directory. Including harness content means a hand-edited `.feature`
 /// still triggers staleness — there should be no silent divergence between the
 /// index and the on-disk behavior artifacts.
-pub fn compute_spec_hash(specs_dir: &Path) -> Result<String> {
+pub(crate) fn compute_spec_hash(specs_dir: &Path) -> Result<String> {
     let mut entries: Vec<PathBuf> = Vec::new();
     for entry in fs::read_dir(specs_dir).context("Failed to read specs directory")? {
         let entry = entry?;
@@ -53,7 +53,7 @@ fn feature_paths_in(spec_dir: &Path) -> Result<Vec<PathBuf>> {
 
 /// Freshness status of the pageindex tree index
 #[derive(Debug, Clone, PartialEq)]
-pub enum IndexFreshness {
+pub(crate) enum IndexFreshness {
     Fresh,
     Stale {
         current_hash: String,
@@ -64,13 +64,13 @@ pub enum IndexFreshness {
 }
 
 /// Subdirectory name under `.context/` for the pageindex backend's index storage.
-pub fn backend_subdir(backend: Backend) -> &'static str {
+pub(crate) fn backend_subdir(backend: Backend) -> &'static str {
     let _ = backend;
     "pageindex"
 }
 
 /// Resolve the directory holding the pageindex backend's index.
-pub fn resolve_backend_dir(context_dir: &Path, backend: Backend) -> PathBuf {
+pub(crate) fn resolve_backend_dir(context_dir: &Path, backend: Backend) -> PathBuf {
     let _ = backend;
     context_dir.join(backend_subdir(backend))
 }
@@ -78,7 +78,7 @@ pub fn resolve_backend_dir(context_dir: &Path, backend: Backend) -> PathBuf {
 /// Best-effort summary of a pageindex tree index: (doc_count, build_timestamp, chat_model).
 ///
 /// Parsed as generic JSON so this works without depending on the `tree.rs` types.
-pub fn pageindex_summary(backend_dir: &Path) -> Option<(usize, String, String)> {
+pub(crate) fn pageindex_summary(backend_dir: &Path) -> Option<(usize, String, String)> {
     let content = fs::read_to_string(backend_dir.join("tree.json")).ok()?;
     let value: serde_json::Value = serde_json::from_str(&content).ok()?;
     let docs = value["docs"].as_array().map(|a| a.len()).unwrap_or(0);
@@ -114,7 +114,11 @@ fn read_pageindex_spec_hash(backend_dir: &Path) -> std::result::Result<String, F
 }
 
 /// Check the freshness of the pageindex index.
-pub fn check_freshness(context_dir: &Path, specs_dir: &Path, backend: Backend) -> IndexFreshness {
+pub(crate) fn check_freshness(
+    context_dir: &Path,
+    specs_dir: &Path,
+    backend: Backend,
+) -> IndexFreshness {
     let _ = backend;
     let backend_dir = resolve_backend_dir(context_dir, backend);
     let stored_hash = read_pageindex_spec_hash(&backend_dir);
@@ -141,16 +145,16 @@ pub fn check_freshness(context_dir: &Path, specs_dir: &Path, backend: Backend) -
 
 /// Rebuild lock information
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RebuildLock {
-    pub pid: u32,
-    pub started_at: String,
-    pub chunks_total: usize,
-    pub chunks_done: usize,
-    pub progress_pct: f64,
+pub(crate) struct RebuildLock {
+    pub(crate) pid: u32,
+    pub(crate) started_at: String,
+    pub(crate) chunks_total: usize,
+    pub(crate) chunks_done: usize,
+    pub(crate) progress_pct: f64,
 }
 
 /// RAII guard that removes `.rebuild.lock` on drop.
-pub struct RebuildLockGuard {
+pub(crate) struct RebuildLockGuard {
     path: PathBuf,
 }
 
@@ -163,7 +167,7 @@ impl Drop for RebuildLockGuard {
 const REBUILD_LOCK_MAX_AGE_SECS: i64 = 6 * 60 * 60;
 
 /// Acquire an exclusive rebuild lock via `create_new`, clearing stale locks first.
-pub fn acquire_rebuild_lock(context_dir: &Path) -> Result<RebuildLockGuard> {
+pub(crate) fn acquire_rebuild_lock(context_dir: &Path) -> Result<RebuildLockGuard> {
     fs::create_dir_all(context_dir).context("create context dir for rebuild lock")?;
     let lock_path = context_dir.join(".rebuild.lock");
 
@@ -264,7 +268,11 @@ fn read_proc_comm(pid: u32) -> Option<String> {
 }
 
 /// Check if a rebuild lock file exists and if the holder is still alive.
-pub fn check_rebuild_lock(context_dir: &Path) -> Result<Option<RebuildLock>> {
+/// Lock-file check for context index rebuilds. Prod flow rebuilds
+/// unconditionally today; kept because the r128 embed semantics are pinned
+/// by the unit tests below.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn check_rebuild_lock(context_dir: &Path) -> Result<Option<RebuildLock>> {
     let lock_path = context_dir.join(".rebuild.lock");
     if !lock_path.exists() {
         return Ok(None);

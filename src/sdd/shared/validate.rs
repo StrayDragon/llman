@@ -6,7 +6,9 @@ use crate::sdd::shared::discovery::{
 };
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
+use crate::sdd::shared::json::print_json;
 use crate::sdd::shared::match_utils::nearest_matches;
+use crate::sdd::shared::types::{ItemType, normalize_type};
 use crate::sdd::spec::staleness::{StalenessEvaluator, StalenessInfo, evaluate_staleness};
 use crate::sdd::spec::validation::{
     ChangeStage, ValidationIssue, ValidationLevel, ValidationReport, ValidationSummary,
@@ -18,7 +20,6 @@ use anyhow::{Result, anyhow};
 use inquire::Select;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::fmt;
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
@@ -32,47 +33,22 @@ fn has_frozen_archive(root: &Path) -> bool {
 }
 
 #[derive(Debug, Clone)]
-pub struct ValidateArgs {
-    pub item: Option<String>,
-    pub all: bool,
-    pub changes: bool,
-    pub specs: bool,
-    pub item_type: Option<String>,
-    pub strict: bool,
-    pub json: bool,
-    pub compact_json: bool,
-    pub stage: Option<String>,
-    pub no_interactive: bool,
+pub(crate) struct ValidateArgs {
+    pub(crate) item: Option<String>,
+    pub(crate) all: bool,
+    pub(crate) changes: bool,
+    pub(crate) specs: bool,
+    pub(crate) item_type: Option<String>,
+    pub(crate) strict: bool,
+    pub(crate) json: bool,
+    pub(crate) compact_json: bool,
+    pub(crate) stage: Option<String>,
+    pub(crate) no_interactive: bool,
     /// Run the BDD check command after fast validation (BDD-on spec only).
     /// Default: enabled when bdd.run_command is configured.
-    pub check: bool,
+    pub(crate) check: bool,
     /// Skip BDD runner execution even when bdd.run_command is configured.
-    pub no_check: bool,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum ItemType {
-    Change,
-    Spec,
-}
-
-impl ItemType {
-    fn as_str(self) -> &'static str {
-        match self {
-            ItemType::Change => "change",
-            ItemType::Spec => "spec",
-        }
-    }
-}
-
-impl fmt::Display for ItemType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let label = match self {
-            ItemType::Change => t!("sdd.validate.option_change"),
-            ItemType::Spec => t!("sdd.validate.option_spec"),
-        };
-        write!(f, "{label}")
-    }
+    pub(crate) no_check: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -125,7 +101,7 @@ fn resolve_check_mode(bdd_configured: bool, check_flag: bool, no_check: bool) ->
 /// it explicitly so that in-process callers (e.g. `run_finalize`, `run_checkpoint`)
 /// can validate a TempDir fixture without mutating process cwd. The CLI boundary
 /// in `command.rs` passes `Path::new(".")` to preserve the cwd-implicit behavior.
-pub fn run(root: &Path, args: ValidateArgs) -> Result<()> {
+pub(crate) fn run(root: &Path, args: ValidateArgs) -> Result<()> {
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let config = load_required_config(&llmanspec_dir)?;
     let archive_config = config.archive_config();
@@ -195,15 +171,6 @@ pub fn run(root: &Path, args: ValidateArgs) -> Result<()> {
         check_mode,
         check_deprecated,
     )
-}
-
-fn normalize_type(value: Option<&str>) -> Option<ItemType> {
-    let value = value?.to_lowercase();
-    match value.as_str() {
-        "change" => Some(ItemType::Change),
-        "spec" => Some(ItemType::Spec),
-        _ => None,
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1304,15 +1271,6 @@ fn empty_summary(include_changes: bool, include_specs: bool) -> serde_json::Valu
     })
 }
 
-fn print_json(value: &serde_json::Value, compact: bool) -> Result<()> {
-    if compact {
-        println!("{}", serde_json::to_string(value)?);
-    } else {
-        println!("{}", serde_json::to_string_pretty(value)?);
-    }
-    Ok(())
-}
-
 #[derive(Default, Serialize)]
 struct SummaryCounts {
     items: usize,
@@ -1321,13 +1279,13 @@ struct SummaryCounts {
 }
 
 fn non_interactive_hint_message() -> String {
-    [
-        t!("sdd.validate.non_interactive.line1"),
-        t!("sdd.validate.non_interactive.line2"),
-        t!("sdd.validate.non_interactive.line3"),
-        t!("sdd.validate.non_interactive.line4"),
-        t!("sdd.validate.non_interactive.line5"),
-        t!("sdd.validate.non_interactive.line6"),
-    ]
-    .join("\n")
+    super::interactive::non_interactive_hint_message(
+        t!("sdd.validate.non_interactive.line1").to_string(),
+        &[
+            t!("sdd.validate.non_interactive.line2").to_string(),
+            t!("sdd.validate.non_interactive.line3").to_string(),
+            t!("sdd.validate.non_interactive.line4").to_string(),
+            t!("sdd.validate.non_interactive.line5").to_string(),
+        ],
+    )
 }

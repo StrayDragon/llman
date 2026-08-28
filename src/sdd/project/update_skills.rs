@@ -19,10 +19,6 @@ const REQUIRED_ETHICS_KEYS: &[&str] = &[
 /// candidates for remove-then-refresh during `init --update`.
 const MANAGED_SKILL_PREFIX: &str = "llman-sdd-";
 
-pub fn run() -> Result<()> {
-    run_with_root(Path::new("."))
-}
-
 pub(crate) fn run_with_root(root: &Path) -> Result<()> {
     let llmanspec_path = root.join(LLMANSPEC_DIR_NAME);
     if !llmanspec_path.exists() {

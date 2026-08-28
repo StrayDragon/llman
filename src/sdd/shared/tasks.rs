@@ -3,31 +3,31 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TaskStatus {
+pub(crate) enum TaskStatus {
     Completed,
     Pending,
 }
 
 #[derive(Debug, Clone)]
-pub struct TaskItem {
-    pub line_num: usize,
-    pub text: String,
-    pub status: TaskStatus,
+pub(crate) struct TaskItem {
+    pub(crate) line_num: usize,
+    pub(crate) text: String,
+    pub(crate) status: TaskStatus,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct TasksReport {
-    pub items: Vec<TaskItem>,
-    pub completed: usize,
-    pub pending: usize,
+pub(crate) struct TasksReport {
+    pub(crate) items: Vec<TaskItem>,
+    pub(crate) completed: usize,
+    pub(crate) pending: usize,
 }
 
 impl TasksReport {
-    pub fn total(&self) -> usize {
+    pub(crate) fn total(&self) -> usize {
         self.items.len()
     }
 
-    pub fn completion_ratio(&self) -> f64 {
+    pub(crate) fn completion_ratio(&self) -> f64 {
         let total = self.total();
         if total == 0 {
             return 1.0;
@@ -54,7 +54,7 @@ fn checkbox_marker(trimmed: &str) -> Option<bool> {
     None
 }
 
-pub fn parse_tasks(content: &str) -> TasksReport {
+pub(crate) fn parse_tasks(content: &str) -> TasksReport {
     let mut report = TasksReport::default();
 
     for (idx, line) in content.lines().enumerate() {
@@ -103,7 +103,7 @@ fn extract_task_text(trimmed: &str) -> String {
     after.to_string()
 }
 
-pub fn parse_tasks_file(tasks_path: &Path) -> Result<Option<TasksReport>> {
+pub(crate) fn parse_tasks_file(tasks_path: &Path) -> Result<Option<TasksReport>> {
     let content = match fs::read_to_string(tasks_path) {
         Ok(c) => c,
         Err(_) => return Ok(None),

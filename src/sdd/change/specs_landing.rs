@@ -7,29 +7,27 @@ use std::path::Path;
 use crate::git_utils::{current_branch, is_default_branch, run_git};
 use crate::sdd::change::git_native::{ChangeGitBinding, read_binding};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
-use crate::sdd::spec::validation::{
-    ChangeStage, ProposalFrontmatter, check_proposal_frontmatter, determine_stage,
-};
+use crate::sdd::spec::validation::{ChangeStage, check_proposal_frontmatter, determine_stage};
 
 /// Paths under the repo that count as live specs for landing detection.
-pub const SPECS_PATHSPEC: &str = "llmanspec/specs";
+pub(crate) const SPECS_PATHSPEC: &str = "llmanspec/specs";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SpecsLandingStatus {
+pub(crate) struct SpecsLandingStatus {
     /// True when `base_sha...binding.branch` touches `llmanspec/specs/**`.
-    pub specs_landed: bool,
+    pub(crate) specs_landed: bool,
     /// Frontmatter exemption: no live-contract edit expected.
-    pub skip_specs_landing: bool,
+    pub(crate) skip_specs_landing: bool,
     /// `stage == Full && (specs_landed || skip_specs_landing)`.
-    pub ready_to_implement: bool,
-    pub stage: ChangeStage,
+    pub(crate) ready_to_implement: bool,
+    pub(crate) stage: ChangeStage,
     /// Short reason when not landed (token-friendly; may guide agents to skills).
-    pub detail: Option<String>,
+    pub(crate) detail: Option<String>,
 }
 
 impl SpecsLandingStatus {
     /// Agent-oriented one-liner when apply should STOP.
-    pub fn not_ready_message(&self, change_id: &str) -> String {
+    pub(crate) fn not_ready_message(&self, change_id: &str) -> String {
         if self.ready_to_implement {
             return String::new();
         }
@@ -51,7 +49,7 @@ Skill: llman-sdd-propose — do NOT re-run change start if already attached. App
 }
 
 /// Evaluate specs-landing + apply-ready for a change directory.
-pub fn evaluate_specs_landing(root: &Path, change_dir: &Path) -> SpecsLandingStatus {
+pub(crate) fn evaluate_specs_landing(root: &Path, change_dir: &Path) -> SpecsLandingStatus {
     let stage = determine_stage(change_dir);
     let skip = read_skip_specs_landing(change_dir);
     let binding = read_binding_for_change(root, change_dir);
@@ -120,7 +118,7 @@ fn read_binding_for_change(root: &Path, change_dir: &Path) -> Option<ChangeGitBi
 }
 
 /// True when three-dot diff `base_sha...branch` lists any path under live specs.
-pub fn specs_diff_nonempty(root: &Path, binding: &ChangeGitBinding) -> Result<bool> {
+pub(crate) fn specs_diff_nonempty(root: &Path, binding: &ChangeGitBinding) -> Result<bool> {
     let range = format!("{}...{}", binding.base_sha, binding.branch);
     let out = run_git(
         root,
@@ -140,7 +138,7 @@ pub fn specs_diff_nonempty(root: &Path, binding: &ChangeGitBinding) -> Result<bo
 }
 
 /// WARNING when the default branch has uncommitted edits under live specs.
-pub fn warn_dirty_specs_on_default_branch(root: &Path) -> Option<String> {
+pub(crate) fn warn_dirty_specs_on_default_branch(root: &Path) -> Option<String> {
     let branch = current_branch(root).ok()?;
     if !is_default_branch(root, &branch).ok()? {
         return None;
@@ -157,18 +155,13 @@ See AGENTS.md Specs landing. Skill: llman-sdd-propose."
 }
 
 /// Repo root from `…/llmanspec/changes/<id>`.
-pub fn repo_root_from_change_dir(change_dir: &Path) -> Option<&Path> {
+pub(crate) fn repo_root_from_change_dir(change_dir: &Path) -> Option<&Path> {
     let changes = change_dir.parent()?;
     let llmanspec = changes.parent()?;
     if llmanspec.file_name()?.to_str()? != LLMANSPEC_DIR_NAME {
         return None;
     }
     llmanspec.parent()
-}
-
-/// Re-export parsing helper used by validate after frontmatter gains the field.
-pub fn skip_from_frontmatter(fm: &ProposalFrontmatter) -> bool {
-    fm.skip_specs_landing
 }
 
 #[cfg(test)]

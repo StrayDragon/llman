@@ -1,8 +1,8 @@
-pub mod archive;
-pub mod finalize;
-pub mod freeze;
-pub mod git_native;
-pub mod lock_gate;
-pub mod new;
-pub mod specs_landing;
-pub mod start;
+pub(crate) mod archive;
+pub(crate) mod finalize;
+pub(crate) mod freeze;
+pub(crate) mod git_native;
+pub(crate) mod lock_gate;
+pub(crate) mod new;
+pub(crate) mod specs_landing;
+pub(crate) mod start;

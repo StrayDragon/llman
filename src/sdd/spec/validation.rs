@@ -17,106 +17,94 @@ static FULL_MODE_QUIET_HINT_SHOWN: AtomicBool = AtomicBool::new(false);
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
-pub enum ValidationLevel {
+pub(crate) enum ValidationLevel {
     Error,
     Warning,
     Info,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ValidationIssue {
-    pub level: ValidationLevel,
-    pub path: String,
-    pub message: String,
+pub(crate) struct ValidationIssue {
+    pub(crate) level: ValidationLevel,
+    pub(crate) path: String,
+    pub(crate) message: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ValidationSummary {
-    pub errors: usize,
-    pub warnings: usize,
-    pub info: usize,
+pub(crate) struct ValidationSummary {
+    pub(crate) errors: usize,
+    pub(crate) warnings: usize,
+    pub(crate) info: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ValidationReport {
-    pub valid: bool,
-    pub issues: Vec<ValidationIssue>,
-    pub summary: ValidationSummary,
+pub(crate) struct ValidationReport {
+    pub(crate) valid: bool,
+    pub(crate) issues: Vec<ValidationIssue>,
+    pub(crate) summary: ValidationSummary,
 }
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct SpecFrontmatter {
-    pub valid_scope: Vec<String>,
+pub(crate) struct SpecFrontmatter {
+    pub(crate) valid_scope: Vec<String>,
 }
 
-pub struct SpecValidation {
-    pub report: ValidationReport,
-    pub frontmatter: Option<SpecFrontmatter>,
+pub(crate) struct SpecValidation {
+    pub(crate) report: ValidationReport,
+    pub(crate) frontmatter: Option<SpecFrontmatter>,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct ProposalFrontmatter {
-    pub depends_on: Vec<String>,
-    pub blocks: Vec<String>,
+pub(crate) struct ProposalFrontmatter {
+    pub(crate) depends_on: Vec<String>,
+    /// r124 legal frontmatter field; parsed for SSOT completeness, no code
+    /// consumer yet (blocks/`blocks` reverse-dependency map is read from
+    /// proposal.md on demand by `sdd graph` instead).
+    #[allow(dead_code)]
+    pub(crate) blocks: Vec<String>,
     /// BDD-on Git-native binding: feature branch name.
-    pub branch: Option<String>,
+    pub(crate) branch: Option<String>,
     /// BDD-on Git-native binding: immutable merge-base SHA at attach time.
-    pub base_sha: Option<String>,
+    pub(crate) base_sha: Option<String>,
     /// Whether `sdd change checkpoint` has succeeded.
-    pub checkpointed: bool,
-    pub checkpoint_sha: Option<String>,
+    /// Parsed for frontmatter SSOT completeness; state transitions are
+    /// written via `write_binding`, never read back from this struct.
+    #[allow(dead_code)]
+    pub(crate) checkpointed: bool,
+    #[allow(dead_code)]
+    pub(crate) checkpoint_sha: Option<String>,
     /// When true, apply-ready does not require a live `llmanspec/specs/**` diff
     /// on the bound branch (docs/governance changes with no contract edit).
-    pub skip_specs_landing: bool,
+    pub(crate) skip_specs_landing: bool,
     /// Human acknowledgement (spec-format r135): allows the change to modify
     /// locked `@human` rule scenarios under `llmanspec/specs/**/*.feature`.
-    pub rules_edit_acked: bool,
-}
-
-pub fn validate_spec_content_with_frontmatter(
-    path: &Path,
-    content: &str,
-    strict: bool,
-) -> SpecValidation {
-    validate_spec_content(
-        path,
-        content,
-        strict,
-        SpecValidateCtx {
-            project_root: None,
-            bdd_config: None,
-            locale: None,
-            check_mode: false,
-            full_mode_cache: None,
-        },
-    )
+    pub(crate) rules_edit_acked: bool,
 }
 
 /// Cache of BDD full-mode results keyed by the expanded `run_command` string.
 /// Used by bulk validate (`--all` / `--specs`) so project-wide runners without
 /// differentiating `{feature_*}` placeholders execute at most once per process.
 #[derive(Debug, Clone)]
-pub struct FullModeCacheEntry {
-    pub success: bool,
-    pub issues: Vec<ValidationIssue>,
+pub(crate) struct FullModeCacheEntry {
+    pub(crate) success: bool,
 }
 
-pub type FullModeCache = HashMap<String, FullModeCacheEntry>;
+pub(crate) type FullModeCache = HashMap<String, FullModeCacheEntry>;
 
 /// Context bundle for [`validate_spec_content`], replacing an 8-argument
 /// signature (M11): two of the old params were placeholders.
-pub struct SpecValidateCtx<'a> {
-    pub project_root: Option<&'a Path>,
-    pub bdd_config: Option<&'a BddConfig>,
+pub(crate) struct SpecValidateCtx<'a> {
+    pub(crate) project_root: Option<&'a Path>,
+    pub(crate) bdd_config: Option<&'a BddConfig>,
     /// Config locale; single-track parsing auto-detects per-file language, so
     /// this is currently unused. Kept for future locale-aware messaging.
-    pub locale: Option<&'a str>,
-    pub check_mode: bool,
-    pub full_mode_cache: Option<&'a mut FullModeCache>,
+    pub(crate) locale: Option<&'a str>,
+    pub(crate) check_mode: bool,
+    pub(crate) full_mode_cache: Option<&'a mut FullModeCache>,
 }
 
-pub fn validate_spec_content(
+pub(crate) fn validate_spec_content(
     path: &Path,
     content: &str,
     strict: bool,
@@ -230,7 +218,10 @@ pub fn validate_spec_content(
 /// - exactly one `*.feature` → that file;
 /// - a legacy `spec.toon` present → error pointing at `toon2features`;
 /// - zero or multiple `.feature` files → error.
-pub fn resolve_spec_file(specs_root: &Path, id: &str) -> Result<std::path::PathBuf, anyhow::Error> {
+pub(crate) fn resolve_spec_file(
+    specs_root: &Path,
+    id: &str,
+) -> Result<std::path::PathBuf, anyhow::Error> {
     let dir = specs_root.join(id);
     if !dir.is_dir() {
         return Err(anyhow::anyhow!(
@@ -1353,7 +1344,7 @@ Feature: cli
 /// Discover `.feature` files in a spec directory (feature-as-spec mode, r51).
 /// Returns paths sorted for deterministic output. No registration table needed:
 /// dropping a file into the directory IS the registration.
-pub fn discover_features(spec_dir: &Path) -> Vec<std::path::PathBuf> {
+pub(crate) fn discover_features(spec_dir: &Path) -> Vec<std::path::PathBuf> {
     let pattern = spec_dir.join("*.feature");
     let mut paths: Vec<_> = glob::glob(pattern.to_string_lossy().as_ref())
         .ok()
@@ -1368,7 +1359,10 @@ pub fn discover_features(spec_dir: &Path) -> Vec<std::path::PathBuf> {
 /// Map a config locale to a Gherkin parsing language (r53).
 /// `zh-Hans*` → `zh-CN`; everything else passes through. An explicit
 /// `bdd.default_language` always wins over locale derivation.
-pub fn locale_to_gherkin_lang(locale: Option<&str>, bdd_config: Option<&BddConfig>) -> String {
+pub(crate) fn locale_to_gherkin_lang(
+    locale: Option<&str>,
+    bdd_config: Option<&BddConfig>,
+) -> String {
     if let Some(bdd) = bdd_config
         && let Some(lang) = &bdd.default_language
         && !lang.trim().is_empty()
@@ -1411,13 +1405,7 @@ fn run_full_mode_cached(
         }
         let issues = run_full_mode(spec_dir, bdd_config);
         let success = !issues.iter().any(|i| i.level == ValidationLevel::Error);
-        cache.insert(
-            expanded,
-            FullModeCacheEntry {
-                success,
-                issues: issues.clone(),
-            },
-        );
+        cache.insert(expanded, FullModeCacheEntry { success });
         return issues;
     }
 
@@ -1561,7 +1549,7 @@ fn expand_run_command_placeholders(command: &str, spec_dir: &Path) -> String {
 
 // --- Change-level validation check functions ---
 
-pub fn check_proposal_exists(change_dir: &Path) -> Vec<ValidationIssue> {
+pub(crate) fn check_proposal_exists(change_dir: &Path) -> Vec<ValidationIssue> {
     if change_dir.join("proposal.md").exists() {
         return Vec::new();
     }
@@ -1590,7 +1578,7 @@ const PROPOSAL_FRONTMATTER_ALLOWED_FIELDS: &[&str] = &[
     "rules_edit_acked",
 ];
 
-pub fn check_proposal_frontmatter(
+pub(crate) fn check_proposal_frontmatter(
     change_dir: &Path,
     all_change_ids: &[String],
     archived_change_ids: &[String],
@@ -1795,7 +1783,7 @@ fn parse_yaml_string_list(
     }
 }
 
-pub fn check_dag_cycles(
+pub(crate) fn check_dag_cycles(
     change_frontmatters: &[(String, ProposalFrontmatter)],
 ) -> HashMap<String, Vec<ValidationIssue>> {
     let mut result: HashMap<String, Vec<ValidationIssue>> = HashMap::new();
@@ -1877,7 +1865,7 @@ pub fn check_dag_cycles(
     result
 }
 
-pub fn check_tasks_exists(change_dir: &Path) -> Vec<ValidationIssue> {
+pub(crate) fn check_tasks_exists(change_dir: &Path) -> Vec<ValidationIssue> {
     if change_dir.join("tasks.md").exists() {
         return Vec::new();
     }
@@ -1888,7 +1876,7 @@ pub fn check_tasks_exists(change_dir: &Path) -> Vec<ValidationIssue> {
     }]
 }
 
-pub fn check_tasks_completion(
+pub(crate) fn check_tasks_completion(
     _change_dir: &Path,
     archive_config: &ArchiveConfig,
 ) -> Vec<ValidationIssue> {
@@ -1929,7 +1917,7 @@ pub fn check_tasks_completion(
     issues
 }
 
-pub fn check_design_md(change_dir: &Path) -> Vec<ValidationIssue> {
+pub(crate) fn check_design_md(change_dir: &Path) -> Vec<ValidationIssue> {
     if !change_dir.join("design.md").exists() {
         return Vec::new();
     }
@@ -1942,14 +1930,14 @@ pub fn check_design_md(change_dir: &Path) -> Vec<ValidationIssue> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum ChangeStage {
+pub(crate) enum ChangeStage {
     Draft,
     Designed,
     Full,
 }
 
 impl ChangeStage {
-    pub fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             ChangeStage::Draft => "draft",
             ChangeStage::Designed => "designed",
@@ -1968,7 +1956,7 @@ impl ChangeStage {
 ///
 /// The spec signal is always the Git-native attach binding; `changes/<id>/specs/`
 /// is no longer consulted (the directory is abolished, see r115).
-pub fn determine_stage(change_dir: &Path) -> ChangeStage {
+pub(crate) fn determine_stage(change_dir: &Path) -> ChangeStage {
     let has_proposal = change_dir.join("proposal.md").exists();
     let has_design = change_dir.join("design.md").exists();
     let has_tasks = change_dir.join("tasks.md").exists();
@@ -1985,7 +1973,7 @@ pub fn determine_stage(change_dir: &Path) -> ChangeStage {
 /// binding is present (non-empty `branch` **and** `base_sha`). Best-effort: any
 /// parse failure or missing file returns `false`, matching the historical
 /// "no specs signal" semantics.
-pub fn has_attach_binding(change_dir: &Path) -> bool {
+pub(crate) fn has_attach_binding(change_dir: &Path) -> bool {
     let Ok(content) = fs::read_to_string(change_dir.join("proposal.md")) else {
         return false;
     };
@@ -2010,7 +1998,7 @@ pub fn has_attach_binding(change_dir: &Path) -> bool {
     !branch.is_empty() && !base_sha.is_empty()
 }
 
-pub fn has_spec_files(specs_dir: &Path) -> bool {
+pub(crate) fn has_spec_files(specs_dir: &Path) -> bool {
     if !specs_dir.is_dir() {
         return false;
     }
@@ -2031,7 +2019,7 @@ pub fn has_spec_files(specs_dir: &Path) -> bool {
     }
 }
 
-pub fn check_design_tasks_constraint(change_dir: &Path) -> Vec<ValidationIssue> {
+pub(crate) fn check_design_tasks_constraint(change_dir: &Path) -> Vec<ValidationIssue> {
     let has_tasks = change_dir.join("tasks.md").exists();
     let has_design = change_dir.join("design.md").exists();
 
@@ -2045,7 +2033,7 @@ pub fn check_design_tasks_constraint(change_dir: &Path) -> Vec<ValidationIssue> 
     Vec::new()
 }
 
-pub fn check_completeness_stage(
+pub(crate) fn check_completeness_stage(
     change_dir: &Path,
     _strict: bool,
     force_stage: Option<ChangeStage>,
@@ -2079,7 +2067,7 @@ pub fn check_completeness_stage(
     issues
 }
 
-pub fn build_report(issues: Vec<ValidationIssue>, strict: bool) -> ValidationReport {
+pub(crate) fn build_report(issues: Vec<ValidationIssue>, strict: bool) -> ValidationReport {
     let mut errors = 0;
     let mut warnings = 0;
     let mut info = 0;

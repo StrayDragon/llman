@@ -17,7 +17,7 @@ use std::path::Path;
 type Hashes = BTreeMap<String, usize>;
 
 /// Issues for the locked-rule gate of one change.
-pub fn check(root: &Path, base_sha: &str, rules_edit_acked: bool) -> Vec<ValidationIssue> {
+pub(crate) fn check(root: &Path, base_sha: &str, rules_edit_acked: bool) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let specs_prefix = format!("{LLMANSPEC_DIR_NAME}/specs/");
 
@@ -165,7 +165,7 @@ fn ensure_success(output: &std::process::Output) -> anyhow::Result<()> {
 }
 
 /// Read `rules_edit_acked` from the change's proposal frontmatter.
-pub fn rules_edit_acked_for(root: &Path, change_name: &str) -> bool {
+pub(crate) fn rules_edit_acked_for(root: &Path, change_name: &str) -> bool {
     let proposal = root
         .join(LLMANSPEC_DIR_NAME)
         .join("changes")

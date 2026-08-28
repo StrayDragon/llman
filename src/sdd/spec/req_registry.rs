@@ -17,37 +17,37 @@ use std::path::{Path, PathBuf};
 
 /// One requirement row located in the main library.
 #[derive(Debug, Clone)]
-pub struct ReqLocation {
-    pub capability: String,
-    pub title: String,
-    pub statement: String,
+pub(crate) struct ReqLocation {
+    pub(crate) capability: String,
+    pub(crate) title: String,
+    pub(crate) statement: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ResolveReqJson {
-    pub req_id: String,
-    pub capability: String,
-    pub title: String,
-    pub statement: String,
-    pub harness: Vec<HarnessRefJson>,
+pub(crate) struct ResolveReqJson {
+    pub(crate) req_id: String,
+    pub(crate) capability: String,
+    pub(crate) title: String,
+    pub(crate) statement: String,
+    pub(crate) harness: Vec<HarnessRefJson>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct HarnessRefJson {
-    pub feature: String,
-    pub scenario: String,
+pub(crate) struct HarnessRefJson {
+    pub(crate) feature: String,
+    pub(crate) scenario: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NextReqIdJson {
-    pub req_id: String,
+pub(crate) struct NextReqIdJson {
+    pub(crate) req_id: String,
 }
 
 /// Index: req_id → all owning capabilities (normally one).
-pub fn build_req_index(root: &Path) -> Result<BTreeMap<String, Vec<ReqLocation>>> {
+pub(crate) fn build_req_index(root: &Path) -> Result<BTreeMap<String, Vec<ReqLocation>>> {
     let mut index: BTreeMap<String, Vec<ReqLocation>> = BTreeMap::new();
     for capability in list_specs(root)? {
         let doc = load_main_doc(root, &capability)?;
@@ -66,7 +66,7 @@ pub fn build_req_index(root: &Path) -> Result<BTreeMap<String, Vec<ReqLocation>>
     Ok(index)
 }
 
-pub fn load_main_doc(root: &Path, capability: &str) -> Result<MainSpecDoc> {
+pub(crate) fn load_main_doc(root: &Path, capability: &str) -> Result<MainSpecDoc> {
     let path = resolve_spec_file(&specs_dir(root), capability)?;
     let content = fs::read_to_string(&path)
         .map_err(|err| anyhow!("failed to read {}: {err}", path.display()))?;
@@ -78,7 +78,7 @@ fn specs_dir(root: &Path) -> PathBuf {
 }
 
 /// ERROR issues for every globally colliding `req_id`, with fix suggestions.
-pub fn global_req_id_uniqueness_issues(root: &Path) -> Vec<ValidationIssue> {
+pub(crate) fn global_req_id_uniqueness_issues(root: &Path) -> Vec<ValidationIssue> {
     match build_req_index(root) {
         Ok(index) => uniqueness_issues_from_index(&index),
         Err(err) => vec![ValidationIssue {
@@ -90,7 +90,7 @@ pub fn global_req_id_uniqueness_issues(root: &Path) -> Vec<ValidationIssue> {
 }
 
 /// Issues relevant to a single capability (subset of global collisions).
-pub fn global_req_id_uniqueness_issues_for_capability(
+pub(crate) fn global_req_id_uniqueness_issues_for_capability(
     root: &Path,
     capability: &str,
 ) -> Vec<ValidationIssue> {
@@ -128,12 +128,12 @@ fn uniqueness_issues_from_index(
 }
 
 /// Next free short id: smallest unused `rN` (N ≥ 1) among `^r(\d+)$` ids.
-pub fn next_req_id(root: &Path) -> Result<String> {
+pub(crate) fn next_req_id(root: &Path) -> Result<String> {
     let index = build_req_index(root)?;
     Ok(next_req_id_from_index(&index))
 }
 
-pub fn next_req_id_from_index(index: &BTreeMap<String, Vec<ReqLocation>>) -> String {
+pub(crate) fn next_req_id_from_index(index: &BTreeMap<String, Vec<ReqLocation>>) -> String {
     let used: BTreeSet<u64> = index.keys().filter_map(|id| parse_r_number(id)).collect();
     let mut n = 1u64;
     while used.contains(&n) {
@@ -151,14 +151,14 @@ fn parse_r_number(id: &str) -> Option<u64> {
 }
 
 /// True if `req_id` is already used by any main-library capability.
-pub fn find_global_owner<'a>(
+pub(crate) fn find_global_owner<'a>(
     index: &'a BTreeMap<String, Vec<ReqLocation>>,
     req_id: &str,
 ) -> Option<&'a ReqLocation> {
     index.get(req_id.trim()).and_then(|locs| locs.first())
 }
 
-pub fn resolve_req(root: &Path, req_id: &str, lang: &str) -> Result<ResolveReqJson> {
+pub(crate) fn resolve_req(root: &Path, req_id: &str, lang: &str) -> Result<ResolveReqJson> {
     let id = req_id.trim();
     let index = build_req_index(root)?;
     let locs = index.get(id).ok_or_else(|| {
@@ -210,13 +210,13 @@ fn harness_refs_for_req(
 }
 
 #[derive(Debug, Default)]
-pub struct DedupeReport {
-    pub remapped: Vec<(String, String, String)>, // capability, from, to
+pub(crate) struct DedupeReport {
+    pub(crate) remapped: Vec<(String, String, String)>, // capability, from, to
 }
 
 /// Keep lexicographically first capability for each colliding id; remap others
 /// to fresh `rN` short ids. Updates `@req:` links inside `.feature` files (single-track).
-pub fn dedupe_colliding_req_ids(root: &Path, dry_run: bool) -> Result<DedupeReport> {
+pub(crate) fn dedupe_colliding_req_ids(root: &Path, dry_run: bool) -> Result<DedupeReport> {
     let mut index = build_req_index(root)?;
     let mut report = DedupeReport::default();
     let collisions: Vec<(String, Vec<String>)> = index
@@ -294,7 +294,7 @@ fn replace_req_tags(body: &str, from: &str, to: &str) -> String {
     out
 }
 
-pub fn run_next_req_id(root: &Path, json: bool) -> Result<()> {
+pub(crate) fn run_next_req_id(root: &Path, json: bool) -> Result<()> {
     let id = next_req_id(root)?;
     if json {
         println!(
@@ -307,7 +307,7 @@ pub fn run_next_req_id(root: &Path, json: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn run_resolve_req(root: &Path, req_id: &str, json: bool, lang: &str) -> Result<()> {
+pub(crate) fn run_resolve_req(root: &Path, req_id: &str, json: bool, lang: &str) -> Result<()> {
     let resolved = resolve_req(root, req_id, lang)?;
     if json {
         println!("{}", serde_json::to_string_pretty(&resolved)?);
@@ -328,7 +328,7 @@ pub fn run_resolve_req(root: &Path, req_id: &str, json: bool, lang: &str) -> Res
     Ok(())
 }
 
-pub fn run_dedupe_req_ids(root: &Path, dry_run: bool) -> Result<()> {
+pub(crate) fn run_dedupe_req_ids(root: &Path, dry_run: bool) -> Result<()> {
     let report = dedupe_colliding_req_ids(root, dry_run)?;
     if report.remapped.is_empty() {
         println!("No colliding req_id values in llmanspec/specs.");
@@ -347,7 +347,7 @@ pub fn run_dedupe_req_ids(root: &Path, dry_run: bool) -> Result<()> {
 }
 
 /// Guard for authoring: fail if `req_id` already exists anywhere in main library.
-pub fn ensure_req_id_globally_free(root: &Path, req_id: &str) -> Result<()> {
+pub(crate) fn ensure_req_id_globally_free(root: &Path, req_id: &str) -> Result<()> {
     let index = build_req_index(root)?;
     if let Some(owner) = find_global_owner(&index, req_id) {
         bail!(

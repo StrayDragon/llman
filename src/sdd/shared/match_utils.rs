@@ -4,7 +4,7 @@
 /// All comparisons are case-sensitive to keep change-id resolution
 /// deterministic across commands (see cli spec r112).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PrefixOutcome<'a> {
+pub(crate) enum PrefixOutcome<'a> {
     /// Exactly one candidate matched.
     ///
     /// `via_prefix` is `false` for an exact match and `true` when the input was
@@ -24,7 +24,7 @@ pub enum PrefixOutcome<'a> {
 /// This is the single source of truth for the "exact > prefix" rule mandated
 /// by cli spec r112. Both `resolve_change_id` and `resolve_target` delegate
 /// here so the rule cannot diverge between commands.
-pub fn prefix_resolve<'a>(input: &str, candidates: &'a [String]) -> PrefixOutcome<'a> {
+pub(crate) fn prefix_resolve<'a>(input: &str, candidates: &'a [String]) -> PrefixOutcome<'a> {
     if input.is_empty() || candidates.is_empty() {
         return PrefixOutcome::None;
     }
@@ -54,7 +54,7 @@ pub fn prefix_resolve<'a>(input: &str, candidates: &'a [String]) -> PrefixOutcom
     }
 }
 
-pub fn nearest_matches(needle: &str, candidates: &[String], limit: usize) -> Vec<String> {
+pub(crate) fn nearest_matches(needle: &str, candidates: &[String], limit: usize) -> Vec<String> {
     if needle.is_empty() || candidates.is_empty() || limit == 0 {
         return Vec::new();
     }

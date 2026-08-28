@@ -7,11 +7,11 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Clone)]
-pub struct GraphArgs {
-    pub format: String,
-    pub scope: String,
-    pub depth: usize,
-    pub change: Option<String>,
+pub(crate) struct GraphArgs {
+    pub(crate) format: String,
+    pub(crate) scope: String,
+    pub(crate) depth: usize,
+    pub(crate) change: Option<String>,
 }
 
 #[derive(Clone)]
@@ -28,7 +28,7 @@ struct GraphNode {
     present: bool,
 }
 
-pub fn run(args: GraphArgs) -> Result<()> {
+pub(crate) fn run(args: GraphArgs) -> Result<()> {
     let root = Path::new(".");
     match args.format.as_str() {
         "mermaid" => render_mermaid(root, &args),

@@ -5,7 +5,9 @@ use crate::sdd::shared::discovery::{
 };
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::interactive::is_interactive;
+use crate::sdd::shared::json::print_json;
 use crate::sdd::shared::match_utils::nearest_matches;
+use crate::sdd::shared::types::{ItemType, normalize_type};
 use crate::sdd::spec::backend::feature_backend;
 use crate::sdd::spec::backend::feature_backend::compute_rule_morphology;
 use crate::sdd::spec::parser::parse_change;
@@ -17,33 +19,18 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Clone)]
-pub struct ShowArgs {
-    pub item: Option<String>,
-    pub json: bool,
-    pub compact_json: bool,
-    pub item_type: Option<String>,
-    pub no_interactive: bool,
-    pub deltas_only: bool,
-    pub requirements_only: bool,
-    pub requirements: bool,
-    pub no_scenarios: bool,
-    pub requirement: Option<usize>,
-    pub meta_only: bool,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum ItemType {
-    Change,
-    Spec,
-}
-
-impl ItemType {
-    fn as_str(self) -> &'static str {
-        match self {
-            ItemType::Change => "change",
-            ItemType::Spec => "spec",
-        }
-    }
+pub(crate) struct ShowArgs {
+    pub(crate) item: Option<String>,
+    pub(crate) json: bool,
+    pub(crate) compact_json: bool,
+    pub(crate) item_type: Option<String>,
+    pub(crate) no_interactive: bool,
+    pub(crate) deltas_only: bool,
+    pub(crate) requirements_only: bool,
+    pub(crate) requirements: bool,
+    pub(crate) no_scenarios: bool,
+    pub(crate) requirement: Option<usize>,
+    pub(crate) meta_only: bool,
 }
 
 impl fmt::Display for ItemType {
@@ -56,7 +43,7 @@ impl fmt::Display for ItemType {
     }
 }
 
-pub fn run(args: ShowArgs) -> Result<()> {
+pub(crate) fn run(args: ShowArgs) -> Result<()> {
     let root = Path::new(".");
     let interactive = is_interactive(args.no_interactive);
     let type_override = normalize_type(args.item_type.as_deref());
@@ -77,15 +64,6 @@ pub fn run(args: ShowArgs) -> Result<()> {
         return Err(anyhow!(non_interactive_hint_message()));
     };
     show_direct(root, item, type_override, &args)
-}
-
-fn normalize_type(value: Option<&str>) -> Option<ItemType> {
-    let value = value?.to_lowercase();
-    match value.as_str() {
-        "change" => Some(ItemType::Change),
-        "spec" => Some(ItemType::Spec),
-        _ => None,
-    }
 }
 
 fn run_interactive_by_type(root: &Path, item_type: ItemType, args: &ShowArgs) -> Result<()> {
@@ -452,15 +430,6 @@ fn warn_irrelevant_flags(item_type: ItemType, args: &ShowArgs) {
     }
 }
 
-fn print_json(value: &serde_json::Value, compact: bool) -> Result<()> {
-    if compact {
-        println!("{}", serde_json::to_string(value)?);
-    } else {
-        println!("{}", serde_json::to_string_pretty(value)?);
-    }
-    Ok(())
-}
-
 fn extract_title(content: &str, fallback: &str) -> String {
     for line in content.lines() {
         let trimmed = line.trim_start();
@@ -476,14 +445,14 @@ fn extract_title(content: &str, fallback: &str) -> String {
 }
 
 fn non_interactive_hint_message() -> String {
-    [
-        t!("sdd.show.non_interactive.line1"),
-        t!("sdd.show.non_interactive.line2"),
-        t!("sdd.show.non_interactive.line3"),
-        t!("sdd.show.non_interactive.line4"),
-        t!("sdd.show.non_interactive.line5"),
-    ]
-    .join("\n")
+    super::interactive::non_interactive_hint_message(
+        t!("sdd.show.non_interactive.line1").to_string(),
+        &[
+            t!("sdd.show.non_interactive.line2").to_string(),
+            t!("sdd.show.non_interactive.line3").to_string(),
+            t!("sdd.show.non_interactive.line4").to_string(),
+        ],
+    )
 }
 
 #[cfg(test)]

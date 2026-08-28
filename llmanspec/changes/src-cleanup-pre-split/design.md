@@ -114,3 +114,25 @@ finalize,lock_gate,start}。`skills/shared` 清空则整目录删除。
 T1-T4 为「expand（新增 git_utils/schema_utils 等收编位）→ 分批迁移调用点 →
 contract（删旧位）」合并的小步；T5 arch test 是 contract 的自动化收口。
 T11/T12 纯目录搬运 + Cargo 重接线，零逻辑改动。
+
+## sdd 六子块边界检视（T8 追记，2026-08-28）
+
+可见性收敛后 sdd 对外暴露面（编译器验证，`pub` 全清单）：
+`command::{run, SddArgs, SddCommands}`（CLI 入口及 clap 参数类型）、
+`project::config::{SddConfig, llmanspec_schema, LLMANSPEC_SCHEMA_URL}`
+（schema 生成 API）、`shared::constants::LLMANSPEC_DIR_NAME`、
+`shared::discovery::DEFAULT_MAX_SCAN_DEPTH`（门面默认值）、
+`context::tree::TreeIndex`（兼容测试契约）。其余全部 `pub(crate)`。
+
+| 子块 | 检视结论 |
+|------|---------|
+| change | 生命周期命令 + git binding。git 管道已归 git_utils（T2/T7），`change_dir`/`proposal_path` 薄别名删除、直连 discovery；`no_interactive`/`skip_specs` 旗标为 flag-matrix uniformity 有意保留（`allow(dead_code)` 注记） |
+| project | config/schema/config_skills/init/migrate/interop/templates/update_skills/skill_consistency。`regions`（region 展开语法）整文件无生产引用 → 删除；`update_skills::run` 无参入口死 → 仅留 `run_with_root` |
+| shared | 归并落点：`json.rs`（print_json）、`types.rs`（ItemType/normalize_type，T7/T8 新增）。discovery 单源 change/spec 定位；`flat_change_dir` 被 T7 路径构建器取代 → 删 |
+| spec | `parser::Spec/SpecMetadata`、`ir::DeltaSpecDoc/DeltaOpEntry`（delta 废除残留）→ 删；`Change.deltas` 序列化形状保留（JSON 契约稳定，恒空数组）。`ProposalFrontmatter` 全字段模型保留（r124 SSOT 完整性，未消费字段注记） |
+| context | `check_rebuild_lock` 生产路径已死、单测钉住 r128 embed 语义 → `cfg_attr(not(test))` 保留；`TreeIndex` 因兼容测试保持 pub |
+| authoring | spec 写入侧，无死码，可见性收敛零阻力 |
+
+边界图输入（T11/T12 用）：spec 与 shared 是纯叶子；context 依赖 spec::ir
+（serde 模型）；change 依赖 shared + spec；project 依赖 shared；无反向边。
+

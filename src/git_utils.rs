@@ -110,6 +110,65 @@ pub fn branch_has_upstream(root: &Path) -> Result<bool> {
     Ok(output.status.success())
 }
 
+/// Resolve the absolute `.git` directory path.
+pub fn git_common_dir(root: &Path) -> Result<PathBuf> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--git-common-dir"])
+        .current_dir(root)
+        .output()
+        .map_err(|e| anyhow!("git rev-parse --git-common-dir failed to spawn: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        bail!("not a git repository: {stderr}");
+    }
+
+    let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let path = Path::new(&raw);
+    if path.is_absolute() {
+        Ok(path.to_path_buf())
+    } else {
+        Ok(root.join(path))
+    }
+}
+
+/// Check if a directory is already a git worktree.
+pub fn worktree_exists(root: &Path, path: &Path) -> Result<bool> {
+    let output = Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(root)
+        .output()
+        .map_err(|e| anyhow!("git worktree list failed to spawn: {e}"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let target = path.display().to_string();
+    Ok(stdout
+        .lines()
+        .any(|line| line.starts_with("worktree ") && line.contains(&target)))
+}
+
+/// `git worktree add <path> -b <branch> <base_sha>` (creates and checks out).
+pub fn worktree_add(root: &Path, path: &Path, branch: &str, base_sha: &str) -> Result<()> {
+    let output = Command::new("git")
+        .args([
+            "worktree",
+            "add",
+            path.to_str().unwrap(),
+            "-b",
+            branch,
+            base_sha,
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|e| anyhow!("git worktree add failed to spawn: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        bail!("worktree create failed: {stderr}");
+    }
+    Ok(())
+}
+
 /// Walk up from `start` looking for a `.git` entry (dir or worktree file).
 pub fn find_git_root(start: &Path) -> Option<PathBuf> {
     let mut current = start.to_path_buf();

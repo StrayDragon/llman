@@ -9,27 +9,27 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
-pub struct SpecSkeletonArgs {
-    pub capability: String,
-    pub force: bool,
+pub(crate) struct SpecSkeletonArgs {
+    pub(crate) capability: String,
+    pub(crate) force: bool,
 }
 
 #[derive(Debug, Clone)]
-pub struct SpecAddRequirementArgs {
-    pub capability: String,
-    pub req_id: String,
-    pub title: String,
-    pub statement: String,
+pub(crate) struct SpecAddRequirementArgs {
+    pub(crate) capability: String,
+    pub(crate) req_id: String,
+    pub(crate) title: String,
+    pub(crate) statement: String,
 }
 
 #[derive(Debug, Clone)]
-pub struct SpecAddScenarioArgs {
-    pub capability: String,
-    pub req_id: String,
-    pub scenario_id: String,
-    pub given: String,
-    pub when_: String,
-    pub then_: String,
+pub(crate) struct SpecAddScenarioArgs {
+    pub(crate) capability: String,
+    pub(crate) req_id: String,
+    pub(crate) scenario_id: String,
+    pub(crate) given: String,
+    pub(crate) when_: String,
+    pub(crate) then_: String,
 }
 
 fn spec_file_path(root: &Path, capability: &str) -> Result<PathBuf> {
@@ -50,7 +50,7 @@ fn spec_lang(root: &Path) -> String {
     .unwrap_or_else(|| "en".to_string())
 }
 
-pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
+pub(crate) fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
     let _ = load_required_config(&root.join(LLMANSPEC_DIR_NAME))?;
 
@@ -99,7 +99,7 @@ pub fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
     Ok(())
 }
 
-pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<()> {
+pub(crate) fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
     let _ = load_required_config(&root.join(LLMANSPEC_DIR_NAME))?;
@@ -151,7 +151,7 @@ pub fn run_add_requirement(root: &Path, args: SpecAddRequirementArgs) -> Result<
     Ok(())
 }
 
-pub fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs) -> Result<()> {
+pub(crate) fn run_add_scenario(root: &Path, args: SpecAddScenarioArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
     validate_sdd_id(&args.req_id, "requirement")?;
     validate_sdd_id(&args.scenario_id, "scenario")?;

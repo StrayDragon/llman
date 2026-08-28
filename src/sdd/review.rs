@@ -20,11 +20,14 @@ use std::process::Command;
 /// unbound (orphan) acceptance scenarios, staleness, locked-rule diff hints
 /// (D-C: hint only), and a `validate --all` sweep.
 #[derive(Debug, Clone)]
-pub struct ReviewArgs {
-    pub capability: Option<String>,
-    pub json: bool,
-    pub export_html: Option<PathBuf>,
-    pub no_interactive: bool,
+pub(crate) struct ReviewArgs {
+    pub(crate) capability: Option<String>,
+    pub(crate) json: bool,
+    pub(crate) export_html: Option<PathBuf>,
+    /// Accepted and ignored: this subcommand has no interactive mode.
+    /// Kept so the flag matrix stays uniform across sibling subcommands.
+    #[allow(dead_code)]
+    pub(crate) no_interactive: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -52,7 +55,7 @@ impl Review {
     }
 }
 
-pub fn run(root: &Path, args: &ReviewArgs) -> Result<()> {
+pub(crate) fn run(root: &Path, args: &ReviewArgs) -> Result<()> {
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     if !llmanspec_dir.is_dir() {
         // r6: no silent empty result on a non-project directory.

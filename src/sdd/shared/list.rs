@@ -1,6 +1,7 @@
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{discover_changes, list_specs};
+use crate::sdd::shared::json::print_json;
 use crate::sdd::shared::tasks;
 use crate::sdd::spec::backend::FEATURE_BACKEND;
 use crate::sdd::spec::backend::feature_backend::compute_rule_morphology;
@@ -13,13 +14,16 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Clone)]
-pub struct ListArgs {
-    pub specs: bool,
-    pub changes: bool,
-    pub sort: String,
-    pub json: bool,
-    pub compact_json: bool,
-    pub no_interactive: bool,
+pub(crate) struct ListArgs {
+    pub(crate) specs: bool,
+    pub(crate) changes: bool,
+    pub(crate) sort: String,
+    pub(crate) json: bool,
+    pub(crate) compact_json: bool,
+    /// Accepted and ignored: this subcommand has no interactive mode.
+    /// Kept so the flag matrix stays uniform across sibling subcommands.
+    #[allow(dead_code)]
+    pub(crate) no_interactive: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -47,7 +51,7 @@ struct ChangeInfo {
     last_modified: DateTime<Utc>,
 }
 
-pub fn run(args: ListArgs) -> Result<()> {
+pub(crate) fn run(args: ListArgs) -> Result<()> {
     if args.specs && args.changes {
         return Err(anyhow!(t!("sdd.list.conflicting_flags")));
     }
@@ -242,15 +246,6 @@ fn list_specs_mode(root: &Path, args: &ListArgs) -> Result<()> {
         }
     }
 
-    Ok(())
-}
-
-fn print_json(value: &serde_json::Value, compact: bool) -> Result<()> {
-    if compact {
-        println!("{}", serde_json::to_string(value)?);
-    } else {
-        println!("{}", serde_json::to_string_pretty(value)?);
-    }
     Ok(())
 }
 

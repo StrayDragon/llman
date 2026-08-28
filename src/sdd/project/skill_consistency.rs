@@ -33,14 +33,14 @@ struct LlmanSddMeta {
 }
 
 /// Expected `bdd_mode` for the project: `on` if `bdd:` is configured, else `off`.
-pub fn expected_bdd_mode(config: &SddConfig) -> &'static str {
+pub(crate) fn expected_bdd_mode(config: &SddConfig) -> &'static str {
     if config.bdd.is_some() { "on" } else { "off" }
 }
 
 /// Scan `.agents/skills/llman-sdd-*` and ERROR if `llman_sdd.bdd_mode` is missing,
 /// invalid, or mismatches `config`, or if the skill body still contains unrendered
 /// MiniJinja statement tags (`{% ... %}`). Non-prefixed custom skills are ignored.
-pub fn check_installed_skills_bdd_mode(root: &Path, config: &SddConfig) -> Result<()> {
+pub(crate) fn check_installed_skills_bdd_mode(root: &Path, config: &SddConfig) -> Result<()> {
     let skills_dir = root.join(".agents").join("skills");
     if !skills_dir.exists() {
         return Ok(());

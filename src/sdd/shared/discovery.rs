@@ -7,19 +7,19 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Default max depth relative to `llmanspec/changes/` (depth 1 = direct children).
-pub const DEFAULT_MAX_SCAN_DEPTH: usize = 8;
+pub(crate) const DEFAULT_MAX_SCAN_DEPTH: usize = 8;
 
 thread_local! {
     static MAX_SCAN_DEPTH: Cell<usize> = const { Cell::new(DEFAULT_MAX_SCAN_DEPTH) };
 }
 
 /// Effective scan depth for this thread (CLI may override via [`with_max_scan_depth`]).
-pub fn effective_max_scan_depth() -> usize {
+pub(crate) fn effective_max_scan_depth() -> usize {
     MAX_SCAN_DEPTH.with(|c| c.get())
 }
 
 /// Run `f` with a temporary max scan depth, restoring the previous value afterwards.
-pub fn with_max_scan_depth<F, R>(depth: usize, f: F) -> R
+pub(crate) fn with_max_scan_depth<F, R>(depth: usize, f: F) -> R
 where
     F: FnOnce() -> R,
 {
@@ -33,15 +33,15 @@ where
 
 /// One active change located under `llmanspec/changes/`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ChangeLoc {
+pub(crate) struct ChangeLoc {
     /// Leaf directory name (change id).
-    pub id: String,
+    pub(crate) id: String,
     /// Path relative to `llmanspec/changes/` (e.g. `c0` or `some_a/c0`).
-    pub path: String,
+    pub(crate) path: String,
 }
 
 impl ChangeLoc {
-    pub fn abs_dir(&self, root: &Path) -> PathBuf {
+    pub(crate) fn abs_dir(&self, root: &Path) -> PathBuf {
         root.join(LLMANSPEC_DIR_NAME)
             .join("changes")
             .join(Path::new(&self.path))
@@ -53,11 +53,11 @@ impl ChangeLoc {
 /// Skips `archive/`, dot-directories, and symlinks. Does not recurse into a
 /// directory once it is recognized as a change. Duplicate leaf ids → `Err`
 /// listing conflicting relative paths.
-pub fn discover_changes(root: &Path) -> Result<Vec<ChangeLoc>> {
+pub(crate) fn discover_changes(root: &Path) -> Result<Vec<ChangeLoc>> {
     discover_changes_with_depth(root, effective_max_scan_depth())
 }
 
-pub fn discover_changes_with_depth(root: &Path, max_depth: usize) -> Result<Vec<ChangeLoc>> {
+pub(crate) fn discover_changes_with_depth(root: &Path, max_depth: usize) -> Result<Vec<ChangeLoc>> {
     if max_depth < 1 {
         bail!("max-scan-depth must be >= 1 (got {max_depth})");
     }
@@ -164,22 +164,36 @@ fn walk_changes(
 }
 
 /// Sorted leaf ids of active changes (uses effective max scan depth).
-pub fn list_changes(root: &Path) -> Result<Vec<String>> {
+pub(crate) fn list_changes(root: &Path) -> Result<Vec<String>> {
     Ok(discover_changes(root)?.into_iter().map(|c| c.id).collect())
 }
 
 /// Absolute directory for an active change id (via discovery map).
-pub fn resolve_change_dir(root: &Path, change_id: &str) -> Result<PathBuf> {
+pub(crate) fn resolve_change_dir(root: &Path, change_id: &str) -> Result<PathBuf> {
     let loc = resolve_change_loc(root, change_id)?;
     Ok(loc.abs_dir(root))
 }
 
 /// Relative path under `llmanspec/changes/` for an active change id.
-pub fn resolve_change_rel_path(root: &Path, change_id: &str) -> Result<String> {
+pub(crate) fn resolve_change_rel_path(root: &Path, change_id: &str) -> Result<String> {
     Ok(resolve_change_loc(root, change_id)?.path)
 }
 
-pub fn resolve_change_loc(root: &Path, change_id: &str) -> Result<ChangeLoc> {
+/// Canonical directory for a change id under `llmanspec/changes/`.
+/// Pure path builder — the change does not need to exist yet (`change new`);
+/// to resolve an *existing* (possibly grouped) change use [`resolve_change_dir`].
+pub(crate) fn change_dir(root: &Path, change_id: &str) -> PathBuf {
+    root.join(LLMANSPEC_DIR_NAME)
+        .join("changes")
+        .join(change_id)
+}
+
+/// Canonical `proposal.md` path for a change id (pure path builder).
+pub(crate) fn proposal_path(root: &Path, change_id: &str) -> PathBuf {
+    change_dir(root, change_id).join("proposal.md")
+}
+
+pub(crate) fn resolve_change_loc(root: &Path, change_id: &str) -> Result<ChangeLoc> {
     let found = discover_changes(root)?;
     if let Some(loc) = found.into_iter().find(|c| c.id == change_id) {
         return Ok(loc);
@@ -187,14 +201,7 @@ pub fn resolve_change_loc(root: &Path, change_id: &str) -> Result<ChangeLoc> {
     bail!("change '{change_id}' not found under llmanspec/changes/");
 }
 
-/// Flat destination for `change new` (always `changes/<id>/`, no group).
-pub fn flat_change_dir(root: &Path, change_id: &str) -> PathBuf {
-    root.join(LLMANSPEC_DIR_NAME)
-        .join("changes")
-        .join(change_id)
-}
-
-pub fn extract_archived_change_id(dir_name: &str) -> Option<String> {
+pub(crate) fn extract_archived_change_id(dir_name: &str) -> Option<String> {
     if dir_name.len() <= 11 {
         return None;
     }
@@ -213,7 +220,7 @@ pub fn extract_archived_change_id(dir_name: &str) -> Option<String> {
     Some(change_id.to_string())
 }
 
-pub fn list_archived_changes(root: &Path) -> Result<Vec<String>> {
+pub(crate) fn list_archived_changes(root: &Path) -> Result<Vec<String>> {
     let archive_dir = root
         .join(LLMANSPEC_DIR_NAME)
         .join("changes")
@@ -239,7 +246,7 @@ pub fn list_archived_changes(root: &Path) -> Result<Vec<String>> {
     Ok(result)
 }
 
-pub fn list_specs(root: &Path) -> Result<Vec<String>> {
+pub(crate) fn list_specs(root: &Path) -> Result<Vec<String>> {
     let specs_dir = root.join(LLMANSPEC_DIR_NAME).join("specs");
     let mut result = Vec::new();
     let entries = match fs::read_dir(specs_dir) {
@@ -280,19 +287,19 @@ pub fn list_specs(root: &Path) -> Result<Vec<String>> {
 /// without re-deriving it (which would re-introduce the parallel-logic smell
 /// that the r112 refactor removed).
 #[derive(Debug, Clone)]
-pub struct ResolvedChange {
+pub(crate) struct ResolvedChange {
     /// The canonical change id that the user's input resolved to.
-    pub id: String,
+    pub(crate) id: String,
     /// The (trimmed) user-provided input, kept for hint formatting.
-    pub input: String,
+    pub(crate) input: String,
     /// `false` for an exact match, `true` when `input` was a unique prefix of `id`.
-    pub via_prefix: bool,
+    pub(crate) via_prefix: bool,
 }
 
 impl ResolvedChange {
     /// Returns the "'input' -> 'resolved' (prefix match)" hint when this was a
     /// prefix match, or `None` for an exact match (no hint is emitted then).
-    pub fn prefix_hint(&self) -> Option<String> {
+    pub(crate) fn prefix_hint(&self) -> Option<String> {
         if self.via_prefix {
             Some(format!(
                 "{}\n",
@@ -316,7 +323,7 @@ impl ResolvedChange {
 /// do not need the `via_prefix` flag for a JSON field. Commands that emit JSON
 /// (`show`/`validate`/`status`) resolve directly so they can populate
 /// `matchedViaPrefix`.
-pub fn resolve_change_id_human(root: &Path, input: &str) -> Result<String> {
+pub(crate) fn resolve_change_id_human(root: &Path, input: &str) -> Result<String> {
     let resolved = resolve_change_id(root, input)?;
     if let Some(hint) = resolved.prefix_hint() {
         eprint!("{hint}");
@@ -335,7 +342,7 @@ pub fn resolve_change_id_human(root: &Path, input: &str) -> Result<String> {
 /// on success. Errors with a descriptive message on multi-match (lists all
 /// candidates) or no-match. Multi-match / not-found hints include relative paths
 /// when available.
-pub fn resolve_change_id(root: &Path, input: &str) -> Result<ResolvedChange> {
+pub(crate) fn resolve_change_id(root: &Path, input: &str) -> Result<ResolvedChange> {
     use crate::sdd::shared::match_utils::{PrefixOutcome, prefix_resolve};
 
     let input = input.trim();
