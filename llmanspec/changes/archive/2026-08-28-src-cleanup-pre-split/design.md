@@ -123,6 +123,46 @@ T14 复测 MUST 用同一协议。
 `llman-sdd`/`llman-core` 的目标（依赖库经 sccache 后已不是瓶颈）。
 拆后 T14 同口径复测，预期包级重建（`-p llman`）显著下降。
 
+### T14 拆后复测（2026-08-28，同口径）
+
+| 口径 | 拆前（单 crate） | 拆后（3 crates） | 变化 |
+|------|----------------|----------------|------|
+| 冷全量（target 冷，sccache-warm） | 17.52s | 22.56s | +29%（3 crate 各自链接 + i18n 三份嵌入的固定开销） |
+| 包级重建 `-p llman` | 11.09s | 7.73s | **−30%** |
+| 包级重建 `-p llman-sdd` | — | 9.23s | 新增隔离口径 |
+| 包级重建 `-p llman -p llman-sdd` | — | 12.15s | 与拆前包级重建同工作量对比并行化 |
+| 热增量（touch 门面 lib.rs） | 5.46s | 4.97s | −9%（不再连带 sdd 重编） |
+| 盘占（clean 后纯 dev） | 1.1G | 1.2G | +9% |
+
+**结论**：与设计预期一致——收益体现在**包级增量与隔离重建**（sdd 改动不再
+拖动门面全量重编、门面改动不再拖动 sdd），代价是冷全量固定开销 +9%。
+组织收益（边界锁定、增量面）为主，编译为辅的目标结构成立。
+
+## crate 边界图（终稿）
+
+```mermaid
+graph TD
+    subgraph W["workspace members（3 crates）"]
+        FACADE["llman（门面，名义不变）<br/>cli / config / config_schema / self_command<br/>prompts / skills / tool / x / arg_utils / editor / error / 双 bin"]
+        SDD["llman-sdd<br/>sdd 全量 + llmanspec schema 生成 + test_utils 副本"]
+        CORE["llman-core<br/>fs_utils / path_utils / managed_block<br/>env_safety / git_utils / schema_utils"]
+    end
+    FACADE --> SDD
+    FACADE --> CORE
+    SDD --> CORE
+```
+
+终稿对草案的差异：无（结构按蓝图落地）。落地点——门面 `pub(crate) use
+llman_core::fs_utils` + `pub use llman_core::{env_safety, git_utils,
+managed_block, path_utils, schema_utils}`（保历史可见性）；`pub use
+llman_sdd::sdd`（保 `crate::sdd`/`llman::sdd` 路径）；llman-sdd 以 `pub use
+llman_core::{…}` 让搬移代码的 `crate::fs_utils` 类引用零改动；i18n 按 crate
+嵌入（locales 共享同一份源文件，3 份 build.rs rerun-if-changed）；sdd 模板
+`include_str!` 以嵌套 `concat!` 指回仓库根，`candidate_template_roots` 增
+workspace 根回退。sdd 对 facade 的公共面仅为 command 入口 + schema API +
+两个默认常量（T8 清单）。
+
+
 
 ## 风险与缓解
 
