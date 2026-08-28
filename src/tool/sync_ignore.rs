@@ -1,6 +1,6 @@
 use crate::fs_utils::atomic_write_with_mode;
+use crate::git_utils::find_git_root;
 use crate::path_utils::safe_parent_for_creation;
-use crate::skills::shared::git::find_git_root;
 use crate::tool::command::{SyncIgnoreArgs, SyncIgnoreTarget};
 use anyhow::{Context, Result, bail};
 use llm_json::{RepairOptions, loads};
@@ -500,8 +500,8 @@ fn build_gitignore_like_plan(
     let action = if path.exists() {
         let current = fs::read_to_string(path)
             .with_context(|| t!("tool.sync_ignore.error.read_failed", path = path.display()))?;
-        if normalize_newlines(&current)
-            == normalize_newlines(std::str::from_utf8(&desired).unwrap_or_default())
+        if normalize_crlf(&current)
+            == normalize_crlf(std::str::from_utf8(&desired).unwrap_or_default())
         {
             PlanAction::Unchanged
         } else {
@@ -729,7 +729,7 @@ fn build_updated_claude_settings(mut value: Value, deny: Vec<String>) -> Value {
     value
 }
 
-fn normalize_newlines(text: &str) -> String {
+fn normalize_crlf(text: &str) -> String {
     text.replace("\r\n", "\n")
 }
 

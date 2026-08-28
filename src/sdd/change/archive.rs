@@ -129,7 +129,7 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
 /// local changes are stashed across checkout/merge and popped afterward so
 /// they land on the default branch.
 pub(crate) fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) {
-    let default_ref = match crate::sdd::change::git_native::resolve_default_branch_ref(root) {
+    let default_ref = match crate::git_utils::resolve_default_branch_ref(root) {
         Ok(r) => r,
         Err(e) => {
             eprintln!(
@@ -143,7 +143,7 @@ pub(crate) fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) 
         .unwrap_or(default_ref.as_str())
         .to_string();
 
-    let original = match crate::sdd::change::git_native::current_branch(root) {
+    let original = match crate::git_utils::current_branch(root) {
         Ok(b) => b,
         Err(e) => {
             eprintln!(
@@ -539,7 +539,7 @@ mod tests {
         // Docs renamed to archive, active dir gone.
         assert!(!root.join("llmanspec/changes/test-change").exists());
         // ff-merge brought feature tip onto main; stay on default.
-        let branch = crate::sdd::change::git_native::current_branch(root).unwrap();
+        let branch = crate::git_utils::current_branch(root).unwrap();
         assert_eq!(branch, "main");
         assert!(
             root.join("new-file").exists(),
@@ -610,7 +610,7 @@ mod tests {
         }
         assert!(found, "archive entry not found");
         // On ff-merge failure, restore to the feature branch (best-effort).
-        let branch = crate::sdd::change::git_native::current_branch(root).unwrap();
+        let branch = crate::git_utils::current_branch(root).unwrap();
         assert_eq!(branch, "feat/y");
     }
 }

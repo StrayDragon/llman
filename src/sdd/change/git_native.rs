@@ -5,6 +5,10 @@
 //! and fast-forward merges into the default branch.
 
 use crate::fs_utils::atomic_write_with_mode;
+use crate::git_utils::{
+    branch_diff, branch_has_upstream, current_branch, current_head_sha, is_default_branch,
+    merge_base_sha, resolve_default_branch_ref, run_git, working_tree_clean,
+};
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
@@ -13,7 +17,6 @@ use anyhow::{Result, anyhow, bail};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// Git binding recorded in `proposal.md` frontmatter (unified flow).
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
@@ -62,95 +65,11 @@ fn proposal_path(root: &Path, change_id: &str) -> Result<PathBuf> {
     Ok(change_dir(root, change_id)?.join("proposal.md"))
 }
 
-pub(crate) fn run_git(root: &Path, args: &[&str]) -> Result<String> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(root)
-        .output()
-        .map_err(|err| anyhow!("git {:?} failed to spawn: {err}", args))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        if stderr.is_empty() {
-            bail!("git {:?} failed", args);
-        }
-        bail!("{stderr}");
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
-
-pub fn current_branch(root: &Path) -> Result<String> {
-    let branch = run_git(root, &["rev-parse", "--abbrev-ref", "HEAD"])?;
-    if branch.is_empty() || branch == "HEAD" {
-        bail!("detached HEAD is not allowed for change binding");
-    }
-    Ok(branch)
-}
-
-pub fn current_head_sha(root: &Path) -> Result<String> {
-    run_git(root, &["rev-parse", "HEAD"])
-}
-
-pub fn resolve_default_branch_ref(root: &Path) -> Result<String> {
-    if let Ok(sym) = run_git(root, &["symbolic-ref", "refs/remotes/origin/HEAD"])
-        && let Some(name) = sym.strip_prefix("refs/remotes/origin/")
-    {
-        let remote = format!("origin/{name}");
-        if git_ref_exists(root, &remote) {
-            return Ok(remote);
-        }
-        if git_ref_exists(root, name) {
-            return Ok(name.to_string());
-        }
-    }
-    for candidate in ["origin/main", "origin/master", "main", "master"] {
-        if git_ref_exists(root, candidate) {
-            return Ok(candidate.to_string());
-        }
-    }
-    bail!("unable to resolve default branch (tried origin/main, origin/master, main, master)");
-}
-
-fn git_ref_exists(root: &Path, reference: &str) -> bool {
-    Command::new("git")
-        .args(["rev-parse", "--verify", "--quiet", reference])
-        .current_dir(root)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-}
-
-pub fn is_default_branch(root: &Path, branch: &str) -> Result<bool> {
-    let default_ref = resolve_default_branch_ref(root)?;
-    let default_name = default_ref
-        .strip_prefix("origin/")
-        .unwrap_or(default_ref.as_str());
-    Ok(branch == default_name || branch == default_ref)
-}
-
-pub fn working_tree_clean(root: &Path) -> Result<bool> {
-    let status = run_git(root, &["status", "--porcelain"])?;
-    Ok(status.trim().is_empty())
-}
-
-pub fn merge_base_sha(root: &Path, base_ref: &str) -> Result<String> {
-    run_git(root, &["merge-base", base_ref, "HEAD"])
-}
-
-pub fn branch_diff(root: &Path, base_sha: &str) -> Result<String> {
-    run_git(
-        root,
-        &["diff", "--find-renames", &format!("{base_sha}...HEAD")],
-    )
-}
-
-pub fn branch_has_upstream(root: &Path) -> Result<bool> {
-    let output = Command::new("git")
-        .args(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
-        .current_dir(root)
-        .output()
-        .map_err(|err| anyhow!("git upstream check failed: {err}"))?;
-    Ok(output.status.success())
-}
+// Pure git plumbing (run_git / current_branch / current_head_sha /
+// resolve_default_branch_ref / is_default_branch / working_tree_clean /
+// merge_base_sha / branch_diff / branch_has_upstream) moved verbatim to
+// `crate::git_utils` so tool/skills/prompts can share it without reaching
+// into sdd internals.
 
 /// Optional shared-mode gate from `bdd.shared` / future config.
 /// For now: only enforced when `LLMAN_SDD_REQUIRE_UPSTREAM=1`.
@@ -621,6 +540,7 @@ fn enforce_bdd_archive_gates_inner(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
     use tempfile::tempdir;
 
     fn git(root: &Path, args: &[&str]) {

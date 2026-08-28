@@ -481,7 +481,7 @@ fn parse_scenarios(req_body: &str) -> Vec<ParsedScenario> {
 
         let sc_body = req_body[*body_start..body_end].trim();
         let (given, when_, then_) = extract_gherkin(sc_body);
-        let mut sc_id = slugify(sc_name, 60);
+        let mut sc_id = slugify_with_max_len(sc_name, 60);
         if seen_ids.contains(&sc_id) {
             sc_id = format!("{}-{}", sc_id, seen_ids.len());
         }
@@ -563,7 +563,7 @@ fn clean_gherkin(text: &str) -> String {
     ws_re.replace_all(result.trim(), " ").to_string()
 }
 
-fn slugify(name: &str, max_len: usize) -> String {
+fn slugify_with_max_len(name: &str, max_len: usize) -> String {
     let lower = name.to_lowercase();
     let slug_re = Regex::new(r"[^a-z0-9\u{4e00}-\u{9fff}]+").expect("regex");
     let slug = slug_re.replace_all(&lower, "-");
@@ -624,12 +624,12 @@ The CLI MUST return an error for invalid input.
 
     #[test]
     fn slugify_names() {
-        assert_eq!(slugify("Happy path", 60), "happy-path");
+        assert_eq!(slugify_with_max_len("Happy path", 60), "happy-path");
         assert_eq!(
-            slugify("CLI override provided", 60),
+            slugify_with_max_len("CLI override provided", 60),
             "cli-override-provided"
         );
-        assert_eq!(slugify("", 60), "default");
+        assert_eq!(slugify_with_max_len("", 60), "default");
     }
 
     #[test]
