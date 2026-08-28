@@ -1,9 +1,19 @@
 [workspace]
-members = ["."]
+members = [".", "crates/llman-core"]
 
 [workspace.package]
 version = "0.0.69"
 edition = "2024"
+
+[workspace.dependencies]
+anyhow = "1.0.102"
+rust-i18n = "4.2.1"
+serde_json = "1.0.149"
+serde_yaml = "0.9.34"
+schemars = { version = "1.2.1", features = ["derive", "indexmap2"] }
+jsonschema = "0.48.5"
+tempfile = "3.26.0"
+llman-core = { path = "crates/llman-core" }
 
 [package]
 name = "llman"
@@ -30,7 +40,8 @@ name = "llman"
 path = "src/lib.rs"
 
 [dependencies]
-anyhow = "1.0.102"
+anyhow.workspace = true
+llman-core.workspace = true
 clap = { version = "4.6.1", features = [
     "env",
     "unicode",
@@ -45,16 +56,16 @@ crossterm = "0.29.0"
 ratatui = "0.30.0"
 comfy-table = "7.2.2"
 thiserror = "2.0.18"
-rust-i18n = "4.2.1"
+rust-i18n.workspace = true
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde_json.workspace = true
 toml = "1.0.3"
 minijinja = "2.20.0"
 chrono = { version = "0.4.45", features = ["serde"] }
 glob = "0.3.3"
 ignore = "0.4.26"
 tokio = { version = "1.49.0", features = ["rt-multi-thread", "time", "process", "io-std"] }
-tempfile = "3.26.0"
+tempfile.workspace = true
 sha2 = "0.11.0"
 async-openai = { version = "0.41", default-features = false, features = ["rustls", "chat-completion"] }
 
@@ -68,15 +79,15 @@ tree-sitter-rust = "0.24.0"
 tree-sitter-go = "0.25.0"
 
 # Configuration and validation
-schemars = { version = "1.2.1", features = ["derive", "indexmap2"] }
-jsonschema = "0.48.5"
+schemars.workspace = true
+jsonschema.workspace = true
 
 # JSON parsing and repair
 llm_json = "1.0.2"
 
 # Additional utilities
 regex = "1.12.3"
-serde_yaml = "0.9.34"
+serde_yaml.workspace = true
 gherkin = "0.16"
 sevenz-rust2 = "0.21.3"
 

@@ -6,7 +6,7 @@ use tempfile::NamedTempFile;
 
 /// Default maximum file size for structured config / data files (10 MiB).
 #[allow(dead_code)]
-pub(crate) const DEFAULT_MAX_READ_BYTES: u64 = 10 * 1024 * 1024;
+pub const DEFAULT_MAX_READ_BYTES: u64 = 10 * 1024 * 1024;
 
 /// Read a file whose size is known to be at most `max_bytes`.
 #[allow(dead_code)]
@@ -14,7 +14,7 @@ pub(crate) const DEFAULT_MAX_READ_BYTES: u64 = 10 * 1024 * 1024;
 /// Checks `metadata().len()` before reading so that a huge file is rejected
 /// without allocating a large buffer.  Returns an error when the file exceeds
 /// the limit.
-pub(crate) fn read_with_max_size(path: &Path, max_bytes: u64) -> Result<String> {
+pub fn read_with_max_size(path: &Path, max_bytes: u64) -> Result<String> {
     let metadata =
         std::fs::metadata(path).with_context(|| format!("read metadata of {}", path.display()))?;
     if metadata.len() > max_bytes {
@@ -28,7 +28,7 @@ pub(crate) fn read_with_max_size(path: &Path, max_bytes: u64) -> Result<String> 
     std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))
 }
 
-pub(crate) fn atomic_write_with_mode(path: &Path, content: &[u8], mode: Option<u32>) -> Result<()> {
+pub fn atomic_write_with_mode(path: &Path, content: &[u8], mode: Option<u32>) -> Result<()> {
     // Do not follow symlinks: if path is a symlink, replace it with a regular file.
     if path.is_symlink() {
         std::fs::remove_file(path)
@@ -56,11 +56,7 @@ pub(crate) fn atomic_write_with_mode(path: &Path, content: &[u8], mode: Option<u
         .with_context(|| format!("persist {}", path.display()))
 }
 
-pub(crate) fn atomic_write_new_with_mode(
-    path: &Path,
-    content: &[u8],
-    mode: Option<u32>,
-) -> Result<bool> {
+pub fn atomic_write_new_with_mode(path: &Path, content: &[u8], mode: Option<u32>) -> Result<bool> {
     // `persist_noclobber` already refuses to overwrite an existing file,
     // but if `path` is a dangling symlink the OS may follow it into nowhere
     // or create a new file at the target.  Remove the symlink first so that

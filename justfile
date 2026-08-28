@@ -47,8 +47,9 @@ clean-bdd-targets:
 # =============================================================================
 
 # 运行测试（优先 cargo-nextest 并发；未安装则回退 cargo test）
+# T11 拆出 crates/llman-core 后根包默认只测根包自身，必须显式 --workspace
 test:
-    if command -v cargo-nextest >/dev/null; then cargo nextest run --profile ci; else cargo test; fi
+    if command -v cargo-nextest >/dev/null; then cargo nextest run --workspace --profile ci; else cargo test --workspace; fi
 
 # 运行 BDD 测试（feature-as-spec 可执行验证，需 --features bdd）
 test-bdd:

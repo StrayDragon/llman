@@ -10,14 +10,12 @@ pub mod cli;
 pub mod config;
 pub mod config_schema;
 pub mod editor;
-pub mod env_safety;
 pub mod error;
-pub(crate) mod fs_utils;
-pub mod git_utils;
-pub mod managed_block;
-pub mod path_utils;
+// 顶层工具层已拆至 llman-core crate（T11）；此处重导出保持历史路径零漂移：
+// `crate::fs_utils` / `llman::path_utils` / `llman_core::git_utils` 均可。
+pub(crate) use llman_core::fs_utils;
+pub use llman_core::{env_safety, git_utils, managed_block, path_utils, schema_utils};
 pub mod prompts;
-pub mod schema_utils;
 pub mod sdd;
 pub mod self_command;
 pub mod skills;

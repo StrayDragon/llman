@@ -10,20 +10,23 @@
 //! | `src/x/**`            | sdd                              |
 //! | top-level util layer  | sdd, skills, tool, x             |
 //!
-//! The utility layer (`fs_utils` / `path_utils` / `managed_block` /
-//! `env_safety` / `git_utils` / `schema_utils`) must stay dependency-free;
-//! it is the seed of the future `llman-core` crate (T11).
+//! The utility layer lives in the `crates/llman-core` workspace member
+//! (`fs_utils` / `path_utils` / `managed_block` / `env_safety` / `git_utils`
+//! / `schema_utils`, since T11) and must stay dependency-free; it is the
+//! seed of the future `llman-core` published crate.
 //!
 //! The facade layer (`cli`, `config`, `config_schema`, `self_command`,
 //! `prompts`, `arg_utils`, `editor`, `error`, `main`, `lib`, `bin`) is
 //! intentionally unasserted. `test_utils` is not asserted either.
 //!
-//! This test only reads `src/` (via `CARGO_MANIFEST_DIR`) and writes nothing.
+//! This test only reads source files (via `CARGO_MANIFEST_DIR`) and writes
+//! nothing.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 const SRC_DIR: &str = "src";
+const CORE_SRC_DIR: &str = "crates/llman-core/src";
 
 /// Feature-module directories and the `crate::` first segments they forbid.
 const FORBIDDEN_FOR_MODULE_DIRS: &[(&str, &[&str])] = &[
@@ -47,6 +50,10 @@ const UTILITY_LAYER_FILES: &[&str] = &[
 
 fn src_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(SRC_DIR)
+}
+
+fn core_src_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(CORE_SRC_DIR)
 }
 
 /// Recursively collect `.rs` files under `dir`.
@@ -162,16 +169,16 @@ fn x_must_not_reference_sdd() {
 fn utility_layer_must_stay_dependency_free() {
     let mut violations = Vec::new();
     for file in UTILITY_LAYER_FILES {
-        let path = src_root().join(file);
+        let path = core_src_root().join(file);
         let text = fs::read_to_string(&path).unwrap_or_else(|_| {
             panic!(
-                "utility-layer module {file} is missing; update the direction table if it was renamed"
+                "utility-layer module {file} is missing under {CORE_SRC_DIR}; update the direction table if it was renamed"
             )
         });
         for (line_no, segment) in crate_path_segments(&text) {
             if FORBIDDEN_FOR_ALL_MODULES.contains(&segment.as_str()) {
                 violations.push(format!(
-                    "src/{file}:{line_no}: `crate::{segment}` violates the utility-layer rule"
+                    "{CORE_SRC_DIR}/{file}:{line_no}: `crate::{segment}` violates the utility-layer rule"
                 ));
             }
         }
