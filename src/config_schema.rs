@@ -1,12 +1,11 @@
 use crate::config::resolve_config_dir;
 use crate::fs_utils::{atomic_write_new_with_mode, atomic_write_with_mode};
-use crate::sdd::project::config::SddConfig;
+use crate::schema_utils;
+use crate::sdd::project::config::{SddConfig, llmanspec_schema};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::tool::config as tool_config;
 use anyhow::{Result, anyhow};
-use jsonschema::validator_for;
 use schemars::JsonSchema;
-use schemars::generate::SchemaSettings;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
@@ -19,7 +18,7 @@ pub const LLMANSPEC_SCHEMA_FILE: &str = "llmanspec-config.schema.json";
 
 pub const GLOBAL_SCHEMA_URL: &str = "https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llman-config.schema.json";
 pub const PROJECT_SCHEMA_URL: &str = "https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llman-project-config.schema.json";
-pub const LLMANSPEC_SCHEMA_URL: &str = "https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llmanspec-config.schema.json";
+// LLMANSPEC_SCHEMA_URL lives with its schema owner: `sdd::project::config`.
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[schemars(
@@ -132,8 +131,6 @@ pub enum ApplyResult {
     Missing,
 }
 
-const SCHEMA_ERROR_LIMIT: usize = 5;
-
 pub fn schema_paths() -> SchemaPaths {
     let root = PathBuf::from(SCHEMA_OUTPUT_DIR);
     SchemaPaths {
@@ -142,75 +139,6 @@ pub fn schema_paths() -> SchemaPaths {
         llmanspec: root.join(LLMANSPEC_SCHEMA_FILE),
         root,
     }
-}
-
-pub fn schema_header_line(schema_url: &str) -> String {
-    format!("# yaml-language-server: $schema={schema_url}")
-}
-
-pub fn prepend_schema_header(content: &str, schema_url: &str) -> String {
-    let header = schema_header_line(schema_url);
-    if content.is_empty() {
-        return format!("{header}\n");
-    }
-    let newline = if content.contains("\r\n") {
-        "\r\n"
-    } else {
-        "\n"
-    };
-    format!("{header}{newline}{content}")
-}
-
-pub fn apply_schema_header_to_content(content: &str, schema_url: &str) -> (String, bool) {
-    let header = schema_header_line(schema_url);
-    if content.is_empty() {
-        return (format!("{header}\n"), true);
-    }
-    let newline = if content.contains("\r\n") {
-        "\r\n"
-    } else {
-        "\n"
-    };
-    let has_trailing = content.ends_with('\n') || content.ends_with("\r\n");
-    let all_lines = content.lines().collect::<Vec<_>>();
-
-    // Only normalize the leading header/comment region. Do not delete schema headers that
-    // appear later in the file.
-    let mut header_end = 0;
-    while header_end < all_lines.len() {
-        let line = all_lines[header_end];
-        if line.trim().is_empty() || line.trim_start().starts_with('#') {
-            header_end += 1;
-            continue;
-        }
-        break;
-    }
-
-    let mut normalized_header_lines = Vec::new();
-    for line in &all_lines[..header_end] {
-        if line
-            .trim_start()
-            .starts_with("# yaml-language-server: $schema=")
-        {
-            continue;
-        }
-        normalized_header_lines.push((*line).to_string());
-    }
-
-    let mut out_lines = Vec::with_capacity(all_lines.len() + 1);
-    out_lines.push(header);
-    out_lines.extend(normalized_header_lines);
-    out_lines.extend(
-        all_lines[header_end..]
-            .iter()
-            .map(|line| (*line).to_string()),
-    );
-    let mut updated = out_lines.join(newline);
-    if has_trailing {
-        updated.push_str(newline);
-    }
-    let changed = updated != content;
-    (updated, changed)
 }
 
 pub fn apply_schema_header(path: &Path, schema_url: &str) -> Result<ApplyResult> {
@@ -224,7 +152,7 @@ pub fn apply_schema_header(path: &Path, schema_url: &str) -> Result<ApplyResult>
             error = e
         ))
     })?;
-    let (updated, changed) = apply_schema_header_to_content(&content, schema_url);
+    let (updated, changed) = schema_utils::apply_schema_header_to_content(&content, schema_url);
     if !changed {
         return Ok(ApplyResult::Unchanged);
     }
@@ -239,9 +167,9 @@ pub fn apply_schema_header(path: &Path, schema_url: &str) -> Result<ApplyResult>
 }
 
 pub fn generate_schema_artifacts() -> Result<SchemaArtifacts> {
-    let global = generate_schema::<GlobalConfig>();
-    let project = generate_schema::<ProjectConfig>();
-    let llmanspec = generate_schema::<SddConfig>();
+    let global = schema_utils::generate_schema::<GlobalConfig>();
+    let project = schema_utils::generate_schema::<ProjectConfig>();
+    let llmanspec = llmanspec_schema();
 
     Ok(SchemaArtifacts {
         global: serde_json::to_string_pretty(&global)
@@ -253,60 +181,21 @@ pub fn generate_schema_artifacts() -> Result<SchemaArtifacts> {
     })
 }
 
-fn generate_schema<T: JsonSchema>() -> schemars::Schema {
-    let mut settings = SchemaSettings::draft07();
-    settings.inline_subschemas = true;
-    settings.into_generator().into_root_schema_for::<T>()
-}
-
 pub fn validate_yaml_value(
     kind: ConfigSchemaKind,
     value: &serde_yaml::Value,
 ) -> Result<(), String> {
-    let json_value = serde_json::to_value(value).map_err(|e| e.to_string())?;
-    let schema_value = schema_value_for_kind(kind)?;
-    let validator = validator_for(&schema_value).map_err(|e| e.to_string())?;
-    if !validator.is_valid(&json_value) {
-        return Err(format_schema_errors(
-            validator
-                .iter_errors(&json_value)
-                .map(|err| err.to_string()),
-        ));
-    }
-    Ok(())
-}
-
-pub fn format_schema_errors<I>(errors: I) -> String
-where
-    I: IntoIterator<Item = String>,
-{
-    let mut iter = errors.into_iter();
-    let mut items = Vec::new();
-    for _ in 0..SCHEMA_ERROR_LIMIT {
-        if let Some(err) = iter.next() {
-            items.push(err);
-        } else {
-            break;
+    match kind {
+        ConfigSchemaKind::Global => {
+            schema_utils::validate_yaml_value_against::<GlobalConfig>(value)
+        }
+        ConfigSchemaKind::Project => {
+            schema_utils::validate_yaml_value_against::<ProjectConfig>(value)
+        }
+        ConfigSchemaKind::Llmanspec => {
+            schema_utils::validate_yaml_value_against::<SddConfig>(value)
         }
     }
-    let remaining = iter.count();
-    if items.is_empty() {
-        return "unknown".to_string();
-    }
-    let mut message = items.join("; ");
-    if remaining > 0 {
-        message.push_str(&format!("; ... (+{remaining} more)"));
-    }
-    message
-}
-
-fn schema_value_for_kind(kind: ConfigSchemaKind) -> Result<serde_json::Value, String> {
-    let schema = match kind {
-        ConfigSchemaKind::Global => generate_schema::<GlobalConfig>(),
-        ConfigSchemaKind::Project => generate_schema::<ProjectConfig>(),
-        ConfigSchemaKind::Llmanspec => generate_schema::<SddConfig>(),
-    };
-    serde_json::to_value(&schema).map_err(|e| e.to_string())
 }
 
 pub fn write_schema_files() -> Result<SchemaPaths> {
@@ -365,7 +254,7 @@ pub fn ensure_global_sample_config(config_dir: &Path) -> Result<Option<PathBuf>>
     let config = GlobalConfig::default();
     let yaml = serde_yaml::to_string(&config)
         .map_err(|e| anyhow!(t!("self.schema.generate_failed", error = e)))?;
-    let content = prepend_schema_header(&yaml, GLOBAL_SCHEMA_URL);
+    let content = schema_utils::prepend_schema_header(&yaml, GLOBAL_SCHEMA_URL);
     let created = atomic_write_new_with_mode(&path, content.as_bytes(), None).map_err(|e| {
         anyhow!(t!(
             "self.schema.write_failed",
@@ -430,34 +319,6 @@ fn llmanspec_config_path_from(cwd: &Path) -> PathBuf {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-
-    #[test]
-    fn apply_schema_header_inserts_before_doc_start() {
-        let content = "---\nversion: \"0.1\"\n";
-        let (updated, changed) = apply_schema_header_to_content(content, GLOBAL_SCHEMA_URL);
-        assert!(changed);
-        assert!(updated.starts_with("# yaml-language-server: $schema="));
-        assert!(updated.contains("\n---\n"));
-    }
-
-    #[test]
-    fn apply_schema_header_replaces_existing() {
-        let content =
-            "# yaml-language-server: $schema=https://example.com/old.json\nversion: \"0.1\"\n";
-        let (updated, changed) = apply_schema_header_to_content(content, GLOBAL_SCHEMA_URL);
-        assert!(changed);
-        assert!(updated.starts_with(&schema_header_line(GLOBAL_SCHEMA_URL)));
-        assert!(!updated.contains("old.json"));
-    }
-
-    #[test]
-    fn apply_schema_header_does_not_delete_late_schema_headers() {
-        let content = "# comment\n# yaml-language-server: $schema=https://example.com/old.json\nkey: value\n# yaml-language-server: $schema=https://example.com/keep.json\n".to_string();
-        let (updated, changed) = apply_schema_header_to_content(&content, GLOBAL_SCHEMA_URL);
-        assert!(changed);
-        assert!(updated.starts_with(&schema_header_line(GLOBAL_SCHEMA_URL)));
-        assert!(updated.contains("https://example.com/keep.json"));
-    }
 
     #[test]
     fn project_and_llmanspec_paths_discover_root_from_subdir() {
