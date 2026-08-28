@@ -29,6 +29,19 @@ install:
 clean:
     cargo clean
 
+# 清理 validate full mode 残留的 BDD 校验沙箱 target 目录（用后不回收会持续累积，
+# why 记录见 llmanspec/changes/src-cleanup-pre-split/proposal.md「磁盘卫生」）
+clean-bdd-targets:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if compgen -G "target/bdd-*" >/dev/null; then
+        du -sh target/bdd-* || true
+        rm -rf target/bdd-*
+        echo "✅ cleaned target/bdd-*"
+    else
+        echo "no target/bdd-* dirs to clean"
+    fi
+
 # =============================================================================
 # 测试命令
 # =============================================================================

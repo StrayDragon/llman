@@ -1,10 +1,12 @@
 use crate::cli::Cli;
 use crate::config_schema::{
-    ApplyResult, GLOBAL_SCHEMA_URL, LLMANSPEC_SCHEMA_URL, PROJECT_SCHEMA_URL, SchemaPaths,
-    apply_schema_header, format_schema_errors, global_config_path, llmanspec_config_path,
-    project_config_path, schema_paths, write_schema_files,
+    ApplyResult, GLOBAL_SCHEMA_URL, PROJECT_SCHEMA_URL, SchemaPaths, apply_schema_header,
+    global_config_path, llmanspec_config_path, project_config_path, schema_paths,
+    write_schema_files,
 };
 use crate::fs_utils::atomic_write_with_mode;
+use crate::schema_utils::format_schema_errors;
+use crate::sdd::project::config::LLMANSPEC_SCHEMA_URL;
 use anyhow::{Result, anyhow};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::generate;

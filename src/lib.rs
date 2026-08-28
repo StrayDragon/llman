@@ -16,6 +16,7 @@ pub(crate) mod fs_utils;
 pub mod managed_block;
 pub mod path_utils;
 pub mod prompts;
+pub mod schema_utils;
 pub mod sdd;
 pub mod self_command;
 pub mod skills;
