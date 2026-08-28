@@ -379,9 +379,9 @@ pub(crate) fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
     }
 
     // Fast + optional full validation of the live branch tree.
-    crate::sdd::shared::validate::run(
+    crate::sdd::commands::validate::run(
         root,
-        crate::sdd::shared::validate::ValidateArgs {
+        crate::sdd::commands::validate::ValidateArgs {
             item: None,
             all: false,
             changes: false,
@@ -398,9 +398,9 @@ pub(crate) fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
     )?;
 
     // Also validate the change documentation itself (proposal/tasks stage).
-    crate::sdd::shared::validate::run(
+    crate::sdd::commands::validate::run(
         root,
-        crate::sdd::shared::validate::ValidateArgs {
+        crate::sdd::commands::validate::ValidateArgs {
             item: Some(change_name.clone()),
             all: false,
             changes: false,

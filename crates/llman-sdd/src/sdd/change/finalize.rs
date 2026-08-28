@@ -72,9 +72,9 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         );
     } else {
         // Fast + optional full validation of the live branch tree.
-        crate::sdd::shared::validate::run(
+        crate::sdd::commands::validate::run(
             root,
-            crate::sdd::shared::validate::ValidateArgs {
+            crate::sdd::commands::validate::ValidateArgs {
                 item: None,
                 all: false,
                 changes: false,
@@ -91,9 +91,9 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         )?;
 
         // Also validate the change documentation itself (proposal/tasks stage).
-        crate::sdd::shared::validate::run(
+        crate::sdd::commands::validate::run(
             root,
-            crate::sdd::shared::validate::ValidateArgs {
+            crate::sdd::commands::validate::ValidateArgs {
                 item: Some(change_name.clone()),
                 all: false,
                 changes: false,

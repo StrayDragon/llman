@@ -5,6 +5,7 @@ use crate::config_schema::{
     write_schema_files,
 };
 use crate::fs_utils::atomic_write_with_mode;
+use crate::managed_block::find_marker_index;
 use crate::schema_utils::format_schema_errors;
 use crate::sdd::project::config::LLMANSPEC_SCHEMA_URL;
 use anyhow::{Result, anyhow};
@@ -251,50 +252,6 @@ fn bash_profile_path(home: &Path) -> PathBuf {
 
 const COMPLETION_MARKER_START: &str = "# >>> llman completion >>>";
 const COMPLETION_MARKER_END: &str = "# <<< llman completion <<<";
-
-fn is_marker_on_own_line(content: &str, marker_index: usize, marker_len: usize) -> bool {
-    let bytes = content.as_bytes();
-    let mut left = marker_index as isize - 1;
-    while left >= 0 {
-        let ch = bytes[left as usize] as char;
-        if ch == '\n' {
-            break;
-        }
-        if ch != ' ' && ch != '\t' && ch != '\r' {
-            return false;
-        }
-        left -= 1;
-    }
-
-    let mut right = marker_index + marker_len;
-    while right < bytes.len() {
-        let ch = bytes[right] as char;
-        if ch == '\n' {
-            break;
-        }
-        if ch != ' ' && ch != '\t' && ch != '\r' {
-            return false;
-        }
-        right += 1;
-    }
-
-    true
-}
-
-fn find_marker_index(content: &str, marker: &str, from_index: usize) -> Option<usize> {
-    let mut search_index = from_index;
-    while let Some(pos) = content[search_index..].find(marker) {
-        let idx = search_index + pos;
-        if is_marker_on_own_line(content, idx, marker.len()) {
-            return Some(idx);
-        }
-        search_index = idx + marker.len();
-        if search_index >= content.len() {
-            break;
-        }
-    }
-    None
-}
 
 fn update_completion_block(path: &Path, body: &str) -> Result<()> {
     let mut content = if path.exists() {

@@ -130,12 +130,8 @@ fn hashes_at(root: &Path, base_sha: &str, rel: &str) -> Option<Hashes> {
 
 /// Rule-scenario hash multiset from the current working tree.
 fn worktree_hashes(root: &Path, rel: &str) -> Option<Hashes> {
-    let content = fs_read(root.join(rel)).ok()?;
+    let content = std::fs::read_to_string(root.join(rel)).ok()?;
     Some(hashes_from_content(&content))
-}
-
-fn fs_read(path: std::path::PathBuf) -> std::io::Result<String> {
-    std::fs::read_to_string(path)
 }
 
 fn hashes_from_content(content: &str) -> Hashes {

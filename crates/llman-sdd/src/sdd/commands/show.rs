@@ -445,7 +445,7 @@ fn extract_title(content: &str, fallback: &str) -> String {
 }
 
 fn non_interactive_hint_message() -> String {
-    super::interactive::non_interactive_hint_message(
+    crate::sdd::shared::interactive::non_interactive_hint_message(
         t!("sdd.show.non_interactive.line1").to_string(),
         &[
             t!("sdd.show.non_interactive.line2").to_string(),
