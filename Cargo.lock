@@ -2212,6 +2212,7 @@ dependencies = [
  "inquire",
  "jsonschema",
  "llm_json",
+ "llman-core",
  "minijinja",
  "ratatui",
  "regex",
@@ -2236,6 +2237,19 @@ dependencies = [
  "tree-sitter-python",
  "tree-sitter-rust",
  "tree-sitter-typescript",
+]
+
+[[package]]
+name = "llman-core"
+version = "0.0.69"
+dependencies = [
+ "anyhow",
+ "jsonschema",
+ "rust-i18n",
+ "schemars",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
 ]
 
 [[package]]
