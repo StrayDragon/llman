@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>llman sdd review — __GENERATED__</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem; }
+  .critical { color: #b91c1c; font-weight: 700; }
+  .warning { color: #b45309; }
+  table { border-collapse: collapse; margin: 1rem 0; }
+  td, th { border: 1px solid #ccc; padding: .3rem .6rem; }
+  pre.mermaid { background: #f8f8f8; padding: 1rem; white-space: pre; }
+</style>
+</head>
+<body>
+<h1>llman sdd review</h1>
+<p>critical=<span class="critical">__CRITICAL__</span>
+   warning=<span class="warning">__WARNING__</span></p>
+<h2>Signals</h2>
+<table id="signals">
+  <tr><th>kind</th><th>capability</th><th>count</th><th>detail</th></tr>
+</table>
+<h2>Graph</h2>
+<pre class="mermaid">
+__MERMAID__
+</pre>
+<script>
+  // Offline, dependency-free fill. If a mermaid runtime is present in the host
+  // page context it may render the <pre class="mermaid"> block; otherwise the
+  // text graph remains readable. This file stays a single self-contained
+  // artifact either way (r51: no external resources, no local server).
+  const SIGNALS = __SIGNALS__;
+  const tbody = document.querySelector('#signals');
+  for (const s of SIGNALS) {
+    const tr = document.createElement('tr');
+    for (const v of [s.kind, s.capability, String(s.count), s.detail]) {
+      const td = document.createElement('td');
+      td.textContent = v;
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+</script>
+</body>
+</html>

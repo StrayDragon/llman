@@ -37,6 +37,7 @@ const OPTIONAL_SKILL_FILES: &[&str] = &[
 const UNIT_FILES: &[&str] = &[
     "skills/sdd-commands.md",
     "skills/validation-hints.md",
+    "skills/human-readable-summary.md",
     "skills/git-native-flow.md",
     "skills/git-native-flow-brief.md",
     "skills/stage-guard.md",
@@ -340,6 +341,10 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/units/skills/validation-hints.md"
         ))),
+        "templates/sdd/en/units/skills/human-readable-summary.md" => Some(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/units/skills/human-readable-summary.md"
+        ))),
         "templates/sdd/en/units/skills/git-native-flow.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/en/units/skills/git-native-flow.md"
@@ -428,6 +433,12 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/units/skills/validation-hints.md"
         ))),
+        "templates/sdd/zh-Hans/units/skills/human-readable-summary.md" => {
+            Some(include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/templates/sdd/zh-Hans/units/skills/human-readable-summary.md"
+            )))
+        }
         "templates/sdd/zh-Hans/units/skills/git-native-flow.md" => Some(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/templates/sdd/zh-Hans/units/skills/git-native-flow.md"
