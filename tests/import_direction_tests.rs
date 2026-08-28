@@ -194,15 +194,21 @@ fn utility_layer_must_stay_dependency_free() {
 /// so a rename cannot silently void the direction lock.
 #[test]
 fn direction_table_covers_existing_modules() {
-    let src = src_root();
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR"));
     assert!(
         !FORBIDDEN_FOR_MODULE_DIRS.is_empty(),
         "direction table must not be emptied silently"
     );
+    // sdd lives in the llman-sdd crate since T12; the rest stayed in the facade.
     for (module, _) in FORBIDDEN_FOR_MODULE_DIRS {
+        let dir = if *module == "sdd" {
+            repo.join("crates/llman-sdd/src/sdd")
+        } else {
+            repo.join("src").join(module)
+        };
         assert!(
-            src.join(module).is_dir(),
-            "src/{module} missing but referenced by the direction table"
+            dir.is_dir(),
+            "{module} missing but referenced by the direction table ({dir:?})"
         );
     }
 }

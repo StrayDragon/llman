@@ -220,7 +220,17 @@ fn candidate_template_roots(root: &Path) -> Vec<PathBuf> {
     let mut roots = vec![root.to_path_buf()];
     let manifest_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     if manifest_root != *root {
-        roots.push(manifest_root);
+        roots.push(manifest_root.clone());
+    }
+    // T12: the sdd crate lives at `<workspace>/crates/llman-sdd`, so the
+    // canonical repo-level `templates/sdd/` tree sits two levels up from the
+    // manifest. Keep it as a fallback root for templates that are not yet
+    // embedded via `include_str!`.
+    if let Some(workspace_root) = manifest_root.parent().and_then(|p| p.parent())
+        && workspace_root != root
+        && !roots.contains(&workspace_root.to_path_buf())
+    {
+        roots.push(workspace_root.to_path_buf());
     }
     roots
 }
@@ -284,190 +294,190 @@ fn render_with_units(
 fn embedded_template(path: &str) -> Option<&'static str> {
     match path {
         "templates/sdd/en/agents-root-stub.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/agents-root-stub.md"
         ))),
 
         "templates/sdd/en/skills/llman-sdd-propose.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-propose.md"
         ))),
         "templates/sdd/en/skills/llman-sdd-draft.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-draft.md"
         ))),
         "templates/sdd/en/skills/llman-sdd-explore.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-explore.md"
         ))),
         "templates/sdd/en/skills/llman-sdd-continue.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-continue.md"
         ))),
         "templates/sdd/en/skills/llman-sdd-ff.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-ff.md"
         ))),
         "templates/sdd/en/skills/llman-sdd-apply.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-apply.md"
         ))),
 
         "templates/sdd/en/skills/llman-sdd-validate.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-validate.md"
         ))),
         "templates/sdd/en/skills/llman-sdd-archive.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-archive.md"
         ))),
         "templates/sdd/en/skills/llman-sdd-verify.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-verify.md"
         ))),
         "templates/sdd/en/skills/llman-sdd-quick.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-quick.md"
         ))),
         "templates/sdd/en/skills/llman-sdd-specs-compact.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-specs-compact.md"
         ))),
         "templates/sdd/en/units/skills/sdd-commands.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/units/skills/sdd-commands.md"
         ))),
         "templates/sdd/en/units/skills/validation-hints.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/units/skills/validation-hints.md"
         ))),
         "templates/sdd/en/units/skills/human-readable-summary.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/units/skills/human-readable-summary.md"
         ))),
         "templates/sdd/en/units/skills/git-native-flow.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/units/skills/git-native-flow.md"
         ))),
         "templates/sdd/en/units/skills/git-native-flow-brief.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/units/skills/git-native-flow-brief.md"
         ))),
         "templates/sdd/en/units/skills/stage-guard.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/units/skills/stage-guard.md"
         ))),
         "templates/sdd/en/units/skills/ethics-governance.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/units/skills/ethics-governance.md"
         ))),
         "templates/sdd/en/units/spec/feature-contract.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/units/spec/feature-contract.md"
         ))),
         "templates/sdd/en/units/skills/structured-protocol.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/units/skills/structured-protocol.md"
         ))),
         "templates/sdd/en/units/workflow/archive-freeze-guidance.md" => {
             Some(include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
                 "/templates/sdd/en/units/workflow/archive-freeze-guidance.md"
             )))
         }
         "templates/sdd/zh-Hans/agents-root-stub.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/agents-root-stub.md"
         ))),
 
         "templates/sdd/zh-Hans/skills/llman-sdd-propose.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-propose.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-draft.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-draft.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-explore.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-explore.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-continue.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-continue.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-ff.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-ff.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-apply.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-apply.md"
         ))),
 
         "templates/sdd/zh-Hans/skills/llman-sdd-validate.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-validate.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-archive.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-archive.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-verify.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-verify.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-quick.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-quick.md"
         ))),
         "templates/sdd/zh-Hans/skills/llman-sdd-specs-compact.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-specs-compact.md"
         ))),
         "templates/sdd/zh-Hans/units/skills/sdd-commands.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/units/skills/sdd-commands.md"
         ))),
         "templates/sdd/zh-Hans/units/skills/validation-hints.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/units/skills/validation-hints.md"
         ))),
         "templates/sdd/zh-Hans/units/skills/human-readable-summary.md" => {
             Some(include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
                 "/templates/sdd/zh-Hans/units/skills/human-readable-summary.md"
             )))
         }
         "templates/sdd/zh-Hans/units/skills/git-native-flow.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/units/skills/git-native-flow.md"
         ))),
         "templates/sdd/zh-Hans/units/skills/git-native-flow-brief.md" => {
             Some(include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
                 "/templates/sdd/zh-Hans/units/skills/git-native-flow-brief.md"
             )))
         }
         "templates/sdd/zh-Hans/units/skills/stage-guard.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/units/skills/stage-guard.md"
         ))),
         "templates/sdd/zh-Hans/units/skills/ethics-governance.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/units/skills/ethics-governance.md"
         ))),
         "templates/sdd/zh-Hans/units/spec/feature-contract.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/units/spec/feature-contract.md"
         ))),
         "templates/sdd/zh-Hans/units/skills/structured-protocol.md" => Some(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/units/skills/structured-protocol.md"
         ))),
         "templates/sdd/zh-Hans/units/workflow/archive-freeze-guidance.md" => {
             Some(include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
                 "/templates/sdd/zh-Hans/units/workflow/archive-freeze-guidance.md"
             )))
         }

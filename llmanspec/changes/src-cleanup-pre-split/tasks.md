@@ -17,6 +17,6 @@ Seam 确认（用户已批）：S1 = 既有回归网（tests/ 22 集成测试 + 
 - [x] T9: x-shared-leaves — 新 src/x/shared/ 收编逐字相同叶子；不同构者注记留证；骨架参数化不做
 - [x] T10: compile-baseline — 冷全量/包级重建/热增量/du 盘占 + line-tables-only A/B，进 design 附表 [blocked-by: T5, T8, T9]
 - [x] T11: extract-llman-core — 顶层工具层抽 llman-core crate，门面重导出保路径零漂移 [blocked-by: T10]
-- [ ] T12: extract-llman-sdd — src/sdd 整体搬 crates/llman-sdd（pub mod sdd 保内部路径），门面 pub use 重导出；test_utils 副本；i18n 接线 [blocked-by: T11]
+- [x] T12: extract-llman-sdd — src/sdd 整体搬 crates/llman-sdd（pub mod sdd 保内部路径），门面 pub use 重导出；test_utils 副本；i18n 接线 [blocked-by: T11]
 - [x] T13: disk-hygiene-justfile — justfile 新增 clean-bdd-targets 配方
 - [ ] T14: post-split-measure — 拆后同口径复测 + crate 边界图终稿 + just check-all 全绿 [blocked-by: T12]

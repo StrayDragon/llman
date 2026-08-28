@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Default max depth relative to `llmanspec/changes/` (depth 1 = direct children).
-pub(crate) const DEFAULT_MAX_SCAN_DEPTH: usize = 8;
+pub const DEFAULT_MAX_SCAN_DEPTH: usize = 8;
 
 thread_local! {
     static MAX_SCAN_DEPTH: Cell<usize> = const { Cell::new(DEFAULT_MAX_SCAN_DEPTH) };

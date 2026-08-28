@@ -1,5 +1,5 @@
-pub(crate) mod constants;
-pub(crate) mod discovery;
+pub mod constants;
+pub mod discovery;
 pub(crate) mod graph;
 pub(crate) mod ids;
 pub(crate) mod interactive;

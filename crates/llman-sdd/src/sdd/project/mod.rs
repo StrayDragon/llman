@@ -1,4 +1,4 @@
-pub(crate) mod config;
+pub mod config;
 pub(crate) mod config_skills;
 pub(crate) mod fs_utils;
 pub(crate) mod init;

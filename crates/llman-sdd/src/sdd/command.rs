@@ -14,16 +14,16 @@ pub struct SddArgs {
     /// Max depth when scanning `llmanspec/changes/` for `proposal.md`
     /// (depth 1 = direct children). Default 8. Applies to all sdd subcommands.
     #[arg(long, global = true, default_value_t = crate::sdd::shared::discovery::DEFAULT_MAX_SCAN_DEPTH)]
-    pub(crate) max_scan_depth: usize,
+    pub max_scan_depth: usize,
 
     #[command(subcommand)]
-    pub(crate) command: SddCommands,
+    pub command: SddCommands,
 }
 
 #[derive(Args)]
 pub struct SddSpecArgs {
     #[command(subcommand)]
-    pub(crate) command: SddSpecCommands,
+    pub command: SddSpecCommands,
 }
 
 #[derive(Subcommand)]
@@ -279,7 +279,7 @@ pub enum SddCommands {
 #[derive(Args)]
 pub struct IndexCommands {
     #[command(subcommand)]
-    pub(crate) command: IndexSubcommand,
+    pub command: IndexSubcommand,
 }
 
 #[derive(Subcommand)]
@@ -302,7 +302,7 @@ pub enum IndexSubcommand {
 #[derive(Args)]
 pub struct SddWorktreeArgs {
     #[command(subcommand)]
-    pub(crate) command: SddWorktreeCommands,
+    pub command: SddWorktreeCommands,
 }
 
 #[derive(Subcommand)]
@@ -315,7 +315,7 @@ pub enum SddWorktreeCommands {
 #[derive(Args)]
 pub struct SddConfigArgs {
     #[command(subcommand)]
-    pub(crate) command: Option<SddConfigCommands>,
+    pub command: Option<SddConfigCommands>,
 }
 
 #[derive(Subcommand)]
@@ -334,7 +334,7 @@ pub enum SddConfigCommands {
 #[derive(Args)]
 pub struct SddProjectArgs {
     #[command(subcommand)]
-    pub(crate) command: SddProjectCommands,
+    pub command: SddProjectCommands,
 }
 
 #[derive(Subcommand)]
@@ -394,13 +394,13 @@ pub enum SddProjectCommands {
 pub struct DeltaStubArgs {
     /// Trailing args captured for the reject message
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    pub(crate) args: Vec<String>,
+    pub args: Vec<String>,
 }
 
 #[derive(Args)]
 pub struct SddChangeArgs {
     #[command(subcommand)]
-    pub(crate) command: SddChangeCommands,
+    pub command: SddChangeCommands,
 }
 
 #[derive(Subcommand)]

@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/llman-core"]
+members = [".", "crates/llman-core", "crates/llman-sdd"]
 
 [workspace.package]
 version = "0.0.69"
@@ -13,7 +13,9 @@ serde_yaml = "0.9.34"
 schemars = { version = "1.2.1", features = ["derive", "indexmap2"] }
 jsonschema = "0.48.5"
 tempfile = "3.26.0"
+serde = { version = "1.0.228", features = ["derive"] }
 llman-core = { path = "crates/llman-core" }
+llman-sdd = { path = "crates/llman-sdd" }
 
 [package]
 name = "llman"
@@ -42,6 +44,7 @@ path = "src/lib.rs"
 [dependencies]
 anyhow.workspace = true
 llman-core.workspace = true
+llman-sdd.workspace = true
 clap = { version = "4.6.1", features = [
     "env",
     "unicode",
