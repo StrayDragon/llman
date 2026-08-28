@@ -734,8 +734,8 @@ fn validate_by_type(
                             full_mode_cache: None,
                         },
                     );
-                    // Staleness scope: spec.toon's valid_scope is the single
-                    // source of truth (unified path, BDD-on or off).
+                    // Staleness scope: the capability .feature header's
+                    // `# scope:` is the single source of truth (r133).
                     let staleness_frontmatter = validation.frontmatter.clone();
                     let staleness =
                         evaluate_staleness(root, id, &spec_path, staleness_frontmatter.as_ref());

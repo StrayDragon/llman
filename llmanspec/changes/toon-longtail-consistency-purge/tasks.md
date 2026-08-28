@@ -2,48 +2,16 @@
 
 Seam 约定（S1–S4，用户已确认）：均为既有 BDD harness 驱动的 CLI 子进程边界：
 S1=`validate` 系列 / S2=`project migrate` / S3=`spec skeleton` / S4=`show`+`list --specs`。
-新增验收一律为挂现有 `@req` 的纯 `@executable` 场景；错误消息遵循 D1 友好三要素
-（定位到的文件路径 + 一句话原因 + migrate 指引），对齐 errors-exit/cli-experience 风格。
-依赖序：T1 → ｛T2, T3, T4, T5｝ → T6（expand-contract：先统一口径，再分片拔旧，末片清场）。
-Specs landing 已在绑定分支完成（commit 65cda5d），下列切片均指 src/templates/locales 实现侧。
+新增验收一律为挂现有 `@req` 的纯 `@executable` 场景；错误消息遵循 D1 友好三要素。
+Specs landing commit：65cda5d（+r114/r79 修订与新 executable 场景随后落地）。
 
-## T1 contracts-align-secondary-specs
-templates/sdd 中 propose/verify/archive/arch-review/validation-hints 的双载体教学段
-同步为单载体口径（en/zh-Hans parity，过 just check-sdd-templates）；
-只动教学文本不改行为。已核：root AGENTS.md 无需改动。
-Blocked-by: 无
+- [x] T1 contracts-align-secondary-specs: templates 双载体教学段收窄（唯一过期点 zh arch-review L63）+ init --update 重渲染 .agents + check-sdd-templates 绿; root AGENTS.md 复核无需改 [blocked-by: none]
+- [x] T2 md2toon-retire-verdict: clap value_parser 已只认 toon2features（stderr 含该词，契约 executable 过）; Migrate/Skeleton clap 文档重写单载体; dispatch 反注释修正; locales 死区块（solidify×4 + partition_migrate×6）删除 [blocked-by: T1]
+- [x] T3 r60-deletion-and-show-dedual: show spec --json 移除 constraints/harness 双字段与 harness_summaries 构建块; morphology/r39 形态回归不变; S4 负断言由既有 compat+bdd 场景覆盖 [blocked-by: T1]
+- [x] T4 skeleton-single-carrier-authoring: 实现核验已单载体（仅 .feature、next-req-id、--force 门、strict 直过）; clap long-help 嵌入骨架格式示例满足「help 嵌示例」条款; r114 增补修订（@executable 示例默认不生成，防下游绑定面扩大）随 landing 提交 [blocked-by: T1]
+- [x] T5 context-single-carrier-retrieval: 实现核验 mod/index/tree 已 .feature-only（遗留 toon=跳过目录+警告指 migrate）; compute_spec_hash 忽略 toon 有专测; 旧 tree.json 无 scenarios 字段加载兼容保留; r79 措辞与实现对齐修订随 landing 提交 [blocked-by: T1]
+- [x] T6 gate-polish-and-clean-sweep: resolve_spec_file 三要素报错（路径+原因+migrate 指引）; 新增 executable legacy-spec-toon-error-message-is-actionable; 附带 out-of-scope 门禁修复 nightly needless_bool(tree_sitter_processor); 自修复 R2=i18n 缓存致 live 关键词丢失回归(compat 测试抓到)。门禁全绿：clippy -D 0、非 BDD 全量 ok(414 lib+集成)、BDD runner 51/51、validate --all --strict 35/35、check-sdd-templates 通过 [blocked-by: T2, T3, T4, T5]
 
-## T2 md2toon-retire-verdict
-D2 落实实现核对与收口：`project migrate --kind spec-md2toon` 必须非零退出且 stderr
-友好提示仅支持 toon2features（S2 seam；沿用/增强 executable
-migrate-spec-md2toon-retired 的 stderr 三要素断言）；清理 locales/app.yml 中
-md2toon 成功文案死串（app.yml L1867-1868 及相关 key）。
-Blocked-by: T1
-
-## T3 r60-deletion-and-show-dedual
-拆除 shared/show.rs（及 list 关联路径）中 Constraints/Harness 双源分段渲染代码与
-associated JSON 字段（合约侧 r60 已删）；morphology 口径回归不变（r39/r134）。
-S4 seam 负断言：show spec-id 输出无分段字样；list --specs 三态计数形态不变。
-Blocked-by: T1
-
-## T4 skeleton-single-carrier-authoring
-r114 重写落地：`spec skeleton` 仅生成 `<capability>.feature` 单载体骨架
-（头注释 + 示例 @req/@human 场景 + 可选示例 @executable）；复用 next-req-id；
-产物过 validate --strict；--force 外拒绝覆盖；help/error 内嵌格式示例。
-src/authoring/spec 相应改造 + S3 seam 新 executable 场景。
-Blocked-by: T1
-
-## T5 context-single-carrier-retrieval
-sdd-context r58/r79 重写落地：compute_spec_hash 仅哈希 `.feature`；
-context/{index,retrieve,tree} 移除 toon 内容读路径；畸形/缺失 `.feature`
-报错口径对齐 spec-format r131；**保留**旧 tree.json 缺 scenarios 字段的加载兼容。
-相关单测翻新（retrieve.rs/tree.rs/index.rs 内嵌 tests）。
-Blocked-by: T1
-
-## T6 gate-polish-and-clean-sweep
-S1 门禁体验收口：legacy-spec-toon-fails-with-pointer 断言升级为 stderr 三要素
-（路径+原因+migrate 指引，无堆栈 token 友好）；validation/discovery 提示串统一走
-locales key；全量清场：`llman sdd validate --all --strict`（含 full mode）、
-`cargo test --features bdd`、`just check-sdd-templates`、
-`cargo +nightly clippy --all-targets --all-features -- -D warnings`。
-Blocked-by: T2, T3, T4, T5
+自修复轮次记录：
+- Round 1：clippy 新 lint needless_bool 打在无关存量文件 → 精准套用 clippy 建议（独立 fix(tool) commit）→ clippy_exit=0
+- Round 2：rust-i18n 宏缓存未感知 app.yml 变更，stderr 仍吐旧文案丢 "live" 关键词，被 test_validate_change_next_steps_branches_on_bdd_mode 捕获 → touch src/lib.rs 强制重编后恢复；文案同步补回 live 单载体措辞

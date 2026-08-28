@@ -215,7 +215,7 @@ pub struct DedupeReport {
 }
 
 /// Keep lexicographically first capability for each colliding id; remap others
-/// to fresh `rN` short ids. Updates `spec.toon` and `@req:` in `.feature` files.
+/// to fresh `rN` short ids. Updates `@req:` links inside `.feature` files (single-track).
 pub fn dedupe_colliding_req_ids(root: &Path, dry_run: bool) -> Result<DedupeReport> {
     let mut index = build_req_index(root)?;
     let mut report = DedupeReport::default();
