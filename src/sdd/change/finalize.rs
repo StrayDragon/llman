@@ -22,9 +22,9 @@ use std::path::Path;
 use std::process::Command;
 
 #[derive(Debug, Clone)]
-pub struct FinalizeArgs {
-    pub change: String,
-    pub no_check: bool,
+pub(crate) struct FinalizeArgs {
+    pub(crate) change: String,
+    pub(crate) no_check: bool,
 }
 
 /// Run `finalize` against a repo rooted at `root`.
@@ -38,7 +38,7 @@ pub struct FinalizeArgs {
 /// 4. Otherwise: run validate (live strict + change stage; `--no-check` skips
 ///    the BDD runner), then write `checkpointed=true` + `checkpoint_sha=base_sha`.
 /// 5. Docs-only archive rename.
-pub fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
+pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
     let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
     validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);

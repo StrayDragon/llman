@@ -11,6 +11,7 @@ use crate::git_utils::{
 };
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
+use crate::sdd::shared::discovery::resolve_change_dir;
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::spec::frontmatter::split_frontmatter;
 use anyhow::{Result, anyhow, bail};
@@ -21,48 +22,41 @@ use std::path::{Path, PathBuf};
 /// Git binding recorded in `proposal.md` frontmatter (unified flow).
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct ChangeGitBinding {
-    pub branch: String,
-    pub base_sha: String,
-    pub checkpointed: bool,
-    pub checkpoint_sha: Option<String>,
+pub(crate) struct ChangeGitBinding {
+    pub(crate) branch: String,
+    pub(crate) base_sha: String,
+    pub(crate) checkpointed: bool,
+    pub(crate) checkpoint_sha: Option<String>,
 }
 
 #[derive(Debug, Clone)]
-pub struct AttachArgs {
-    pub change: String,
+pub(crate) struct AttachArgs {
+    pub(crate) change: String,
     /// Re-bind even if already attached (updates branch/base to current HEAD state).
-    pub force: bool,
+    pub(crate) force: bool,
 }
 
 #[derive(Debug, Clone)]
-pub struct CheckpointArgs {
-    pub change: String,
-    pub no_check: bool,
+pub(crate) struct CheckpointArgs {
+    pub(crate) change: String,
+    pub(crate) no_check: bool,
 }
 
 #[derive(Debug, Clone)]
-pub struct DiffArgs {
-    pub change: String,
-    pub export_patch: Option<PathBuf>,
+pub(crate) struct DiffArgs {
+    pub(crate) change: String,
+    pub(crate) export_patch: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
-pub struct StartArgs {
-    pub change: String,
+pub(crate) struct StartArgs {
+    pub(crate) change: String,
     /// Create a linked worktree instead of switching branches in-place (r116).
-    pub worktree: bool,
+    pub(crate) worktree: bool,
     /// Accepted and ignored; start has no interactive mode. Keeps the flag
     /// matrix uniform across change subcommands.
-    pub no_interactive: bool,
-}
-
-fn change_dir(root: &Path, change_id: &str) -> Result<PathBuf> {
-    crate::sdd::shared::discovery::resolve_change_dir(root, change_id)
-}
-
-fn proposal_path(root: &Path, change_id: &str) -> Result<PathBuf> {
-    Ok(change_dir(root, change_id)?.join("proposal.md"))
+    #[allow(dead_code)]
+    pub(crate) no_interactive: bool,
 }
 
 // Pure git plumbing (run_git / current_branch / current_head_sha /
@@ -73,7 +67,7 @@ fn proposal_path(root: &Path, change_id: &str) -> Result<PathBuf> {
 
 /// Optional shared-mode gate from `bdd.shared` / future config.
 /// For now: only enforced when `LLMAN_SDD_REQUIRE_UPSTREAM=1`.
-pub fn shared_mode_required() -> bool {
+pub(crate) fn shared_mode_required() -> bool {
     std::env::var("LLMAN_SDD_REQUIRE_UPSTREAM")
         .map(|v| matches!(v.trim(), "1" | "true" | "yes"))
         .unwrap_or(false)
@@ -104,8 +98,8 @@ fn parse_yaml_bool(doc: &serde_yaml::Value, key: &str) -> bool {
 }
 
 /// Read Git binding fields from proposal frontmatter (best-effort).
-pub fn read_binding(root: &Path, change_id: &str) -> Result<Option<ChangeGitBinding>> {
-    let path = proposal_path(root, change_id)?;
+pub(crate) fn read_binding(root: &Path, change_id: &str) -> Result<Option<ChangeGitBinding>> {
+    let path = resolve_change_dir(root, change_id)?.join("proposal.md");
     if !path.exists() {
         bail!("change `{}` proposal.md not found", change_id);
     }
@@ -171,7 +165,7 @@ pub(crate) fn write_binding(
     change_id: &str,
     binding: &ChangeGitBinding,
 ) -> Result<()> {
-    let path = proposal_path(root, change_id)?;
+    let path = resolve_change_dir(root, change_id)?.join("proposal.md");
     let content = fs::read_to_string(&path)?;
     let mut updates = vec![
         ("branch", binding.branch.clone()),
@@ -199,16 +193,19 @@ pub(crate) fn write_binding(
 /// when the user has already manually `git switch -c`'d to a branch, or wants
 /// to bind a non-`sdd/` prefixed branch. Unified flow (r57): works regardless
 /// of whether `bdd:` is configured.
-pub fn run_attach(root: &Path, args: AttachArgs) -> Result<()> {
+pub(crate) fn run_attach(root: &Path, args: AttachArgs) -> Result<()> {
     let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
     validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
     let _config = load_required_config(&llmanspec)?;
-    let dir = change_dir(root, &change_name)?;
+    let dir = resolve_change_dir(root, &change_name)?;
     if !dir.exists() {
         bail!("change `{}` not found", change_name);
     }
-    if !proposal_path(root, &change_name)?.exists() {
+    if !resolve_change_dir(root, &change_name)?
+        .join("proposal.md")
+        .exists()
+    {
         bail!("change `{}` is missing proposal.md", change_name);
     }
 
@@ -270,16 +267,19 @@ fn feature_branch_name(change_id: &str, config: &crate::sdd::project::config::Sd
 /// Single-process: clean-tree gate → create feature branch → write attach
 /// binding. Errors are terse and token-friendly (no stack traces, no advice
 /// lists). `--worktree` (r116) routes to worktree creation (slice 3).
-pub fn run_start(root: &Path, args: StartArgs) -> Result<()> {
+pub(crate) fn run_start(root: &Path, args: StartArgs) -> Result<()> {
     let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
     validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
     let config = load_required_config(&llmanspec)?;
-    let dir = change_dir(root, &change_name)?;
+    let dir = resolve_change_dir(root, &change_name)?;
     if !dir.exists() {
         bail!("change `{}` not found", change_name);
     }
-    if !proposal_path(root, &change_name)?.exists() {
+    if !resolve_change_dir(root, &change_name)?
+        .join("proposal.md")
+        .exists()
+    {
         bail!("change `{}` is missing proposal.md", change_name);
     }
     if let Some(existing) = read_binding(root, &change_name)? {
@@ -332,7 +332,7 @@ pub fn run_start(root: &Path, args: StartArgs) -> Result<()> {
 }
 
 /// Require a clean tree, matching branch binding, and (optionally) full BDD check.
-pub fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
+pub(crate) fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
     let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
     validate_sdd_id(&change_name, "change")?;
     let _llmanspec = root.join(LLMANSPEC_DIR_NAME);
@@ -427,7 +427,7 @@ pub fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
     Ok(())
 }
 
-pub fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
+pub(crate) fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
     let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
     validate_sdd_id(&change_name, "change")?;
     let Some(binding) = read_binding(root, &change_name)? else {
@@ -468,7 +468,7 @@ pub fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
 /// For the `finalize` path (which writes the frontmatter itself and intentionally
 /// leaves the tree dirty for a single commit), use
 /// [`enforce_bdd_archive_gates_relaxed`] instead.
-pub fn enforce_bdd_archive_gates(root: &Path, change_id: &str) -> Result<ChangeGitBinding> {
+pub(crate) fn enforce_bdd_archive_gates(root: &Path, change_id: &str) -> Result<ChangeGitBinding> {
     enforce_bdd_archive_gates_inner(root, change_id, /* require_clean_tree */ true)
 }
 
@@ -481,7 +481,10 @@ pub fn enforce_bdd_archive_gates(root: &Path, change_id: &str) -> Result<ChangeG
 ///
 /// Caller is responsible for persisting `checkpointed: true` (and
 /// `checkpoint_sha`) on the change binding after this returns.
-pub fn enforce_bdd_archive_gates_relaxed(root: &Path, change_id: &str) -> Result<ChangeGitBinding> {
+pub(crate) fn enforce_bdd_archive_gates_relaxed(
+    root: &Path,
+    change_id: &str,
+) -> Result<ChangeGitBinding> {
     let Some(binding) = read_binding(root, change_id)? else {
         bail!(
             "archive requires Git binding; run `llman sdd change attach {change_id}` then checkpoint"

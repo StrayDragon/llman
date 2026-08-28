@@ -12,11 +12,11 @@ use std::path::Path;
 
 /// One requirement node (leaf of the tree).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ReqNode {
-    pub req_id: String,
-    pub title: String,
+pub(crate) struct ReqNode {
+    pub(crate) req_id: String,
+    pub(crate) title: String,
     /// Full requirement text (contains MUST/SHALL).
-    pub statement: String,
+    pub(crate) statement: String,
 }
 
 /// One scenario node (behavior detail under a requirement). Index rebuild may
@@ -24,24 +24,24 @@ pub struct ReqNode {
 /// constraint-layer toon scenarios with `feature: false` stay documentation-only.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ScenarioNode {
-    pub req_id: String,
-    pub id: String,
-    pub given: String,
+    pub(crate) req_id: String,
+    pub(crate) id: String,
+    pub(crate) given: String,
     /// Serialized as `when` (matches `spec.toon` column / IR field rename).
     #[serde(rename = "when")]
-    pub when_: String,
+    pub(crate) when_: String,
     /// Serialized as `then` (matches `spec.toon` column / IR field rename).
     #[serde(rename = "then")]
-    pub then_: String,
+    pub(crate) then_: String,
 }
 
 /// One spec document node (root of a subtree).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DocNode {
-    pub spec_id: String,
+    pub(crate) spec_id: String,
     /// Spec overview / purpose.
-    pub purpose: String,
-    pub reqs: Vec<ReqNode>,
+    pub(crate) purpose: String,
+    pub(crate) reqs: Vec<ReqNode>,
     /// `feature: true` scenarios kept from the parsed IR so the retrieval agent
     /// can read behavior details. `#[serde(default)]` keeps old `tree.json`
     /// (built before this field existed) loadable — they deserialize with an
@@ -53,12 +53,12 @@ pub struct DocNode {
 /// Serialized pageindex tree index.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TreeIndex {
-    pub version: u32,
+    pub(crate) version: u32,
     /// Hash of the source specs for freshness checks.
-    pub spec_hash: String,
-    pub build_timestamp: String,
+    pub(crate) spec_hash: String,
+    pub(crate) build_timestamp: String,
     /// Chat model recorded at build time (informational only; building is LLM-free).
-    pub chat_model: String,
+    pub(crate) chat_model: String,
     pub docs: Vec<DocNode>,
 }
 
@@ -70,7 +70,7 @@ const TREE_VERSION: u32 = 1;
 /// consistent with the old spec_id scheme so retrieval IDs are comparable
 /// across backends). The parser-level `Spec` type is intentionally avoided: it
 /// drops `req_id`/`title` during conversion, which the tree needs.
-pub fn build_docs(parsed: &[(String, MainSpecDoc)]) -> Vec<DocNode> {
+pub(crate) fn build_docs(parsed: &[(String, MainSpecDoc)]) -> Vec<DocNode> {
     let mut docs: Vec<DocNode> = parsed
         .iter()
         .map(|(spec_id, doc)| DocNode {
@@ -110,7 +110,7 @@ pub fn build_docs(parsed: &[(String, MainSpecDoc)]) -> Vec<DocNode> {
 
 impl TreeIndex {
     /// Assemble a new tree index from built docs plus build metadata.
-    pub fn new(
+    pub(crate) fn new(
         docs: Vec<DocNode>,
         spec_hash: String,
         build_timestamp: String,
@@ -126,7 +126,7 @@ impl TreeIndex {
     }
 
     /// Serialize to `<dir>/tree.json`.
-    pub fn save(&self, dir: &Path) -> Result<()> {
+    pub(crate) fn save(&self, dir: &Path) -> Result<()> {
         std::fs::create_dir_all(dir)
             .with_context(|| format!("Failed to create pageindex dir {}", dir.display()))?;
         let json = serde_json::to_string_pretty(self).context("Failed to serialize tree.json")?;

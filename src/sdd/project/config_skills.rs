@@ -54,7 +54,7 @@ fn skill_options() -> Vec<SkillOption> {
 }
 
 /// `llman sdd config skills` entry point.
-pub fn run(no_interactive: bool, json: bool, root: &Path) -> Result<()> {
+pub(crate) fn run(no_interactive: bool, json: bool, root: &Path) -> Result<()> {
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let config = load_or_create_config(&llmanspec_dir)?;
 
@@ -71,7 +71,7 @@ pub fn run(no_interactive: bool, json: bool, root: &Path) -> Result<()> {
 }
 
 /// `llman sdd config` (no subcommand) — read-only overview.
-pub fn run_overview(root: &Path) -> Result<()> {
+pub(crate) fn run_overview(root: &Path) -> Result<()> {
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
     let config = load_or_create_config(&llmanspec_dir)?;
     print_overview(&config);

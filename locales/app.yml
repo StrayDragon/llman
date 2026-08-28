@@ -1474,6 +1474,9 @@ sdd:
   shared:
     invalid_id:
       en: "Invalid %{kind} id '%{id}'. Use a simple identifier (no '/', '\\', '.' or '..')."
+    non_interactive:
+      tail:
+        en: "Or run in an interactive terminal."
 
   update_skills:
     no_llmanspec:
@@ -1529,8 +1532,6 @@ sdd:
         en: "  llman sdd show --type change"
       line4:
         en: "  llman sdd show --type spec"
-      line5:
-        en: "Or run in an interactive terminal."
     unknown_item:
       en: "Unknown item '%{item}'"
     did_you_mean:
@@ -1771,8 +1772,6 @@ sdd:
         en: "  llman sdd validate --specs"
       line5:
         en: "  llman sdd validate <item-name>"
-      line6:
-        en: "Or run in an interactive terminal."
 
   archive:
     change_required:

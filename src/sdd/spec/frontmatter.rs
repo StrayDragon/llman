@@ -1,4 +1,4 @@
-pub fn split_frontmatter(content: &str) -> (Option<String>, String) {
+pub(crate) fn split_frontmatter(content: &str) -> (Option<String>, String) {
     let normalized = normalize_newlines(content);
     if !normalized.starts_with("---\n") {
         return (None, normalized);
@@ -25,21 +25,6 @@ pub fn split_frontmatter(content: &str) -> (Option<String>, String) {
     (Some(yaml_lines.join("\n")), body)
 }
 
-pub fn compose_with_frontmatter(frontmatter_yaml: Option<&str>, body: &str) -> String {
-    let body = body.trim_start_matches('\n');
-    match frontmatter_yaml {
-        Some(yaml) => {
-            let yaml = yaml.trim();
-            if body.trim().is_empty() {
-                format!("---\n{yaml}\n---\n")
-            } else {
-                format!("---\n{yaml}\n---\n\n{body}")
-            }
-        }
-        None => body.to_string(),
-    }
-}
-
-pub fn normalize_newlines(input: &str) -> String {
+pub(crate) fn normalize_newlines(input: &str) -> String {
     input.replace("\r\n", "\n").replace('\r', "\n")
 }

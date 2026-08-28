@@ -4,48 +4,38 @@ use serde::Serialize;
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Scenario {
+pub(crate) struct Scenario {
     #[serde(rename = "rawText")]
-    pub raw_text: String,
+    pub(crate) raw_text: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Requirement {
-    pub text: String,
-    pub scenarios: Vec<Scenario>,
+pub(crate) struct Requirement {
+    pub(crate) text: String,
+    pub(crate) scenarios: Vec<Scenario>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Spec {
-    pub name: String,
-    pub overview: String,
-    pub requirements: Vec<Requirement>,
-    pub metadata: SpecMetadata,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct SpecMetadata {
-    pub format: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct Change {
-    pub name: String,
-    pub why: String,
+pub(crate) struct Change {
+    pub(crate) name: String,
+    pub(crate) why: String,
     #[serde(rename = "whatChanges")]
-    pub what_changes: String,
-    pub deltas: Vec<Delta>,
-    pub metadata: ChangeMetadata,
+    pub(crate) what_changes: String,
+    pub(crate) deltas: Vec<Delta>,
+    pub(crate) metadata: ChangeMetadata,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ChangeMetadata {
-    pub format: String,
+pub(crate) struct ChangeMetadata {
+    pub(crate) format: String,
 }
 
+/// Part of the serialized `Change` shape; `deltas` is always empty since
+/// delta specs were removed, but the JSON keys stay for output stability.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
-pub enum DeltaOperation {
+pub(crate) enum DeltaOperation {
     Added,
     Modified,
     Removed,
@@ -53,25 +43,25 @@ pub enum DeltaOperation {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct RenamePair {
-    pub from: String,
-    pub to: String,
+pub(crate) struct RenamePair {
+    pub(crate) from: String,
+    pub(crate) to: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Delta {
-    pub spec: String,
-    pub operation: DeltaOperation,
-    pub description: String,
+pub(crate) struct Delta {
+    pub(crate) spec: String,
+    pub(crate) operation: DeltaOperation,
+    pub(crate) description: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub requirement: Option<Requirement>,
+    pub(crate) requirement: Option<Requirement>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub requirements: Option<Vec<Requirement>>,
+    pub(crate) requirements: Option<Vec<Requirement>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub rename: Option<RenamePair>,
+    pub(crate) rename: Option<RenamePair>,
 }
 
-pub fn parse_change(content: &str, name: &str, _change_dir: &Path) -> Result<Change> {
+pub(crate) fn parse_change(content: &str, name: &str, _change_dir: &Path) -> Result<Change> {
     let why =
         extract_section(content, "Why").ok_or_else(|| anyhow!("Change must have a Why section"))?;
     let what_changes = extract_section(content, "What Changes")

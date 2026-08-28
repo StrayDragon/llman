@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 
-pub fn validate_sdd_id(id: &str, kind: &'static str) -> Result<()> {
+pub(crate) fn validate_sdd_id(id: &str, kind: &'static str) -> Result<()> {
     let trimmed = id.trim();
     if trimmed.is_empty()
         || trimmed == "."

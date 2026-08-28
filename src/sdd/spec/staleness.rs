@@ -9,7 +9,7 @@ use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
-pub enum StalenessStatus {
+pub(crate) enum StalenessStatus {
     Ok,
     Stale,
     Info,
@@ -18,7 +18,7 @@ pub enum StalenessStatus {
 }
 
 impl StalenessStatus {
-    pub fn as_str(&self) -> &'static str {
+    pub(crate) fn as_str(&self) -> &'static str {
         match self {
             StalenessStatus::Ok => "OK",
             StalenessStatus::Stale => "STALE",
@@ -30,26 +30,26 @@ impl StalenessStatus {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct StalenessInfo {
-    pub status: StalenessStatus,
+pub(crate) struct StalenessInfo {
+    pub(crate) status: StalenessStatus,
     #[serde(rename = "baseRef")]
-    pub base_ref: Option<String>,
-    pub scope: Vec<String>,
+    pub(crate) base_ref: Option<String>,
+    pub(crate) scope: Vec<String>,
     #[serde(rename = "touchedPaths")]
-    pub touched_paths: Vec<String>,
+    pub(crate) touched_paths: Vec<String>,
     #[serde(rename = "specUpdated")]
-    pub spec_updated: bool,
-    pub dirty: bool,
-    pub notes: Vec<String>,
+    pub(crate) spec_updated: bool,
+    pub(crate) dirty: bool,
+    pub(crate) notes: Vec<String>,
 }
 
-pub struct StalenessResult {
-    pub info: StalenessInfo,
-    pub issues: Vec<ValidationIssue>,
+pub(crate) struct StalenessResult {
+    pub(crate) info: StalenessInfo,
+    pub(crate) issues: Vec<ValidationIssue>,
 }
 
 impl StalenessInfo {
-    pub fn not_applicable() -> Self {
+    pub(crate) fn not_applicable() -> Self {
         StalenessInfo {
             status: StalenessStatus::NotApplicable,
             base_ref: None,
@@ -62,7 +62,7 @@ impl StalenessInfo {
     }
 }
 
-pub struct StalenessEvaluator {
+pub(crate) struct StalenessEvaluator {
     root: PathBuf,
     base_ref: Option<String>,
     base_ref_invalid: Option<String>,
@@ -72,7 +72,7 @@ pub struct StalenessEvaluator {
 }
 
 impl StalenessEvaluator {
-    pub fn new(root: &Path) -> Self {
+    pub(crate) fn new(root: &Path) -> Self {
         let root = root.to_path_buf();
         let dirty = git_status_dirty(&root);
         match resolve_base_ref(&root) {
@@ -104,7 +104,7 @@ impl StalenessEvaluator {
         }
     }
 
-    pub fn evaluate(
+    pub(crate) fn evaluate(
         &self,
         spec_id: &str,
         spec_path: &Path,
@@ -281,7 +281,7 @@ impl StalenessEvaluator {
     }
 }
 
-pub fn evaluate_staleness(
+pub(crate) fn evaluate_staleness(
     root: &Path,
     spec_id: &str,
     spec_path: &Path,
@@ -290,7 +290,7 @@ pub fn evaluate_staleness(
     evaluate_staleness_with_override(root, spec_id, spec_path, frontmatter, None)
 }
 
-pub fn evaluate_staleness_with_override(
+pub(crate) fn evaluate_staleness_with_override(
     root: &Path,
     spec_id: &str,
     spec_path: &Path,

@@ -1,9 +1,9 @@
-pub mod chat;
-pub mod index;
-pub mod retrieve;
+pub(crate) mod chat;
+pub(crate) mod index;
+pub(crate) mod retrieve;
 pub mod tree;
 
-pub use index::*;
+pub(crate) use index::*;
 
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
@@ -14,14 +14,14 @@ use std::path::{Path, PathBuf};
 
 /// Retrieval/index backend (pageindex agentic tree retrieval).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Backend {
+pub(crate) enum Backend {
     /// PageIndex-style agentic tree retrieval (default, sole backend).
     Pageindex,
 }
 
 impl Backend {
     /// Parse a backend name (only `pageindex` is supported).
-    pub fn parse(s: &str) -> Result<Self> {
+    pub(crate) fn parse(s: &str) -> Result<Self> {
         let s = s.trim().to_ascii_lowercase();
         match s.as_str() {
             "pageindex" | "page-index" => Ok(Backend::Pageindex),
@@ -43,7 +43,7 @@ impl Backend {
 /// - `cli`: value of the `--backend` flag, if present.
 /// - `LLMAN_SDD_INDEX_BACKEND`: environment override.
 /// - default: `pageindex`.
-pub fn resolve_backend(cli: Option<String>) -> Result<Backend> {
+pub(crate) fn resolve_backend(cli: Option<String>) -> Result<Backend> {
     if let Some(raw) = cli {
         let raw = raw.trim();
         if raw.is_empty() {
@@ -86,7 +86,7 @@ fn find_llmanspec_dir(start_dir: &Path) -> Result<PathBuf> {
 /// Run the `context` command: find specs relevant to a task and/or paths.
 ///
 /// Uses the pageindex agentic tree retrieval backend.
-pub async fn context_run(
+pub(crate) async fn context_run(
     task: Option<String>,
     paths: Vec<String>,
     top: usize,
@@ -247,7 +247,7 @@ fn print_err(error_kind: &str, msg: &str) {
 }
 
 /// Check index freshness for the pageindex backend and print status.
-pub fn index_check() -> Result<()> {
+pub(crate) fn index_check() -> Result<()> {
     let llmanspec_dir = find_llmanspec_dir(Path::new("."))?;
     let context_dir = llmanspec_dir.join(".context");
     let specs_dir = llmanspec_dir.join("specs");
@@ -296,7 +296,7 @@ fn print_index_status(context_dir: &Path, specs_dir: &Path) {
 }
 
 /// Rebuild the pageindex tree index.
-pub async fn index_rebuild(
+pub(crate) async fn index_rebuild(
     _api_url: Option<String>,
     _model: Option<String>,
     _api_key: Option<String>,

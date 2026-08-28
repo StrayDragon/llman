@@ -7,16 +7,16 @@ use serde::Serialize;
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Format {
+pub(crate) enum Format {
     Toon,
     Json,
 }
 
 #[derive(Debug)]
-pub struct StatusArgs {
-    pub target: Option<String>,
-    pub json: bool,
-    pub format: Option<String>,
+pub(crate) struct StatusArgs {
+    pub(crate) target: Option<String>,
+    pub(crate) json: bool,
+    pub(crate) format: Option<String>,
 }
 
 impl StatusArgs {
@@ -592,7 +592,7 @@ fn json_multiple_matches(matches: &[ChangeInfo]) -> Result<()> {
 
 // ── Main entry ──
 
-pub fn run(args: StatusArgs) -> Result<()> {
+pub(crate) fn run(args: StatusArgs) -> Result<()> {
     let root = Path::new(".");
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
 

@@ -11,9 +11,9 @@ Seam 确认（用户已批）：S1 = 既有回归网（tests/ 22 集成测试 + 
 - [x] T3: small-utils-dedup — is_symlink_dir/normalize_newlines/push_unique/slugify 按「语义相同才合并、不同就改名」处置
 - [x] T4: config-disambiguation — x::codex::Config→CodexConfig；ToolConfig/ToolsConfig 消歧；五处所有权与文件格式不动 [blocked-by: T1]
 - [x] T5: arch-test-lock — tests/import_direction_tests.rs 断言方向表，挂进 just check [blocked-by: T1, T2, T3, T4]
-- [ ] T6: sdd-shared-dedup — print_json ×3 合一；non_interactive_hint_message ×2 合一
-- [ ] T7: sdd-cross-submodule-dedup — proposal_path/change_dir/list_specs/normalize_type 归位 sdd/shared；git 操作走 git_utils [blocked-by: T2]
-- [ ] T8: sdd-visibility-scope — pub→pub(crate) 收敛（对外仅 command 入口 + schema 生成 API）；六子块边界检视追记 design [blocked-by: T6, T7]
+- [x] T6: sdd-shared-dedup — print_json ×3 合一；non_interactive_hint_message ×2 合一
+- [x] T7: sdd-cross-submodule-dedup — proposal_path/change_dir/list_specs/normalize_type 归位 sdd/shared；git 操作走 git_utils [blocked-by: T2]
+- [x] T8: sdd-visibility-scope — pub→pub(crate) 收敛（对外仅 command 入口 + schema 生成 API）；六子块边界检视追记 design [blocked-by: T6, T7]
 - [ ] T9: x-shared-leaves — 新 src/x/shared/ 收编逐字相同叶子；不同构者注记留证；骨架参数化不做
 - [ ] T10: compile-baseline — 冷全量/包级重建/热增量/du 盘占 + line-tables-only A/B，进 design 附表 [blocked-by: T5, T8, T9]
 - [ ] T11: extract-llman-core — 顶层工具层抽 llman-core crate，门面重导出保路径零漂移 [blocked-by: T10]

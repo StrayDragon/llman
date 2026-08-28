@@ -22,10 +22,10 @@ use async_openai::types::chat::{
 
 /// Configuration for the chat model used by pageindex retrieval.
 #[derive(Debug, Clone)]
-pub struct ChatConfig {
-    pub api_host: String,
-    pub api_key: String,
-    pub model: String,
+pub(crate) struct ChatConfig {
+    pub(crate) api_host: String,
+    pub(crate) api_key: String,
+    pub(crate) model: String,
 }
 
 impl ChatConfig {
@@ -34,7 +34,7 @@ impl ChatConfig {
     /// Priority: `LLMAN_SDD_INDEX_CHAT_*` → fall back to `LLMAN_SDD_INDEX_OPENAI_*`
     /// (host/key) → hardcoded host default. The chat model has no default — it
     /// must support tool/function calling and be set via `LLMAN_SDD_INDEX_CHAT_MODEL`.
-    pub fn from_env() -> Result<Self> {
+    pub(crate) fn from_env() -> Result<Self> {
         let api_host = env_or("LLMAN_SDD_INDEX_CHAT_API_HOST")
             .or_else(|| env_or("LLMAN_SDD_INDEX_OPENAI_API_HOST"))
             .unwrap_or_default();
@@ -68,14 +68,14 @@ fn env_or(var: &str) -> Option<String> {
 }
 
 /// async-openai-backed [`ChatInvoker`].
-pub struct OpenAiInvoker {
+pub(crate) struct OpenAiInvoker {
     client: Client<OpenAIConfig>,
     model: String,
     api_host: String,
 }
 
 impl OpenAiInvoker {
-    pub fn new(cfg: &ChatConfig) -> Self {
+    pub(crate) fn new(cfg: &ChatConfig) -> Self {
         let config = OpenAIConfig::new()
             .with_api_base(cfg.api_host.trim_end_matches('/'))
             .with_api_key(cfg.api_key.clone());

@@ -38,14 +38,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
-pub struct MigrateArgs {
-    pub dry_run: bool,
+pub(crate) struct MigrateArgs {
+    pub(crate) dry_run: bool,
     #[allow(dead_code)]
-    pub force: bool,
+    pub(crate) force: bool,
     /// Skip the confirmation prompt and apply (for agents/scripts).
-    pub yes: bool,
+    pub(crate) yes: bool,
     /// Treat the terminal as non-interactive even when stdin is a TTY.
-    pub no_interactive: bool,
+    pub(crate) no_interactive: bool,
 }
 
 /// One capability's migration plan.
@@ -91,11 +91,11 @@ enum Outcome {
     Skipped(String),
 }
 
-pub fn run(args: MigrateArgs) -> Result<()> {
+pub(crate) fn run(args: MigrateArgs) -> Result<()> {
     run_at(Path::new("."), args)
 }
 
-pub fn run_at(root: &Path, args: MigrateArgs) -> Result<()> {
+pub(crate) fn run_at(root: &Path, args: MigrateArgs) -> Result<()> {
     let specs_root = root.join(LLMANSPEC_DIR_NAME).join("specs");
     if !specs_root.is_dir() {
         println!("No specs directory found; nothing to migrate.");

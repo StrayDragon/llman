@@ -6,21 +6,24 @@ use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub const FREEZE_ARCHIVE_NAME: &str = "freezed_changes.7z.archived";
+pub(crate) const FREEZE_ARCHIVE_NAME: &str = "freezed_changes.7z.archived";
 
 #[derive(Debug, Clone)]
-pub struct FreezeArgs {
-    pub list: bool,
-    pub before: Option<String>,
-    pub keep_recent: usize,
-    pub dry_run: bool,
-    pub no_interactive: bool,
+pub(crate) struct FreezeArgs {
+    pub(crate) list: bool,
+    pub(crate) before: Option<String>,
+    pub(crate) keep_recent: usize,
+    pub(crate) dry_run: bool,
+    /// Accepted and ignored: this subcommand has no interactive mode.
+    /// Kept so the flag matrix stays uniform across sibling subcommands.
+    #[allow(dead_code)]
+    pub(crate) no_interactive: bool,
 }
 
 #[derive(Debug, Clone)]
-pub struct ThawArgs {
-    pub change: Vec<String>,
-    pub dest: Option<PathBuf>,
+pub(crate) struct ThawArgs {
+    pub(crate) change: Vec<String>,
+    pub(crate) dest: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -30,11 +33,11 @@ struct ArchivedChangeDir {
     date: NaiveDate,
 }
 
-pub fn run_freeze(args: FreezeArgs) -> Result<()> {
+pub(crate) fn run_freeze(args: FreezeArgs) -> Result<()> {
     run_freeze_with_root(Path::new("."), args)
 }
 
-pub fn run_thaw(args: ThawArgs) -> Result<()> {
+pub(crate) fn run_thaw(args: ThawArgs) -> Result<()> {
     run_thaw_with_root(Path::new("."), args)
 }
 

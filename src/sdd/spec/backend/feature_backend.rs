@@ -27,14 +27,14 @@ use anyhow::{Result, anyhow};
 use sha2::{Digest, Sha256};
 use std::fmt::Write as _;
 
-pub struct FeatureBackend;
+pub(crate) struct FeatureBackend;
 
 /// Process-wide singleton (single-track spec-format r131).
-pub static FEATURE_BACKEND: FeatureBackend = FeatureBackend;
+pub(crate) static FEATURE_BACKEND: FeatureBackend = FeatureBackend;
 
 /// Tier of a scenario under the single-track grammar (r132).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScenarioTier {
+pub(crate) enum ScenarioTier {
     /// Human-owned constraint (`@human`); never runner-bound.
     Constraint,
     /// Runner-bound acceptance (`@executable`).
@@ -45,29 +45,29 @@ pub enum ScenarioTier {
 
 /// Richly parsed scenario retaining everything the lock-hash needs.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RichScenario {
-    pub name: String,
-    pub description: Option<String>,
-    pub given: Vec<String>,
-    pub when_: Vec<String>,
-    pub then_: Vec<String>,
-    pub req_ids: Vec<String>,
-    pub tags: Vec<String>,
-    pub tier: Option<ScenarioTier>,
+pub(crate) struct RichScenario {
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) given: Vec<String>,
+    pub(crate) when_: Vec<String>,
+    pub(crate) then_: Vec<String>,
+    pub(crate) req_ids: Vec<String>,
+    pub(crate) tags: Vec<String>,
+    pub(crate) tier: Option<ScenarioTier>,
 }
 
 /// Gherkin keyword set for a supported language.
 #[derive(Debug, Clone, Copy)]
-pub struct GherkinKw {
-    pub feature: &'static str,
-    pub scenario: &'static str,
-    pub given: &'static str,
-    pub when: &'static str,
-    pub then: &'static str,
+pub(crate) struct GherkinKw {
+    pub(crate) feature: &'static str,
+    pub(crate) scenario: &'static str,
+    pub(crate) given: &'static str,
+    pub(crate) when: &'static str,
+    pub(crate) then: &'static str,
 }
 
 /// Keywords for the parsed/rendered language (zh-CN or English).
-pub fn keywords_for(lang: &str) -> GherkinKw {
+pub(crate) fn keywords_for(lang: &str) -> GherkinKw {
     if lang.starts_with("zh") {
         GherkinKw {
             feature: "功能",
@@ -89,35 +89,24 @@ pub fn keywords_for(lang: &str) -> GherkinKw {
 
 impl ScenarioTier {
     /// Whether scenarios of this tier are locked for agent edits (r135).
-    pub fn is_locked(self) -> bool {
+    pub(crate) fn is_locked(self) -> bool {
         matches!(self, ScenarioTier::Constraint | ScenarioTier::Manual)
-    }
-
-    /// Stable machine label used in JSON output.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            ScenarioTier::Constraint => "constraint",
-            ScenarioTier::Manual => "manual",
-            ScenarioTier::Acceptance => "acceptance",
-        }
     }
 }
 
 /// Fully parsed single-track spec file.
 #[derive(Debug, Clone)]
-pub struct ParsedFeatureSpec {
-    pub name: String,
-    pub purpose: String,
-    pub valid_scope: Vec<String>,
-    pub feature_title: String,
-    pub scenarios: Vec<RichScenario>,
-    /// Raw file content (for lock hashing continuity checks).
-    pub raw: String,
+pub(crate) struct ParsedFeatureSpec {
+    pub(crate) name: String,
+    pub(crate) purpose: String,
+    pub(crate) valid_scope: Vec<String>,
+    pub(crate) feature_title: String,
+    pub(crate) scenarios: Vec<RichScenario>,
 }
 
 impl ParsedFeatureSpec {
     /// Locked-rule scenarios (`@human`), including `@manual` waivers.
-    pub fn rule_scenarios(&self) -> impl Iterator<Item = &RichScenario> {
+    pub(crate) fn rule_scenarios(&self) -> impl Iterator<Item = &RichScenario> {
         self.scenarios.iter().filter(|sc| {
             matches!(
                 sc.tier,
@@ -125,18 +114,11 @@ impl ParsedFeatureSpec {
             )
         })
     }
-
-    /// Manual-waiver scenarios (`@human @manual`).
-    pub fn manual_scenarios(&self) -> impl Iterator<Item = &RichScenario> {
-        self.scenarios
-            .iter()
-            .filter(|sc| sc.tier == Some(ScenarioTier::Manual))
-    }
 }
 
 impl ParsedFeatureSpec {
     /// Acceptance scenarios (`@executable`).
-    pub fn acceptance_scenarios(&self) -> impl Iterator<Item = &RichScenario> {
+    pub(crate) fn acceptance_scenarios(&self) -> impl Iterator<Item = &RichScenario> {
         self.scenarios
             .iter()
             .filter(|sc| sc.tier == Some(ScenarioTier::Acceptance))
@@ -145,7 +127,7 @@ impl ParsedFeatureSpec {
 
 impl FeatureBackend {
     /// Parse single-track feature content with explicit Gherkin language.
-    pub fn parse_content(&self, content: &str, context: &str) -> Result<ParsedFeatureSpec> {
+    pub(crate) fn parse_content(&self, content: &str, context: &str) -> Result<ParsedFeatureSpec> {
         let (headers, _body_offset) = parse_header_comments(content);
         let name = headers.capability.ok_or_else(|| {
             anyhow!("{context}: missing `# capability:` header comment (spec-format r133)")
@@ -228,7 +210,6 @@ impl FeatureBackend {
             valid_scope,
             feature_title: parsed.name,
             scenarios,
-            raw: content.to_string(),
         })
     }
 }
@@ -277,7 +258,7 @@ fn parse_header_comments(content: &str) -> (HeaderComments, usize) {
     )
 }
 
-pub fn detect_language(content: &str) -> String {
+pub(crate) fn detect_language(content: &str) -> String {
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
@@ -325,7 +306,7 @@ fn classify_tier(tags: &[String]) -> Result<Option<ScenarioTier>> {
 }
 
 /// Extract `@req:<id>` tags (deduplicated, order-preserving).
-pub fn req_ids_from_tags(tags: &[String]) -> Vec<String> {
+pub(crate) fn req_ids_from_tags(tags: &[String]) -> Vec<String> {
     let mut out = Vec::new();
     for tag in tags {
         let t = tag.trim().trim_start_matches('@');
@@ -342,7 +323,7 @@ pub fn req_ids_from_tags(tags: &[String]) -> Vec<String> {
 /// Normalized lock-hash input lines for one scenario (design D4):
 /// id(name), description, and each step prefixed by its type, all
 /// right-trimmed. Whitespace inside lines is preserved verbatim.
-pub fn normalized_hash_lines(sc: &RichScenario) -> Vec<String> {
+pub(crate) fn normalized_hash_lines(sc: &RichScenario) -> Vec<String> {
     let mut lines = vec![format!("scenario: {}", sc.name)];
     for rid in &sc.req_ids {
         lines.push(format!("req: {rid}"));
@@ -365,7 +346,7 @@ pub fn normalized_hash_lines(sc: &RichScenario) -> Vec<String> {
 }
 
 /// SHA-256 hex of the normalized lock-hash lines (design D4).
-pub fn lock_hash(sc: &RichScenario) -> String {
+pub(crate) fn lock_hash(sc: &RichScenario) -> String {
     let mut hasher = Sha256::new();
     for line in normalized_hash_lines(sc) {
         hasher.update(line.as_bytes());
@@ -381,7 +362,7 @@ pub fn lock_hash(sc: &RichScenario) -> String {
 
 /// Statement for the IR requirement row: description verbatim, or synthesized
 /// from steps when the author relied purely on Given/When/Then decomposition.
-pub fn rule_statement(sc: &RichScenario) -> String {
+pub(crate) fn rule_statement(sc: &RichScenario) -> String {
     if let Some(desc) = sc.description.as_deref()
         && !desc.trim().is_empty()
     {
@@ -406,26 +387,20 @@ pub fn rule_statement(sc: &RichScenario) -> String {
 }
 
 impl FeatureBackend {
-    pub fn parse_main_spec(&self, content: &str, context: &str) -> Result<MainSpecDoc> {
+    pub(crate) fn parse_main_spec(&self, content: &str, context: &str) -> Result<MainSpecDoc> {
         let parsed = self.parse_content(content, context)?;
         Ok(parsed_to_doc(&parsed))
     }
 
-    pub fn parse_main_spec_strict(&self, content: &str, context: &str) -> Result<MainSpecDoc> {
-        // Strict mode adds nothing beyond the base grammar today: header
-        // completeness and tag grammar already fail hard in `parse_content`.
-        self.parse_main_spec(content, context)
-    }
-
     /// Deterministically render a main spec back to single-track gherkin
     /// (canonical form: zh-CN keywords, requirements as `@human` rules).
-    pub fn dump_main_spec(&self, doc: &MainSpecDoc) -> Result<String> {
+    pub(crate) fn dump_main_spec(&self, doc: &MainSpecDoc) -> Result<String> {
         self.dump_main_spec_lang(doc, "zh-CN")
     }
 
     /// Language-aware variant of [`FeatureBackend::dump_main_spec`]: keywords
     /// and the `# language:` header follow `lang` (see [`keywords_for`]).
-    pub fn dump_main_spec_lang(&self, doc: &MainSpecDoc, lang: &str) -> Result<String> {
+    pub(crate) fn dump_main_spec_lang(&self, doc: &MainSpecDoc, lang: &str) -> Result<String> {
         let kw = keywords_for(lang);
         let mut out = String::new();
         let _ = writeln!(out, "# language: {lang}");
@@ -485,17 +460,19 @@ impl FeatureBackend {
 /// Rule-tier morphology for `list --specs` / `show` (spec-format r134).
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct RuleMorphology {
-    pub rule_count: usize,
-    pub rule_enforced_count: usize,
-    pub rule_manual_count: usize,
-    pub rule_pending_count: usize,
-    pub acceptance_count: usize,
-    pub orphan_acceptance_count: usize,
+pub(crate) struct RuleMorphology {
+    pub(crate) rule_count: usize,
+    pub(crate) rule_enforced_count: usize,
+    pub(crate) rule_manual_count: usize,
+    pub(crate) rule_pending_count: usize,
+    pub(crate) acceptance_count: usize,
+    pub(crate) orphan_acceptance_count: usize,
 }
 
 /// Map rule id -> number of `@executable` scenarios linked to it.
-pub fn acceptance_index(parsed: &ParsedFeatureSpec) -> std::collections::HashMap<String, usize> {
+pub(crate) fn acceptance_index(
+    parsed: &ParsedFeatureSpec,
+) -> std::collections::HashMap<String, usize> {
     let mut idx: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for acc in parsed.acceptance_scenarios() {
         for rid in &acc.req_ids {
@@ -506,7 +483,7 @@ pub fn acceptance_index(parsed: &ParsedFeatureSpec) -> std::collections::HashMap
 }
 
 /// Compute the three-tier coverage counts from a parsed spec.
-pub fn compute_rule_morphology(parsed: &ParsedFeatureSpec) -> RuleMorphology {
+pub(crate) fn compute_rule_morphology(parsed: &ParsedFeatureSpec) -> RuleMorphology {
     let rules: Vec<&RichScenario> = parsed.rule_scenarios().collect();
     let rule_count = rules.len();
     let mut enforced = 0usize;
@@ -542,7 +519,7 @@ pub fn compute_rule_morphology(parsed: &ParsedFeatureSpec) -> RuleMorphology {
 /// - `@human` scenarios become `requirements[]` rows (statement from
 ///   description or synthesized from steps).
 /// - Only `@executable` scenarios land in `scenarios[]` (`feature: true`).
-pub fn parsed_to_doc(parsed: &ParsedFeatureSpec) -> MainSpecDoc {
+pub(crate) fn parsed_to_doc(parsed: &ParsedFeatureSpec) -> MainSpecDoc {
     let requirements = parsed
         .rule_scenarios()
         .filter_map(|sc| {
