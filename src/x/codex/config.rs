@@ -32,12 +32,12 @@ fn default_wire_api() -> String {
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct Config {
+pub struct CodexConfig {
     #[serde(default)]
     pub model_providers: HashMap<String, ProviderConfig>,
 }
 
-impl Config {
+impl CodexConfig {
     pub fn load() -> Result<Self> {
         let path = Self::config_file_path()?;
         Self::load_from_path(&path)
@@ -301,7 +301,7 @@ override_name = "a"
         )
         .expect("write config");
 
-        let config = Config::load_from_path(&config_path).expect("load config");
+        let config = CodexConfig::load_from_path(&config_path).expect("load config");
         let provider = config.get_provider("b").expect("provider b");
         assert_eq!(
             provider
@@ -321,7 +321,7 @@ override_name = "a"
         let saved_path = temp.path().join("codex.saved.toml");
         config.save_to_path(&saved_path).expect("save config");
 
-        let config2 = Config::load_from_path(&saved_path).expect("load saved config");
+        let config2 = CodexConfig::load_from_path(&saved_path).expect("load saved config");
         let provider2 = config2.get_provider("b").expect("provider b");
         assert_eq!(
             provider2

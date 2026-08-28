@@ -1,9 +1,9 @@
-use crate::x::codex::config::{Config, ProviderConfig};
+use crate::x::codex::config::{CodexConfig, ProviderConfig};
 use anyhow::{Context, Result};
 use inquire::{Select, Text};
 use rust_i18n::t;
 
-pub fn select_provider(config: &Config) -> Result<Option<String>> {
+pub fn select_provider(config: &CodexConfig) -> Result<Option<String>> {
     if config.is_empty() {
         return Ok(None);
     }
