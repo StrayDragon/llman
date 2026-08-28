@@ -1,4 +1,5 @@
 use crate::path_utils::safe_parent_for_creation;
+use crate::x::shared::mask_secret;
 use anyhow::{Context, Result};
 use llm_json::{RepairOptions, loads};
 use rust_i18n::t;
@@ -210,14 +211,6 @@ pub fn get_display_vars(group: &ConfigGroup) -> Vec<(String, String)> {
             )
         })
         .collect()
-}
-
-pub fn mask_secret(value: &str) -> String {
-    if value.len() <= 8 {
-        "*".repeat(value.len())
-    } else {
-        format!("{}...{}", &value[..4], &value[value.len() - 4..])
-    }
 }
 
 // Parse JSON configuration and convert to ConfigGroup

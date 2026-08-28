@@ -215,14 +215,6 @@ fn codex_config_path() -> Result<PathBuf> {
     Ok(home.join(".codex").join("config.toml"))
 }
 
-pub fn mask_secret(value: &str) -> String {
-    if value.len() <= 8 {
-        "*".repeat(value.len())
-    } else {
-        format!("{}...{}", &value[..4], &value[value.len() - 4..])
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
