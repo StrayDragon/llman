@@ -19,7 +19,7 @@ pub fn has_llman_prompt_markers(content: &str) -> bool {
     )
 }
 
-fn is_marker_on_own_line(content: &str, marker_index: usize, marker_len: usize) -> bool {
+pub fn is_marker_on_own_line(content: &str, marker_index: usize, marker_len: usize) -> bool {
     let bytes = content.as_bytes();
     let mut left = marker_index as isize - 1;
     while left >= 0 {
@@ -48,7 +48,7 @@ fn is_marker_on_own_line(content: &str, marker_index: usize, marker_len: usize) 
     true
 }
 
-fn find_marker_index(content: &str, marker: &str, from_index: usize) -> Option<usize> {
+pub fn find_marker_index(content: &str, marker: &str, from_index: usize) -> Option<usize> {
     let mut search_index = from_index;
     while let Some(pos) = content[search_index..].find(marker) {
         let idx = search_index + pos;
