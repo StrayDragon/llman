@@ -1,6 +1,9 @@
 ---
 depends_on: []
 skip_specs_landing: true
+branch: sdd/src-cleanup-pre-split
+base_sha: 0728fc36a51f97d66f1a2ffc0c0c4f9bde6d9ea5
+checkpointed: false
 ---
 
 目的已决议：**代码组织 + 去重（避免 slop）为主，编译速度为辅**；最终形态是
