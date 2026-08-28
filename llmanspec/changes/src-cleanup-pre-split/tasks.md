@@ -10,7 +10,7 @@ Seam 确认（用户已批）：S1 = 既有回归网（tests/ 22 集成测试 + 
 - [x] T2: git-utils-merge — 新 src/git_utils.rs 收编 find_git_root + git_native 四函数 + init_repo/git_ref_exists 可归并实例；迁移全部调用点；skills/shared 清空则删
 - [x] T3: small-utils-dedup — is_symlink_dir/normalize_newlines/push_unique/slugify 按「语义相同才合并、不同就改名」处置
 - [x] T4: config-disambiguation — x::codex::Config→CodexConfig；ToolConfig/ToolsConfig 消歧；五处所有权与文件格式不动 [blocked-by: T1]
-- [ ] T5: arch-test-lock — tests/import_direction_tests.rs 断言方向表，挂进 just check [blocked-by: T1, T2, T3, T4]
+- [x] T5: arch-test-lock — tests/import_direction_tests.rs 断言方向表，挂进 just check [blocked-by: T1, T2, T3, T4]
 - [ ] T6: sdd-shared-dedup — print_json ×3 合一；non_interactive_hint_message ×2 合一
 - [ ] T7: sdd-cross-submodule-dedup — proposal_path/change_dir/list_specs/normalize_type 归位 sdd/shared；git 操作走 git_utils [blocked-by: T2]
 - [ ] T8: sdd-visibility-scope — pub→pub(crate) 收敛（对外仅 command 入口 + schema 生成 API）；六子块边界检视追记 design [blocked-by: T6, T7]
