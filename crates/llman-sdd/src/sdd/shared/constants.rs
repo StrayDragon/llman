@@ -1,4 +1,4 @@
-pub(crate) const LLMANSPEC_DIR_NAME: &str = "llmanspec";
+pub const LLMANSPEC_DIR_NAME: &str = "llmanspec";
 pub(crate) const LLMANSPEC_CONFIG_FILE: &str = "config.yaml";
 
 /// File name for SDD spec files (main specs and delta specs).
