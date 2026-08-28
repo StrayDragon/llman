@@ -72,6 +72,7 @@ flowchart LR
 > 💡 Verify pass → next: `llman-sdd-archive` (archive); CRITICAL issues → go back to `llman-sdd-apply` (fix)
 
 {{ unit("skills/git-native-flow-brief") }}
+{{ unit("skills/human-readable-summary") }}
 {{ unit("skills/sdd-commands") }}
 
 {{ unit("skills/structured-protocol") }}
