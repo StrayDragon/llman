@@ -115,6 +115,21 @@ T1-T4 为「expand（新增 git_utils/schema_utils 等收编位）→ 分批迁�
 contract（删旧位）」合并的小步；T5 arch test 是 contract 的自动化收口。
 T11/T12 纯目录搬运 + Cargo 重接线，零逻辑改动。
 
+## x-shared-leaves 实测证据（T9 追记，2026-08-28）
+
+提案期「19 个同名命令流函数」复测为 **14 个同名**（claude_code/codex 顶层
+`fn` 求交；近期代码演化所致）。逐函数正文 diff：
+
+- **逐字相同叶子：仅 `mask_secret`** → 已收编 `src/x/shared.rs`；
+  codex 侧副本零调用（`pub` 曾豁免死码检查）→ 直接删除。
+- **同构不同文 13 个**：`run`/`run_gen`/`run_list`/`run_rm`/`run_upsert`/
+  `run_wizard`/`handle_account_command`/`handle_account_edit`/
+  `handle_account_edit_with`/`handle_interactive_mode`/`handle_main_command`/
+  `handle_run_command`/`no_configs_message` —— 差异为 i18n key 前缀与模板路径，
+  与 D-A 决议一致，骨架参数化不做（留证即止，后续 change 或放弃）。
+
+
+
 ## sdd 六子块边界检视（T8 追记，2026-08-28）
 
 可见性收敛后 sdd 对外暴露面（编译器验证，`pub` 全清单）：
