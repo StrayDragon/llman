@@ -83,6 +83,7 @@ Cargo equivalents use `cargo +nightly ...`.
 - Use `LLMAN_CONFIG_DIR=./artifacts/testing_config_home` to avoid touching real user config.
 - Avoid workspace pollution: tests that may create files/dirs MUST use `tempfile::TempDir` (or `TestEnvironment`) and write only inside it so everything is auto-cleaned.
 - Avoid parallel test collisions: don’t use fixed relative paths/identifiers in the repo root (e.g. `config`, `config.yaml`); prefer unique temp paths and guard env/cwd changes with `crate::test_utils::TestProcess`.
+- Editing `locales/*.yml` triggers rebuild automatically (`build.rs` declares `rerun-if-changed`); no need to touch sources after translation edits.
 - When editing `templates/sdd/**`, run `just check-sdd-templates` (also in `just check-all`).
 
 ## 统一 Git-native 变更流程（单轨 feature-as-spec）
