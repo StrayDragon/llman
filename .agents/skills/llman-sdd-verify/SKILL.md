@@ -92,6 +92,16 @@ llman sdd show <id> --json --type change
 1. **先** Branch binding（`change start` / `attach`）→ Full；**再** Specs landing（绑定分支编辑并 commit `llmanspec/specs/**`）。
 2. 无 live 合约变更 → `skip_specs_landing: true`。apply 前须 `readyToImplement=true`。
 3. **禁止**在默认分支 commit live specs；已 attach 勿重复 `start`。
+# 人读摘要（强制）
+
+在本工作流中产出的每一份报告、交接或门禁输出，MUST 在任何机器细节之前
+先给出一段简短的人读摘要：
+
+- **结论** — 一行（如「门禁全绿」/「发现 2 个 CRITICAL」）。
+- **风险** — 最多三条，按影响从高到低。
+- **待决策** — 明确的提问，或「无」。
+
+控制在十行以内；细节放在折叠线以下。
 行动前先阅读 `llmanspec/config.yaml`，并遵循其中的 `context` 与 `rules`（若有）。
 
 常用命令：

@@ -52,6 +52,16 @@ flowchart TB
 1. **先** `change start` / `attach`（Branch binding / 分支绑定）进入 Full；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（Specs landing / 合约落地）。
 2. 无 live 合约变更时可设 frontmatter `skip_specs_landing: true`。进入 apply 前 `llman sdd show <id> --json` 的 `readyToImplement` 须为 true（`Full ∧ (specsLanded ∨ skip)`）。
 3. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
+# 人读摘要（强制）
+
+在本工作流中产出的每一份报告、交接或门禁输出，MUST 在任何机器细节之前
+先给出一段简短的人读摘要：
+
+- **结论** — 一行（如「门禁全绿」/「发现 2 个 CRITICAL」）。
+- **风险** — 最多三条，按影响从高到低。
+- **待决策** — 明确的提问，或「无」。
+
+控制在十行以内；细节放在折叠线以下。
 
 ### Skill 导航（非生命周期；仅指示当前 skill）
 
