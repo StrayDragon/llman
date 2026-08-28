@@ -99,6 +99,31 @@ finalize,lock_gate,start}。`skills/shared` 清空则整目录删除。
 `[profile.dev] debug = "line-tables-only"` 做 A/B（会丢变量级调试信息，取舍随
 数据记录）。基线在阶段 1/2 完成后、拆分前测一次（T10），拆分后同口径复测（T13）。
 
+### T10 基线实测（2026-08-28，拆 crate 前）
+
+环境注记：`RUSTC_WRAPPER=sccache`（冷 = target 目录冷，编译单元对象码走
+sccache 缓存）；cargo 1.100-nightly 将单元产物置于 `target/debug/build/<crate>/<hash>/out/`
+（无 `deps/` 目录），盘占以 `du -sh target` 为准；32 核。
+T14 复测 MUST 用同一协议。
+
+| 口径 | 数值 |
+|------|------|
+| 盘占（拆前，开发期混合堆积：dev+nextest+doc+release+flycheck） | target 48.2GiB |
+| 盘占（clean 后纯 dev profile，debug=1） | target 1.1G（build 926M + incremental 195M） |
+| 冷全量（A：现行 `debug=1` 即 line-tables-only，依赖 `debug=0`） | **17.52s** |
+| 包级重建（`clean -p llman`） | 11.09s / 11.23s（两次） |
+| 热增量（touch lib.rs） | 5.46s |
+| 冷全量（B：`debug=2` 全量调试信息） | 19.36s（+10%），target 1.3G（+18%） |
+
+**line-tables 取舍**：现行 `debug=1` 相对 `debug=2` 省约 10% 墙钟、18% 盘占，
+代价仅变量级调试信息 → **保留现行配置不变**（A/B 数据即决策依据）。
+
+**timings.html 结论**：冷构建关键路径 ≈ 13.3s/17.5s 花在 llman 自身 3 个
+串行单元（8.54s + 2.37s + 2.35s）——单 crate 内部串行 type-check 正是拆
+`llman-sdd`/`llman-core` 的目标（依赖库经 sccache 后已不是瓶颈）。
+拆后 T14 同口径复测，预期包级重建（`-p llman`）显著下降。
+
+
 ## 风险与缓解
 
 - **行为漂移**：每 task 仅机械移动/改名/合并，禁顺手改逻辑；S1 回归网 +
