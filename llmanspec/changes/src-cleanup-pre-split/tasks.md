@@ -7,8 +7,8 @@ Seam 确认（用户已批）：S1 = 既有回归网（tests/ 22 集成测试 + 
 决议引用：D-A…D-F 见 design.md。task 详情（验收口径/原则）见 design.md 各节。
 
 - [x] T1: schema-ring-untangle — config_schema 拆两块（校验工具下沉 schema_utils，llmanspec schema 生成移入 sdd::project::config），环消失；调用方改引
-- [ ] T2: git-utils-merge — 新 src/git_utils.rs 收编 find_git_root + git_native 四函数 + init_repo/git_ref_exists 可归并实例；迁移全部调用点；skills/shared 清空则删
-- [ ] T3: small-utils-dedup — is_symlink_dir/normalize_newlines/push_unique/slugify 按「语义相同才合并、不同就改名」处置
+- [x] T2: git-utils-merge — 新 src/git_utils.rs 收编 find_git_root + git_native 四函数 + init_repo/git_ref_exists 可归并实例；迁移全部调用点；skills/shared 清空则删
+- [x] T3: small-utils-dedup — is_symlink_dir/normalize_newlines/push_unique/slugify 按「语义相同才合并、不同就改名」处置
 - [ ] T4: config-disambiguation — x::codex::Config→CodexConfig；ToolConfig/ToolsConfig 消歧；五处所有权与文件格式不动 [blocked-by: T1]
 - [ ] T5: arch-test-lock — tests/import_direction_tests.rs 断言方向表，挂进 just check [blocked-by: T1, T2, T3, T4]
 - [ ] T6: sdd-shared-dedup — print_json ×3 合一；non_interactive_hint_message ×2 合一

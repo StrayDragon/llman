@@ -1,3 +1,5 @@
+use crate::git_utils::find_git_root;
+use crate::path_utils::is_symlink_dir;
 use crate::skills::catalog::scan::discover_skills_from_repos;
 use crate::skills::catalog::types::{
     ConfigEntry, SkillCandidate, SkillsConfig, SkillsPaths, TargetConflictStrategy, TargetMode,
@@ -6,7 +8,6 @@ use crate::skills::cli::interactive::is_interactive;
 use crate::skills::cli::tui_picker;
 use crate::skills::cli::tui_picker::{TuiEntry, TuiEntryKind};
 use crate::skills::config::load_config;
-use crate::skills::shared::git::find_git_root;
 use crate::skills::targets::sync::SkillSyncCancelled;
 use crate::skills::targets::sync::{apply_target_diff, is_skill_present};
 use anyhow::Result;
@@ -968,12 +969,6 @@ fn dedupe_skills(skills: Vec<SkillCandidate>) -> Vec<SkillCandidate> {
     let mut values = seen.into_values().collect::<Vec<_>>();
     values.sort_by(|a, b| a.skill_id.cmp(&b.skill_id));
     values
-}
-
-fn is_symlink_dir(path: &std::path::Path) -> bool {
-    fs::symlink_metadata(path)
-        .map(|meta| meta.file_type().is_symlink())
-        .unwrap_or(false)
 }
 
 impl From<TargetConflictArg> for TargetConflictStrategy {

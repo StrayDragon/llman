@@ -1,6 +1,7 @@
 //! Path validation and utility functions
 
 use anyhow::{Result as AnyhowResult, bail};
+use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Compute a relative path from `from_dir` to `to`.
@@ -93,6 +94,13 @@ pub fn create_validated_pathbuf(path_str: &str) -> Result<PathBuf, String> {
 /// Returns None for paths that don't need directory creation (like "config.yaml" in current dir)
 pub fn safe_parent_for_creation(path: &Path) -> Option<&Path> {
     path.parent().filter(|p| !p.as_os_str().is_empty())
+}
+
+/// True when the path itself is a symlink (callers use it on symlinked dirs).
+pub fn is_symlink_dir(path: &Path) -> bool {
+    fs::symlink_metadata(path)
+        .map(|meta| meta.file_type().is_symlink())
+        .unwrap_or(false)
 }
 
 /// Checks if a path looks like a filename (no directory components)

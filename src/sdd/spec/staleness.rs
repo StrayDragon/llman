@@ -1,4 +1,5 @@
 use crate::env_safety::validate_user_git_ref;
+use crate::git_utils::git_ref_exists;
 use crate::sdd::spec::validation::{SpecFrontmatter, ValidationIssue, ValidationLevel};
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -327,20 +328,6 @@ fn resolve_base_ref(root: &Path) -> Result<Option<String>, String> {
         return Ok(Some("master".to_string()));
     }
     Ok(None)
-}
-
-fn git_ref_exists(root: &Path, reference: &str) -> bool {
-    // NOTE: do NOT insert `--` before `reference` here. `rev-parse --verify`
-    // treats `--` as an end-of-options separator, which makes git interpret the
-    // following argument as a PATH rather than a ref — so `-- origin/main` would
-    // always fail. All callers pass validated refs (hardcoded literals or values
-    // sanitized by `validate_user_git_ref`), so option injection is not a concern.
-    Command::new("git")
-        .args(["rev-parse", "--verify", "--quiet", reference])
-        .current_dir(root)
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
 }
 
 fn resolve_merge_base(root: &Path, reference: &str) -> Result<String, String> {

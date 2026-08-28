@@ -7,11 +7,10 @@
 //! their git-tracked files at clean/revert time.
 
 use crate::fs_utils::atomic_write_with_mode;
-use crate::path_utils::{relative_path_from_dir, safe_parent_for_creation};
-use crate::sdd::change::git_native::{
-    self, current_branch, is_default_branch, resolve_default_branch_ref,
+use crate::git_utils::{
+    current_branch, find_git_root, is_default_branch, resolve_default_branch_ref, run_git,
 };
-use crate::skills::shared::git::find_git_root;
+use crate::path_utils::{relative_path_from_dir, safe_parent_for_creation};
 use crate::tool::command::{AgentsMdCleanArgs, AgentsMdRevertArgs, AgentsMdScanArgs};
 use crate::tool::config::{ToolConfig, default_agent_init_names};
 use anyhow::{Context, Result, anyhow, bail};
@@ -334,7 +333,7 @@ pub fn run_revert(args: &AgentsMdRevertArgs) -> Result<()> {
         let branch = current_branch(&root)?;
         if is_default_branch(&root, &branch)? {
             let new_branch = format!("agents-md/revert-{}", timestamp_suffix());
-            git_native::run_git(&root, &["checkout", "-b", &new_branch])?;
+            run_git(&root, &["checkout", "-b", &new_branch])?;
             created_branch = Some(new_branch);
         }
     } else if !args.yes {
@@ -344,7 +343,7 @@ pub fn run_revert(args: &AgentsMdRevertArgs) -> Result<()> {
 
     for file in &targets {
         let rel = relative_path_from_dir(&root, file).unwrap_or_else(|| file.clone());
-        if let Err(e) = git_native::run_git(
+        if let Err(e) = run_git(
             &root,
             &["checkout", &default_ref, "--", &rel.to_string_lossy()],
         ) {
@@ -532,7 +531,7 @@ fn git_commit_files(root: &Path, files: &[PathBuf], message: &str) -> Result<()>
     if diff_cached.success() {
         return Ok(());
     }
-    git_native::run_git(root, &["commit", "-m", message])?;
+    run_git(root, &["commit", "-m", message])?;
     Ok(())
 }
 

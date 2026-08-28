@@ -4,9 +4,8 @@
 use anyhow::Result;
 use std::path::Path;
 
-use crate::sdd::change::git_native::{
-    ChangeGitBinding, current_branch, is_default_branch, read_binding, run_git,
-};
+use crate::git_utils::{current_branch, is_default_branch, run_git};
+use crate::sdd::change::git_native::{ChangeGitBinding, read_binding};
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::spec::validation::{
     ChangeStage, ProposalFrontmatter, check_proposal_frontmatter, determine_stage,
@@ -175,7 +174,8 @@ pub fn skip_from_frontmatter(fm: &ProposalFrontmatter) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sdd::change::git_native::{ChangeGitBinding, run_git, write_binding};
+    use crate::git_utils::run_git;
+    use crate::sdd::change::git_native::{ChangeGitBinding, write_binding};
     use std::fs;
     use tempfile::TempDir;
 
