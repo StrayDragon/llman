@@ -19,4 +19,4 @@ Seam 确认（用户已批）：S1 = 既有回归网（tests/ 22 集成测试 + 
 - [x] T11: extract-llman-core — 顶层工具层抽 llman-core crate，门面重导出保路径零漂移 [blocked-by: T10]
 - [x] T12: extract-llman-sdd — src/sdd 整体搬 crates/llman-sdd（pub mod sdd 保内部路径），门面 pub use 重导出；test_utils 副本；i18n 接线 [blocked-by: T11]
 - [x] T13: disk-hygiene-justfile — justfile 新增 clean-bdd-targets 配方
-- [ ] T14: post-split-measure — 拆后同口径复测 + crate 边界图终稿 + just check-all 全绿 [blocked-by: T12]
+- [x] T14: post-split-measure — 拆后同口径复测 + crate 边界图终稿 + just check-all 全绿 [blocked-by: T12]
