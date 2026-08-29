@@ -1,2 +1,6 @@
 [toolchain]
 channel = "nightly-2026-08-28"
+# Declared here (not in CI `components:`) so rustup installs them for the
+# pinned toolchain on every sync — dtolnay/rust-toolchain without a
+# `toolchain:` input installs components on a different default toolchain.
+components = ["rustfmt", "clippy"]
