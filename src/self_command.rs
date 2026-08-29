@@ -398,15 +398,14 @@ fn run_check_with_paths(
                 error = e
             ))
         })?;
-        let yaml: serde_yaml::Value = serde_yaml::from_str(&content).map_err(|e| {
+        let yaml: serde_json::Value = serde_saphyr::from_str(&content).map_err(|e| {
             anyhow!(t!(
                 "self.schema.yaml_parse_failed",
                 path = path.display(),
                 error = e
             ))
         })?;
-        serde_json::to_value(yaml)
-            .map_err(|e| anyhow!(t!("errors.config_error", message = e.to_string())))
+        Ok(yaml)
     }
 
     validate_schema(
@@ -526,19 +525,16 @@ mod tests {
         crate::config_schema::ensure_global_sample_config(temp.path()).expect("sample config");
         let config_path = temp.path().join("config.yaml");
         let content = fs::read_to_string(&config_path).expect("read");
-        let mut yaml: serde_yaml::Value = serde_yaml::from_str(&content).expect("parse yaml");
+        let mut yaml: serde_json::Value = serde_saphyr::from_str(&content).expect("parse yaml");
 
         // Make the sample config schema-invalid (version should be a string).
-        if let serde_yaml::Value::Mapping(map) = &mut yaml {
-            map.insert(
-                serde_yaml::Value::String("version".to_string()),
-                serde_yaml::Value::Bool(true),
-            );
+        if let serde_json::Value::Object(map) = &mut yaml {
+            map.insert("version".to_string(), serde_json::Value::Bool(true));
         } else {
             panic!("expected mapping");
         }
 
-        let mutated = serde_yaml::to_string(&yaml).expect("serialize");
+        let mutated = serde_saphyr::to_string(&yaml).expect("serialize");
         fs::write(&config_path, mutated).expect("write");
 
         let paths = schema_paths();

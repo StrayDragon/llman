@@ -12,8 +12,12 @@ edition = "2024"
 anyhow = "1.0.102"
 rust-i18n = "4.2.1"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-serde_yaml = "0.9.34"
+# preserve_order keeps Value maps in document/insertion order (IndexMap),
+# matching the ordering guarantees the removed serde_yaml::Mapping provided.
+serde_json = { version = "1.0.149", features = ["preserve_order"] }
+# serde_yaml is archived/deprecated; serde-saphyr provides the YAML
+# (de)serializer plus Commented-based comment capture support.
+serde-saphyr = "1.1.0"
 schemars = { version = "1.2.1", features = ["derive", "indexmap2"] }
 jsonschema = "0.48.5"
 tempfile = "3.26.0"
@@ -125,7 +129,7 @@ llm_json.workspace = true
 
 # Additional utilities
 regex.workspace = true
-serde_yaml.workspace = true
+serde-saphyr.workspace = true
 
 [features]
 # BDD feature-as-spec testing via rstest-bdd. Opt-in: `cargo test --features bdd`.

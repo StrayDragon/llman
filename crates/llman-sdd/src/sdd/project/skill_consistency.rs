@@ -144,7 +144,7 @@ fn read_bdd_mode_from_content(content: &str) -> Result<Option<String>, String> {
         return Ok(None);
     };
     let fm: SkillFrontmatter =
-        serde_yaml::from_str(yaml).map_err(|e| format!("frontmatter parse error: {e}"))?;
+        serde_saphyr::from_str(yaml).map_err(|e| format!("frontmatter parse error: {e}"))?;
     let mode = fm
         .metadata
         .and_then(|m| m.llman_sdd)

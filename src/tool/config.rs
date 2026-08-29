@@ -251,18 +251,18 @@ fn schema_kind_for_path(path: &Path) -> ConfigSchemaKind {
     ConfigSchemaKind::Global
 }
 
-fn reject_legacy_rm_empty_dirs(value: &serde_yaml::Value) -> Result<()> {
+fn reject_legacy_rm_empty_dirs(value: &serde_json::Value) -> Result<()> {
     let tools = match value.get("tools") {
         Some(value) => value,
         None => return Ok(()),
     };
-    let tools_map = match tools.as_mapping() {
+    let tools_map = match tools.as_object() {
         Some(map) => map,
         None => return Ok(()),
     };
 
     for key in tools_map.keys() {
-        if key.as_str() == Some("rm-empty-dirs") {
+        if key == "rm-empty-dirs" {
             return Err(anyhow!(t!(
                 "tool.config.legacy_key_unsupported",
                 key = "tools.rm-empty-dirs",
@@ -283,7 +283,7 @@ impl ToolConfig {
         }
 
         let content = fs::read_to_string(path)?;
-        let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
+        let yaml_value: serde_json::Value = serde_saphyr::from_str(&content)
             .map_err(|e| anyhow!(t!("tool.config.parse_failed", error = e)))?;
         reject_legacy_rm_empty_dirs(&yaml_value)?;
         let schema_kind = schema_kind_for_path(path);
@@ -294,7 +294,7 @@ impl ToolConfig {
                 error = error
             )));
         }
-        let config: ToolConfig = serde_yaml::from_value(yaml_value)
+        let config: ToolConfig = serde_json::from_value(yaml_value)
             .map_err(|e| anyhow!(t!("tool.config.parse_failed", error = e)))?;
 
         Ok(config)

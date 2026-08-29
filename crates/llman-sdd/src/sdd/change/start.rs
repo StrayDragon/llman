@@ -125,14 +125,14 @@ fn check_depends_on_guard(root: &Path, change_id: &str) -> Result<()> {
         return Ok(());
     };
 
-    let parsed: serde_yaml::Value = match serde_yaml::from_str(&yaml_str) {
+    let parsed: serde_json::Value = match serde_saphyr::from_str(&yaml_str) {
         Ok(v) => v,
         Err(_) => return Ok(()),
     };
 
     let deps: Vec<String> = parsed
         .get("depends_on")
-        .and_then(|v| v.as_sequence())
+        .and_then(|v| v.as_array())
         .map(|seq| {
             seq.iter()
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
