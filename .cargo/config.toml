@@ -1,9 +1,0 @@
-# Workspace build configuration.
-#
-# -Zshare-generics (nightly; the project is pinned to nightly via
-# rust-toolchain.toml): share monomorphized generic instantiations across
-# crates instead of duplicating them in every rlib/test binary. This directly
-# shrinks the per-integration-test binary duplication (each `tests/*_tests.rs`
-# statically links the whole workspace) and the incremental caches.
-[build]
-rustflags = ["-Zshare-generics"]
