@@ -85,8 +85,8 @@ check: fmt-check lint test
 # 完整检查（核心检查 + 文档 + release构建 + SDD模板检查）
 check-all: check doc-check build-release check-sdd-templates check-schemas
 
-# 别名：完整检查
-alias qa := check-all
+# 本地质量审计：完整检查 + i18n 键审计 + 未用依赖扫描
+qa: check-all check-i18n machete
 
 # =============================================================================
 # 工具命令
@@ -97,9 +97,13 @@ create-dev-template name content:
     @echo "{{content}}" > ./artifacts/testing_config_home/prompt/cursor/{{name}}.mdc
     @echo "✅ 模板 {{name}} 已创建"
 
-# 检查 i18n 状态
-check-i18n:
-    ./scripts/check-i18n.sh
+# i18n 键审计（死键 / 缺失键；--fix 自动摘除死键块）
+check-i18n *args:
+    ./scripts/check-i18n-keys.py {{args}}
+
+# 扫描未在代码中使用的 crate 依赖（未安装则跳过并提示）
+machete:
+    @command -v cargo-machete >/dev/null 2>&1 && cargo machete || echo "skip: cargo-machete 未安装（cargo install cargo-machete --locked）"
 
 # 检查 SDD 模板版本与本地化一致性
 check-sdd-templates:
