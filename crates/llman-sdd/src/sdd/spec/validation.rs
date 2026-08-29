@@ -88,6 +88,9 @@ pub(crate) struct ProposalFrontmatter {
 #[derive(Debug, Clone)]
 pub(crate) struct FullModeCacheEntry {
     pub(crate) success: bool,
+    /// First error message from the original run, so a cached failure can
+    /// point at the real cause instead of a bare "reused" line.
+    pub(crate) failure_summary: Option<String>,
 }
 
 pub(crate) type FullModeCache = HashMap<String, FullModeCacheEntry>;
@@ -1183,6 +1186,32 @@ Feature: cli
     }
 
     #[test]
+    fn full_mode_cache_propagates_failure_with_original_summary() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let a = root.join("llmanspec/specs/a");
+        let b = root.join("llmanspec/specs/b");
+        fs::create_dir_all(&a).unwrap();
+        fs::create_dir_all(&b).unwrap();
+        fs::write(a.join("a.feature"), "Feature: A\n").unwrap();
+        fs::write(b.join("b.feature"), "Feature: B\n").unwrap();
+
+        let bdd = bdd_with_run_command("echo boom >&2; false");
+        let mut cache = FullModeCache::new();
+        let first = run_full_mode_cached(&a, &bdd, Some(&mut cache));
+        let second = run_full_mode_cached(&b, &bdd, Some(&mut cache));
+
+        assert!(first.iter().any(|i| i.level == ValidationLevel::Error));
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].level, ValidationLevel::Error);
+        let msg = &second[0].message;
+        assert!(msg.contains("Cached failure"), "{msg}");
+        assert!(msg.contains("earlier BDD run"), "{msg}");
+        // Carries the original failure summary (the failing command line).
+        assert!(msg.contains("false"), "{msg}");
+    }
+
+    #[test]
     fn full_mode_cache_runs_distinct_expanded_commands_separately() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
@@ -1396,16 +1425,42 @@ fn run_full_mode_cached(
             } else {
                 ValidationLevel::Error
             };
+            let message = match entry.failure_summary.as_deref() {
+                Some(summary) => t!(
+                    "sdd.validate.full_mode_cached_failure",
+                    command = expanded.as_str(),
+                    summary = summary
+                )
+                .to_string(),
+                None => {
+                    t!("sdd.validate.full_mode_reused", command = expanded.as_str()).to_string()
+                }
+            };
             return vec![ValidationIssue {
                 level,
                 path: spec_dir.display().to_string(),
-                message: t!("sdd.validate.full_mode_reused", command = expanded.as_str())
-                    .to_string(),
+                message,
             }];
         }
         let issues = run_full_mode(spec_dir, bdd_config);
-        let success = !issues.iter().any(|i| i.level == ValidationLevel::Error);
-        cache.insert(expanded, FullModeCacheEntry { success });
+        let failure_summary = issues
+            .iter()
+            .find(|i| i.level == ValidationLevel::Error)
+            .map(|i| {
+                let mut s = i.message.clone();
+                if s.len() > 200 {
+                    s.truncate(200);
+                }
+                s
+            });
+        let success = failure_summary.is_none();
+        cache.insert(
+            expanded,
+            FullModeCacheEntry {
+                success,
+                failure_summary,
+            },
+        );
         return issues;
     }
 
