@@ -80,9 +80,9 @@ pub(crate) fn shared_mode_required() -> bool {
         .unwrap_or(false)
 }
 
-fn parse_yaml_string(doc: &serde_yaml::Value, key: &str) -> Option<String> {
+fn parse_yaml_string(doc: &serde_json::Value, key: &str) -> Option<String> {
     doc.get(key).and_then(|v| match v {
-        serde_yaml::Value::String(s) => {
+        serde_json::Value::String(s) => {
             let t = s.trim();
             if t.is_empty() {
                 None
@@ -90,16 +90,16 @@ fn parse_yaml_string(doc: &serde_yaml::Value, key: &str) -> Option<String> {
                 Some(t.to_string())
             }
         }
-        serde_yaml::Value::Bool(b) => Some(b.to_string()),
-        serde_yaml::Value::Number(n) => Some(n.to_string()),
+        serde_json::Value::Bool(b) => Some(b.to_string()),
+        serde_json::Value::Number(n) => Some(n.to_string()),
         _ => None,
     })
 }
 
-fn parse_yaml_bool(doc: &serde_yaml::Value, key: &str) -> bool {
+fn parse_yaml_bool(doc: &serde_json::Value, key: &str) -> bool {
     match doc.get(key) {
-        Some(serde_yaml::Value::Bool(b)) => *b,
-        Some(serde_yaml::Value::String(s)) => matches!(s.trim(), "true" | "yes" | "1"),
+        Some(serde_json::Value::Bool(b)) => *b,
+        Some(serde_json::Value::String(s)) => matches!(s.trim(), "true" | "yes" | "1"),
         _ => false,
     }
 }
@@ -115,7 +115,7 @@ pub(crate) fn read_binding(root: &Path, change_id: &str) -> Result<Option<Change
     let Some(yaml_str) = yaml_str else {
         return Ok(None);
     };
-    let parsed: serde_yaml::Value = serde_yaml::from_str(&yaml_str)
+    let parsed: serde_json::Value = serde_saphyr::from_str(&yaml_str)
         .map_err(|err| anyhow!("proposal frontmatter YAML invalid: {err}"))?;
     let branch = parse_yaml_string(&parsed, "branch");
     let base_sha =
@@ -134,34 +134,28 @@ pub(crate) fn read_binding(root: &Path, change_id: &str) -> Result<Option<Change
 
 fn upsert_frontmatter_fields(content: &str, updates: &[(&str, String)]) -> Result<String> {
     let (yaml_str, body) = split_frontmatter(content);
-    let mut map: serde_yaml::Mapping = if let Some(yaml_str) = yaml_str {
-        match serde_yaml::from_str::<serde_yaml::Value>(&yaml_str)? {
-            serde_yaml::Value::Mapping(m) => m,
-            serde_yaml::Value::Null => serde_yaml::Mapping::new(),
+    let mut map: serde_json::Map<String, serde_json::Value> = if let Some(yaml_str) = yaml_str {
+        match serde_saphyr::from_str::<serde_json::Value>(&yaml_str)? {
+            serde_json::Value::Object(m) => m,
+            serde_json::Value::Null => serde_json::Map::new(),
             other => bail!("proposal frontmatter must be a mapping, got {other:?}"),
         }
     } else {
-        serde_yaml::Mapping::new()
+        serde_json::Map::new()
     };
 
     for (key, value) in updates {
-        map.insert(
-            serde_yaml::Value::String((*key).to_string()),
-            serde_yaml::Value::String(value.clone()),
-        );
+        map.insert((*key).to_string(), serde_json::Value::String(value.clone()));
     }
 
     // Represent checkpointed as bool when possible.
     if let Some((_, v)) = updates.iter().find(|(k, _)| *k == "checkpointed") {
         let b = matches!(v.as_str(), "true" | "yes" | "1");
-        map.insert(
-            serde_yaml::Value::String("checkpointed".into()),
-            serde_yaml::Value::Bool(b),
-        );
+        map.insert("checkpointed".to_string(), serde_json::Value::Bool(b));
     }
 
-    let yaml = serde_yaml::to_string(&serde_yaml::Value::Mapping(map))?;
-    // serde_yaml adds a trailing newline; wrap as frontmatter.
+    let yaml = serde_saphyr::to_string(&serde_json::Value::Object(map))?;
+    // serde-saphyr adds a trailing newline; wrap as frontmatter.
     let yaml = yaml.trim_end();
     let body = body.trim_start_matches('\n');
     Ok(format!("---\n{yaml}\n---\n\n{body}"))

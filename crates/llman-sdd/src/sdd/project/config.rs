@@ -4,7 +4,7 @@ use crate::sdd::shared::constants::LLMANSPEC_CONFIG_FILE;
 use anyhow::{Result, anyhow};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -317,7 +317,7 @@ pub(crate) fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
     }
     let content = fs::read_to_string(&path)
         .map_err(|err| anyhow!(t!("sdd.config.read_failed", error = err)))?;
-    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
+    let yaml_value: serde_json::Value = serde_saphyr::from_str(&content)
         .map_err(|err| anyhow!(t!("sdd.config.parse_failed", error = err)))?;
 
     // Reject old-format configs
@@ -330,7 +330,7 @@ pub(crate) fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
             error = error
         )));
     }
-    let mut config: SddConfig = serde_yaml::from_value(yaml_value)
+    let mut config: SddConfig = serde_json::from_value(yaml_value)
         .map_err(|err| anyhow!(t!("sdd.config.parse_failed", error = err)))?;
 
     if config.schema.trim() != EXPECTED_SCHEMA {
@@ -359,13 +359,11 @@ pub(crate) fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
     Ok(Some(config))
 }
 
-fn reject_old_format(value: &serde_yaml::Value, path: &Path) -> Result<()> {
-    let Some(mapping) = value.as_mapping() else {
+fn reject_old_format(value: &serde_json::Value, path: &Path) -> Result<()> {
+    let Some(mapping) = value.as_object() else {
         return Ok(());
     };
-    let has_old_keys = mapping
-        .keys()
-        .any(|k| k.as_str() == Some("spec_style") || k.as_str() == Some("version"));
+    let has_old_keys = mapping.keys().any(|k| k == "spec_style" || k == "version");
     if has_old_keys {
         return Err(anyhow!(
             "Old config format detected in {}. Please run `llman sdd init` to reinitialize.",
@@ -409,8 +407,16 @@ pub(crate) fn load_or_create_config(llmanspec_dir: &Path) -> Result<SddConfig> {
 
 pub(crate) fn write_config(llmanspec_dir: &Path, config: &SddConfig) -> Result<()> {
     let path = config_path(llmanspec_dir);
-    let content = serde_yaml::to_string(config)
+    let content = serde_saphyr::to_string(config)
         .map_err(|err| anyhow!(t!("sdd.config.serialize_failed", error = err)))?;
+    // Preserve user-authored comments attached to top-level keys across the
+    // rewrite: serde output carries no comments, so capture them from the
+    // existing file (if any) and splice them back onto the matching keys.
+    let captured = fs::read_to_string(&path)
+        .ok()
+        .map(|old| capture_top_level_comments(&old))
+        .unwrap_or_default();
+    let content = reattach_top_level_comments(&content, &captured);
     let content = schema_utils::prepend_schema_header(&content, LLMANSPEC_SCHEMA_URL);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -418,6 +424,97 @@ pub(crate) fn write_config(llmanspec_dir: &Path, config: &SddConfig) -> Result<(
     atomic_write_with_mode(&path, content.as_bytes(), None)
         .map_err(|err| anyhow!(t!("sdd.config.write_failed", error = err)))?;
     Ok(())
+}
+
+/// Comments attached to a top-level key of the existing config.
+#[derive(Default)]
+struct TopLevelComments {
+    /// Comment and blank separator lines directly above the key line.
+    above: Vec<String>,
+    /// Inline `# ...` comment on the key line itself (without the leading
+    /// whitespace, keeping the `#`).
+    inline: Option<String>,
+}
+
+/// Return the key name when `line` is a block-style top-level mapping key
+/// (`key:` with no indentation) — the shape of every key llman writes to
+/// llmanspec/config.yaml.
+fn top_level_key(line: &str) -> Option<String> {
+    if line.starts_with([' ', '\t', '-']) {
+        return None;
+    }
+    let colon = line.find(':')?;
+    let key = line[..colon].trim();
+    if key.is_empty()
+        || !key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return None;
+    }
+    Some(key.to_string())
+}
+
+/// Capture comments attached to top-level keys of a YAML config document.
+/// Comments at end-of-file (attached to no key) are dropped.
+fn capture_top_level_comments(content: &str) -> HashMap<String, TopLevelComments> {
+    // The first line is the yaml-language-server header written by
+    // prepend_schema_header; it is regenerated on every write.
+    let body = content
+        .lines()
+        .skip_while(|line| line.trim_start().starts_with("# yaml-language-server:"));
+
+    let mut captured = HashMap::new();
+    let mut pending: Vec<String> = Vec::new();
+    for line in body {
+        let trimmed = line.trim_end();
+        if trimmed.trim_start().starts_with('#') || trimmed.trim().is_empty() {
+            pending.push(trimmed.to_string());
+            continue;
+        }
+        if let Some(key) = top_level_key(trimmed) {
+            let inline = trimmed
+                .find(" #")
+                .map(|pos| trimmed[pos + 1..].trim().to_string())
+                .filter(|comment| !comment.is_empty());
+            captured.insert(
+                key,
+                TopLevelComments {
+                    above: std::mem::take(&mut pending),
+                    inline,
+                },
+            );
+            continue;
+        }
+        pending.clear();
+    }
+    captured
+}
+
+/// Splice captured comments back into freshly serialized YAML. Keys that no
+/// longer exist lose their comments; keys new to the document get none.
+fn reattach_top_level_comments(
+    new_content: &str,
+    captured: &HashMap<String, TopLevelComments>,
+) -> String {
+    let mut out: Vec<String> = Vec::new();
+    for line in new_content.lines() {
+        let trimmed = line.trim_end();
+        if let Some(key) = top_level_key(trimmed)
+            && let Some(comments) = captured.get(&key)
+        {
+            out.extend(comments.above.iter().cloned());
+            match &comments.inline {
+                Some(comment) => out.push(format!("{trimmed} {comment}")),
+                None => out.push(trimmed.to_string()),
+            }
+            continue;
+        }
+        out.push(trimmed.to_string());
+    }
+    let mut joined = out.join("\n");
+    joined.push('\n');
+    joined
 }
 
 pub(crate) fn normalize_locale(value: &str) -> String {
@@ -549,7 +646,7 @@ bdd:
     #[test]
     fn bindings_absent_is_none() {
         // Pin the serde(default) behavior: bdd present, bindings omitted.
-        let config: SddConfig = serde_yaml::from_str(
+        let config: SddConfig = serde_saphyr::from_str(
             "\
 schema: spec-driven
 bdd:
@@ -563,7 +660,7 @@ bdd:
 
     #[test]
     fn bindings_reject_unknown_kind() {
-        let result = serde_yaml::from_str::<SddConfig>(
+        let result = serde_saphyr::from_str::<SddConfig>(
             "\
 schema: spec-driven
 bdd:
@@ -578,7 +675,7 @@ bdd:
     fn bindings_reject_empty_tags_via_schema() {
         // Empty `tags` violates the schemars length(min=1) constraint that the
         // runtime YAML schema validation enforces (config-schemas r73).
-        let yaml: serde_yaml::Value = serde_yaml::from_str(
+        let yaml: serde_json::Value = serde_saphyr::from_str(
             "\
 schema: spec-driven
 bdd:
@@ -595,7 +692,7 @@ bdd:
 
     #[test]
     fn bindings_reject_empty_files_via_schema() {
-        let yaml: serde_yaml::Value = serde_yaml::from_str(
+        let yaml: serde_json::Value = serde_saphyr::from_str(
             "\
 schema: spec-driven
 bdd:
@@ -685,12 +782,80 @@ bdd:
         write_config(llmanspec_dir, &config).expect("write config");
         let path = config_path(llmanspec_dir);
         let content = fs::read_to_string(&path).expect("read config");
-        // write_config uses serde — no comments, just compact YAML
+        // Fresh write (no prior file): compact serde output, no comments
         assert!(
             !content.contains("# Project context"),
             "serde output should not have comments"
         );
         assert!(content.contains("schema: spec-driven"));
+    }
+
+    #[test]
+    fn write_config_preserves_top_level_comments() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        let path = config_path(llmanspec_dir);
+        let old = "# yaml-language-server: $schema=https://example.com/old.json\n\
+                   schema: spec-driven\n\
+                   locale: en # keep inline\n\
+                   \n\
+                   # my extra skills note\n\
+                   extra_skills:\n\
+                   \x20 - llman-sdd-continue\n";
+        fs::write(&path, old).expect("write old config");
+
+        let config = SddConfig {
+            extra_skills: Some(vec!["llman-sdd-continue".to_string()]),
+            ..SddConfig::default()
+        };
+        write_config(llmanspec_dir, &config).expect("rewrite config");
+
+        let content = fs::read_to_string(&path).expect("read rewritten config");
+        // Header is regenerated exactly once, not duplicated from the old file.
+        assert_eq!(content.matches("yaml-language-server").count(), 1);
+        // Above-block and inline comments survive the rewrite.
+        assert!(
+            content.contains("# my extra skills note\nextra_skills:"),
+            "above-comment should be re-attached, got:\n{content}"
+        );
+        assert!(
+            content.contains("locale: en # keep inline"),
+            "inline comment should be re-attached, got:\n{content}"
+        );
+        assert!(content.contains("- llman-sdd-continue"));
+        // The rewritten file still loads.
+        let loaded = load_config(llmanspec_dir).expect("load").expect("config");
+        assert_eq!(
+            loaded.extra_skills,
+            Some(vec!["llman-sdd-continue".to_string()])
+        );
+    }
+
+    #[test]
+    fn write_config_drops_comments_of_removed_keys() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        let path = config_path(llmanspec_dir);
+        let old = "# yaml-language-server: $schema=https://example.com/old.json\n\
+                   schema: spec-driven\n\
+                   locale: en\n\
+                   \n\
+                   # bdd section note\n\
+                   bdd:\n\
+                   \x20 framework: pytest-bdd\n";
+        fs::write(&path, old).expect("write old config");
+
+        write_config(llmanspec_dir, &SddConfig::default()).expect("rewrite config");
+
+        let content = fs::read_to_string(&path).expect("read rewritten config");
+        assert!(
+            !content.contains("bdd"),
+            "removed key and its comment should be dropped, got:\n{content}"
+        );
+        assert!(
+            content.contains("schema: spec-driven"),
+            "surviving keys stay, got:\n{content}"
+        );
     }
 
     #[test]

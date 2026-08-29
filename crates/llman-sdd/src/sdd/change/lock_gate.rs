@@ -174,7 +174,7 @@ pub(crate) fn rules_edit_acked_for(root: &Path, change_name: &str) -> bool {
     let Some(yaml) = yaml else {
         return false;
     };
-    serde_yaml::from_str::<serde_yaml::Value>(&yaml)
+    serde_saphyr::from_str::<serde_json::Value>(&yaml)
         .ok()
         .map(|v| crate::sdd::spec::validation::parse_yaml_optional_bool(&v, "rules_edit_acked"))
         .unwrap_or(false)

@@ -133,7 +133,7 @@ fn load_llman_skills_config(path: &Path) -> Result<Option<LlmanSkillsConfig>> {
     }
     let content = fs::read_to_string(path)
         .map_err(|e| anyhow!(t!("skills.config.llman_read_failed", error = e)))?;
-    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
+    let yaml_value: serde_json::Value = serde_saphyr::from_str(&content)
         .map_err(|e| anyhow!(t!("skills.config.llman_parse_failed", error = e)))?;
     if let Err(error) = validate_yaml_value(ConfigSchemaKind::Global, &yaml_value) {
         return Err(anyhow!(t!(
@@ -142,7 +142,7 @@ fn load_llman_skills_config(path: &Path) -> Result<Option<LlmanSkillsConfig>> {
             error = error
         )));
     }
-    let parsed: LlmanConfig = serde_yaml::from_value(yaml_value)
+    let parsed: LlmanConfig = serde_json::from_value(yaml_value)
         .map_err(|e| anyhow!(t!("skills.config.llman_parse_failed", error = e)))?;
     Ok(parsed.skills)
 }

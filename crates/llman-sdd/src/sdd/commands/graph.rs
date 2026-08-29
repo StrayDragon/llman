@@ -434,7 +434,7 @@ fn parse_proposal_frontmatter(change_dir: &Path) -> ProposalDeps {
             depends_on: Vec::new(),
         };
     };
-    let parsed: serde_yaml::Value = match serde_yaml::from_str(&yaml_str) {
+    let parsed: serde_json::Value = match serde_saphyr::from_str(&yaml_str) {
         Ok(v) => v,
         Err(_) => {
             return ProposalDeps {
@@ -447,15 +447,15 @@ fn parse_proposal_frontmatter(change_dir: &Path) -> ProposalDeps {
     }
 }
 
-fn extract_string_list(doc: &serde_yaml::Value, key: &str) -> Vec<String> {
+fn extract_string_list(doc: &serde_json::Value, key: &str) -> Vec<String> {
     let Some(value) = doc.get(key) else {
         return Vec::new();
     };
     match value {
-        serde_yaml::Value::Sequence(values) => values
+        serde_json::Value::Array(values) => values
             .iter()
             .filter_map(|v| match v {
-                serde_yaml::Value::String(s) if !s.trim().is_empty() => Some(s.trim().to_string()),
+                serde_json::Value::String(s) if !s.trim().is_empty() => Some(s.trim().to_string()),
                 _ => None,
             })
             .collect(),

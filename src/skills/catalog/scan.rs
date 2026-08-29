@@ -2,7 +2,7 @@ use crate::path_utils::is_symlink_dir;
 use crate::skills::catalog::types::{RepoSource, SkillCandidate};
 use anyhow::Result;
 use ignore::WalkBuilder;
-use serde_yaml::Value;
+use serde_json::Value;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -164,7 +164,7 @@ fn read_frontmatter_name(path: &Path) -> Option<String> {
     if yaml.trim().is_empty() {
         return None;
     }
-    let parsed: Value = serde_yaml::from_str(&yaml).ok()?;
+    let parsed: Value = serde_saphyr::from_str(&yaml).ok()?;
     parsed
         .get("name")
         .and_then(|value| value.as_str())
@@ -190,7 +190,7 @@ pub fn read_frontmatter_version(path: &Path) -> Option<String> {
     if yaml.trim().is_empty() {
         return None;
     }
-    let parsed: Value = serde_yaml::from_str(&yaml).ok()?;
+    let parsed: Value = serde_saphyr::from_str(&yaml).ok()?;
     parsed
         .get("metadata")
         .and_then(|m| m.get("version"))

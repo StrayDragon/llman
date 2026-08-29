@@ -19,28 +19,29 @@ pub fn generate_schema<T: JsonSchema>() -> schemars::Schema {
     settings.into_generator().into_root_schema_for::<T>()
 }
 
-/// Validate a YAML value against the JSON schema of `T` (draft-07, inlined).
+/// Validate a YAML-derived value against the JSON schema of `T` (draft-07,
+/// inlined).
 ///
 /// Generic over the config type so feature crates (e.g. sdd owning
 /// `SddConfig`) can validate without importing the facade's schema registry —
 /// this is what breaks the former `config_schema <-> sdd::project` ring.
-pub fn validate_yaml_value_against<T: JsonSchema>(value: &serde_yaml::Value) -> Result<(), String> {
+///
+/// Callers parse YAML into `serde_json::Value` (via `serde-saphyr`) before
+/// validation; the dynamic value tree is JSON-schema-shaped by construction.
+pub fn validate_yaml_value_against<T: JsonSchema>(value: &serde_json::Value) -> Result<(), String> {
     let schema_value = serde_json::to_value(generate_schema::<T>()).map_err(|e| e.to_string())?;
     validate_schema_value(&schema_value, value)
 }
 
-/// Validate a YAML value against an already-materialized JSON schema value.
+/// Validate a value against an already-materialized JSON schema value.
 pub fn validate_schema_value(
     schema_value: &serde_json::Value,
-    value: &serde_yaml::Value,
+    value: &serde_json::Value,
 ) -> Result<(), String> {
-    let json_value = serde_json::to_value(value).map_err(|e| e.to_string())?;
     let validator = validator_for(schema_value).map_err(|e| e.to_string())?;
-    if !validator.is_valid(&json_value) {
+    if !validator.is_valid(value) {
         return Err(format_schema_errors(
-            validator
-                .iter_errors(&json_value)
-                .map(|err| err.to_string()),
+            validator.iter_errors(value).map(|err| err.to_string()),
         ));
     }
     Ok(())

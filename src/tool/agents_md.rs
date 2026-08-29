@@ -164,20 +164,20 @@ fn upsert_manifest(config_path: &Path, discovered: &[PathBuf], root: &Path) -> R
         None
     };
 
-    let mut doc: serde_yaml::Value = match &existing_content {
-        Some(text) => serde_yaml::from_str(text)
-            .unwrap_or_else(|_| serde_yaml::Value::Mapping(Default::default())),
-        None => serde_yaml::Value::Mapping({
-            let mut m = serde_yaml::Mapping::new();
+    let mut doc: serde_json::Value = match &existing_content {
+        Some(text) => serde_saphyr::from_str(text)
+            .unwrap_or_else(|_| serde_json::Value::Object(Default::default())),
+        None => serde_json::Value::Object({
+            let mut m = serde_json::Map::new();
             m.insert("version".into(), "0.1".into());
             m
         }),
     };
 
-    let rel_strings: Vec<serde_yaml::Value> = discovered
+    let rel_strings: Vec<serde_json::Value> = discovered
         .iter()
         .map(|p| {
-            serde_yaml::Value::String(
+            serde_json::Value::String(
                 p.to_str()
                     .map(|s| s.trim_end_matches('/').to_string())
                     .unwrap_or_default(),
@@ -190,11 +190,11 @@ fn upsert_manifest(config_path: &Path, discovered: &[PathBuf], root: &Path) -> R
     ensure_child_mapping(tools_val, "agents-md");
     let agents_md = tools_val
         .get_mut("agents-md")
-        .and_then(|v| v.as_mapping_mut())
+        .and_then(|v| v.as_object_mut())
         .expect("agents-md is mapping");
-    agents_md.insert("files".into(), serde_yaml::Value::Sequence(rel_strings));
+    agents_md.insert("files".into(), serde_json::Value::Array(rel_strings));
 
-    let yaml = serde_yaml::to_string(&doc)
+    let yaml = serde_saphyr::to_string(&doc)
         .map_err(|e| anyhow!(t!("tool.agents_md.error.serialize", error = e)))?;
     let mut content = yaml;
     if !content.ends_with('\n') {
@@ -217,15 +217,15 @@ fn upsert_manifest(config_path: &Path, discovered: &[PathBuf], root: &Path) -> R
 }
 
 /// Ensure `parent[key]` exists and is a mapping (creating it if needed).
-fn ensure_child_mapping(parent: &mut serde_yaml::Value, key: &str) {
-    if !parent.is_mapping() {
-        *parent = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
+fn ensure_child_mapping(parent: &mut serde_json::Value, key: &str) {
+    if !parent.is_object() {
+        *parent = serde_json::Value::Object(serde_json::Map::new());
     }
-    let map = parent.as_mapping_mut().expect("parent is mapping");
+    let map = parent.as_object_mut().expect("parent is mapping");
     if !map.contains_key(key) {
         map.insert(
-            serde_yaml::Value::String(key.to_string()),
-            serde_yaml::Value::Mapping(serde_yaml::Mapping::new()),
+            key.to_string(),
+            serde_json::Value::Object(serde_json::Map::new()),
         );
     }
 }
@@ -591,17 +591,17 @@ mod tests {
 
     #[test]
     fn test_ensure_child_mapping_creates_nested() {
-        let mut doc = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
+        let mut doc = serde_json::Value::Object(serde_json::Map::new());
         ensure_child_mapping(&mut doc, "tools");
         let tools_val = doc.get_mut("tools").unwrap();
         ensure_child_mapping(tools_val, "agents-md");
-        assert!(doc.get("tools").unwrap().is_mapping());
+        assert!(doc.get("tools").unwrap().is_object());
         assert!(
             doc.get("tools")
                 .unwrap()
                 .get("agents-md")
                 .unwrap()
-                .is_mapping()
+                .is_object()
         );
     }
 }

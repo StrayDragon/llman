@@ -183,7 +183,7 @@ pub fn generate_schema_artifacts() -> Result<SchemaArtifacts> {
 
 pub fn validate_yaml_value(
     kind: ConfigSchemaKind,
-    value: &serde_yaml::Value,
+    value: &serde_json::Value,
 ) -> Result<(), String> {
     match kind {
         ConfigSchemaKind::Global => {
@@ -252,7 +252,7 @@ pub fn ensure_global_sample_config(config_dir: &Path) -> Result<Option<PathBuf>>
     }
 
     let config = GlobalConfig::default();
-    let yaml = serde_yaml::to_string(&config)
+    let yaml = serde_saphyr::to_string(&config)
         .map_err(|e| anyhow!(t!("self.schema.generate_failed", error = e)))?;
     let content = schema_utils::prepend_schema_header(&yaml, GLOBAL_SCHEMA_URL);
     let created = atomic_write_new_with_mode(&path, content.as_bytes(), None).map_err(|e| {
@@ -352,15 +352,15 @@ mod tests {
                 },
             ],
         };
-        let yaml = serde_yaml::to_string(&multi).expect("serialize");
-        let back: GlobalSkillsConfig = serde_yaml::from_str(&yaml).expect("deserialize");
+        let yaml = serde_saphyr::to_string(&multi).expect("serialize");
+        let back: GlobalSkillsConfig = serde_saphyr::from_str(&yaml).expect("deserialize");
         assert_eq!(back, multi);
         assert_eq!(back.repo.len(), 2);
     }
 
     #[test]
     fn skills_config_rejects_legacy_dir_field() {
-        let err = serde_yaml::from_str::<GlobalSkillsConfig>("dir: /old/skills\n")
+        let err = serde_saphyr::from_str::<GlobalSkillsConfig>("dir: /old/skills\n")
             .expect_err("legacy dir must be rejected");
         assert!(
             err.to_string().contains("dir") || err.to_string().contains("unknown"),

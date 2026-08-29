@@ -1594,7 +1594,7 @@ pub(crate) fn check_proposal_frontmatter(
         return (Vec::new(), ProposalFrontmatter::default());
     };
 
-    let parsed: serde_yaml::Value = match serde_yaml::from_str(&yaml_str) {
+    let parsed: serde_json::Value = match serde_saphyr::from_str(&yaml_str) {
         Ok(value) => value,
         Err(err) => {
             return (
@@ -1633,11 +1633,9 @@ pub(crate) fn check_proposal_frontmatter(
     // `priority`, `author`). The allowed set is exactly the keys this parser
     // already recognizes; anything else is a spurious field that crept in via
     // example imitation and would undermine frontmatter as the metadata SSOT.
-    if let Some(mapping) = parsed.as_mapping() {
-        for key in mapping.keys() {
-            if let serde_yaml::Value::String(name) = key
-                && !PROPOSAL_FRONTMATTER_ALLOWED_FIELDS.contains(&name.as_str())
-            {
+    if let Some(mapping) = parsed.as_object() {
+        for name in mapping.keys() {
+            if !PROPOSAL_FRONTMATTER_ALLOWED_FIELDS.contains(&name.as_str()) {
                 issues.push(ValidationIssue {
                     level: ValidationLevel::Error,
                     path: format!("proposal.md/frontmatter.{name}"),
@@ -1715,9 +1713,9 @@ pub(crate) fn check_proposal_frontmatter(
     )
 }
 
-fn parse_yaml_optional_string(doc: &serde_yaml::Value, key: &str) -> Option<String> {
+fn parse_yaml_optional_string(doc: &serde_json::Value, key: &str) -> Option<String> {
     doc.get(key).and_then(|v| match v {
-        serde_yaml::Value::String(s) => {
+        serde_json::Value::String(s) => {
             let t = s.trim();
             if t.is_empty() {
                 None
@@ -1729,16 +1727,16 @@ fn parse_yaml_optional_string(doc: &serde_yaml::Value, key: &str) -> Option<Stri
     })
 }
 
-pub(crate) fn parse_yaml_optional_bool(doc: &serde_yaml::Value, key: &str) -> bool {
+pub(crate) fn parse_yaml_optional_bool(doc: &serde_json::Value, key: &str) -> bool {
     match doc.get(key) {
-        Some(serde_yaml::Value::Bool(b)) => *b,
-        Some(serde_yaml::Value::String(s)) => matches!(s.trim(), "true" | "yes" | "1"),
+        Some(serde_json::Value::Bool(b)) => *b,
+        Some(serde_json::Value::String(s)) => matches!(s.trim(), "true" | "yes" | "1"),
         _ => false,
     }
 }
 
 fn parse_yaml_string_list(
-    doc: &serde_yaml::Value,
+    doc: &serde_json::Value,
     key: &str,
     issues: &mut Vec<ValidationIssue>,
 ) -> Vec<String> {
@@ -1746,11 +1744,11 @@ fn parse_yaml_string_list(
         return Vec::new();
     };
     match value {
-        serde_yaml::Value::Sequence(values) => {
+        serde_json::Value::Array(values) => {
             let mut result = Vec::new();
             for item in values {
                 match item {
-                    serde_yaml::Value::String(s) => {
+                    serde_json::Value::String(s) => {
                         let trimmed = s.trim();
                         if !trimmed.is_empty() {
                             result.push(trimmed.to_string());
@@ -1981,21 +1979,20 @@ pub(crate) fn has_attach_binding(change_dir: &Path) -> bool {
     let Some(yaml_str) = yaml_str else {
         return false;
     };
-    let Ok(parsed) = serde_yaml::from_str::<serde_yaml::Value>(&yaml_str) else {
+    let Ok(parsed) = serde_saphyr::from_str::<serde_json::Value>(&yaml_str) else {
         return false;
     };
-    let branch = parsed
-        .get("branch")
-        .and_then(|v| v.as_str())
-        .map(|s| s.trim())
-        .unwrap_or("");
-    let base_sha = parsed
-        .get("base_sha")
-        .or_else(|| parsed.get("baseSha"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.trim())
-        .unwrap_or("");
-    !branch.is_empty() && !base_sha.is_empty()
+    // Unlike serde_yaml, serde-saphyr type-infers unquoted all-digit scalars
+    // (e.g. a hand-written 40-zero `base_sha`) as numbers. A number still
+    // carries a binding, so accept it alongside strings.
+    let non_empty_scalar = |key: &str| match parsed.get(key) {
+        Some(serde_json::Value::String(s)) => !s.trim().is_empty(),
+        Some(serde_json::Value::Number(_)) => true,
+        _ => false,
+    };
+    let has_branch = non_empty_scalar("branch");
+    let has_base_sha = non_empty_scalar("base_sha") || non_empty_scalar("baseSha");
+    has_branch && has_base_sha
 }
 
 pub(crate) fn has_spec_files(specs_dir: &Path) -> bool {
