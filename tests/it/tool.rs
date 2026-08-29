@@ -114,7 +114,10 @@ fn test_comment_processor_with_empty_files_list() {
     };
 
     let mut processor = CommentProcessor::new(config, args);
-    let result = processor.process();
+    // Hermetic: walk the sandbox, never the process cwd — a concurrent test
+    // may have chdir'd the process to its own tempdir (set_current_dir is
+    // process-global, not thread-local).
+    let result = processor.process_with_cwd(env.path());
     assert!(result.is_ok());
 
     let processing_result = result.unwrap();
@@ -142,7 +145,7 @@ fn test_comment_processor_with_nonexistent_files() {
     };
 
     let mut processor = CommentProcessor::new(config, args);
-    let result = processor.process();
+    let result = processor.process_with_cwd(env.path());
 
     // Should handle gracefully - either process successfully with 0 files or return a specific error
     assert!(result.is_ok());
@@ -169,7 +172,7 @@ fn test_comment_processor_skips_directory_inputs_without_error() {
     };
 
     let mut processor = CommentProcessor::new(config, args);
-    let result = processor.process().unwrap();
+    let result = processor.process_with_cwd(env.path()).unwrap();
     assert_eq!(result.errors, 0);
 }
 
