@@ -538,11 +538,8 @@ fn git_commit_files(root: &Path, files: &[PathBuf], message: &str) -> Result<()>
 }
 
 fn print_clean_preview(root: &Path, targets: &[PathBuf]) {
-    use comfy_table::{ContentArrangement, Table};
-    let mut table = Table::new();
-    table.load_preset(comfy_table::presets::UTF8_BORDERS_ONLY);
-    table.set_content_arrangement(ContentArrangement::Dynamic);
-    table.set_header(vec![
+    use crate::tool::table::Table;
+    let mut table = Table::new(vec![
         t!("tool.agents_md.preview.header.path").to_string(),
         t!("tool.agents_md.preview.header.exists").to_string(),
     ]);
@@ -556,15 +553,12 @@ fn print_clean_preview(root: &Path, targets: &[PathBuf]) {
         table.add_row(vec![rel.display().to_string(), exists]);
     }
     println!("{}", t!("tool.agents_md.clean.preview_title"));
-    println!("{table}");
+    println!("{}", table.render());
 }
 
 fn print_revert_preview(root: &Path, targets: &[PathBuf], default_ref: &str) {
-    use comfy_table::{ContentArrangement, Table};
-    let mut table = Table::new();
-    table.load_preset(comfy_table::presets::UTF8_BORDERS_ONLY);
-    table.set_content_arrangement(ContentArrangement::Dynamic);
-    table.set_header(vec![
+    use crate::tool::table::Table;
+    let mut table = Table::new(vec![
         t!("tool.agents_md.preview.header.path").to_string(),
         t!("tool.agents_md.preview.header.ref").to_string(),
     ]);
@@ -573,7 +567,7 @@ fn print_revert_preview(root: &Path, targets: &[PathBuf], default_ref: &str) {
         table.add_row(vec![rel.display().to_string(), default_ref.to_string()]);
     }
     println!("{}", t!("tool.agents_md.revert.preview_title"));
-    println!("{table}");
+    println!("{}", table.render());
 }
 
 fn timestamp_suffix() -> String {

@@ -840,18 +840,14 @@ fn print_preview(
 }
 
 fn render_preview_table(union: &IgnoreRules, plans: &[TargetPlan]) -> String {
-    use comfy_table::{Cell, ContentArrangement, Table};
+    use crate::tool::table::Table;
 
-    let mut table = Table::new();
-    table.load_preset(comfy_table::presets::UTF8_BORDERS_ONLY);
-    table.set_content_arrangement(ContentArrangement::Dynamic);
-
-    table.set_header(vec![
-        Cell::new(t!("tool.sync_ignore.preview.table.header.target").to_string()),
-        Cell::new(t!("tool.sync_ignore.preview.table.header.action").to_string()),
-        Cell::new(t!("tool.sync_ignore.preview.table.header.ignore").to_string()),
-        Cell::new(t!("tool.sync_ignore.preview.table.header.include").to_string()),
-        Cell::new(t!("tool.sync_ignore.preview.table.header.notes").to_string()),
+    let mut table = Table::new(vec![
+        t!("tool.sync_ignore.preview.table.header.target").to_string(),
+        t!("tool.sync_ignore.preview.table.header.action").to_string(),
+        t!("tool.sync_ignore.preview.table.header.ignore").to_string(),
+        t!("tool.sync_ignore.preview.table.header.include").to_string(),
+        t!("tool.sync_ignore.preview.table.header.notes").to_string(),
     ]);
 
     for plan in plans {
@@ -869,15 +865,15 @@ fn render_preview_table(union: &IgnoreRules, plans: &[TargetPlan]) -> String {
         };
 
         table.add_row(vec![
-            Cell::new(plan.target.label()),
-            Cell::new(plan.action.label()),
-            Cell::new(ignore_cell),
-            Cell::new(include_cell),
-            Cell::new(plan_notes_summary(plan)),
+            plan.target.label().to_string(),
+            plan.action.label().to_string(),
+            ignore_cell,
+            include_cell,
+            plan_notes_summary(plan),
         ]);
     }
 
-    table.to_string()
+    table.render()
 }
 
 fn plan_written_rule_counts(union: &IgnoreRules, plan: &TargetPlan) -> (usize, usize) {
