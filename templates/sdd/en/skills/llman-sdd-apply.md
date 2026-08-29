@@ -42,6 +42,13 @@ flowchart LR
 - **Don't ask "should I continue?"**: Execute to loop closure unless you hit an unresolvable blocker.
 - **Close-out**: this skill's closed loop ends by suggesting `llman-sdd-verify`; finalize/archive is handled by `llman-sdd-archive` (do not finalize inside the self-healing loop).
 
+## Commit Policy
+
+- **No per-task commits during the apply loop** (self-repair rounds included): keep all changes in the working tree; tasks.md checkbox flips are working-tree edits and MUST NOT become their own commits. Step-by-step commit logs bury the semantic change and force reviewers into raw diff reading.
+- **Default close-out**: after all tasks pass gates and verify is green, `llman sdd change finalize <id>` performs the single-commit close (implementation + frontmatter + archive rename in one commit). Do not run finalize inside the apply loop.
+- **Blocker interrupt**: when you must STOP on a blocker, make ONE work-in-progress commit (e.g. `wip(sdd): <change-id> <summary>`) to preserve the state, then report.
+- **Mid-flight snapshots are exceptional**: commit per-task only when the user explicitly asks for a strict `checkpoint_sha` or a reviewable mid-point; then follow the archive skill's multi-commit fallback sequence.
+
 ## Steps
 
 ### 0) Preflight (required)
