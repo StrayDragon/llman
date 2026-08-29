@@ -1915,8 +1915,6 @@ skills:
       en: "Duplicate skill id %{skill} found at %{path}; using %{chosen}."
     select_skills:
       en: "Select skills:"
-    select_skills_for_target:
-      en: "Select skills for %{target}"
     select_skill:
       en: "Select a skill to manage"
     select_target:
@@ -1925,14 +1923,8 @@ skills:
       en: "Select which agent tools to manage"
     select_scope:
       en: "Select scope to manage"
-    select_mode:
-      en: "Select mode:"
-    mode_apply_preset:
-      en: "Apply preset"
-    mode_select_individually:
-      en: "Select individually"
     select_presets:
-      en: "Select presets:"
+      en: "Select preset groups (optional; checked groups preselect all their skills):"
     prompt_failed:
       en: "Failed to read selection: %{error}"
     exit:
