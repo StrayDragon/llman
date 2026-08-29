@@ -1,9 +1,8 @@
+use crate::common::*;
 use llman::tool::command::CleanUselessCommentsArgs;
 use llman::tool::config::ToolConfig;
 use llman::tool::processor::CommentProcessor;
 use std::time::Instant;
-mod common;
-use common::*;
 
 /// Performance tests for comment processing functionality.
 /// These tests measure processing time for various file sizes and ensure

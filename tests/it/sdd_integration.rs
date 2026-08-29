@@ -1,6 +1,4 @@
-mod common;
-
-use common::{TestEnvironment, assert_success, git_head, llman_command};
+use crate::common::{TestEnvironment, assert_success, git_head, llman_command};
 use serde_json::Value;
 use std::fs;
 use std::path::Path;

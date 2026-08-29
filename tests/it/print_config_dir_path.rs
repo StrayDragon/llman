@@ -1,7 +1,5 @@
-mod common;
-
-use common::TestEnvironment;
-use common::llman_command;
+use crate::common::TestEnvironment;
+use crate::common::llman_command;
 
 #[test]
 fn print_config_dir_path_outputs_resolved_config_dir() {

@@ -8,9 +8,7 @@
 //!
 //! 维护规则见 AGENTS.md「BDD 模式兼容性测试维护规则」。
 
-mod common;
-
-use common::{TestEnvironment, assert_success, llman_command};
+use crate::common::{TestEnvironment, assert_success, llman_command};
 use llman::sdd::context::tree::TreeIndex;
 use std::fs;
 use std::process::Command;
@@ -20,7 +18,7 @@ use std::process::Command;
 fn run(args: &[&str], env: &TestEnvironment) -> std::process::Output {
     let mut cmd = llman_command(&env.work_dir);
     cmd.args(args).current_dir(&env.work_dir);
-    if let Some(base_ref) = common::git_head(&env.work_dir) {
+    if let Some(base_ref) = crate::common::git_head(&env.work_dir) {
         cmd.env("LLMANSPEC_BASE_REF", base_ref);
     }
     cmd.output().expect("run llman")

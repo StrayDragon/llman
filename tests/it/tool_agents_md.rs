@@ -9,8 +9,6 @@ use std::path::PathBuf;
 use std::process::Command;
 use tempfile::TempDir;
 
-mod common;
-
 /// Initialize a fresh git repo on `main` with an initial commit.
 fn git_repo() -> TempDir {
     let dir = TempDir::new().expect("temp dir");

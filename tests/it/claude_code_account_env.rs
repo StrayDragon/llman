@@ -1,6 +1,4 @@
-mod common;
-
-use common::{run_llman, write_claude_code_config};
+use crate::common::{run_llman, write_claude_code_config};
 use tempfile::TempDir;
 
 #[test]
