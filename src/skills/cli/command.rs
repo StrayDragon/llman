@@ -5,8 +5,8 @@ use crate::skills::catalog::types::{
     ConfigEntry, SkillCandidate, SkillsConfig, SkillsPaths, TargetConflictStrategy, TargetMode,
 };
 use crate::skills::cli::interactive::is_interactive;
-use crate::skills::cli::tui_picker;
-use crate::skills::cli::tui_picker::{TuiEntry, TuiEntryKind};
+use crate::skills::cli::picker;
+use crate::skills::cli::picker::{PickerEntry, PickerEntryKind};
 use crate::skills::config::load_config;
 use crate::skills::targets::sync::SkillSyncCancelled;
 use crate::skills::targets::sync::{apply_target_diff, is_skill_present};
@@ -556,29 +556,29 @@ fn select_skills_for_target(
     let defaults = default_indexes_with_preset_state(&options, &default_skill_indexes);
     let default_selected_skills = selected_skill_ids_from_indexes(&options, &defaults);
 
-    let tui_entries = options_to_tui_entries(&options);
-    tui_picker::pick(
+    let picker_entries = options_to_picker_entries(&options);
+    picker::pick(
         &t!("skills.manager.select_skills"),
-        &tui_entries,
+        &picker_entries,
         &default_selected_skills,
     )
 }
 
-fn options_to_tui_entries(options: &[SkillOption]) -> Vec<TuiEntry> {
+fn options_to_picker_entries(options: &[SkillOption]) -> Vec<PickerEntry> {
     options
         .iter()
         .map(|option| match option {
             SkillOption::Preset(PresetOption {
                 skill_ids, label, ..
-            }) => TuiEntry {
+            }) => PickerEntry {
                 label: label.clone(),
-                kind: TuiEntryKind::Preset {
+                kind: PickerEntryKind::Preset {
                     skill_ids: skill_ids.clone(),
                 },
             },
-            SkillOption::Skill { skill_id, label } => TuiEntry {
+            SkillOption::Skill { skill_id, label } => PickerEntry {
                 label: label.clone(),
-                kind: TuiEntryKind::Skill {
+                kind: PickerEntryKind::Skill {
                     skill_id: skill_id.clone(),
                 },
             },
@@ -1917,10 +1917,10 @@ mod tests {
     #[test]
     fn test_search_matches_repo_name_in_multi_repo_mode() {
         // r126: `/` search must match the repo name / path short name. The
-        // tui_picker matches against preset & skill labels, so the repo-group
-        // preset label (which carries the repo name) and the decorated skill
-        // rows both make a repo-name query match. Here we assert the labels
-        // embed the repo name so `text_matches_query` can find them.
+        // picker's interactive filter matches against option labels, so the
+        // repo-group preset label (which carries the repo name) and the
+        // decorated skill rows both make a repo-name query match. Here we
+        // assert the labels embed the repo name so filtering can find them.
         let skills = vec![
             skill_with_repo("alpha", Some("TeamAlpha"), Some("TeamAlpha")),
             skill_with_repo("beta", Some("1"), None),
