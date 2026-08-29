@@ -80,6 +80,13 @@ description = "A tool for managing LLM application rules(prompts) ..."
 license = "MIT"
 repository = "https://github.com/StrayDragon/llman"
 
+# One consolidated integration-test target instead of 22 auto-discovered
+# per-file binaries (each statically linking the whole workspace). Modules
+# live in tests/it/; bdd_steps.rs stays a separate auto-discovered target.
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+
 [[bin]]
 name = "llman"
 path = "src/main.rs"

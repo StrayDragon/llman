@@ -1,7 +1,6 @@
-mod common;
+use crate::common::*;
 use clap::Parser;
 use clap::error::ErrorKind;
-use common::*;
 use llman::cli::Cli;
 
 #[test]

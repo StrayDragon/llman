@@ -1,9 +1,8 @@
+use crate::common::*;
 use llman::tool::clean_comments;
 use llman::tool::command::CleanUselessCommentsArgs;
 use llman::tool::config::ToolConfig;
 use llman::tool::processor::CommentProcessor;
-mod common;
-use common::*;
 
 /// Tests the clean_comments module entry point
 /// This tests the main command runner

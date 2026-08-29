@@ -1,7 +1,6 @@
+use crate::common::*;
 use llman::tool::config::ToolConfig;
 use serde_json::Value;
-mod common;
-use common::*;
 
 /// Tests that the default configuration loads correctly with expected values
 /// and includes the clean-useless-comments tool configuration.

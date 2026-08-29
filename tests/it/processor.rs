@@ -1,8 +1,7 @@
+use crate::common::*;
 use llman::tool::command::CleanUselessCommentsArgs;
 use llman::tool::config::ToolConfig;
 use llman::tool::processor::CommentProcessor;
-mod common;
-use common::*;
 use std::process::Command;
 
 /// Tests that the comment processor correctly identifies and processes Python comments

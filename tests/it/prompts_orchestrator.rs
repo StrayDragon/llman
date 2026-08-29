@@ -1,6 +1,4 @@
-mod common;
-
-use common::{assert_success, prepare_work_and_config_dirs, run_llman};
+use crate::common::{assert_success, prepare_work_and_config_dirs, run_llman};
 use tempfile::TempDir;
 
 #[test]

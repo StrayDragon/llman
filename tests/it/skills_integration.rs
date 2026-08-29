@@ -1,8 +1,6 @@
 #![cfg(unix)]
 
-mod common;
-
-use common::{assert_success, run_llman};
+use crate::common::{assert_success, run_llman};
 use llman::skills::catalog::types::{ConfigEntry, SkillCandidate, SkillsConfig, TargetMode};
 use llman::skills::targets::sync::apply_target_links;
 use std::collections::HashMap;

@@ -1,8 +1,6 @@
 #![cfg(unix)]
 
-mod common;
-
-use common::{
+use crate::common::{
     assert_success, llman_command_with_editor, run_llman_with_editor, write_executable_script,
 };
 use std::fs;

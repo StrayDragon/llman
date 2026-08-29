@@ -1,8 +1,7 @@
+use crate::common::*;
 use llman::tool::command::CleanUselessCommentsArgs;
 use llman::tool::config::ToolConfig;
 use llman::tool::processor::CommentProcessor;
-mod common;
-use common::*;
 
 /// Comprehensive tests for configuration system validation
 /// Tests all aspects of YAML configuration loading, validation, and error handling
