@@ -11,6 +11,8 @@ use anyhow::Result;
 use serde_json;
 use std::fs;
 use std::path::{Path, PathBuf};
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 
 /// Retrieval/index backend (pageindex agentic tree retrieval).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -382,7 +384,9 @@ async fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path, _lang: &s
     let tree = tree::TreeIndex::new(
         docs,
         spec_hash,
-        chrono::Utc::now().to_rfc3339(),
+        OffsetDateTime::now_utc()
+            .format(&Rfc3339)
+            .expect("valid timestamp"),
         chat_model.clone(),
     );
     tree.save(&pageindex_dir)?;

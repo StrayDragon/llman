@@ -14,6 +14,7 @@ use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use time::OffsetDateTime;
 use toml::Value;
 
 #[derive(Args, Debug, Clone)]
@@ -986,7 +987,11 @@ fn select_stems(available: &[String], only: &[String], what: &str) -> Result<Vec
 }
 
 fn backup_path_for(path: &Path) -> Result<PathBuf> {
-    let ts = chrono::Utc::now().format("%Y%m%d%H%M%S").to_string();
+    let ts = OffsetDateTime::now_utc()
+        .format(&time::macros::format_description!(
+            "[year][month][day][hour][minute][second]"
+        ))
+        .expect("valid timestamp");
     let file_name = path
         .file_name()
         .and_then(|s| s.to_str())

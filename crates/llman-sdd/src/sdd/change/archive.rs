@@ -3,11 +3,12 @@ use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
 use crate::sdd::shared::tasks;
 use anyhow::{Result, anyhow};
-use chrono::Utc;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
 use std::process::Command;
+use time::OffsetDateTime;
+use time::macros::format_description;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ArchiveArgs {
@@ -315,7 +316,9 @@ fn display_llmanspec_path(path: &Path) -> String {
 }
 
 fn archive_date() -> String {
-    Utc::now().format("%Y-%m-%d").to_string()
+    OffsetDateTime::now_utc()
+        .format(&format_description!("[year]-[month]-[day]"))
+        .expect("valid date")
 }
 
 #[cfg(test)]

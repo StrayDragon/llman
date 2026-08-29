@@ -7,11 +7,13 @@ use crate::sdd::spec::backend::FEATURE_BACKEND;
 use crate::sdd::spec::backend::feature_backend::compute_rule_morphology;
 use crate::sdd::spec::validation::{ChangeStage, determine_stage, resolve_spec_file};
 use anyhow::{Result, anyhow};
-use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::cmp::{Reverse, max};
 use std::fs;
 use std::path::Path;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
+use time::macros::format_description;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ListArgs {
@@ -48,7 +50,7 @@ struct ChangeInfo {
     stage: ChangeStage,
     completed_tasks: usize,
     total_tasks: usize,
-    last_modified: DateTime<Utc>,
+    last_modified: OffsetDateTime,
 }
 
 pub(crate) fn run(args: ListArgs) -> Result<()> {
@@ -132,7 +134,7 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
                 stage: c.stage.as_str().to_string(),
                 completed_tasks: c.completed_tasks,
                 total_tasks: c.total_tasks,
-                last_modified: c.last_modified.to_rfc3339(),
+                last_modified: c.last_modified.format(&Rfc3339).expect("valid timestamp"),
                 status: status_key(c.completed_tasks, c.total_tasks).to_string(),
             })
             .collect();
@@ -277,8 +279,8 @@ fn format_task_status(completed: usize, total: usize) -> String {
     format!("{}/{} tasks", completed, total)
 }
 
-fn last_modified(dir: &Path) -> Result<DateTime<Utc>> {
-    let mut latest: Option<DateTime<Utc>> = None;
+fn last_modified(dir: &Path) -> Result<OffsetDateTime> {
+    let mut latest: Option<OffsetDateTime> = None;
     let mut stack = vec![dir.to_path_buf()];
     while let Some(path) = stack.pop() {
         for entry in fs::read_dir(path)? {
@@ -287,30 +289,31 @@ fn last_modified(dir: &Path) -> Result<DateTime<Utc>> {
             if meta.is_dir() {
                 stack.push(entry.path());
             } else {
-                let modified: DateTime<Utc> = meta.modified()?.into();
+                let modified = OffsetDateTime::from(meta.modified()?);
                 if latest.map(|l| modified > l).unwrap_or(true) {
                     latest = Some(modified);
                 }
             }
         }
     }
-    Ok(latest.unwrap_or_else(Utc::now))
+    Ok(latest.unwrap_or_else(OffsetDateTime::now_utc))
 }
 
-fn format_relative_time(time: DateTime<Utc>) -> String {
-    let now = Utc::now();
-    let diff = now.signed_duration_since(time);
-    if diff.num_days() > 30 {
-        return time.format("%Y-%m-%d").to_string();
+fn format_relative_time(time: OffsetDateTime) -> String {
+    let diff = OffsetDateTime::now_utc() - time;
+    if diff.whole_days() > 30 {
+        return time
+            .format(&format_description!("[year]-[month]-[day]"))
+            .expect("valid date");
     }
-    if diff.num_days() > 0 {
-        return format!("{}d ago", diff.num_days());
+    if diff.whole_days() > 0 {
+        return format!("{}d ago", diff.whole_days());
     }
-    if diff.num_hours() > 0 {
-        return format!("{}h ago", diff.num_hours());
+    if diff.whole_hours() > 0 {
+        return format!("{}h ago", diff.whole_hours());
     }
-    if diff.num_minutes() > 0 {
-        return format!("{}m ago", diff.num_minutes());
+    if diff.whole_minutes() > 0 {
+        return format!("{}m ago", diff.whole_minutes());
     }
     t!("sdd.list.just_now").to_string()
 }

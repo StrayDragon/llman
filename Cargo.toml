@@ -32,7 +32,8 @@ unicode-width = "0.2"
 thiserror = "2.0.18"
 toml = "1.0.3"
 minijinja = "2.20.0"
-chrono = { version = "0.4.45", features = ["serde"] }
+# (chrono replaced by `time` 0.3 for sdd timestamps/durations)
+time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
 glob = "0.3.3"
 ignore = "0.4.26"
 tokio = { version = "1.49.0", features = ["rt", "rt-multi-thread"] }
@@ -69,6 +70,9 @@ path = "src/bin/llmanspec.rs"
 name = "llman"
 path = "src/lib.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow.workspace = true
 llman-core.workspace = true
@@ -83,7 +87,7 @@ rust-i18n.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
-chrono.workspace = true
+time.workspace = true
 glob.workspace = true
 ignore.workspace = true
 tempfile.workspace = true
