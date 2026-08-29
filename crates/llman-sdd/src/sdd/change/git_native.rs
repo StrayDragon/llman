@@ -46,6 +46,8 @@ pub(crate) struct CheckpointArgs {
 pub(crate) struct DiffArgs {
     pub(crate) change: String,
     pub(crate) export_patch: Option<PathBuf>,
+    /// Machine-readable diff summary (r137: commitCount contract key).
+    pub(crate) json: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -355,6 +357,8 @@ pub(crate) fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
     if is_default_branch(root, &branch)? {
         bail!("cannot checkpoint on the default branch");
     }
+    // r137: surface commits since base; non-blocking hint when > 1.
+    print_commit_count(root, &binding.base_sha)?;
     // Locked-rule integrity (spec-format r135).
     {
         let acked = crate::sdd::change::lock_gate::rules_edit_acked_for(root, &change_name);
@@ -428,6 +432,31 @@ pub(crate) fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
     Ok(())
 }
 
+/// Number of commits on the current branch since the attach base (r137).
+pub(crate) fn commit_count_since_base(root: &Path, base_sha: &str) -> Result<i64> {
+    let out = run_git(root, &["rev-list", "--count", &format!("{base_sha}..HEAD")])?;
+    out.trim()
+        .parse::<i64>()
+        .map_err(|err| anyhow!("bad commit count `{out}`: {err}"))
+}
+
+/// Print the r137 commit-count line; hint (non-blocking) when discipline
+/// suggests the history is drifting into step-log territory.
+pub(crate) fn print_commit_count(root: &Path, base_sha: &str) -> Result<()> {
+    let commit_count = commit_count_since_base(root, base_sha)?;
+    println!(
+        "{}",
+        t!("sdd.change.commits_since_base", count = commit_count)
+    );
+    if commit_count > 1 {
+        eprintln!(
+            "{}",
+            t!("sdd.change.multi_commit_hint", count = commit_count)
+        );
+    }
+    Ok(())
+}
+
 pub(crate) fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
     let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
     validate_sdd_id(&change_name, "change")?;
@@ -445,6 +474,20 @@ pub(crate) fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
             binding.branch
         );
     }
+    if args.json {
+        let commit_count = commit_count_since_base(root, &binding.base_sha)?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "change": change_name,
+                "branch": binding.branch,
+                "base": binding.base_sha,
+                "commitCount": commit_count,
+            }))?
+        );
+        return Ok(());
+    }
+    print_commit_count(root, &binding.base_sha)?;
     let diff = branch_diff(root, &binding.base_sha)?;
     if let Some(path) = &args.export_patch {
         if let Some(parent) = path.parent() {

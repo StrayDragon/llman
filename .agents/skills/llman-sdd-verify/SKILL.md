@@ -34,8 +34,6 @@ flowchart LR
 - **CRITICAL 必须修复**：标记为 CRITICAL 的问题归档前必须修复。
 - **不要问「要不要继续」**：跑完整个验证流程，输出完整报告。
 
-## 步骤
-1. 确定 change id（不明确时让用户从 `llman sdd list --json` 选择）。
 ## 阶段守卫（`stage` / `readyToImplement`）
 
 用权威 JSON 判定（勿凭「完整工件」口头说法）：
@@ -52,15 +50,17 @@ llman sdd show <id> --json --type change
 | `stage=designed` | STOP。先 `change start` / `attach`（Branch binding）。 |
 | `stage=full` 且 `readyToImplement=false` | STOP。在**绑定分支**完成 Specs landing（编辑 `llmanspec/specs/**` 并 commit），或设 `skip_specs_landing`。**不要**再跑 `change start`。丢失绑定分支 specs → checkout/重建 + 必要时 `attach --force`。 |
 | `readyToImplement=true` | 可通过 apply/verify 前置检查。`changes/<id>/specs/` 预期**不存在**，勿当缺失。 |
-3. 先跑一个快速校验门禁：
+## 步骤
+1. 确定 change id（不明确时让用户从 `llman sdd list --json` 选择）。
+2. 先跑一个快速校验门禁：
    - `llman sdd validate <id> --strict --no-interactive`
    - **诊断结构问题（Gherkin 解析 / `@req` 链接 / 双写 / 全局 req_id 唯一性）时优先加 `--no-check`**（BDD-on 下跳过可能耗时的 `bdd.run_command`），结构门禁全绿后再跑完整 `--check`（full mode）。`FAIL <item_type>/<id>` 行会逐条列出失败项（在 Totals 行上方）。
-4. 阅读：
+3. 阅读：
    - feature 分支上的 live specs：`llmanspec/specs/**`（`<capability>.feature`）——SSOT
    - `proposal.md` 与 `design.md`（如存在）
    - `tasks.md`（理解实现范围）
    - `llmanspec/changes/<id>/specs/` 若残留旧文档可忽略；SSOT 是 live specs
-5. **双轴审查（标准轴 + 合约轴分离，互不掩盖）**——对比 diff（`git diff <merge-base>...HEAD`，merge-base 取 attach 的 base_sha 或 `main`）分两轴：
+4. **双轴审查（标准轴 + 合约轴分离，互不掩盖）**——对比 diff（`git diff <merge-base>...HEAD`，merge-base 取 attach 的 base_sha 或 `main`）分两轴：
    - **合约轴（Spec）**：实现是否满足 `@human` 规则的 MUST/SHALL 与 `@executable` 的 GWT。
      - 缺失/部分实现的行为、错误实现、以及 diff 中未被 spec 要求的超范围改动。
      - 给出最小修复建议，或建议更新 artifacts。
@@ -69,18 +69,20 @@ llman sdd show <id> --json --type change
      - 坏味标记为**判断性提示**（「可能是 Feature Envy」），不是硬性违规。
      - 坏味清单（每项「是什么 → 怎么修」）：Mysterious Name（名不达意→重命名）/ Duplicated Code（重复逻辑→抽取共享）/ Feature Envy（方法更爱用别人的数据→移过去）/ Data Clumps（同组字段到处走→打包成类型）/ Primitive Obsession（原始类型充当领域概念→给专门类型）/ Repeated Switches（同类 switch 反复出现→多态或共享 map）/ Shotgun Surgery（一处改动散落多处→聚到一模块）/ Divergent Change（一文件因多无关原因被改→拆分）/ Speculative Generality（为未发生的需求加抽象→删除）/ Message Chains（长链 a.b().c()→隐藏于一方法）/ Middle Man（只转发→删掉直连）/ Refused Bequest（子类拒绝大部继承→改组合）。
    - 两轴可并行（sub-agent）审查；报告 MUST 分离呈现，MUST NOT 合并或交叉重排（一轴通过不能掩盖另一轴失败）。
-6. **BDD-on 验证（Git-native Partitioned SSOT）**——仅当 `config.yaml` 含 `bdd:` 段时：
+5. **BDD-on 验证（Git-native Partitioned SSOT）**——仅当 `config.yaml` 含 `bdd:` 段时：
    - 确认 change 已 attach，且当前在对应 feature 分支上。
    - `llman sdd validate --specs`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
    - 可选只读审查：`llman sdd change diff <id>`（或 `--export-patch <path>`）。diff 仅作审查/导出——绝不当作 apply 步骤。
    - 检查：无遗留 `spec.toon` / `*.feature.delta.toon`；若存在，先跑 toon2features（不要自创 solidify/找补步骤）。
    - verify 通过后下一步：`llman-sdd-archive`（勿在此 inline finalize）。
 
-7. 输出简短报告：
+6. 输出简短报告：
    - **CRITICAL**（归档前必须修复）
    - **WARNING**（建议修复）
    - **SUGGESTION**（可选优化）
-8. 若存在 CRITICAL，建议用 `llman-sdd-apply` 修复；若通过则建议 `llman-sdd-archive` 进行 finalize/archive。
+7. **人审检查点**：报告无 CRITICAL 后、建议归档前，运行 `llman sdd review`：
+   - 退出码为零 → 建议 `llman-sdd-archive` 进行 finalize/archive。
+   - 非零退出 = CRITICAL 发现：用 `llman-sdd-apply` 修复后重跑 review；MUST NOT 带着 CRITICAL 进入 finalize/archive。
 
 > 💡 验证通过 → 下一步 `llman-sdd-archive`（归档）；有 CRITICAL → 回到 `llman-sdd-apply`（修复）
 
@@ -124,6 +126,31 @@ llman sdd show <id> --json --type change
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备份恢复）
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图）
 - `llman sdd project migrate --kind spec-md2toon`（`.md`+fence → 独立 `.toon`；`partitioned` 已移除）
+
+校验修复（单轨 feature-as-spec）：
+
+1）缺少头注释（`missing # capability: header comment`）：
+每个 `llmanspec/specs/<capability>/<capability>.feature` 必须以以下注释开头：
+```
+# language: zh-CN
+# capability: <capability>
+# purpose: 一句话概述
+# scope: src/
+```
+
+2）tag 语法（`@human constraint scenario must carry an @req:<req_id> tag` / `orphan acceptance scenario`）：
+- 规则：`@req:<id> @human` —— statement 放场景描述（须含 MUST/SHALL）。
+- 验收：`@executable` 且至少一个 `@req:<id>` 挂到规则。
+- `@manual` 须与 `@human` 同用；禁止 `@human` 与 `@executable` 同场景。
+
+3）遗留 `spec.toon`（`legacy spec.toon found ... run ... toon2features`）：
+运行 `llman sdd project migrate --kind toon2features --yes`，审阅 diff 后提交。
+
+Git-native 护栏：
+- **Branch binding** → **Specs landing**：先 `change start` / `attach`，再在绑定的非默认分支编辑 live `.feature` 并 commit。
+- 锁定规则：修改/删除既有 `@human` 场景会触发门禁，除非 proposal frontmatter 带 `rules_edit_acked: true`。
+- apply 前须 `readyToImplement=true`（或 `skip_specs_landing`）。收尾优先 `change finalize`。
+- 勿使用 `change delta` / solidify / `*.feature.delta.toon`。
 
 ## Context
 - 执行前先确认当前 change/spec 状态。

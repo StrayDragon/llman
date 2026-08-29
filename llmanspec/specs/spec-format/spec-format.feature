@@ -1,7 +1,7 @@
 # language: zh-CN
 # capability: spec-format
 # purpose: 规范单轨 feature-as-spec 格式：每个 capability 以单个 .feature 为唯一规格事实源，@human 约束层与 @executable 验收层共存于同一文件，配套锁定哈希门禁、三态强制分级计数与 toon2features 一次性迁移。
-# scope: src/sdd
+# scope: crates/llman-sdd/src/sdd
 
 功能: spec-format
 

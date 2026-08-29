@@ -116,6 +116,10 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         crate::sdd::change::git_native::write_binding(root, &change_name, &binding)?;
     }
 
+    // r137: show commits since base; non-blocking hint when > 1 (printed
+    // before the merge so the operator sees it ahead of the archive rename).
+    crate::sdd::change::git_native::print_commit_count(root, &binding.base_sha)?;
+
     // Docs-only archive rename + auto ff-merge (r94 / r113).
     //
     // Order is ff-merge THEN rename: merging after a dirty rename restores

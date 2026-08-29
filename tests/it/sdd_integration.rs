@@ -56,6 +56,9 @@ fn assert_no_disallowed_prompt_markers(path: &Path, content: &str) {
 
 fn author_sample_spec(work_dir: &Path) {
     // Single-track (r131): one `.feature` carrying rule r1 + acceptance.
+    // r42: the `# scope: src/` header must point at a real path under strict
+    // validate, so the fixture creates it.
+    let _ = fs::create_dir_all(work_dir.join("src"));
     let sample_dir = work_dir.join("llmanspec").join("specs").join("sample");
     std::fs::create_dir_all(&sample_dir).expect("mkdir sample");
     let feature = concat!(
@@ -158,6 +161,8 @@ fn test_sdd_init_writes_schema_spec_driven() {
 fn test_sdd_show_validate_archive_flow() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
+    // r42: the spec's `# scope: src` must exist under strict validate.
+    fs::create_dir_all(work_dir.join("src")).expect("create fixture src scope dir");
 
     let init_output = run_llman(
         &["sdd", "init", work_dir.to_str().unwrap()],
@@ -327,6 +332,8 @@ fn test_sdd_archive_flow_works_in_single_track_project() {
 fn test_sdd_given_mapping_to_raw_text_is_deterministic() {
     let env = TestEnvironment::new();
     let work_dir = env.path();
+    // r42: the spec's `# scope: src` must exist under strict validate.
+    fs::create_dir_all(work_dir.join("src")).expect("create fixture src scope dir");
 
     let init_output = run_llman(
         &["sdd", "init", work_dir.to_str().unwrap()],

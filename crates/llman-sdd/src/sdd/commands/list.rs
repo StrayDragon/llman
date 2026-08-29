@@ -40,6 +40,10 @@ struct ChangeJson {
     total_tasks: usize,
     #[serde(rename = "lastModified")]
     last_modified: String,
+    /// Whole days since the change dir was last touched (r138; same source
+    /// as `lastModified`).
+    #[serde(rename = "idleDays")]
+    idle_days: i64,
     status: String,
 }
 
@@ -135,6 +139,9 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
                 completed_tasks: c.completed_tasks,
                 total_tasks: c.total_tasks,
                 last_modified: c.last_modified.format(&Rfc3339).expect("valid timestamp"),
+                idle_days: (OffsetDateTime::now_utc() - c.last_modified)
+                    .whole_days()
+                    .max(0),
                 status: status_key(c.completed_tasks, c.total_tasks).to_string(),
             })
             .collect();
@@ -151,7 +158,15 @@ fn list_changes_mode(root: &Path, args: &ListArgs) -> Result<()> {
         let padded = format!("{:<width$}", change.name, width = name_width);
         let stage = format!("{:<10}", change.stage.as_str());
         let status = format_task_status(change.completed_tasks, change.total_tasks);
-        let time_ago = format_relative_time(change.last_modified);
+        let mut time_ago = format_relative_time(change.last_modified);
+        // r138: draft/designed changes get an explicit idle-days annotation
+        // so lingering planning shells are visible in the human listing.
+        if matches!(change.stage, ChangeStage::Draft | ChangeStage::Designed) {
+            let idle = (OffsetDateTime::now_utc() - change.last_modified)
+                .whole_days()
+                .max(0);
+            time_ago.push_str(&format!(" ({})", t!("sdd.list.idle_days", days = idle)));
+        }
         println!("  {}  {}  {:<12}  {}", padded, stage, status, time_ago);
     }
 

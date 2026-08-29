@@ -91,6 +91,19 @@ pub(crate) fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
     );
     let spec_path = spec_dir.join(format!("{}.feature", args.capability));
     atomic_write_with_mode(&spec_path, body.as_bytes(), None)?;
+    // r42 + r114: strict validate fails on missing valid_scope paths, and
+    // skeleton output must pass strict validate — scaffold the declared dirs.
+    for scope in body
+        .lines()
+        .filter_map(|line| line.strip_prefix("# scope: "))
+        .flat_map(|line| line.split_whitespace())
+    {
+        let target = root.join(scope);
+        if !target.exists() {
+            fs::create_dir_all(&target)?;
+            println!("scaffolded scope dir: {}", scope);
+        }
+    }
     println!("wrote {}", spec_path.display());
     println!(
         "next-req-id: {first_req_id} (use `llman sdd spec add-requirement {name} {first_req_id} --title ... --statement ...`)",

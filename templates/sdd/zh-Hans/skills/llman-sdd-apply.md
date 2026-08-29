@@ -105,11 +105,16 @@ flowchart LR
      2. 运行并确认失败 → 最小化复现（逐个剔除输入/调用/配置/数据，只留关键部分）。
      3. 生成 **3–5 个排序假设**，每个须可证伪（「若 X 是因，则改 Y 会让 bug 消失」）。
      4. 单变量验证（一次只改一个），找到根因后修复。
-     5. 若没有合适的边界（seam）写回归测试，记录该架构缺口（交 `llman-sdd-arch-review`）。
+     5. 若没有合适的边界（seam）写回归测试，记录该架构缺口（交 `llman-sdd-arch-review`；该 skill 未在 `extra_skills` 启用时，把缺口写入该 change 的 `proposal.md` Further Notes 段或 `design.md`，MUST NOT 因此中断闭环）。
 3. 先重跑「最小失败复现命令」，再重跑全部门禁。
 4. 记录为一轮自修复：`Round N：失败点 → 修复 → 重跑 → 通过/失败`。
 
 **自修复上限 8 轮**；超过仍不通过视为 blocker：停止并输出 blocker 报告（含最后一次失败命令与输出摘要、你已尝试的修复）。
+
+**人审检查点（每个 task 批次门禁通过后）**：批次全绿后、进入下一批次或输出完成报告前，运行 `llman sdd review`：
+
+- 退出码为零 → 继续。
+- 非零退出 = 存在 CRITICAL 发现：STOP，修复后重跑 review；MUST NOT 带着 CRITICAL 进入下一批次或输出完成报告。
 
 ### 6) 完成报告
 所有 task 完成 + 全部门禁通过后，输出结构化报告（见下方 Output Contract）。
@@ -118,5 +123,7 @@ flowchart LR
 > 💡 实施完成 → 下一步 `llman-sdd-verify`（验证）
 
 {{ unit("skills/sdd-commands") }}
+
+{{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

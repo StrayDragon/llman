@@ -127,11 +127,16 @@ llman sdd show <id> --json --type change
      2. 运行并确认失败 → 最小化复现（逐个剔除输入/调用/配置/数据，只留关键部分）。
      3. 生成 **3–5 个排序假设**，每个须可证伪（「若 X 是因，则改 Y 会让 bug 消失」）。
      4. 单变量验证（一次只改一个），找到根因后修复。
-     5. 若没有合适的边界（seam）写回归测试，记录该架构缺口（交 `llman-sdd-arch-review`）。
+     5. 若没有合适的边界（seam）写回归测试，记录该架构缺口（交 `llman-sdd-arch-review`；该 skill 未在 `extra_skills` 启用时，把缺口写入该 change 的 `proposal.md` Further Notes 段或 `design.md`，MUST NOT 因此中断闭环）。
 3. 先重跑「最小失败复现命令」，再重跑全部门禁。
 4. 记录为一轮自修复：`Round N：失败点 → 修复 → 重跑 → 通过/失败`。
 
 **自修复上限 8 轮**；超过仍不通过视为 blocker：停止并输出 blocker 报告（含最后一次失败命令与输出摘要、你已尝试的修复）。
+
+**人审检查点（每个 task 批次门禁通过后）**：批次全绿后、进入下一批次或输出完成报告前，运行 `llman sdd review`：
+
+- 退出码为零 → 继续。
+- 非零退出 = 存在 CRITICAL 发现：STOP，修复后重跑 review；MUST NOT 带着 CRITICAL 进入下一批次或输出完成报告。
 
 ### 6) 完成报告
 所有 task 完成 + 全部门禁通过后，输出结构化报告（见下方 Output Contract）。
@@ -161,6 +166,31 @@ llman sdd show <id> --json --type change
 - `llman sdd archive thaw [--change <id> ...] [--dest <path>]`（从冷备份恢复）
 - `llman sdd graph [CHANGE] [--format mermaid] [--scope active|archived|all] [--depth N]`（生成变更依赖图）
 - `llman sdd project migrate --kind spec-md2toon`（`.md`+fence → 独立 `.toon`；`partitioned` 已移除）
+
+校验修复（单轨 feature-as-spec）：
+
+1）缺少头注释（`missing # capability: header comment`）：
+每个 `llmanspec/specs/<capability>/<capability>.feature` 必须以以下注释开头：
+```
+# language: zh-CN
+# capability: <capability>
+# purpose: 一句话概述
+# scope: src/
+```
+
+2）tag 语法（`@human constraint scenario must carry an @req:<req_id> tag` / `orphan acceptance scenario`）：
+- 规则：`@req:<id> @human` —— statement 放场景描述（须含 MUST/SHALL）。
+- 验收：`@executable` 且至少一个 `@req:<id>` 挂到规则。
+- `@manual` 须与 `@human` 同用；禁止 `@human` 与 `@executable` 同场景。
+
+3）遗留 `spec.toon`（`legacy spec.toon found ... run ... toon2features`）：
+运行 `llman sdd project migrate --kind toon2features --yes`，审阅 diff 后提交。
+
+Git-native 护栏：
+- **Branch binding** → **Specs landing**：先 `change start` / `attach`，再在绑定的非默认分支编辑 live `.feature` 并 commit。
+- 锁定规则：修改/删除既有 `@human` 场景会触发门禁，除非 proposal frontmatter 带 `rules_edit_acked: true`。
+- apply 前须 `readyToImplement=true`（或 `skip_specs_landing`）。收尾优先 `change finalize`。
+- 勿使用 `change delta` / solidify / `*.feature.delta.toon`。
 
 ## Context
 - 执行前先确认当前 change/spec 状态。

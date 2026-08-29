@@ -1312,6 +1312,8 @@ sdd:
       en: "No specs found."
     specs_header:
       en: "Available specs:"
+    idle_days:
+      en: "idle %{days}d"
     no_tasks_status:
       en: "no tasks"
     complete_status:
@@ -1561,6 +1563,12 @@ sdd:
         en: "  llman sdd validate --specs"
       line5:
         en: "  llman sdd validate <item-name>"
+
+  change:
+    commits_since_base:
+      en: "Commits since base: %{count}"
+    multi_commit_hint:
+      en: "Note: %{count} commits since base — prefer a semantic single-commit finalize (apply-skill commit policy)."
 
   archive:
     change_required:

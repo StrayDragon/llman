@@ -1,5 +1,9 @@
 ---
 depends_on: []
+branch: sdd/add-sdd-pipeline-guards
+base_sha: b0cd061d6bdfae3bff7ccaf25cd0fe6caf48da6a
+checkpointed: true
+checkpoint_sha: b0cd061d6bdfae3bff7ccaf25cd0fe6caf48da6a
 ---
 
 # SDD Pipeline 护栏：review 接线、commit 信号与 CLI 自动化下沉
