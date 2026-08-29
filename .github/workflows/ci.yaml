@@ -7,7 +7,6 @@ on:
 env:
   # Bump when cache strategy changes to force refresh
   CACHE_VERSION: v4
-  RUST_TOOLCHAIN: nightly-2026-08-28
 
 jobs:
   test:
@@ -30,9 +29,10 @@ jobs:
             ${{ runner.os }}-cargo-test-${{ env.CACHE_VERSION }}-
 
       - name: Install Rust toolchain
+        # No `toolchain` input: rustup resolves via rust-toolchain.toml (SSOT),
+        # so CI and local always build with the same pinned nightly.
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: rustfmt, clippy
 
       - name: Print useful env versions
@@ -69,9 +69,10 @@ jobs:
             ${{ runner.os }}-cargo-build-${{ env.CACHE_VERSION }}-
 
       - name: Install Rust toolchain
+        # No `toolchain` input: rustup resolves via rust-toolchain.toml (SSOT),
+        # so CI and local always build with the same pinned nightly.
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: rustfmt, clippy
 
       - name: Print useful env versions
