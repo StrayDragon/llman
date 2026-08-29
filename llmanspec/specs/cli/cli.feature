@@ -1,6 +1,6 @@
 # language: zh-CN
 # capability: cli
-# purpose: 规范 llman CLI 的全局配置目录守卫（仅全局配置命令需要 config-dir）、status 输出，以及 context/index 命令。
+# purpose: 规范 llman CLI 的全局配置目录守卫（仅全局配置命令需要 config-dir），以及 context/index 命令。
 # scope: llmanspec/specs/cli
 
 功能: cli
@@ -8,10 +8,6 @@
   @req:r13 @human
   场景: 配置守卫范围与命令结构
     - Only subcommands that need global config MUST enforce the dev-project config-dir guard. Authoring commands MUST use unified names (add-req/remove-req/rename-req) with deprecated aliases. Non-core commands MUST live under `sdd project`. Archive MUST require an explicit subcommand. Show MUST support combined output options.
-
-  @req:r42 @human
-  场景: status 命令 TOON 输出与 target 解析
-    - `llman sdd status` MUST emit pure TOON with kind `llman.sdd.status` including counts/changes/tasks/ops/next. Target resolution MUST follow exact match > prefix match (active first) > multi-match summary > not-found error. Incomplete tasks and pending ops MUST be shown; changes MUST sort by `c<N>-` priority prefix; `--json` MUST remain compatible.
 
   @req:r8 @human
   场景: Context Command

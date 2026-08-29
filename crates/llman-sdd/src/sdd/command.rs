@@ -2,7 +2,7 @@ use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
 use crate::sdd::change::git_native;
-use crate::sdd::commands::{graph, list, show, status, validate};
+use crate::sdd::commands::{graph, list, show, validate};
 use crate::sdd::project::{init, interop, migrate};
 use crate::sdd::review;
 use anyhow::Result;
@@ -239,17 +239,6 @@ pub enum SddCommands {
     },
     /// Worktree management commands
     Worktree(SddWorktreeArgs),
-    /// Show project status overview (compact TOON by default, agent-oriented)
-    Status {
-        /// Target change name, archive date prefix, or fuzzy name
-        target: Option<String>,
-        /// Output format: toon (default) or json
-        #[arg(long)]
-        format: Option<String>,
-        /// Output as JSON (shorthand for --format json)
-        #[arg(long)]
-        json: bool,
-    },
     /// Get specs relevant to a task and/or file paths (agent-oriented)
     Context {
         /// Natural language description of the current change
@@ -826,15 +815,6 @@ fn run_command(args: &SddArgs) -> Result<()> {
             scope: scope.clone(),
             depth: *depth,
             change: change.clone(),
-        }),
-        SddCommands::Status {
-            target,
-            format,
-            json,
-        } => status::run(status::StatusArgs {
-            target: target.clone(),
-            format: format.clone(),
-            json: *json,
         }),
         SddCommands::Context {
             task,

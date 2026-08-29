@@ -20,13 +20,12 @@ End-to-end closed loop for one change (manual). Requires Branch binding and `rea
 ### 0) Gate + status
 ```bash
 llman sdd show <change-id> --json --type change
-llman sdd status <change-id>
 ```
 {{ unit("skills/stage-guard") }}
 
 - Must be on the bound non-default branch.
 - If `readyToImplement` is not true → STOP (finish Specs landing or `skip_specs_landing`); **do not** finalize yet.
-- Use `status` `tasks[]` / `next` for progress; still read `tasks.md`, proposal/design, and live `llmanspec/specs/**` on the bound branch (SSOT).
+- Track progress via `tasks.md` checkboxes (or `llman sdd list` task counts); still read `tasks.md`, proposal/design, and live `llmanspec/specs/**` on the bound branch (SSOT).
 
 ### 1) Loop: implement → test
 For each incomplete task:

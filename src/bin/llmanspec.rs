@@ -2,7 +2,6 @@
 //!
 //! Synthesises argv as `<prog> sdd <user-args>` and delegates to `llman::cli::Cli`.
 //! Supports all `sdd` subcommands directly:
-//!   `llmanspec status`  ≡  `llman sdd status`
 //!   `llmanspec init`    ≡  `llman sdd init`
 //!   ...
 
@@ -41,7 +40,7 @@ fn run() -> Result<()> {
     let rest: Vec<&str> = raw[1..].iter().map(String::as_str).collect();
 
     // Synthesise argv as: <program> sdd <user-args...>
-    // This makes `llmanspec status` parse as if `llman sdd status` was typed.
+    // This makes `llmanspec init` parse as if `llman sdd init` was typed.
     let argv: Vec<&str> = if rest.is_empty() {
         // Bare `llmanspec` → show sdd subcommand help and exit 0.
         vec![program.as_str(), "sdd", "--help"]

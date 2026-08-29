@@ -194,7 +194,6 @@ fn test_all_subcommands_smoke_bdd_on_and_off() {
         &["sdd", "index", "rebuild"],
         &["sdd", "index", "check"],
         &["sdd", "graph"],
-        &["sdd", "status"],
         &["sdd", "project", "migrate", "--dry-run"],
         &["sdd", "project", "dedupe-req-ids", "--dry-run"],
         &["sdd", "spec", "next-req-id", "--json"],

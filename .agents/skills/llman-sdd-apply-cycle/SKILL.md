@@ -20,7 +20,6 @@ disable-model-invocation: true
 ### 0) 门禁 + 状态
 ```bash
 llman sdd show <change-id> --json --type change
-llman sdd status <change-id>
 ```
 ## 阶段守卫（`stage` / `readyToImplement`）
 
@@ -41,7 +40,7 @@ llman sdd show <id> --json --type change
 
 - 须在绑定的非默认分支上。
 - `readyToImplement` 不为 true → STOP（先 Specs landing 或 `skip_specs_landing`）；**不要**直接 finalize。
-- `status` 的 `tasks[]` / `next` 用于进度；实现时仍须阅读 `tasks.md`、proposal/design 与绑定分支上的 live `llmanspec/specs/**`（SSOT）。
+- 进度以 `tasks.md` checkbox 为准（或 `llman sdd list` 的任务计数）；实现时仍须阅读 `tasks.md`、proposal/design 与绑定分支上的 live `llmanspec/specs/**`（SSOT）。
 
 ### 1) 循环：实施 → 测试
 对每个未完成 task：
