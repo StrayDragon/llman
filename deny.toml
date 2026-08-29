@@ -1,0 +1,56 @@
+# cargo-deny configuration — run via `cargo deny check` (CI: ci.yaml deny job,
+# full sweep: monthly supply-chain workflow).
+#
+# Policy summary:
+#   - licenses: permissive set only (deny unknown)
+#   - advisories: RustSec vulnerabilities/yanked crates block the build
+#   - bans: duplicate versions are reported but tolerated (warn) — the tree is
+#     large and some dupes come from mandatory build tooling
+#   - sources: crates.io plus our own gherkin fork (see [patch.crates-io])
+
+[graph]
+all-features = true
+
+[licenses]
+version = 2
+allow = [
+  "MIT",
+  "MIT-0",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+  "Zlib",
+  "MPL-2.0",
+  "CDLA-Permissive-2.0",
+  "BSL-1.0",
+  "CC0-1.0",
+  "0BSD",
+  # libbz2-rs-sys (pure-Rust bzip2, transitive via sevenz-rust2): BSD-style
+  # bzip2 license
+  "bzip2-1.0.6",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+# `deny` would fight `.workspace = true` inheritance (cargo-deny sees those as
+# wildcard specs), so stay at warn: third-party wildcard deps still surface.
+wildcards = "warn"
+highlight = "all"
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = [
+  # zh-CN Gherkin keyword fork, wired via [patch.crates-io] in Cargo.toml
+  "https://github.com/StrayDragon/gherkin.git",
+]
