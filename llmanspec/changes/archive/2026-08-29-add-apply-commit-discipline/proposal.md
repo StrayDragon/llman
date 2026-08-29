@@ -3,7 +3,8 @@ depends_on: []
 skip_specs_landing: true
 branch: sdd/add-apply-commit-discipline
 base_sha: 4d4154261609e5c747a120305da2c139d3d7ec33
-checkpointed: false
+checkpointed: true
+checkpoint_sha: 4d4154261609e5c747a120305da2c139d3d7ec33
 ---
 
 # apply 阶段 Commit 纪律指引
