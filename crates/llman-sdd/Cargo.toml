@@ -7,6 +7,9 @@ license = "MIT"
 repository = "https://github.com/StrayDragon/llman"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow.workspace = true
 rust-i18n.workspace = true
