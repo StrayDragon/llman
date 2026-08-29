@@ -262,7 +262,8 @@ pub fn run_clean(args: &AgentsMdCleanArgs) -> Result<()> {
 
     // Default-branch guard for --commit.
     if args.commit {
-        let branch = current_branch(&root)?;
+        let branch = current_branch(&root)?
+            .ok_or_else(|| anyhow!(t!("tool.agents_md.error.detached_head")))?;
         if is_default_branch(&root, &branch)? && !args.force {
             bail!(
                 "{}",
@@ -330,7 +331,8 @@ pub fn run_revert(args: &AgentsMdRevertArgs) -> Result<()> {
     // For --commit on the default branch, create a recovery branch first.
     let mut created_branch: Option<String> = None;
     if args.commit {
-        let branch = current_branch(&root)?;
+        let branch = current_branch(&root)?
+            .ok_or_else(|| anyhow!(t!("tool.agents_md.error.detached_head")))?;
         if is_default_branch(&root, &branch)? {
             let new_branch = format!("agents-md/revert-{}", timestamp_suffix());
             run_git(&root, &["checkout", "-b", &new_branch])?;

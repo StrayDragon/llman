@@ -31,12 +31,14 @@ pub fn run_git(root: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-pub fn current_branch(root: &Path) -> Result<String> {
+pub fn current_branch(root: &Path) -> Result<Option<String>> {
     let branch = run_git(root, &["rev-parse", "--abbrev-ref", "HEAD"])?;
     if branch.is_empty() || branch == "HEAD" {
-        bail!("detached HEAD is not allowed for change binding");
+        // Detached HEAD: `--abbrev-ref HEAD` prints `HEAD`. Callers decide
+        // whether that is acceptable and own the user-facing message.
+        return Ok(None);
     }
-    Ok(branch)
+    Ok(Some(branch))
 }
 
 pub fn current_head_sha(root: &Path) -> Result<String> {
@@ -215,5 +217,60 @@ mod tests {
         fs::create_dir_all(&root).expect("create dir");
         let found = find_git_root(&root);
         assert!(found.is_none());
+    }
+
+    fn git(root: &Path, args: &[&str]) {
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .expect("git");
+        assert!(
+            out.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    fn init_repo_with_commit(root: &Path) {
+        fs::create_dir_all(root).expect("create repo dir");
+        git(root, &["init", "-q", "-b", "main"]);
+        git(
+            root,
+            &[
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "init",
+            ],
+        );
+    }
+
+    #[test]
+    fn test_current_branch_some_on_branch() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path().join("repo");
+        init_repo_with_commit(&root);
+        let branch = current_branch(&root)
+            .expect("current_branch")
+            .expect("branch");
+        assert_eq!(branch, "main");
+    }
+
+    #[test]
+    fn test_current_branch_none_when_detached() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path().join("repo");
+        init_repo_with_commit(&root);
+        git(&root, &["checkout", "-q", "--detach"]);
+        let branch = current_branch(&root).expect("current_branch");
+        assert!(
+            branch.is_none(),
+            "detached HEAD must map to None, got {branch:?}"
+        );
     }
 }

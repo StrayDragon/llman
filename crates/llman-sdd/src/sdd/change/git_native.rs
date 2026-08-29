@@ -6,8 +6,8 @@
 
 use crate::fs_utils::atomic_write_with_mode;
 use crate::git_utils::{
-    branch_diff, branch_has_upstream, current_branch, current_head_sha, is_default_branch,
-    merge_base_sha, resolve_default_branch_ref, run_git, working_tree_clean,
+    branch_diff, branch_has_upstream, current_head_sha, is_default_branch, merge_base_sha,
+    resolve_default_branch_ref, run_git, working_tree_clean,
 };
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
@@ -57,6 +57,13 @@ pub(crate) struct StartArgs {
     /// matrix uniform across change subcommands.
     #[allow(dead_code)]
     pub(crate) no_interactive: bool,
+}
+
+/// Current branch for change-binding flows: sdd owns the domain error here
+/// (llman-core reports detached HEAD as `Ok(None)` — a state, not an error).
+fn current_branch_bound(root: &Path) -> Result<String> {
+    crate::git_utils::current_branch(root)?
+        .ok_or_else(|| anyhow!("detached HEAD is not allowed for change binding"))
 }
 
 // Pure git plumbing (run_git / current_branch / current_head_sha /
@@ -220,7 +227,7 @@ pub(crate) fn run_attach(root: &Path, args: AttachArgs) -> Result<()> {
         );
     }
 
-    let branch = current_branch(root)?;
+    let branch = current_branch_bound(root)?;
     if is_default_branch(root, &branch)? {
         bail!(
             "changes must not attach on the default branch (`{branch}`); create/switch to a feature branch first (or use `change start`)"
@@ -296,7 +303,7 @@ pub(crate) fn run_start(root: &Path, args: StartArgs) -> Result<()> {
         bail!("dirty tree: {dirty} uncommitted files; commit/stash before `change start`");
     }
     // Reject if already on a non-default branch the user may want to keep.
-    let current = current_branch(root)?;
+    let current = current_branch_bound(root)?;
     if !is_default_branch(root, &current)? {
         bail!(
             "already on non-default branch `{current}`; use `change attach` to bind it, or switch to the default branch before `change start`"
@@ -344,7 +351,7 @@ pub(crate) fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
         );
     };
 
-    let branch = current_branch(root)?;
+    let branch = current_branch_bound(root)?;
     if branch != binding.branch {
         bail!(
             "current branch `{branch}` does not match attached branch `{}`",
@@ -437,7 +444,7 @@ pub(crate) fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
             change_name
         );
     };
-    let branch = current_branch(root)?;
+    let branch = current_branch_bound(root)?;
     if branch != binding.branch {
         bail!(
             "current branch `{branch}` does not match attached branch `{}`",
@@ -490,7 +497,7 @@ pub(crate) fn enforce_bdd_archive_gates_relaxed(
             "archive requires Git binding; run `llman sdd change attach {change_id}` then checkpoint"
         );
     };
-    let branch = current_branch(root)?;
+    let branch = current_branch_bound(root)?;
     if branch != binding.branch {
         bail!(
             "archive must run on attached branch `{}` (current: `{branch}`)",
@@ -516,7 +523,7 @@ fn enforce_bdd_archive_gates_inner(
             "archive requires Git binding; run `llman sdd change attach {change_id}` then checkpoint"
         );
     };
-    let branch = current_branch(root)?;
+    let branch = current_branch_bound(root)?;
     if branch != binding.branch {
         bail!(
             "archive must run on attached branch `{}` (current: `{branch}`)",
@@ -543,6 +550,7 @@ fn enforce_bdd_archive_gates_inner(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::git_utils::current_branch;
     use std::process::Command;
     use tempfile::tempdir;
 
@@ -645,7 +653,7 @@ mod tests {
         )
         .expect("start on clean tree");
         // Branch created.
-        let branch = current_branch(root).unwrap();
+        let branch = current_branch(root).unwrap().unwrap();
         assert_eq!(branch, "sdd/c1");
         // Binding written.
         let binding = read_binding(root, "c1").unwrap().unwrap();
@@ -678,7 +686,7 @@ mod tests {
         .expect("start --worktree");
 
         // Main worktree stays on default and must NOT carry the binding.
-        assert_eq!(current_branch(root).unwrap(), "main");
+        assert_eq!(current_branch(root).unwrap().unwrap(), "main");
         let main_proposal =
             fs::read_to_string(root.join("llmanspec/changes/c1/proposal.md")).unwrap();
         assert!(
