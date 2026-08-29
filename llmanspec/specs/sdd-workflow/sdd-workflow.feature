@@ -258,6 +258,18 @@
     而且 stdout 的 JSON 键 specsLanded 为 "false"
 
 
+  @req:r42 @human
+  场景: valid_scope 路径存在性校验
+    - llman sdd validate（--specs、--all 及单 spec 路径）MUST 校验每个 spec 头注释 valid_scope 声明的文件/目录路径在磁盘上存在：缺失路径 MUST 作为独立失败项报告且消息 MUST 含缺失路径文本；--strict 时 MUST 报 ERROR 并以非零退出结束，非 strict 模式 MUST 报 WARNING 且不阻断其它校验项。本检查 MUST NOT 因 changes 或 skill 工件引入新的失败类别。
+
+  @req:r137 @human
+  场景: change diff 报告 commitCount 与多 commit 提示
+    - llman sdd change diff <id> MUST 报告自 base_sha 至 HEAD 的 commit 数量：人读输出 MUST 含计数行，--json MUST 输出合法 JSON 且含数值键 commitCount。llman sdd change finalize 与 llman sdd change checkpoint MUST 展示该计数，且当计数大于 1 时 MUST 打印不阻断执行的语义收敛建议提示。该行为 MUST NOT 引入任何新 config 字段。
+
+  @req:r138 @human
+  场景: list 停留时长可见性
+    - llman sdd list --json 的每个 change 对象 MUST 含 idleDays 数值键（自 proposal.md 最后修改时间起算的整数天，口径与 lastModified 同源）；文本人读输出 MUST 对 stage 为 draft 或 designed 的 change 追加停留天数标注。stage 为 full 及之后的 change MUST NOT 被追加该标注。
+
   @executable
   @req:r1
   场景: attached-with-skip-specs-landing-is-ready
@@ -270,3 +282,31 @@
     而且 stdout 的 JSON 键 skipSpecsLanding 为 "true"
     而且 stdout 的 JSON 键 readyToImplement 为 "true"
     而且 stdout 的 JSON 键 specsLanded 为 "false"
+
+  @executable
+  @req:r42
+  场景: valid-scope-missing-path-fails-strict
+    假如 已初始化含失效 scope 路径 spec 的 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd validate --specs --strict --no-check --no-interactive
+    那么 退出码非零
+    那么 stderr 包含 valid_scope
+    那么 stderr 包含 docs/gone
+
+  @executable
+  @req:r137
+  场景: diff-json-reports-commit-count
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 变更 diff-cnt 含 proposal design tasks 且 attach 状态为 "yes"
+    当 在非交互终端运行 llman sdd change diff diff-cnt --json
+    那么 退出码为零
+    那么 stdout 为合法 JSON 且含 JSON 键 commitCount
+    那么 stdout 的 JSON 键 commitCount 为数字
+
+  @executable
+  @req:r138
+  场景: list-json-exposes-idle-days
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd list --json
+    那么 退出码为零
+    那么 stdout 为合法 JSON 且含 JSON 键 changes
+    那么 stdout 的 JSON 键 changes.0.idleDays 为数字

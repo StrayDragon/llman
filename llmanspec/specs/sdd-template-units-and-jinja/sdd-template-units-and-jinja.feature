@@ -12,3 +12,7 @@
   @req:r66 @human
   场景: 模板单元独立可发现并经 MiniJinja 注入渲染
     - 对应 spec: sdd-template-units-and-jinja — SDD 提示词组合 MUST 把可复用片段拆成独立的 模板单元文件（显式单元标识符 + 按 locale 的确定性查找）；渲染 MUST 基于 MiniJinja 注入， 且在缺失单元引用或必需变量时快速失败。
+
+  @req:r75 @human
+  场景: 渲染产物宿主编号连续性
+    - 模板单元经 unit() 注入宿主文档时 MUST NOT 破坏宿主有序步骤列表的编号连续性：渲染产物中任一有序列表 MUST 保持 1..N 连续（MUST NOT 出现 1→3 式断档或重复编号）。just check-sdd-templates MUST 对全部渲染 skill 产物执行该连续性断言。
