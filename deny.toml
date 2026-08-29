@@ -45,6 +45,14 @@ highlight = "all"
 [advisories]
 version = 2
 yanked = "deny"
+ignore = [
+  # RUSTSEC-2024-0370: proc-macro-error is unmaintained. Build-time only:
+  # pulled via rstest-bdd-macros (dev-dependency proc-macro), never ships in
+  # the binary. No safe upgrade exists — rstest-bdd 0.6.0-beta3 is still the
+  # latest release and depends on it. Remove this entry when rstest-bdd
+  # drops the dependency.
+  { id = "RUSTSEC-2024-0370", reason = "unmaintained dev-only proc-macro via rstest-bdd-macros; awaiting upstream fix" },
+]
 
 [sources]
 unknown-registry = "deny"
