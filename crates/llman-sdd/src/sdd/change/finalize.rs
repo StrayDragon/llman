@@ -331,7 +331,7 @@ mod tests {
         );
 
         // r94: auto ff-merge leaves us on the default branch.
-        let branch = crate::git_utils::current_branch(root).unwrap();
+        let branch = crate::git_utils::current_branch(root).unwrap().unwrap();
         assert_eq!(branch, "main");
     }
 

@@ -139,7 +139,8 @@ pub(crate) fn specs_diff_nonempty(root: &Path, binding: &ChangeGitBinding) -> Re
 
 /// WARNING when the default branch has uncommitted edits under live specs.
 pub(crate) fn warn_dirty_specs_on_default_branch(root: &Path) -> Option<String> {
-    let branch = current_branch(root).ok()?;
+    // Detached HEAD (`Ok(None)`) and spawn failures both mean "no branch to warn about".
+    let branch = current_branch(root).ok().flatten()?;
     if !is_default_branch(root, &branch).ok()? {
         return None;
     }

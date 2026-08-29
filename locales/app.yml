@@ -777,6 +777,8 @@ tool:
         en: "no"
 
     error:
+      detached_head:
+        en: "HEAD is detached; this operation requires a checked-out branch"
       no_git_repo:
         en: "Not inside a git repository; cd into the project root or use a git-tracked project."
       create_dir:

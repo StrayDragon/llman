@@ -150,7 +150,13 @@ pub(crate) fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) 
         .to_string();
 
     let original = match crate::git_utils::current_branch(root) {
-        Ok(b) => b,
+        Ok(Some(b)) => b,
+        Ok(None) => {
+            eprintln!(
+                "ff-merge: HEAD is detached (no current branch); run manually: git switch {default_name} && git merge --ff-only {feature_branch}"
+            );
+            return;
+        }
         Err(e) => {
             eprintln!(
                 "ff-merge: cannot detect current branch ({e}); run manually: git switch {default_name} && git merge --ff-only {feature_branch}"
@@ -545,7 +551,7 @@ mod tests {
         // Docs renamed to archive, active dir gone.
         assert!(!root.join("llmanspec/changes/test-change").exists());
         // ff-merge brought feature tip onto main; stay on default.
-        let branch = crate::git_utils::current_branch(root).unwrap();
+        let branch = crate::git_utils::current_branch(root).unwrap().unwrap();
         assert_eq!(branch, "main");
         assert!(
             root.join("new-file").exists(),
@@ -616,7 +622,7 @@ mod tests {
         }
         assert!(found, "archive entry not found");
         // On ff-merge failure, restore to the feature branch (best-effort).
-        let branch = crate::git_utils::current_branch(root).unwrap();
+        let branch = crate::git_utils::current_branch(root).unwrap().unwrap();
         assert_eq!(branch, "feat/y");
     }
 }
