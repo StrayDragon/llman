@@ -3,45 +3,8 @@ _version: 2
 # NOTE: i18n strings are placeholders; English-only unless explicitly requested.
 # CLI help
 cli:
-  description:
-    en: "A tool for managing LLM application rules(prompts) ..."
-
-  config_dir_help:
-    en: "Specify configuration directory path"
-
-  log_level_help:
-    en: "Set log level"
-
-  verbose_help:
-    en: "Verbose output"
-
-# Prompt subcommands
 prompt:
-  about:
-    en: "Manage prompt rule files (alias: rule)"
-
   gen:
-    about:
-      en: "Generate rule file"
-
-    interactive_help:
-      en: "Use interactive mode"
-
-    app_help:
-      en: "Target application name (e.g.: cursor)"
-
-    template_help:
-      en: "Template name"
-
-    name_help:
-      en: "Rule name (optional, defaults to template name)"
-
-    scope_help:
-      en: "Injection scope(s): global and/or project (repeatable, or comma-separated)"
-
-    force_help:
-      en: "Force generation, skip repository detection"
-
   scope:
     select:
       en: "Select injection scope:"
@@ -52,70 +15,18 @@ prompt:
         en: "Select Codex injection target(s):"
 
     agents_file:
-      select:
-        en: "Select Codex agents file:"
-
   list:
-    about:
-      en: "List rule files"
-
-    app_help:
-      en: "Specify application name"
-
-    app_header:
-      en: "📁 %{app}:"
-
     rule_item:
       en: "📄 %{name}"
 
   upsert:
-    about:
-      en: "Update or insert rule file"
-
-    app_help:
-      en: "Application name"
-
-    name_help:
-      en: "Rule name"
-
-    content_help:
-      en: "Rule content"
-
-    file_help:
-      en: "File path containing rule content"
-
   rm:
-    about:
-      en: "Remove rule file"
-
-    app_help:
-      en: "Application name"
-
-    name_help:
-      en: "Rule name"
-
-# Interactive prompts
 interactive:
   title:
     en: "🚀 Interactive rule file generation"
 
-  select_app:
-    en: "Select target application:"
-
   select_template:
     en: "Select template:"
-
-  input_name:
-    en: "Enter rule name:"
-
-  name_help:
-    en: "Rule name will be used as filename"
-
-  input_target_dir:
-    en: "Target output directory:"
-
-  target_dir_help:
-    en: "Where to write generated rule files"
 
   project_root_force_prompt:
     en: "No git repository detected. Continue using current directory as project root? (equivalent to --force)"
@@ -130,12 +41,6 @@ interactive:
 messages:
   error:
     en: "Error: %{error}"
-
-  log_level_set:
-    en: "Log level set to: %{level}"
-
-  verbose_level:
-    en: "Verbose level: %{level}"
 
   file_exists_overwrite:
     en: "File %{path} already exists, overwrite?"
@@ -169,18 +74,6 @@ messages:
 
 # Errors
 errors:
-  unknown_subcommand:
-    en: "Unknown subcommand"
-
-  subcommand_required:
-    en: "Subcommand is required"
-
-  unknown_prompt_subcommand:
-    en: "Unknown prompt subcommand"
-
-  not_find_config_dir:
-    en: "Cannot find config directory"
-
   dev_project_config_required:
     en: "🚨 Error: Running within llman development project\n💡 You must specify --config-dir to avoid conflicts with user configurations\n   Example: --config-dir ./artifacts/testing_config_home\n   Alternatively, set %{env_var} environment variable"
 
@@ -198,12 +91,6 @@ errors:
 
   inquire_error:
     en: "Inquire Error: %{error}"
-
-  database_error:
-    en: "Database Error: %{error}"
-
-  connection_error:
-    en: "Connection Error: %{error}"
 
   json_error:
     en: "JSON Parse Error: %{error}"
@@ -238,9 +125,6 @@ errors:
   invalid_scope_for_app:
     en: "Invalid scope '%{scope}' for app '%{app}'"
 
-  invalid_prompt_target_for_app:
-    en: "Invalid --target/--override for app '%{app}'"
-
   override_requires_agents_target:
     en: "--override requires --target project-doc"
 
@@ -262,10 +146,6 @@ errors:
   no_rules_found:
     en: "No rules found"
 
-  not_find_user_cursor_dir:
-    en: "Cannot find user cursor main directory"
-
-# Cursor features
 tool:
   clean_comments:
     start:
@@ -385,9 +265,6 @@ tool:
 
       path_symlink_skipped:
         en: "Warning: Skipping symlink path: %{path}"
-
-      path_outside_root:
-        en: "Warning: Skipping path outside working tree: %{path}"
 
       path_resolve_failed:
         en: "Warning: Failed to resolve path: %{path} (%{error})"
@@ -652,9 +529,6 @@ tool:
     list_removed:
       en: "Directories removed"
 
-    deprecated_alias_warning:
-      en: "Command rm-empty-dirs is deprecated; use rm-useless-dirs instead."
-
     skipping_protected_path:
       en: "Skipping protected path: %{path}"
 
@@ -792,21 +666,7 @@ tool:
 
 # Extensions
 x:
-  about:
-    en: "Extended features"
-
-# Composer
 composer:
-  untitled_chat:
-    en: "Untitled Chat"
-
-  untitled_agent:
-    en: "Untitled Agent"
-
-  untitled_edit:
-    en: "Untitled Edit"
-
-# Claude Code configuration
 claude_code:
   interactive:
     select_config_group:
@@ -923,9 +783,6 @@ claude_code:
     see_examples:
       en: "See examples"
 
-    import_from_klaudes:
-      en: "Found existing klaudes configuration. Would you like to import it?"
-
   config:
     read_failed:
       en: "Failed to read config file: %{path}"
@@ -939,9 +796,6 @@ claude_code:
     parse_old_failed:
       en: "Failed to parse old format config"
 
-    project_dir_not_found:
-      en: "Could not find project directory"
-
     create_dir_failed:
       en: "Failed to create config directory: %{path}"
 
@@ -950,12 +804,6 @@ claude_code:
 
     write_failed:
       en: "Failed to write config file: %{path}"
-
-    metadata_failed:
-      en: "Failed to get file metadata"
-
-    permissions_failed:
-      en: "Failed to set file permissions"
 
     json_repairing:
       en: "⚠️  JSON format appears to be malformed, attempting to repair..."
@@ -1033,18 +881,6 @@ claude_code:
       en: "Refused dangerous environment variable key(s): %{keys}"
 
   migrate:
-    import_failed:
-      en: "Failed to import from klaudes"
-
-    check_klaudes_installation:
-      en: "Please check if klaudes is installed and has configuration."
-
-    import_success:
-      en: "✅ Successfully imported configuration from klaudes"
-
-    cancelled:
-      en: "Migration cancelled."
-
   run:
     interactive:
       prompt_args:
@@ -1370,18 +1206,12 @@ codex:
       en: "Failed to load configuration"
     parse_config_failed:
       en: "Failed to parse configuration: %{path}"
-    project_dir_not_found:
-      en: "Could not determine project directory"
     create_config_dir_failed:
       en: "Failed to create config directory: %{path}"
     serialize_config_failed:
       en: "Failed to serialize configuration"
     write_config_failed:
       en: "Failed to write configuration: %{path}"
-    metadata_failed:
-      en: "Failed to read file metadata"
-    permissions_failed:
-      en: "Failed to set file permissions"
     home_dir_failed:
       en: "Failed to get home directory"
     read_codex_config_failed:
@@ -1412,14 +1242,8 @@ sdd:
       en: "Failed to parse llmanspec config: %{error}"
     missing:
       en: "No llmanspec config found at %{path}. Run 'llman sdd init' first."
-    spec_style_missing:
-      en: "Missing required llmanspec config field 'spec_style' in %{path}. Set 'spec_style: ison|toon|yaml' before running spec/delta commands."
-    spec_style_invalid:
-      en: "Invalid llmanspec config 'spec_style' in %{path}: %{value}. Supported values: ison, toon, yaml."
     schema_invalid:
       en: "llmanspec config does not match schema: %{path} (%{error})"
-    unsupported_version:
-      en: "Unsupported llmanspec config version: %{version}"
     serialize_failed:
       en: "Failed to serialize llmanspec config: %{error}"
     write_failed:
@@ -1454,25 +1278,12 @@ sdd:
         en: "archive"
 
   style:
-    pretty_ison_requires_ison:
-      en: "--pretty-ison is only supported when llmanspec config 'spec_style' is 'ison' (current: %{style})."
-
   yaml:
-    lossless_fallback:
-      en: "YAML lossless update failed for %{path}; falling back to rewriting fenced YAML payload. Comments inside the YAML payload may be lost."
-
   templates:
     read_failed:
       en: "Failed to read template %{path}: %{error}"
     not_found:
       en: "Template not found: %{path}"
-    region_missing:
-      en: "Region '%{name}' not found in %{path}"
-    region_duplicate:
-      en: "Region '%{name}' is duplicated in %{path}"
-    region_unterminated:
-      en: "Region '%{name}' is not terminated in %{path}"
-
   shared:
     invalid_id:
       en: "Invalid %{kind} id '%{id}'. Use a simple identifier (no '/', '\\', '.' or '..')."
@@ -1554,8 +1365,6 @@ sdd:
       en: "Flag --requirements-only is deprecated; use --deltas-only instead."
     requirements_conflict:
       en: "Options --requirements and --requirement cannot be used together."
-    requirement_not_found:
-      en: "Requirement %{id} not found (1-%{count})."
     ignore_flags:
       en: "Warning: Ignoring flags not applicable to %{item_type}: %{flags}"
 
@@ -1596,8 +1405,6 @@ sdd:
       en: "[%{label}] %{path}: %{message}"
     spec_read_failed:
       en: "Failed to read spec file: %{error}"
-    sections_missing:
-      en: "Spec is missing required ISON fields: %{sections}."
     sections_example:
       en: |
         Example:
@@ -1620,8 +1427,6 @@ sdd:
         }
         ```
 
-    scenario_missing:
-      en: "Requirement must include at least one scenario object in `scenarios`."
     scenario_example:
       en: |
         Example:
@@ -1629,8 +1434,6 @@ sdd:
         { "id": "sample-scenario", "text": "- **WHEN** ...\n- **THEN** ..." }
         ```
 
-    delta_missing:
-      en: "Change must include at least one delta spec under llmanspec/changes/<change-id>/specs/."
     delta_example:
       en: |
         Example:
@@ -1679,18 +1482,12 @@ sdd:
       en: "Change is missing tasks.md."
     task_pending:
       en: "Pending task (line %{line}): %{task}"
-    task_completion_summary:
-      en: "Task completion: %{completed}/%{total} (%{ratio}%%)"
     design_present:
       en: "design.md is present."
     tasks_without_design:
       en: "Change has tasks.md but missing design.md. Tasks MUST be generated after design decisions are documented. Create design.md first, then regenerate tasks.md."
     stage_draft_hint:
       en: "Change is in 'draft' stage (next: add design.md + tasks.md, then `llman sdd change start <id>` to enter a feature branch)"
-    stage_draft_hint_bdd_on:
-      en: "Change is in 'draft' stage (next: add design.md + tasks.md, then `llman sdd change start <id>` to enter a feature branch)"
-    stage_specified_hint:
-      en: "Change is in 'designed' stage (next: `llman sdd change start` to enter feature branch and reach 'full')"
     stage_designed_hint:
       en: "Change is in 'designed' stage (next: `llman sdd change start` to enter feature branch and reach 'full')"
     next_steps:
@@ -1701,8 +1498,6 @@ sdd:
       en: "- Ensure proposal.md, design.md (if needed), and tasks.md are complete before apply"
     change_step_3:
       en: "- Debug change state: llman sdd show <id> --json --type change"
-    change_step_1_bdd_on:
-      en: "- Edit live single-track specs (`llmanspec/specs/<capability>.feature`) on the feature branch (@human constraints and @executable acceptance share one track, linked via @req); run `llman sdd change start <id>` or `change attach <id>`"
     spec_step_1:
       en: "- Ensure spec ISON includes `purpose` and `requirements`"
     spec_step_2:
@@ -1735,12 +1530,6 @@ sdd:
       en: "Spec may be stale; scope changed without spec update."
     staleness_git_failed:
       en: "Git command failed during staleness evaluation."
-    feature_parse_error:
-      en: "Gherkin parse error in %{path}: %{error}. Fix: check .feature syntax (Feature/Scenario/Given/When/Then) and language directive."
-    feature_read_error:
-      en: "Cannot read .feature file %{path}: %{error}"
-    feature_unsupported_language:
-      en: "Unsupported gherkin language '%{lang}' for spec directory %{dir}. Fix: use a valid language code (e.g. 'en', 'zh-CN') in bdd.default_language or config locale."
     full_mode_spawn_failed:
       en: "Failed to run BDD check command `%{command}`: %{error}"
     full_mode_failed:
@@ -1754,12 +1543,8 @@ sdd:
       zh-Hans: "正在运行 BDD check（`%{command}`）。故意静默：无进度输出，仅失败/错误会打印。只要结构门禁请加 `--no-check`。"
     meta_field_empty:
       en: "Spec %{key} must not be empty (add it inside the .toon document)."
-    empty_requirements:
-      en: "Spec declares no requirements. Add at least one rule scenario with a MUST/SHALL statement to the capability's `<capability>.feature`."
     check_deprecated_no_bdd:
       en: "--check has no effect without bdd configuration. Configure `bdd:` in llmanspec/config.yaml to enable BDD check."
-    bdd_next_step_verify:
-      en: "- Run BDD tests: %{command}"
     bdd_next_step_feature:
       en: "- Edit the live `.feature` on your feature branch (Git-native BDD-on); run `llman sdd change checkpoint <change-id>` after fixing Partitioned links."
       zh-Hans: "- 在 feature 分支上编辑 live `.feature`（Git-native BDD-on）；修好 Partitioned 链接后运行 `llman sdd change checkpoint <change-id>`。"
@@ -1786,42 +1571,6 @@ sdd:
       en: "Change '%{change}' archived as '%{archive}'."
     finalize_next_step:
       en: "Next: commit the archive rename (and any remaining dirty work) on '%{default}' locally (push / hosting PR optional — only if explicitly required)."
-    rebuilt_invalid:
-      en: "Validation errors in rebuilt spec for %{spec}: %{errors}"
-    no_deltas:
-      en: "Delta parsing found no operations for %{spec}. Provide ADDED/MODIFIED/REMOVED/RENAMED sections."
-    new_spec_only_added:
-      en: "%{spec}: target spec does not exist; only ADDED requirements are allowed for new specs."
-    rename_missing:
-      en: "%{spec} RENAMED failed for header \"### Requirement: %{name}\" - source not found"
-    rename_exists:
-      en: "%{spec} RENAMED failed for header \"### Requirement: %{name}\" - target already exists"
-    remove_missing:
-      en: "%{spec} REMOVED failed for header \"### Requirement: %{name}\" - not found"
-    modify_missing:
-      en: "%{spec} MODIFIED failed for header \"### Requirement: %{name}\" - not found"
-    modify_header_mismatch:
-      en: "%{spec} MODIFIED failed for header \"### Requirement: %{name}\" - header mismatch in content"
-    add_exists:
-      en: "%{spec} ADDED failed for header \"### Requirement: %{name}\" - already exists"
-    requirements_missing:
-      en: "Spec must include a ## Requirements section."
-    invalid_target:
-      en: "Invalid target path for spec."
-    totals:
-      en: "Totals: + %{added}, ~ %{modified}, - %{removed}, -> %{renamed}"
-    dry_run_apply:
-      en: "Would apply changes to %{path}:"
-    apply:
-      en: "Applying changes to %{path}:"
-    count_added:
-      en: "  + %{count} added"
-    count_modified:
-      en: "  ~ %{count} modified"
-    count_removed:
-      en: "  - %{count} removed"
-    count_renamed:
-      en: "  -> %{count} renamed"
     dry_run_move:
       en: "Would move %{from} -> %{to}"
     task_gate_blocked:
@@ -1834,60 +1583,12 @@ sdd:
       en: "Task completion ratio %{ratio}%% is below minimum %{min}%%."
 
   solidify:
-    bdd_off_noop:
-      en: "BDD is not configured — solidify is a no-op. Add a `bdd:` block to llmanspec/config.yaml."
-      zh-Hans: "BDD 未配置——solidify 是 no-op。请在 llmanspec/config.yaml 中添加 `bdd:` 段。"
-    change_not_found:
-      en: "Change '%{id}' not found under llmanspec/changes/."
-      zh-Hans: "未找到变更 '%{id}'（llmanspec/changes/ 目录下不存在）。"
-    no_scenarios:
-      en: "No delta scenarios found to solidify."
-      zh-Hans: "未找到可固化的 delta scenario。"
-    dry_run_preview:
-      en: "[dry-run] would write %{path}:"
-      zh-Hans: "[dry-run] 将写入 %{path}："
-    summary_dry_run:
-      en: "%{capability}: would write %{written} scenario(s), skip %{skipped}."
-      zh-Hans: "%{capability}：将写入 %{written} 个 scenario，跳过 %{skipped} 个。"
-    summary_written:
-      en: "%{capability}: wrote %{written} scenario(s), skip %{skipped} -> %{path}"
-      zh-Hans: "%{capability}：写入 %{written} 个 scenario，跳过 %{skipped} 个 -> %{path}"
-    skipped_item:
-      en: "skip %{id}: %{reason}"
-      zh-Hans: "跳过 %{id}：%{reason}"
-    totals:
-      en: "Totals: %{written} written, %{skipped} skipped."
-      zh-Hans: "合计：%{written} 写入，%{skipped} 跳过。"
 skills:
-  not_implemented:
-    en: "Skills manager is not implemented yet."
-  non_repo_confirm:
-    en: "Current directory is not a git repo. Scan global/user sources anyway?"
-  non_repo_cancelled:
-    en: "Cancelled."
-  non_repo_non_interactive:
-    en: "Current directory is not a git repo. Run in an interactive terminal to continue."
-  non_repo_prompt_failed:
-    en: "Failed to confirm non-repo scan: %{error}"
-  source_missing:
-    en: "Source path not found: %{path}"
-  relink_removed:
-    en: "--relink-sources was removed. Run `llman skills` without it."
   conflict:
-    prompt:
-      en: "Multiple versions found for %{skill}. Select the version to activate."
-    prompt_failed:
-      en: "Failed to select version: %{error}"
-    auto_selected:
-      en: "No interactive terminal; using default version for %{skill}."
-    no_options:
-      en: "No conflict options available for %{skill}."
   hash:
     strip_prefix_failed:
       en: "Failed to compute relative path:"
   copy:
-    strip_prefix_failed:
-      en: "Failed to copy file; unable to resolve relative path:"
   target:
     not_directory:
       en: "Target path is not a directory: %{path}"
@@ -1895,8 +1596,6 @@ skills:
       en: "Target entry exists and is not a symlink: %{path}"
     not_managed:
       en: "Target entry is not managed by llman; skipping removal: %{path}"
-    metadata_invalid:
-      en: "Target metadata is invalid; treating as conflict: %{path} (%{error})"
   target_conflict:
     prompt:
       en: "Target %{target} for %{skill} already exists. Choose a conflict action."
@@ -1917,8 +1616,6 @@ skills:
       en: "Select skills:"
     select_skill:
       en: "Select a skill to manage"
-    select_target:
-      en: "Select a target to manage"
     select_agent_tools:
       en: "Select which agent tools to manage"
     select_scope:
@@ -1929,14 +1626,8 @@ skills:
       en: "Failed to read selection: %{error}"
     exit:
       en: "Exit"
-    back:
-      en: "Back"
     confirm_apply:
       en: "Apply changes for %{target}?"
-    state_on:
-      en: "on"
-    state_off:
-      en: "off"
     state_skip:
       en: "skip (read-only)"
     read_only:
@@ -1945,16 +1636,6 @@ skills:
       en: "Hidden %{count} skills already managed in user scope."
     legacy_registry_detected:
       en: "Legacy skills registry detected at %{path}; it is ignored in realtime mode."
-    group_skills_count:
-      en: "%{count} skills"
-    preset_not_found:
-      en: "Preset '%{preset}' not found."
-    preset_missing_parent:
-      en: "Preset '%{preset}' extends missing preset '%{parent}'."
-    preset_cycle:
-      en: "Circular preset dependency detected: %{chain}."
-    preset_unknown_skill_dir:
-      en: "Preset '%{preset}' references unknown skill dir '%{dir}'."
     preset_empty:
       en: "Preset '%{preset}' resolves to an empty skill set."
   config:
@@ -1982,18 +1663,9 @@ skills:
       en: "Invalid skills directory in config.yaml: %{error}"
     repo_path_missing:
       en: "Warning: skills.repo entry '%{name}' path not found or not a directory, skipping: %{path}"
-    repo_path_invalid:
-      en: "Invalid skills repo path in config.yaml: %{error}"
     home_missing:
       en: "Unable to resolve home directory for path expansion."
   registry:
-    read_failed:
-      en: "Failed to read skills registry: %{error}"
-    parse_failed:
-      en: "Failed to parse skills registry: %{error}"
-    write_failed:
-      en: "Failed to write skills registry: %{error}"
-
 self:
   schema:
     generate_start:
