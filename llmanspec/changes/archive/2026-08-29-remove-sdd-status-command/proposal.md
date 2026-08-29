@@ -3,7 +3,8 @@ depends_on: []
 rules_edit_acked: true
 branch: sdd/remove-sdd-status-command
 base_sha: 6514cf628231ac01bc255b1060cd81348c257df2
-checkpointed: false
+checkpointed: true
+checkpoint_sha: 6514cf628231ac01bc255b1060cd81348c257df2
 ---
 
 # 移除 `llman sdd status` 子命令
