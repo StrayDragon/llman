@@ -49,6 +49,13 @@ flowchart LR
 - **不要问「要不要继续」**：除非遇到无法自动解决的 blocker，否则一路执行到闭环结束。
 - **收尾**：本 skill 闭环以建议 `llman-sdd-verify` 结束；finalize/archive 由 `llman-sdd-archive` 负责（勿在自修复循环里 finalize）。
 
+## Commit 策略
+
+- **apply 循环内禁止逐 task commit**（自修复轮次同样适用）：所有改动保持在工作区；tasks.md 的 checkbox 勾选只是工作区编辑，MUST NOT 单独成 commit。逐步提交的「步骤日志」会淹没语义变更，迫使 reviewer 依赖裸 diff。
+- **默认收尾**：全部 task 过门禁且 verify 全绿后，由 `llman sdd change finalize <id>` 单 commit 收尾（实现 + frontmatter + archive 改名一次提交）。不要在 apply 循环内 finalize。
+- **blocker 中断**：必须因 blocker STOP 时，先做**一次** WIP commit（如 `wip(sdd): <change-id> <摘要>`）保全现场，再报告。
+- **中途快照是例外**：仅当用户明确要求严格 `checkpoint_sha` 或可 review 的中间点时才逐段提交，并遵循 archive skill 的多 commit fallback 时序。
+
 ## 步骤
 
 ### 0) Preflight（必须做）
