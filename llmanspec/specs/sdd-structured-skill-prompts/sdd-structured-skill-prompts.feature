@@ -28,6 +28,14 @@
   @req:r117 @human
   场景: 独立 draft 技能默认安装与职责分离
     - llman SDD MUST 提供一个名为 `llman-sdd-draft` 的默认技能（在 `DEFAULT_SKILL_FILES` 中，随 `llman sdd init --update` 默认安装），职责单一化为「仅创建 draft proposal shell（`change new --from`，不强制 tasks/design/specs/attach）」。该技能 MUST NOT 承担 triage 或完整 propose 职责。`llman-sdd-propose` 技能 MUST NOT 内联完整 draft 路径步骤，MUST 以一句指引导向 `llman-sdd-draft`（如「仅记草案用 llman-sdd-draft」）。曾名为 `llman-sdd-new-change` 的可选技能 MUST 被此默认 `llman-sdd-draft` 取代（从 `OPTIONAL_SKILL_FILES` 移除）；已 init 项目里残留的 `extra_skills: [llman-sdd-new-change]` 条目 MUST 在下次 `init --update` 时被静默忽略（不匹配 optional 列表即过滤），旧 `llman-sdd-new-change` 目录 MUST 被 `cleanup_stale_skills` 自动清理——无需显式迁移代码。
+  @req:r60 @human
+  场景: review 三时点检查点接线
+    - llman-sdd-apply、llman-sdd-verify、llman-sdd-archive 技能模板 MUST 各自在固定时点引导运行 llman sdd review：apply 在每个 task 批次门禁通过后、verify 在报告全绿之后与建议 finalize 之前、archive 在逐个归档执行之前（含批量归档逐个前置）。模板 MUST 声明非零退出等价 CRITICAL 发现：停止当前推进并修复后重跑 review，MUST NOT 在 review 非零退出时继续 finalize 或 archive。explore/propose/draft/quick/graph/specs-compact 技能 MUST NOT 注入该检查点。人审检查点时点 MUST 与根 AGENTS.md「Human Review Checkpoint」一致。
+
+  @req:r71 @human
+  场景: 校验修复单元按职责注入
+    - 校验修复模板单元（feature 头注释、tag 语法、遗留 spec.toon 迁移指引）MUST 仅注入到会编辑或审查 live specs 的技能（propose/apply/verify/archive/specs-compact）；MUST NOT 注入到 draft/quick/graph 等不编辑 live specs 的技能。注入集合的变化 MUST 经 init --update resync 反映到双 locale 渲染产物。
+
   @executable
   @req:r99
   场景: change new --from 从描述生成合法 id
