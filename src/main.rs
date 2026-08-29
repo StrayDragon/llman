@@ -6,9 +6,11 @@ i18n!("locales");
 use llman::cli;
 use llman::error::LlmanError;
 use llman::init_locale;
+use llman::theme;
 
 fn main() {
     init_locale();
+    theme::init();
 
     if let Err(e) = cli::run() {
         let message = e
