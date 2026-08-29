@@ -138,9 +138,19 @@ fn collect_spec_signals(root: &Path, cap: &str, review: &mut Review) -> Result<(
         review.warning += orphans;
     }
 
-    let stale = evaluate_staleness_with_override(root, cap, &spec_path, None, None);
+    // Staleness scope: the capability .feature header's `# scope:` is the
+    // single source of truth (r133) — feed the same parsed frontmatter as
+    // validate does, otherwise scope is treated as missing and every
+    // capability reports a false WARN.
+    let frontmatter = crate::sdd::spec::validation::SpecFrontmatter {
+        valid_scope: parsed.valid_scope.clone(),
+    };
+    let stale = evaluate_staleness_with_override(root, cap, &spec_path, Some(&frontmatter), None);
     let status = stale.info.status.as_str().to_string();
-    if matches!(status.as_str(), "ok" | "info" | "not_applicable") {
+    // `as_str()` is uppercase ("OK"/"INFO"/…); compare case-insensitively so
+    // non-stale statuses are not miscounted as stale warnings.
+    let status_lc = status.to_lowercase();
+    if matches!(status_lc.as_str(), "ok" | "info" | "not_applicable") {
         review.push("stale", cap, 0, status);
     } else {
         review.push("stale", cap, 1, status.clone());
