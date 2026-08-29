@@ -46,6 +46,20 @@ async-openai = { version = "0.41", default-features = false, features = ["rustls
 llman-core = { path = "crates/llman-core" }
 llman-sdd = { path = "crates/llman-sdd" }
 
+# Workspace-wide lint policy (SSOT). Every crate opts in via
+# `[lints] workspace = true`. Tighten deliberately: anything warn-level here
+# fails CI (`cargo clippy -- -D warnings`).
+[workspace.lints.rust]
+# Deliberate escapes: src/test_utils.rs and sdd change finalize use
+# `unsafe { std::env::… }` blocks for process-env test isolation (unsafe in
+# edition 2024). Keep them visible in review rather than forbidden.
+unsafe_code = "allow"
+
+[workspace.lints.clippy]
+# Explicit: the default clippy groups (correctness/suspicious/complexity/perf
+# + style) remain the enforced baseline across every crate.
+all = "warn"
+
 [package]
 name = "llman"
 version.workspace = true
