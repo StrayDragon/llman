@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 
 fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
@@ -199,7 +201,9 @@ fn try_create_rebuild_lock(lock_path: &Path) -> std::io::Result<RebuildLockGuard
         .open(lock_path)?;
     let lock = RebuildLock {
         pid: std::process::id(),
-        started_at: chrono::Utc::now().to_rfc3339(),
+        started_at: OffsetDateTime::now_utc()
+            .format(&Rfc3339)
+            .expect("valid timestamp"),
         chunks_total: 0,
         chunks_done: 0,
         progress_pct: 0.0,
@@ -258,8 +262,8 @@ fn is_rebuild_lock_stale(lock: &RebuildLock) -> bool {
 }
 
 fn lock_age_secs(lock: &RebuildLock) -> Option<i64> {
-    let started = chrono::DateTime::parse_from_rfc3339(&lock.started_at).ok()?;
-    Some((chrono::Utc::now() - started.with_timezone(&chrono::Utc)).num_seconds())
+    let started = OffsetDateTime::parse(&lock.started_at, &Rfc3339).ok()?;
+    Some((OffsetDateTime::now_utc() - started).whole_seconds())
 }
 
 #[cfg(unix)]
@@ -397,7 +401,9 @@ mod tests {
         let lock_path = context_dir.join(".rebuild.lock");
         let stale = RebuildLock {
             pid: std::process::id(),
-            started_at: (chrono::Utc::now() - chrono::Duration::hours(7)).to_rfc3339(),
+            started_at: (OffsetDateTime::now_utc() - time::Duration::hours(7))
+                .format(&Rfc3339)
+                .expect("valid timestamp"),
             chunks_total: 0,
             chunks_done: 0,
             progress_pct: 0.0,

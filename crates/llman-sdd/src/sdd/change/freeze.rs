@@ -1,10 +1,11 @@
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
 use anyhow::{Context, Result, anyhow};
-use chrono::NaiveDate;
 use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
+use time::Date;
+use time::macros::format_description;
 
 pub(crate) const FREEZE_ARCHIVE_NAME: &str = "freezed_changes.7z.archived";
 
@@ -30,7 +31,7 @@ pub(crate) struct ThawArgs {
 struct ArchivedChangeDir {
     name: String,
     path: PathBuf,
-    date: NaiveDate,
+    date: Date,
 }
 
 pub(crate) fn run_freeze(args: FreezeArgs) -> Result<()> {
@@ -214,11 +215,11 @@ fn list_frozen(archive_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn parse_before_date(value: Option<&str>) -> Result<Option<NaiveDate>> {
+fn parse_before_date(value: Option<&str>) -> Result<Option<Date>> {
     match value {
         None => Ok(None),
         Some(raw) => {
-            let date = NaiveDate::parse_from_str(raw, "%Y-%m-%d")
+            let date = Date::parse(raw, &format_description!("[year]-[month]-[day]"))
                 .map_err(|_| anyhow!("invalid --before date '{}', expected YYYY-MM-DD", raw))?;
             Ok(Some(date))
         }
@@ -227,7 +228,7 @@ fn parse_before_date(value: Option<&str>) -> Result<Option<NaiveDate>> {
 
 fn select_freeze_candidates(
     archive_dir: &Path,
-    before: Option<NaiveDate>,
+    before: Option<Date>,
     keep_recent: usize,
 ) -> Result<Vec<ArchivedChangeDir>> {
     let mut candidates = collect_archived_change_dirs(archive_dir)?;
@@ -265,9 +266,9 @@ fn collect_archived_change_dirs(archive_dir: &Path) -> Result<Vec<ArchivedChange
     Ok(entries)
 }
 
-fn parse_dir_date(name: &str) -> Option<NaiveDate> {
+fn parse_dir_date(name: &str) -> Option<Date> {
     let prefix = name.get(..10)?;
-    NaiveDate::parse_from_str(prefix, "%Y-%m-%d").ok()
+    Date::parse(prefix, &format_description!("[year]-[month]-[day]")).ok()
 }
 
 fn replace_file_atomically(temp_file: &Path, final_file: &Path) -> Result<()> {
@@ -367,7 +368,7 @@ mod tests {
         fs::create_dir_all(archive.join("2026-01-02-b")).expect("mkdir");
         fs::create_dir_all(archive.join("2026-01-03-c")).expect("mkdir");
 
-        let before = NaiveDate::from_ymd_opt(2026, 1, 4).expect("valid date");
+        let before = Date::from_calendar_date(2026, time::Month::January, 4).expect("valid date");
         let selected = select_freeze_candidates(&archive, Some(before), 1).expect("select");
         assert_eq!(selected.len(), 2);
         assert_eq!(selected[0].name, "2026-01-01-a");

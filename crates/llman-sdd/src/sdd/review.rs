@@ -12,6 +12,8 @@ use anyhow::{Result, anyhow};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 
 /// Aggregate review (feat-sdd-review-workflow-suite).
 ///
@@ -269,7 +271,12 @@ fn write_html(path: &Path, review: &Review) -> Result<()> {
         .replace("__WARNING__", &review.warning.to_string())
         .replace("__SIGNALS__", &serde_json::to_string(&sig_json)?)
         .replace("__MERMAID__", &mermaid)
-        .replace("__GENERATED__", &chrono::Utc::now().to_rfc3339());
+        .replace(
+            "__GENERATED__",
+            &OffsetDateTime::now_utc()
+                .format(&Rfc3339)
+                .expect("valid timestamp"),
+        );
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
