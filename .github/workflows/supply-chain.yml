@@ -1,0 +1,39 @@
+name: Supply-chain
+
+# Deep dependency hygiene that is too noisy/heavy for every push:
+#   - cargo-deny full check (same policy as the CI deny job)
+#   - cargo-machete scan for crates declared but never used
+# Runs monthly and on demand (workflow_dispatch).
+
+on:
+  schedule:
+    - cron: "0 3 1 * *"
+  workflow_dispatch:
+
+jobs:
+  deny:
+    name: cargo-deny (full check)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Check
+        uses: EmbarkStudios/cargo-deny-action@v2
+
+  machete:
+    name: cargo-machete (unused deps)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      # No toolchain input: rustup resolves via rust-toolchain.toml (SSOT).
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-machete
+        uses: taiki-e/install-action@cargo-machete
+
+      - name: Scan
+        run: cargo machete --workspace

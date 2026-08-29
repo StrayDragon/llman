@@ -88,3 +88,16 @@ jobs:
 
       - name: Build checks
         run: just build-release
+
+  deny:
+    name: Supply-chain (cargo-deny)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      # License allowlist + RustSec advisories + duplicate/ban policy
+      # (deny.toml). Full sweep repeats monthly in supply-chain.yml.
+      - name: Check
+        uses: EmbarkStudios/cargo-deny-action@v2
