@@ -88,15 +88,12 @@ pub(crate) struct ChatTurn {
     pub(crate) tool_calls: Vec<ToolCall>,
 }
 
-/// What the model invoker must provide. Implemented by the real async-openai
-/// adapter (`super::chat::OpenAiInvoker`) and by mocks in unit tests.
-///
-/// Uses a native `async fn` (stable on edition 2024), so no `async-trait`
-/// dependency is needed; the loop is generic over `I: ChatInvoker`.
-#[allow(async_fn_in_trait)]
+/// What the model invoker must provide. Implemented by the blocking
+/// OpenAI-compatible adapter (`super::chat::OpenAiInvoker`) and by mocks in
+/// unit tests; the loop is generic over `I: ChatInvoker`.
 pub(crate) trait ChatInvoker {
     /// Perform one chat completion given the conversation so far and the tools.
-    async fn chat_turn(&self, messages: &[Msg], tools: &[ToolSchema]) -> Result<ChatTurn>;
+    fn chat_turn(&self, messages: &[Msg], tools: &[ToolSchema]) -> Result<ChatTurn>;
 }
 
 // ---- result types -----------------------------------------------------------
@@ -338,7 +335,7 @@ fn get_spec_content(tree: &TreeIndex, spec_id: &str, req_ids: &[String]) -> Stri
 /// The loop asks the model to navigate the tree via tools until it returns a
 /// final `direct`/`related` JSON answer, or until [`MAX_TOOL_ROUNDS`] is reached
 /// (in which case the result is marked truncated).
-pub(crate) async fn retrieve<I: ChatInvoker>(
+pub(crate) fn retrieve<I: ChatInvoker>(
     invoker: &I,
     tree: &TreeIndex,
     task: &str,
@@ -358,7 +355,7 @@ pub(crate) async fn retrieve<I: ChatInvoker>(
         eprintln!("[pageindex] task={task:?} paths={paths:?}");
     }
     for _round in 0..MAX_TOOL_ROUNDS {
-        let turn = invoker.chat_turn(&messages, &tools).await?;
+        let turn = invoker.chat_turn(&messages, &tools)?;
         if debug {
             eprintln!(
                 "[pageindex] turn: content={:?} tool_calls={{{}}}",
@@ -406,7 +403,7 @@ pub(crate) async fn retrieve<I: ChatInvoker>(
             .to_string(),
     );
     messages.push(salvage_prompt);
-    let turn = invoker.chat_turn(&messages, &empty_tools).await?;
+    let turn = invoker.chat_turn(&messages, &empty_tools)?;
     if debug {
         eprintln!(
             "[pageindex] salvage turn (no tools): content={:?}",
@@ -702,20 +699,11 @@ mod tests {
     }
 
     impl ChatInvoker for ScriptedInvoker {
-        async fn chat_turn(&self, _messages: &[Msg], _tools: &[ToolSchema]) -> Result<ChatTurn> {
+        fn chat_turn(&self, _messages: &[Msg], _tools: &[ToolSchema]) -> Result<ChatTurn> {
             let i = self.idx.fetch_add(1, Ordering::SeqCst);
             let last = self.turns.len().saturating_sub(1);
             Ok(self.turns[i.min(last)].clone())
         }
-    }
-
-    /// Drive a future on a minimal current-thread runtime (no tokio "macros"
-    /// feature required).
-    fn block_on<F: std::future::Future>(fut: F) -> F::Output {
-        tokio::runtime::Builder::new_current_thread()
-            .build()
-            .unwrap()
-            .block_on(fut)
     }
 
     fn tool_call(id: &str, name: &str, args: &str) -> ChatTurn {
