@@ -16,6 +16,8 @@ pub mod error;
 pub(crate) use llman_core::fs_utils;
 pub use llman_core::{env_safety, git_utils, managed_block, path_utils, schema_utils};
 pub mod prompts;
+// 全局 inquire 主题（❯/✔/▸/◉ 现代终端符号，一处配置全 CLI 生效）。
+pub mod theme;
 // sdd 模块树已拆至 llman-sdd crate（T12）；crate 内保留 `pub mod sdd` 保内部
 // 路径，门面重导出该模块 → `crate::sdd::…` 与 `llman::sdd::…` 零漂移。
 pub use llman_sdd::sdd;

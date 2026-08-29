@@ -98,7 +98,17 @@ fn select_preset_groups(
     preset_rows: &[PresetRow],
     default_selected_skills: &HashSet<String>,
 ) -> Result<Option<HashSet<String>>> {
-    let labels: Vec<&str> = preset_rows.iter().map(|row| row.label.as_str()).collect();
+    let labels: Vec<String> = preset_rows
+        .iter()
+        .map(|row| {
+            let selected = row
+                .skill_ids
+                .iter()
+                .filter(|skill_id| default_selected_skills.contains(skill_id.as_str()))
+                .count();
+            group_label(&row.label, selected)
+        })
+        .collect();
     let defaults: Vec<usize> = preset_rows
         .iter()
         .enumerate()
@@ -117,7 +127,7 @@ fn select_preset_groups(
         true,
         // Group labels are plain text; the library default substring/fuzzy
         // scorer is enough for this phase.
-        MultiSelect::<&str>::DEFAULT_SCORER,
+        MultiSelect::<String>::DEFAULT_SCORER,
     )? {
         Some(selected) => Ok(Some(
             selected
@@ -126,6 +136,18 @@ fn select_preset_groups(
                 .collect(),
         )),
         None => Ok(None),
+    }
+}
+
+/// Surface each group's current selection count, e.g.
+/// `dakesan (2 skills, 1 selected)` — silent when nothing is selected.
+fn group_label(label: &str, selected: usize) -> String {
+    if selected == 0 {
+        return label.to_string();
+    }
+    match label.strip_suffix(')') {
+        Some(head) => format!("{head}, {selected} selected)"),
+        None => format!("{label} ({selected} selected)"),
     }
 }
 
@@ -203,12 +225,17 @@ fn prompt_multiselect<'a, T: Display>(
     } else {
         SKILL_HELP_MESSAGE
     };
-    let select = MultiSelect::new(prompt, options)
+    let mut select = MultiSelect::new(prompt, options)
         .with_default(defaults)
         .with_page_size(PAGE_SIZE)
         .with_vim_mode(true)
         .with_scorer(scorer)
         .with_help_message(help_message);
+    if !group_phase {
+        // Answered summary: the default comma-list gets unwieldy for many
+        // skills — a count is enough (details were visible in the prompt).
+        select = select.with_formatter(&|selections| format!("{} selected", selections.len()));
+    }
     match select.raw_prompt_skippable() {
         Ok(selection) => Ok(selection),
         Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => Ok(None),
@@ -329,6 +356,28 @@ mod tests {
             preset("astral-sh (1 skills)", &["ruff"]),
             skill("ruff (astral-sh.ruff)", "ruff"),
         ]
+    }
+
+    #[test]
+    fn group_label_appends_selected_count_into_parentheses() {
+        assert_eq!(
+            group_label("dakesan (2 skills)", 1),
+            "dakesan (2 skills, 1 selected)"
+        );
+        assert_eq!(
+            group_label("dakesan (2 skills)", 2),
+            "dakesan (2 skills, 2 selected)"
+        );
+    }
+
+    #[test]
+    fn group_label_stays_silent_when_nothing_is_selected() {
+        assert_eq!(group_label("dakesan (2 skills)", 0), "dakesan (2 skills)");
+    }
+
+    #[test]
+    fn group_label_falls_back_to_suffix_without_parentheses() {
+        assert_eq!(group_label("dakesan", 1), "dakesan (1 selected)");
     }
 
     #[test]
