@@ -88,7 +88,7 @@ fn find_llmanspec_dir(start_dir: &Path) -> Result<PathBuf> {
 /// Run the `context` command: find specs relevant to a task and/or paths.
 ///
 /// Uses the pageindex agentic tree retrieval backend.
-pub(crate) async fn context_run(
+pub(crate) fn context_run(
     task: Option<String>,
     paths: Vec<String>,
     top: usize,
@@ -104,11 +104,11 @@ pub(crate) async fn context_run(
     );
     // Only pageindex is supported.
     let _ = backend;
-    context_run_pageindex(&context_dir, &specs_dir, task, paths, top, &lang).await
+    context_run_pageindex(&context_dir, &specs_dir, task, paths, top, &lang)
 }
 
 /// pageindex backend: agentic tree retrieval.
-async fn context_run_pageindex(
+fn context_run_pageindex(
     context_dir: &Path,
     specs_dir: &Path,
     task: Option<String>,
@@ -117,24 +117,24 @@ async fn context_run_pageindex(
     lang: &str,
 ) -> Result<()> {
     match check_freshness(context_dir, specs_dir, Backend::Pageindex) {
-        IndexFreshness::Fresh => run_pageindex_retrieval(context_dir, task, paths, top).await,
+        IndexFreshness::Fresh => run_pageindex_retrieval(context_dir, task, paths, top),
         IndexFreshness::Stale { .. } | IndexFreshness::Missing | IndexFreshness::Corrupted(_) => {
             // Lazy refresh (r97): rebuild tree index then retrieve.
             // Chat-model errors after rebuild still surface as api_error.
-            if let Err(e) = index_rebuild_pageindex(context_dir, specs_dir, lang).await {
+            if let Err(e) = index_rebuild_pageindex(context_dir, specs_dir, lang) {
                 print_err(
                     "index_rebuild_failed",
                     &format!("auto-rebuild failed: {e}; run `llman sdd index rebuild`"),
                 );
                 return Ok(());
             }
-            run_pageindex_retrieval(context_dir, task, paths, top).await
+            run_pageindex_retrieval(context_dir, task, paths, top)
         }
     }
 }
 
 /// Load the pageindex tree and run the agentic retrieval loop.
-async fn run_pageindex_retrieval(
+fn run_pageindex_retrieval(
     context_dir: &Path,
     task: Option<String>,
     paths: Vec<String>,
@@ -162,7 +162,7 @@ async fn run_pageindex_retrieval(
     let invoker = chat::OpenAiInvoker::new(&chat_cfg);
 
     let task_str = task.clone().unwrap_or_default();
-    let out = match retrieve::retrieve(&invoker, &tree, &task_str, &paths).await {
+    let out = match retrieve::retrieve(&invoker, &tree, &task_str, &paths) {
         Ok(o) => o,
         Err(e) => {
             print_err("api_error", &format!("retrieval failed: {e}"));
@@ -298,7 +298,7 @@ fn print_index_status(context_dir: &Path, specs_dir: &Path) {
 }
 
 /// Rebuild the pageindex tree index.
-pub(crate) async fn index_rebuild(
+pub(crate) fn index_rebuild(
     _api_url: Option<String>,
     _model: Option<String>,
     _api_key: Option<String>,
@@ -316,7 +316,7 @@ pub(crate) async fn index_rebuild(
         config.bdd.as_ref(),
     );
 
-    index_rebuild_pageindex(&context_dir, &specs_dir, &lang).await
+    index_rebuild_pageindex(&context_dir, &specs_dir, &lang)
 }
 
 /// pageindex backend rebuild: build the spec tree index (no LLM).
@@ -325,7 +325,7 @@ pub(crate) async fn index_rebuild(
 /// serializes it to `.context/pageindex/tree.json`. No embedding or chat model
 /// is contacted — the spec tree is already structured, so building is a pure
 /// transform.
-async fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path, _lang: &str) -> Result<()> {
+fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path, _lang: &str) -> Result<()> {
     use crate::sdd::spec::backend::FEATURE_BACKEND;
     use crate::sdd::spec::ir::MainSpecDoc;
 
@@ -484,11 +484,7 @@ mod tests {
         std::fs::write(spec_dir.join("demo.feature"), body).unwrap();
 
         let lang = crate::sdd::spec::validation::locale_to_gherkin_lang(Some("zh-Hans"), None);
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .unwrap();
-        rt.block_on(index_rebuild_pageindex(&context_dir, &specs_dir, &lang))
-            .unwrap();
+        index_rebuild_pageindex(&context_dir, &specs_dir, &lang).unwrap();
 
         let backend_dir = resolve_backend_dir(&context_dir, Backend::Pageindex);
         let tree = tree::TreeIndex::load(&backend_dir).unwrap();

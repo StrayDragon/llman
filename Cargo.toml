@@ -19,7 +19,9 @@ serde_json = { version = "1.0.149", features = ["preserve_order"] }
 # (de)serializer plus Commented-based comment capture support.
 serde-saphyr = "1.1.0"
 schemars = { version = "1.2.1", features = ["derive", "indexmap2"] }
-jsonschema = "0.48.5"
+# default-features off: schema refs are always materialized inline, so the
+# default resolve-http/tls features (reqwest + aws-lc-rs) are dead weight.
+jsonschema = { version = "0.48.5", default-features = false }
 tempfile = "3.26.0"
 clap = { version = "4.6.1", features = [
     "env",
@@ -40,13 +42,15 @@ minijinja = "2.20.0"
 time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
 glob = "0.3.3"
 ignore = "0.4.26"
-tokio = { version = "1.49.0", features = ["rt", "rt-multi-thread"] }
 sha2 = "0.11.0"
 regex = "1.12.3"
 gherkin = "0.16"
 sevenz-rust2 = "0.22.2"
 llm_json = "1.0.2"
-async-openai = { version = "0.41", default-features = false, features = ["rustls", "chat-completion"] }
+# Blocking HTTP (rustls) for the sdd pageindex chat-model invoker. Chosen over
+# reqwest/async-openai: the agentic loop is sequential, one JSON round-trip per
+# turn — an async runtime + hyper stack would be ~45% of the dependency graph.
+ureq = { version = "3", features = ["json"] }
 llman-core = { path = "crates/llman-core" }
 llman-sdd = { path = "crates/llman-sdd" }
 

@@ -843,22 +843,13 @@ fn run_command(args: &SddArgs) -> Result<()> {
             backend,
         } => {
             let backend = crate::sdd::context::resolve_backend(backend.clone())?;
-            let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(crate::sdd::context::context_run(
-                task.clone(),
-                paths.clone(),
-                *top,
-                backend,
-            ))
+            crate::sdd::context::context_run(task.clone(), paths.clone(), *top, backend)
         }
         SddCommands::Index(cmd) => match &cmd.command {
             IndexSubcommand::Check {} => crate::sdd::context::index_check(),
             IndexSubcommand::Rebuild { run_async, backend } => {
                 let backend = crate::sdd::context::resolve_backend(backend.clone())?;
-                let rt = tokio::runtime::Runtime::new()?;
-                rt.block_on(crate::sdd::context::index_rebuild(
-                    None, None, None, *run_async, backend,
-                ))
+                crate::sdd::context::index_rebuild(None, None, None, *run_async, backend)
             }
         },
         SddCommands::Worktree(args) => match &args.command {
