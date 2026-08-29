@@ -5,15 +5,43 @@ members = [".", "crates/llman-core", "crates/llman-sdd"]
 version = "0.0.69"
 edition = "2024"
 
+# Single source of truth for dependency versions shared across workspace
+# members. Crates reference entries via `dep.workspace = true` and MUST NOT
+# redeclare inline versions.
 [workspace.dependencies]
 anyhow = "1.0.102"
 rust-i18n = "4.2.1"
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 serde_yaml = "0.9.34"
 schemars = { version = "1.2.1", features = ["derive", "indexmap2"] }
 jsonschema = "0.48.5"
 tempfile = "3.26.0"
-serde = { version = "1.0.228", features = ["derive"] }
+clap = { version = "4.6.1", features = [
+    "env",
+    "unicode",
+    "wrap_help",
+    "string",
+    "cargo",
+    "derive",
+] }
+inquire = { version = "0.9.4", features = ["editor"] }
+# Terminal width probing for the hand-rolled preview tables (src/tool/table.rs)
+crossterm = "0.29.0"
+unicode-width = "0.2"
+thiserror = "2.0.18"
+toml = "1.0.3"
+minijinja = "2.20.0"
+chrono = { version = "0.4.45", features = ["serde"] }
+glob = "0.3.3"
+ignore = "0.4.26"
+tokio = { version = "1.49.0", features = ["rt", "rt-multi-thread"] }
+sha2 = "0.11.0"
+regex = "1.12.3"
+gherkin = "0.16"
+sevenz-rust2 = "0.22.2"
+llm_json = "1.0.2"
+async-openai = { version = "0.41", default-features = false, features = ["rustls", "chat-completion"] }
 llman-core = { path = "crates/llman-core" }
 llman-sdd = { path = "crates/llman-sdd" }
 
@@ -45,32 +73,21 @@ path = "src/lib.rs"
 anyhow.workspace = true
 llman-core.workspace = true
 llman-sdd.workspace = true
-clap = { version = "4.6.1", features = [
-    "env",
-    "unicode",
-    "wrap_help",
-    "string",
-    "cargo",
-    "derive",
-] }
+clap.workspace = true
 clap_complete = "4.6.5"
-inquire = { version = "0.9.4", features = ["editor"] }
-crossterm = "0.29.0"
-ratatui = "0.30.0"
-comfy-table = "7.2.2"
-thiserror = "2.0.18"
+inquire.workspace = true
+crossterm.workspace = true
+unicode-width.workspace = true
+thiserror.workspace = true
 rust-i18n.workspace = true
-serde = { version = "1.0.228", features = ["derive"] }
+serde.workspace = true
 serde_json.workspace = true
-toml = "1.0.3"
-minijinja = "2.20.0"
-chrono = { version = "0.4.45", features = ["serde"] }
-glob = "0.3.3"
-ignore = "0.4.26"
-tokio = { version = "1.49.0", features = ["rt-multi-thread", "time", "process", "io-std"] }
+toml.workspace = true
+chrono.workspace = true
+glob.workspace = true
+ignore.workspace = true
 tempfile.workspace = true
-sha2 = "0.11.0"
-async-openai = { version = "0.41", default-features = false, features = ["rustls", "chat-completion"] }
+sha2.workspace = true
 
 # Comment processing and parsing
 tree-sitter = "0.26.6"
@@ -86,13 +103,11 @@ schemars.workspace = true
 jsonschema.workspace = true
 
 # JSON parsing and repair
-llm_json = "1.0.2"
+llm_json.workspace = true
 
 # Additional utilities
-regex = "1.12.3"
+regex.workspace = true
 serde_yaml.workspace = true
-gherkin = "0.16"
-sevenz-rust2 = "0.21.3"
 
 [features]
 # BDD feature-as-spec testing via rstest-bdd. Opt-in: `cargo test --features bdd`.
@@ -102,7 +117,6 @@ sevenz-rust2 = "0.21.3"
 bdd = []
 
 [dev-dependencies]
-expectrl = "0.8.0"
 rstest = "0.26"
 rstest-bdd = "0.6.0-beta3"
 rstest-bdd-macros = "0.6.0-beta3"
