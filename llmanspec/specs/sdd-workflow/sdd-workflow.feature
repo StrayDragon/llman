@@ -7,7 +7,7 @@
 
   @req:r1 @human
   场景: Specs landing 与 apply-ready 门禁
-    - Git-native 流水线 MUST 区分 Branch binding 与 Specs landing：live `llmanspec/specs/**` 的编辑与提交 MUST 仅发生在 change 已绑定的非默认 feature 分支上；默认分支 MUST NOT 因过 change start 干净树门禁而接收未实现合约。Specs landing MUST 判定为 `git diff --name-only <base_sha>...<binding.branch> -- llmanspec/specs` 非空（看 binding 分支 tip，非当前 HEAD）。`llman sdd show <id> --type change --json` 与 `llman sdd status <id> --json` MUST 暴露 `specsLanded`、`skipSpecsLanding`、`readyToImplement`。readyToImplement MUST 为 stage=Full 且（specsLanded 或 proposal frontmatter `skip_specs_landing: true`），否则 false。`llman sdd validate` 对 Full 且未 ready MUST 报 WARNING，消息 MUST 含 skill 引导（如 llman-sdd-propose / llman-sdd-apply）并 MUST NOT 建议对已 attach 的 change 再跑 change start。默认分支上对 `llmanspec/specs` 的未提交脏改动 MUST 以 WARNING 提示改到绑定分支。丢失绑定分支上的 specs 改动时 MUST 走恢复（checkout/重建分支 + 必要时 attach --force），MUST NOT 与 start 概念混淆。
+    - Git-native 流水线 MUST 区分 Branch binding 与 Specs landing：live `llmanspec/specs/**` 的编辑与提交 MUST 仅发生在 change 已绑定的非默认 feature 分支上；默认分支 MUST NOT 因过 change start 干净树门禁而接收未实现合约。Specs landing MUST 判定为 `git diff --name-only <base_sha>...<binding.branch> -- llmanspec/specs` 非空（看 binding 分支 tip，非当前 HEAD）。`llman sdd show <id> --type change --json` MUST 暴露 `specsLanded`、`skipSpecsLanding`、`readyToImplement`。readyToImplement MUST 为 stage=Full 且（specsLanded 或 proposal frontmatter `skip_specs_landing: true`），否则 false。`llman sdd validate` 对 Full 且未 ready MUST 报 WARNING，消息 MUST 含 skill 引导（如 llman-sdd-propose / llman-sdd-apply）并 MUST NOT 建议对已 attach 的 change 再跑 change start。默认分支上对 `llmanspec/specs` 的未提交脏改动 MUST 以 WARNING 提示改到绑定分支。丢失绑定分支上的 specs 改动时 MUST 走恢复（checkout/重建分支 + 必要时 attach --force），MUST NOT 与 start 概念混淆。
 
   @req:r39 @human
   场景: SDD list JSON 含 morphology
@@ -47,7 +47,7 @@
 
   @req:r93 @human
   场景: 统一三态 stage（Draft/Designed/Full）
-    - determine_stage（及 show/list/status 同源）MUST 统一采用三态，不再区分 BDD-on/BDD-off，也不再有 Specified 态：- Draft：仅 proposal.md（或 frontmatter 无 branch/base_sha）。- Designed：proposal + design + tasks 齐全，但尚未进分支（未 attach binding）。- Full：proposal + design + tasks 齐全且 frontmatter 含非空 branch 与 base_sha（已 change start / attach）。readyToImplement MUST 遵循 r1（Full 且 specsLanded 或 skip_specs_landing），MUST NOT 仅因 stage=Full 即为 true。MUST NOT 再读取 changes/<id>/specs/ 作为规格信号（该目录已废除）。Skills apply/verify MUST 与此三态及 r1 语义一致。旧 Specified 态 MUST 作为已删除映射到 Designed 或 Draft（按 design/tasks 是否齐全）。
+    - determine_stage（及 show/list 同源）MUST 统一采用三态，不再区分 BDD-on/BDD-off，也不再有 Specified 态：- Draft：仅 proposal.md（或 frontmatter 无 branch/base_sha）。- Designed：proposal + design + tasks 齐全，但尚未进分支（未 attach binding）。- Full：proposal + design + tasks 齐全且 frontmatter 含非空 branch 与 base_sha（已 change start / attach）。readyToImplement MUST 遵循 r1（Full 且 specsLanded 或 skip_specs_landing），MUST NOT 仅因 stage=Full 即为 true。MUST NOT 再读取 changes/<id>/specs/ 作为规格信号（该目录已废除）。Skills apply/verify MUST 与此三态及 r1 语义一致。旧 Specified 态 MUST 作为已删除映射到 Designed 或 Draft（按 design/tasks 是否齐全）。
 
   @req:r95 @human
   场景: 托管 skill bdd_mode 元信息与一致性门禁
@@ -123,7 +123,7 @@
 
   @req:r127 @human
   场景: 嵌套 change 递归发现与叶子 id 唯一
-    - llman sdd 对 active changes 的发现 MUST 在 llmanspec/changes/ 下递归查找自身含 proposal.md 的目录（跳过 archive/、以 . 开头的目录，且 MUST NOT 跟随符号链接）；Change id MUST 仍为叶子目录名且通过 validate_sdd_id（禁止路径分隔符）。同一活跃树内叶子 id MUST 唯一：发现阶段（list_changes/resolve 等）遇重复 MUST 以非零退出失败，stderr MUST 列出冲突的相对路径（相对 llmanspec/changes/），MUST NOT 静默丢弃条目。路径解析 MUST 经集中 resolve_change_dir（或等价），list/show/status/validate/graph 与 change 生命周期命令 MUST NOT 仅用 changes.join(id) 假定扁平布局。无 proposal.md 的中间分组目录 MUST NOT 被视为 change。
+    - llman sdd 对 active changes 的发现 MUST 在 llmanspec/changes/ 下递归查找自身含 proposal.md 的目录（跳过 archive/、以 . 开头的目录，且 MUST NOT 跟随符号链接）；Change id MUST 仍为叶子目录名且通过 validate_sdd_id（禁止路径分隔符）。同一活跃树内叶子 id MUST 唯一：发现阶段（list_changes/resolve 等）遇重复 MUST 以非零退出失败，stderr MUST 列出冲突的相对路径（相对 llmanspec/changes/），MUST NOT 静默丢弃条目。路径解析 MUST 经集中 resolve_change_dir（或等价），list/show/validate/graph 与 change 生命周期命令 MUST NOT 仅用 changes.join(id) 假定扁平布局。无 proposal.md 的中间分组目录 MUST NOT 被视为 change。
 
   @req:r128 @human
   场景: list/show path 与 max-scan-depth

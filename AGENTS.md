@@ -111,7 +111,7 @@ verify→finalize, and before any archive.
 | **Branch binding** | `change start`/`attach` 绑定非默认 `sdd/<id>` 分支 + `base_sha` | 不等于 Specs landing，不等于可 apply |
 | **Specs landing** | 在绑定分支编辑 `llmanspec/specs/**/<capability>.feature` 并留相对 base_sha 的 diff | 不是在默认分支改 live specs |
 | **`skip_specs_landing`** | frontmatter 豁免：本次无 live 合约变更 | 不是跳过 Branch binding |
-| **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | 用 `show`/`status --json` 查 |
+| **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | 用 `show --json` 查 |
 | **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于 base_sha | 新增规则无需 ack；改/删须 `rules_edit_acked: true` |
 
 线性流程：

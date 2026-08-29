@@ -23,14 +23,14 @@ rules, context, or conventions that AI agents should follow.
 | `skip_specs_landing` | 否 | agent | `true` 时无 live `llmanspec/specs/**` 变更也可 `readyToImplement` |
 | `rules_edit_acked` | 否 | 人工确认后由 agent 写入 | `true` 时允许本 change 修改/删除锁定的 `@human` 规则场景（spec-format r135） |
 
-> **生命周期阶段不是 frontmatter 字段**：它由 `determine_stage`（r93）实时从磁盘 artifacts 推断（Draft/Designed/Full），用 `llman sdd status` / `llman sdd show` 查看。`status` 字段已废弃——不要再写进 frontmatter，CLI 会拒绝。
+> **生命周期阶段不是 frontmatter 字段**：它由 `determine_stage`（r93）实时从磁盘 artifacts 推断（Draft/Designed/Full），用 `llman sdd show` / `llman sdd list` 查看。`status` 字段已废弃——不要再写进 frontmatter，CLI 会拒绝。
 
 ### 正文写作约束
 
 - **MUST NOT** 在正文复读 frontmatter 字段：frontmatter 已声明 `branch`/`depends_on` 等，正文就不要再贴同样信息的横幅或 `## Status` 段。
 - **MUST NOT** 把 `change_id` 当作 H1 重复（目录名已是 id）。正文 H1 用人类可读标题或省略。
 - 正文横幅留给**非元信息**：如「本草案不实现」「前置 change 是 X」「与 Y 案的区别」等叙事说明。
-- 生命周期阶段用 `llman sdd status` / `llman sdd show` 查看推断的 stage（r93），**不要**在正文写 status 段，也**不要**在 frontmatter 写 `status` 字段（已被 CLI 拒绝，见 r124）。
+- 生命周期阶段用 `llman sdd show` / `llman sdd list` 查看推断的 stage（r93），**不要**在正文写 status 段，也**不要**在 frontmatter 写 `status` 字段（已被 CLI 拒绝，见 r124）。
 
 ## Project Context
 
