@@ -2,7 +2,7 @@
 members = [".", "crates/llman-core", "crates/llman-sdd"]
 
 [workspace.package]
-version = "0.0.69"
+version = "0.0.70"
 edition = "2024"
 
 # Single source of truth for dependency versions shared across workspace
