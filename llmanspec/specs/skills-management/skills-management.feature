@@ -6,8 +6,8 @@
 功能: skills-management
 
   @req:r34 @human
-  场景: 标识规则、分组推断与树形多选
-    - The system MUST satisfy the harness scenarios for `标识规则、分组推断与树形多选`: 对应 spec: skills-management — skill_id 由 SKILL.md frontmatter name 经 slugify 得出（缺失回退目录名）； 默认 target 含 claude user/project 与 agents project；技能按目录名 . 推断分组（无 . 归 ungrouped）； 多选列表以树形结构展示分组节点（三态 + 搜索过滤）；技能项展示 skill_id (directory_name)； 预设仅运行时推断、仅交互模式。
+  场景: 标识规则、分组推断与两段式多选
+    - The system MUST satisfy the harness scenarios for `标识规则、分组推断与两段式多选`: 对应 spec: skills-management — skill_id 由 SKILL.md frontmatter name 经 slugify 得出（缺失回退目录名）； 默认 target 含 claude user/project 与 agents project；技能按目录名 . 推断分组（无 . 归 ungrouped）； 多选采用两段式 inquire 提示：先选预设组（可选，空选即跳过；组选项回显已选计数），后进技能明细编辑（预勾选 = 已选组成员 ∪ 现有已选状态，且技能段为最终权威编辑器，取消组勾选不得静默移除已选技能）；交互过滤匹配选项 label 与 skill_id；技能项展示 skill_id (directory_name)； 预设仅运行时推断、仅交互模式。
 
   @req:r67 @human
   场景: 交互入口、扫描与 scope 语义
@@ -22,5 +22,5 @@
     - The system MUST satisfy the harness scenarios for `技能版本元数据与不匹配警告`: 对应 spec: skills-management — Skills 模板含 metadata.version（与生成它的 CLI 版本一致）； init 与 init --update 自动填充当前 CLI 版本；缺失 version 不阻断加载；主版本不匹配输出警告但不阻断。 另见 sdd-workflow r90：init --update 对 llman-sdd-* 先删再写（可执行场景在 skills-template-and-commands）。
 
   @req:r126 @human
-  场景: 多 repo 来源元数据与 TUI 按源分组
-    - The system MUST satisfy the harness scenarios for `多 repo 来源元数据与 TUI 按源分组`: 对应 spec: skills-management — 技能发现 MUST 按 skills.repo[] 条目记录 repo 来源元数据（repo_id/repo_name）；TUI 默认分组维度 MUST 改为 repo 源（顶层），目录名 . 前缀降为次级维度；仅单 repo 时 MUST 退化为现状（不显示 repo 分组头）；多 repo 出现相同 skill_id 时 MUST 按 repo 列表顺序首个生效并对其余输出冲突警告；/ 搜索 MUST 扩展匹配 repo name 与路径简称。
+  场景: 多 repo 来源元数据与选择器按源分组
+    - The system MUST satisfy the harness scenarios for `多 repo 来源元数据与选择器按源分组`: 对应 spec: skills-management — 技能发现 MUST 按 skills.repo[] 条目记录 repo 来源元数据（repo_id/repo_name）；技能选择器默认分组维度 MUST 为 repo 源（预设组选项与技能行排序的顶层），目录名 . 前缀降为次级维度；仅单 repo 时 MUST 退化为现状（不显示 repo 分组头）；多 repo 出现相同 skill_id 时 MUST 按 repo 列表顺序首个生效并对其余输出冲突警告；交互过滤 MUST 扩展匹配 repo name 与路径简称（score 覆盖选项 label 与 skill_id）。
