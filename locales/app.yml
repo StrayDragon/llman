@@ -1538,6 +1538,8 @@ sdd:
       en: "Full mode: %{count} feature(s) parsed, BDD check passed."
     full_mode_reused:
       en: "BDD check reused for identical run_command (`%{command}`) in this validate batch."
+    full_mode_cached_failure:
+      en: "Cached failure from an earlier BDD run in this validate batch (`%{command}`): the same failure applies here — see the first failing spec above for full runner output. Original failure: %{summary}"
     full_mode_quiet_hint:
       en: "Running BDD check (`%{command}`). Quiet by design: no progress lines; only failures/errors are printed. Structure-only validation: pass `--no-check`."
       zh-Hans: "正在运行 BDD check（`%{command}`）。故意静默：无进度输出，仅失败/错误会打印。只要结构门禁请加 `--no-check`。"
