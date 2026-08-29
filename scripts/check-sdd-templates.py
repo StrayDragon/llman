@@ -16,6 +16,7 @@ UNIT_REF_RE = re.compile(r'\{\{\s*unit\("([^"]+)"\)\s*\}\}')
 JINJA_BLOCK_RE = re.compile(r"\{%[^%]*%\}")
 SPEC_TAG_RE = re.compile(r"@(?:human|executable|manual)\b|@req:[A-Za-z0-9_-]+")
 HEADING_RE = re.compile(r"^(#{1,6}) ")
+ORDERED_ITEM_RE = re.compile(r"^(\d+)\. ")
 # Files whose body is intentionally identical across locales carry this marker.
 LOCALE_INDEPENDENT_MARKER = "sdd-template: locale-independent"
 
@@ -222,6 +223,44 @@ def validate_markdown_root(templates_root: Path, errors: List[str]) -> List[str]
     return locales
 
 
+def validate_rendered_skill_numbering(skills_dir: Path, errors: List[str]) -> None:
+    """r75: unit() injection MUST NOT break the host document's ordered-list
+    numbering. Rendered managed skills must not contain 1→3-style gaps or
+    duplicate step numbers within a run. Nested (indented) items and fenced
+    code blocks are skipped; a run may start at any number (section headings
+    legitimately carry the first index)."""
+    if not skills_dir.is_dir():
+        errors.append(f"ERROR: {skills_dir} not found (run `llman sdd init --update`?)")
+        return
+    for path in sorted(skills_dir.glob("llman-sdd-*/SKILL.md")):
+        in_fence = False
+        expected: Optional[int] = None
+        for lineno, raw in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1
+        ):
+            if raw.lstrip().startswith("```"):
+                in_fence = not in_fence
+                expected = None
+                continue
+            if in_fence or raw.startswith((" ", "\t")):
+                continue
+            m = ORDERED_ITEM_RE.match(raw)
+            if not m:
+                expected = None
+                continue
+            num = int(m.group(1))
+            if expected is None:
+                expected = num + 1
+            elif num != expected:
+                errors.append(
+                    f"{path}:{lineno}: ordered-list numbering gap/duplicate "
+                    f"(expected {expected}, found {num})"
+                )
+                expected = num + 1
+            else:
+                expected += 1
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     templates_root = repo_root / "templates"
@@ -229,6 +268,9 @@ def main() -> int:
     sdd_root = templates_root / "sdd"
 
     sdd_locales = validate_markdown_root(sdd_root, errors)
+
+    # r75: numbering-continuity assertion over rendered skill products.
+    validate_rendered_skill_numbering(repo_root / ".agents" / "skills", errors)
 
     if errors:
         print("SDD template checks failed:")

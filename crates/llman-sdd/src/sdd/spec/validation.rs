@@ -148,6 +148,8 @@ pub(crate) fn validate_spec_content(
                 });
             }
             if let Some(root) = project_root {
+                // r42: missing valid_scope paths are independent failures —
+                // ERROR (nonzero exit) under --strict, WARNING otherwise.
                 let missing: Vec<&str> = parsed
                     .valid_scope
                     .iter()
@@ -156,10 +158,14 @@ pub(crate) fn validate_spec_content(
                     .collect();
                 if !missing.is_empty() {
                     issues.push(ValidationIssue {
-                        level: ValidationLevel::Info,
+                        level: if strict {
+                            ValidationLevel::Error
+                        } else {
+                            ValidationLevel::Warning
+                        },
                         path: format!("{spec_name}/valid_scope"),
                         message: format!(
-                            "scope path(s) do not exist yet (staleness idle until they do): {}",
+                            "valid_scope path(s) do not exist on disk: {}",
                             missing.join(", ")
                         ),
                     });

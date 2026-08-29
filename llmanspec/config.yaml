@@ -2,6 +2,11 @@
 schema: spec-driven
 locale: zh-Hans
 
+# 盘点结论（add-sdd-pipeline-guards T7）：apply 的自修复升级路径需要
+# arch-review 接收架构缺口；启用后 init --update 会安装渲染产物。
+extra_skills:
+  - llman-sdd-arch-review
+
 # BDD-on (feature-as-spec): .feature 文件是可执行规格。
 # locale zh-Hans → Gherkin lang 自动推导为 zh-CN（支持中文关键字）。
 # full mode 跑 `cargo test --features bdd`（rstest-bdd 驱动）。

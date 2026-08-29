@@ -475,6 +475,9 @@ pub enum SddChangeCommands {
         /// Optional path to write a patch export (never used as SSOT)
         #[arg(long)]
         export_patch: Option<PathBuf>,
+        /// Output machine-readable summary (r137: commitCount since base)
+        #[arg(long)]
+        json: bool,
     },
 
     /// (removed) `change delta` is no longer supported; edit live specs on a feature branch
@@ -720,11 +723,13 @@ fn run_command(args: &SddArgs) -> Result<()> {
             SddChangeCommands::Diff {
                 change,
                 export_patch,
+                json,
             } => git_native::run_diff(
                 std::path::Path::new("."),
                 git_native::DiffArgs {
                     change: change.clone(),
                     export_patch: export_patch.clone(),
+                    json: *json,
                 },
             ),
 

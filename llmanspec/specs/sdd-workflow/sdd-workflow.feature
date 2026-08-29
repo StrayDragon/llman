@@ -268,7 +268,7 @@
 
   @req:r138 @human
   场景: list 停留时长可见性
-    - llman sdd list --json 的每个 change 对象 MUST 含 idleDays 数值键（自 proposal.md 最后修改时间起算的整数天，口径与 lastModified 同源）；文本人读输出 MUST 对 stage 为 draft 或 designed 的 change 追加停留天数标注。stage 为 full 及之后的 change MUST NOT 被追加该标注。
+    - llman sdd list --json 的每个 change 对象 MUST 含 idleDays 数值键（自 change 目录最近活动时间起算的整数天，与 lastModified 同源）；文本人读输出 MUST 对 stage 为 draft 或 designed 的 change 追加停留天数标注。stage 为 full 及之后的 change MUST NOT 被追加该标注。
 
   @executable
   @req:r1

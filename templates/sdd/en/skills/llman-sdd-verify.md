@@ -34,18 +34,18 @@ flowchart LR
 - **CRITICAL issues must be fixed**: CRITICAL problems must be resolved before archive.
 - **Don't ask "should I continue?"**: run the full verification flow, output a complete report.
 
+{{ unit("skills/stage-guard") }}
 ## Steps
 1. Select the change id (or ask the user to pick from `llman sdd list --json`).
-{{ unit("skills/stage-guard") }}
-3. Run a fast validation gate:
+2. Run a fast validation gate:
    - `llman sdd validate <id> --strict --no-interactive`
    - **When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / global req_id uniqueness), prefer adding `--no-check`** (skips the potentially slow `bdd.run_command` under BDD-on); run the full `--check` (full mode) only after structural gates are green. Each `FAIL <item_type>/<id>` line lists a failing item (above the Totals line).
-4. Read:
+3. Read:
    - Live specs on the feature branch: `llmanspec/specs/**` (`<capability>.feature`) — SSOT
    - `proposal.md` and `design.md` if present
    - `tasks.md` to understand what was implemented
    - `llmanspec/changes/<id>/specs/` only if residual old docs exist — ignore; SSOT is live specs
-5. **Dual-axis review (Standards + Spec, kept separate so neither masks the other)** — diff against `git diff <merge-base>...HEAD` (merge-base = the attach base_sha or `main`) on two axes:
+4. **Dual-axis review (Standards + Spec, kept separate so neither masks the other)** — diff against `git diff <merge-base>...HEAD` (merge-base = the attach base_sha or `main`) on two axes:
    - **Spec axis**: does the implementation satisfy the `@human` rule MUST/SHALL and the `@executable` GWT?
      - Missing/partial behaviors, wrong implementations, and scope creep in the diff not asked for by the spec.
      - Suggest minimal fixes or artifact updates.
@@ -54,7 +54,7 @@ flowchart LR
      - Smells are **judgement heuristics** ("possible Feature Envy"), not hard violations.
      - Smell baseline (each "what → fix"): Mysterious Name (name hides intent → rename) / Duplicated Code (same logic shape → extract shared) / Feature Envy (method uses another's data more → move it) / Data Clumps (same fields travel together → bundle into a type) / Primitive Obsession (primitive stands in for a domain concept → dedicated type) / Repeated Switches (same switch recurs → polymorphism or shared map) / Shotgun Surgery (one change scatters edits → gather into one module) / Divergent Change (one file changes for unrelated reasons → split) / Speculative Generality (abstraction for unseen needs → delete) / Message Chains (long a.b().c() → hide behind one method) / Middle Man (just delegates → cut, call direct) / Refused Bequest (subclass rejects most inheritance → composition).
    - The two axes may be reviewed in parallel (sub-agents); the report MUST present them separately, MUST NOT merge or cross-rerank (one axis passing must not mask the other failing).
-6. **BDD-on verification (Git-native Partitioned SSOT)** — only when `config.yaml` has a `bdd:` block:
+5. **BDD-on verification (Git-native Partitioned SSOT)** — only when `config.yaml` has a `bdd:` block:
    - Confirm the change is attached and you are on that feature branch.
    - `llman sdd validate --specs`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
    - Optional read-only review: `llman sdd change diff <id>` (or `--export-patch <path>`). Diff is review/export only — never treat it as an apply step.
@@ -63,16 +63,20 @@ flowchart LR
 {% if bdd_verify_prompt %}
    - Extra requirement: {{ bdd_verify_prompt }}
 {% endif %}
-7. Produce a short report:
+6. Produce a short report:
    - **CRITICAL** (must fix before archive)
    - **WARNING** (should fix)
    - **SUGGESTION** (nice to have)
-8. If CRITICAL exists, suggest `llman-sdd-apply` for fixes. If clean, suggest `llman-sdd-archive` for finalize/archive.
+7. **Human review checkpoint**: once the report has no CRITICAL findings and before suggesting archive, run `llman sdd review`:
+   - Exit code zero → suggest `llman-sdd-archive` for finalize/archive.
+   - Non-zero exit = CRITICAL findings: fix via `llman-sdd-apply`, then re-run review; MUST NOT enter finalize/archive with CRITICAL findings open.
 
 > 💡 Verify pass → next: `llman-sdd-archive` (archive); CRITICAL issues → go back to `llman-sdd-apply` (fix)
 
 {{ unit("skills/git-native-flow-brief") }}
 {{ unit("skills/human-readable-summary") }}
 {{ unit("skills/sdd-commands") }}
+
+{{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

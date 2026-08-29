@@ -45,6 +45,7 @@ flowchart LR
 - 确认每个 change 都已通过 verify 阶段的全绿验证。
 
 ### 2) 逐个归档
+- **人审检查点（每个 id 归档执行前，含批量）**：运行 `llman sdd review --capability <id>`。退出码为零 → 继续；非零 = CRITICAL 发现：STOP 修复后重跑；MUST NOT 带着 CRITICAL 归档。
 - 先逐个校验：`llman sdd validate <id> --strict --no-interactive`。
 - 校验失败 → STOP 并报告；不要跳过校验强行归档。
 - 可选预览：`llman sdd change archive <id> --dry-run`。

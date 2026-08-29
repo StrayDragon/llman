@@ -21,7 +21,7 @@
 | explore | 逐问深挖 | 「深挖」「逐个问」 | 一次只问一个问题并附推荐答案；能查到的事实不问用户，只有决策才问；术语冲突时回写 live `.feature`（不另建词表） |
 | propose | 测试边界前置 + 垂直切片 | 写 tasks 前自动 | 先列将测试的边界（seam，来自 `*.feature` GWT）并确认；tasks 按垂直切片拆 + `[blocked-by]` 依赖 |
 | apply | 紧反馈诊断 | 自修复失败且判定为难定位 bug | 先建一个能复现失败的命令，再排查；禁止没有复现命令就猜原因 |
-| verify | 双轴审查 | 用户要求或规范疑似 | 合约轴（`.feature` 中 @human 规约与 @executable 验收）+ 标准轴（AGENTS.md 编码规范 + 12 项代码坏味）分离呈现 |
+| verify | 双轴审查 | 默认启用（r103 定义为 MUST，非触发式） | 合约轴（`.feature` 中 @human 规约与 @executable 验收）+ 标准轴（AGENTS.md 编码规范 + 12 项代码坏味）分离呈现 |
 
 ### 独立可选 skill（不属于线性 pipeline）
 

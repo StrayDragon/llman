@@ -45,6 +45,7 @@ flowchart LR
 - Confirm each change has passed verify phase all-green.
 
 ### 2) Archive one by one
+- **Human review checkpoint (before each id is archived, including batches)**: run `llman sdd review --capability <id>`. Exit code zero → continue; non-zero = CRITICAL findings: STOP, fix, re-run; MUST NOT archive with CRITICAL findings open.
 - Validate each first: `llman sdd validate <id> --strict --no-interactive`.
 - Validation failure → STOP and report; don't skip validation and force archive.
 - Optional preview: `llman sdd change archive <id> --dry-run`.

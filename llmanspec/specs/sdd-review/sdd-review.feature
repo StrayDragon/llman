@@ -1,7 +1,7 @@
 # language: zh-CN
 # capability: sdd-review
 # purpose: 定义 llman sdd review 人审聚合命令：五类信号聚合、零配置、退出码策略、JSON 同构与单文件离线 HTML 视图。
-# scope: src/sdd
+# scope: crates/llman-sdd/src/sdd
 
 功能: sdd-review
 

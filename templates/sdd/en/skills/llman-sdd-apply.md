@@ -105,11 +105,16 @@ Run project gate commands (adapt to the actual project):
      2. Run it, confirm red → minimize the repro (cut inputs/calls/config/data one at a time, keep only what's load-bearing).
      3. Generate **3–5 ranked hypotheses**, each falsifiable ("if X is the cause, changing Y makes the bug disappear").
      4. Verify one variable at a time; fix once the root cause is found.
-     5. If there's no correct seam for a regression test, note the architectural gap (hand off to `llman-sdd-arch-review`).
+     5. If there's no correct seam for a regression test, note the architectural gap (hand off to `llman-sdd-arch-review`; when that skill is not enabled via `extra_skills`, write the gap into this change's `proposal.md` Further Notes section or `design.md`, and MUST NOT break the loop over it).
 3. Re-run the "minimum failure repro command" first, then re-run all gates.
 4. Log as one self-healing round: `Round N: failure → fix → re-run → pass/fail`.
 
 **Self-healing cap: 8 rounds**; exceeding this is a blocker: stop and output a blocker report (last failing command + output summary + what you tried).
+
+**Human review checkpoint (after each task batch passes the gates)**: once a batch is green, before starting the next batch or producing the completion report, run `llman sdd review`:
+
+- Exit code zero → continue.
+- Non-zero exit = CRITICAL findings: STOP, fix, re-run review; MUST NOT enter the next batch or emit the completion report with CRITICAL findings open.
 
 ### 6) Completion report
 After all tasks complete + all gates green, output a structured report (see Output Contract below).
@@ -118,5 +123,7 @@ Then suggest running `llman-sdd-verify` for the verification phase.
 > 💡 Implementation done → next: `llman-sdd-verify` (verify)
 
 {{ unit("skills/sdd-commands") }}
+
+{{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

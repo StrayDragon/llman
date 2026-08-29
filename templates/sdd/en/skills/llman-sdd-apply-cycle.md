@@ -31,14 +31,14 @@ llman sdd show <change-id> --json --type change
 For each incomplete task:
 1. Implement per task + live specs (minimal diff)
 2. Run `tasks[].test` if present
-3. On failure, fix and retry (up to 3 times)
+3. On failure, fix and retry (same self-repair budget as `llman-sdd-apply`: cap 8 rounds)
 4. Check off `tasks.md` as `[x]`
 
 ### 2) Validate
 ```bash
 llman sdd validate <change-id> --strict --no-interactive
 ```
-On failure, fix and retry (up to 3 times).
+On failure, fix and retry (same self-repair budget as `llman-sdd-apply`: cap 8 rounds).
 
 ### 3) Verify (recommended)
 Prefer `llman-sdd-verify` (or equivalent dual-axis self-check). CRITICAL → STOP; do not archive.
@@ -66,7 +66,7 @@ push / hosting PR only when the user explicitly asks.
 ## Hard constraints
 - **Never ask** "should I continue" unless blocked.
 - **Never switch** changes until this one is archived and committed.
-- **Retry cap** 3 per step.
+- **Retry cap**: self-repair follows `llman-sdd-apply`'s 8-round budget (including the diagnose escalation path).
 - **Do not** author `changes/<id>/specs/` or use `change delta`.
 - **No default push/PR**.
 

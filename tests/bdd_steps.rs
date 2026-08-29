@@ -609,21 +609,43 @@ fn given_extra_skills(name: String) {
 /// `{change}` is the change id (used as the branch name when attached). The
 /// fixture must be combined with `已初始化 sdd 项目且 bdd 配置为 {mode}` first to
 /// establish config + git base ref.
+/// r42 fixture: seeded project whose single spec's `# scope:` header points
+/// at a path that does not exist on disk, so strict validate must fail.
+#[given("已初始化含失效 scope 路径 spec 的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_missing_scope_path(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    let sample = dir.join("llmanspec/specs/sample/sample.feature");
+    let body = std::fs::read_to_string(&sample).expect("read seeded feature");
+    let body = body.replace("# scope: llmanspec/specs/sample", "# scope: docs/gone");
+    std::fs::write(&sample, body).expect("rewrite scope header to missing path");
+}
+
+/// Seed a project with a change directory carrying proposal+design+tasks, and
+/// optionally a Git-native attach binding in proposal frontmatter. Used to
+/// exercise `determine_stage` under BDD-on (r93): `attached = "yes"` writes
+/// non-empty `branch` + `base_sha`; any other value omits them.
+///
+/// `{change}` is the change id (used as the branch name when attached). The
+/// fixture must be combined with `已初始化 sdd 项目且 bdd 配置为 {mode}` first to
+/// establish config + git base ref.
 #[given("变更 {change} 含 proposal design tasks 且 attach 状态为 {attached}")]
 fn given_change_with_artifacts_and_attach(change: String, attached: String) {
     let dir = fixture_cwd();
     let change_dir = dir.join("llmanspec/changes").join(&change);
     std::fs::create_dir_all(&change_dir).expect("mkdir attach-stage fixture change");
     let attach_flag = attached.trim().trim_matches('"');
+    let bound = matches!(attach_flag, "yes" | "true" | "attached" | "on" | "skip");
+    let base_sha_placeholder = "0000000000000000000000000000000000000000";
     let frontmatter = match attach_flag {
         "yes" | "true" | "attached" | "on" => {
             format!(
-                "---\ndepends_on: []\nbranch: feat/{change}\nbase_sha: 0000000000000000000000000000000000000000\n---\n"
+                "---\ndepends_on: []\nbranch: feat/{change}\nbase_sha: {base_sha_placeholder}\n---\n"
             )
         }
         "skip" => {
             format!(
-                "---\ndepends_on: []\nbranch: feat/{change}\nbase_sha: 0000000000000000000000000000000000000000\nskip_specs_landing: true\n---\n"
+                "---\ndepends_on: []\nbranch: feat/{change}\nbase_sha: {base_sha_placeholder}\nskip_specs_landing: true\n---\n"
             )
         }
         _ => "---\ndepends_on: []\n---\n".to_string(),
@@ -635,6 +657,52 @@ fn given_change_with_artifacts_and_attach(change: String, attached: String) {
     std::fs::write(change_dir.join("proposal.md"), proposal).expect("write fixture proposal");
     std::fs::write(change_dir.join("design.md"), "# Design\nr93 fixture.\n").expect("write design");
     std::fs::write(change_dir.join("tasks.md"), "- [ ] t1\n").expect("write tasks");
+
+    if bound {
+        // Attached changes live on their binding branch: create it and commit
+        // the change docs. base_sha = the branch tip so `base...HEAD` stays
+        // empty (specsLanded=false for r93 show scenarios) while diff plumbing
+        // (r137 commitCount) has real refs to work with. The final base_sha
+        // rewrite stays dirty in the working tree and is invisible to
+        // committed-diff based signals.
+        run_fixture_git(&dir, &["checkout", "-q", "-b", &format!("feat/{change}")]);
+        run_fixture_git(&dir, &["add", "-A"]);
+        run_fixture_git(
+            &dir,
+            &["commit", "-qm", &format!("fixture change {change}")],
+        );
+        let head = current_fixture_head(&dir);
+        let proposal_path = change_dir.join("proposal.md");
+        let proposal_body = std::fs::read_to_string(&proposal_path).expect("read fixture proposal");
+        std::fs::write(
+            &proposal_path,
+            proposal_body.replace(base_sha_placeholder, &head),
+        )
+        .expect("rewrite fixture base_sha");
+    }
+}
+
+fn current_fixture_head(dir: &std::path::Path) -> String {
+    String::from_utf8_lossy(
+        &Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(dir)
+            .output()
+            .expect("git rev-parse fixture")
+            .stdout,
+    )
+    .trim()
+    .to_string()
+}
+
+fn run_fixture_git(dir: &std::path::Path, args: &[&str]) {
+    let status = Command::new("git")
+        .args(["-c", "user.name=t", "-c", "user.email=t@x"])
+        .args(args)
+        .current_dir(dir)
+        .status()
+        .expect("git command runs");
+    assert!(status.success(), "git {args:?} failed in fixture");
 }
 
 // ---------------------------------------------------------------------------
@@ -819,9 +887,17 @@ fn then_stdout_json_key_is_number(key: String) {
             .unwrap_or_else(|e| panic!("stdout is not valid JSON: {e}\n{}", w.stdout));
         let mut cur = &v;
         for part in key.split('.') {
-            cur = cur
-                .get(part)
-                .unwrap_or_else(|| panic!("JSON key `{key}` missing\n{}", w.stdout));
+            cur = if let Some(arr) = cur.as_array() {
+                // dotted path may address array elements: `changes.0.idleDays`
+                let idx: usize = part.parse().unwrap_or_else(|_| {
+                    panic!("JSON path `{key}`: segment `{part}` is not an array index")
+                });
+                arr.get(idx)
+                    .unwrap_or_else(|| panic!("JSON index `{key}` out of bounds\n{}", w.stdout))
+            } else {
+                cur.get(part)
+                    .unwrap_or_else(|| panic!("JSON key `{key}` missing\n{}", w.stdout))
+            };
         }
         assert!(
             cur.is_number(),
