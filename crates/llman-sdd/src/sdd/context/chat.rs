@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn message_to_json_matches_openai_wire_format() {
-        let msgs = vec![
+        let msgs = [
             Msg::System("sys".to_string()),
             Msg::User("hi".to_string()),
             Msg::Assistant {

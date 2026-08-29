@@ -732,7 +732,7 @@ mod tests {
             },
         ]);
 
-        let out = block_on(retrieve(&invoker, &tree, "fix validate exit code", &[])).unwrap();
+        let out = retrieve(&invoker, &tree, "fix validate exit code", &[]).unwrap();
         assert!(!out.truncated);
         assert_eq!(out.tool_calls, 3);
         assert_eq!(out.direct.len(), 1);
@@ -747,7 +747,7 @@ mod tests {
         // Always request a tool call → never reaches a final answer; salvage also
         // gets a (tool-call) turn back, so the result stays empty + truncated.
         let invoker = ScriptedInvoker::new(vec![tool_call("x", "list_specs", "{}")]);
-        let out = block_on(retrieve(&invoker, &tree, "task", &[])).unwrap();
+        let out = retrieve(&invoker, &tree, "task", &[]).unwrap();
         assert!(out.truncated, "loop must stop at MAX_TOOL_ROUNDS");
         assert_eq!(out.tool_calls, MAX_TOOL_ROUNDS);
         assert!(out.direct.is_empty(), "salvage turn had no JSON → empty");
@@ -770,7 +770,7 @@ mod tests {
             tool_calls: vec![],
         });
         let invoker = ScriptedInvoker::new(turns);
-        let out = block_on(retrieve(&invoker, &tree, "task", &[])).unwrap();
+        let out = retrieve(&invoker, &tree, "task", &[]).unwrap();
         assert!(out.truncated, "hit the round limit");
         assert_eq!(out.tool_calls, MAX_TOOL_ROUNDS);
         assert_eq!(out.direct.len(), 1, "salvage answer preserved");
