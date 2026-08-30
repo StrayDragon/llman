@@ -14,15 +14,6 @@ Use this skill to visualize dependencies between changes.
 
 ## Pipeline Position
 
-```mermaid
-flowchart LR
-    pipeline["Main pipeline:<br/>propose → apply → verify → archive"]
-    graph["📎 llman-sdd-graph<br/>Dependency visualization (utility)"]
-    graph -.->|available at any stage| pipeline
-
-    style graph fill:#e8f4e8,stroke:#28a745,stroke-width:2px
-```
-
 > 📎 Utility tool, available at any pipeline stage. To propose → `llman-sdd-propose`. To implement → `llman-sdd-apply` only when `readyToImplement=true`.
 
 ## Usage
@@ -71,6 +62,6 @@ blocks:
 
 > 💡 This is just a utility — main flow: `llman-sdd-propose` (Branch binding + Specs landing) → `llman-sdd-apply` (requires `readyToImplement`) → `llman-sdd-verify` → `llman-sdd-archive`.
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 
 {{ unit("skills/ethics-governance") }}

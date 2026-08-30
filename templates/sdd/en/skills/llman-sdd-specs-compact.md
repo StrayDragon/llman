@@ -14,14 +14,6 @@ Use this skill to compact specs without changing normative behavior.
 
 ## Pipeline Position
 
-```mermaid
-flowchart LR
-    archive["llman-sdd-archive<br/>After archiving"] --> compact
-    compact["📎 llman-sdd-specs-compact<br/>Compact specs (maintenance)"]
-
-    style compact fill:#e8f4e8,stroke:#28a745,stroke-width:2px
-```
-
 > 📎 Maintenance tool, typically run after accumulating many archives. For daily development → `llman-sdd-propose` (Branch binding + Specs landing) / `llman-sdd-apply` (requires `readyToImplement`).
 
 ## Context
@@ -61,7 +53,7 @@ flowchart LR
 
 > 💡 After maintenance, new work goes through the normal pipeline: `llman-sdd-propose` (Branch binding + Specs landing) → `llman-sdd-apply` (requires `readyToImplement`) → `llman-sdd-verify` → `llman-sdd-archive`.
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 
 {{ unit("skills/validation-hints") }}
 

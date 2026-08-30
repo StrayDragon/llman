@@ -18,7 +18,7 @@ Use this skill to continue an existing change and create the next missing artifa
    - Otherwise run `llman sdd list --json` and ask which change to continue.
    - Always announce: "Using change: <id>".
 2. Read the change directory: `llmanspec/changes/<id>/`.
-{{ unit("skills/stage-guard") }}
+> Stage gate: decide from `stage` / `readyToImplement` in `llman sdd show <id> --json --type change`; full decision table lives in llman-sdd-apply.
 3. Determine the next artifact to create (in order):
    1) `proposal.md`
    2) `design.md` (only if design tradeoffs matter)
@@ -37,7 +37,7 @@ Use this skill to continue an existing change and create the next missing artifa
    - Review: `llman sdd change diff <id>` (read-only)
 
 {{ unit("skills/git-native-flow") }}
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

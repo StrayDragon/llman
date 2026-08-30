@@ -34,7 +34,7 @@ metadata:
 8. 用 `llman sdd show <id> --json` 确认 `readyToImplement=true` 后，建议 `llman-sdd-apply`（不要在未就绪时建议 apply）。
 
 {{ unit("skills/git-native-flow-brief") }}
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/ethics-governance") }}

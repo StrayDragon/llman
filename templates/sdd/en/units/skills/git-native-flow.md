@@ -16,7 +16,7 @@ flowchart TB
   end
 
   subgraph specs_only["Only on this change branch"]
-    F["Edit live llmanspec/specs/**<br/>toon / feature"]
+    F["Edit live llmanspec/specs/** (.feature)"]
     G["commit → Specs landing<br/>base...HEAD includes specs paths"]
   end
 

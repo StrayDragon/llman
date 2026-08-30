@@ -14,16 +14,6 @@ Capture a change idea as a **draft proposal** (a `proposal.md` skeleton only). T
 
 ## Pipeline Position
 
-```mermaid
-flowchart LR
-    draft["★ llman-sdd-draft ★<br/>Draft (you are here)"] -.->|"promote"| propose["llman-sdd-propose<br/>Propose"]
-    propose --> apply["llman-sdd-apply<br/>Implement"]
-    apply --> verify["llman-sdd-verify<br/>Verify"]
-    verify --> archive["llman-sdd-archive<br/>Archive"]
-
-    style draft fill:#fff3cd,stroke:#ffc107,stroke-width:3px
-```
-
 > 📍 You are at the draft stage → next: flesh out `proposal.md`, then run `llman-sdd-propose` to formalize
 > 📎 This skill creates a **draft** change (proposal.md only). Full propose follows Git-native: tasks → Branch binding → Specs landing (see propose lifecycle diagram)
 > 🗺️ Skill navigation ≠ Git-native lifecycle; Branch binding / Specs landing are not separate skills
@@ -61,6 +51,6 @@ llman sdd change new --from "<user description>"
 
 > 💡 Draft captured → next: edit `proposal.md`, then `llman-sdd-propose` to formalize.
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 
 {{ unit("skills/ethics-governance") }}

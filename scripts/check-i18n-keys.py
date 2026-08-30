@@ -137,7 +137,16 @@ def main() -> int:
     defined = collect_key_paths(parse_locale_tree(LOCALES / "app.yml"))
     used = collect_used_key_literals()
 
-    dead = sorted(key for key in defined if not key_referenced_in_code(key))
+    # Keys referenced via dynamic construction (e.g. the sdd.cmdref.* table
+    # built from the clap command tree at render time, r139) are invisible to
+    # literal scanning — whitelist those namespaces instead of failing.
+    DYNAMIC_KEY_PREFIXES = ("sdd.cmdref.",)
+
+    dead = sorted(
+        key for key in defined
+        if not key_referenced_in_code(key)
+        and not key.startswith(DYNAMIC_KEY_PREFIXES)
+    )
     missing = sorted(used - defined)
 
     for key in dead:

@@ -18,7 +18,7 @@ metadata:
    - 否则运行 `llman sdd list --json` 并询问要继续哪个 change。
    - 始终说明："使用变更：<id>"。
 2. 阅读变更目录：`llmanspec/changes/<id>/`。
-{{ unit("skills/stage-guard") }}
+> 阶段判定：用 `llman sdd show <id> --json --type change` 的 `stage` / `readyToImplement` 字段；完整判定表见 llman-sdd-apply。
 3. 确定下一个要创建的 artifact（按顺序）：
    1) `proposal.md`
    2) `design.md`（仅当涉及设计权衡时）
@@ -37,7 +37,7 @@ metadata:
    - 审查：`llman sdd change diff <id>`（只读）
 
 {{ unit("skills/git-native-flow") }}
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

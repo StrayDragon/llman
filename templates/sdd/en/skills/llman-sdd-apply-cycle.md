@@ -21,7 +21,7 @@ End-to-end closed loop for one change (manual). Requires Branch binding and `rea
 ```bash
 llman sdd show <change-id> --json --type change
 ```
-{{ unit("skills/stage-guard") }}
+> Stage gate: decide from `stage` / `readyToImplement` in `llman sdd show <id> --json --type change`; full decision table lives in llman-sdd-apply.
 
 - Must be on the bound non-default branch.
 - If `readyToImplement` is not true → STOP (finish Specs landing or `skip_specs_landing`); **do not** finalize yet.

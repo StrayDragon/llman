@@ -14,14 +14,6 @@ metadata:
 
 ## Pipeline 位置
 
-```mermaid
-flowchart LR
-    archive["llman-sdd-archive<br/>归档完成后"] --> compact
-    compact["📎 llman-sdd-specs-compact<br/>压缩重构 specs（维护工具）"]
-
-    style compact fill:#e8f4e8,stroke:#28a745,stroke-width:2px
-```
-
 > 📎 维护工具，通常在归档积累较多后执行。日常开发 → `llman-sdd-propose`（含 Branch binding + Specs landing）/ `llman-sdd-apply`（须 `readyToImplement`）。
 
 ## Context
@@ -61,7 +53,7 @@ flowchart LR
 
 > 💡 维护完成后，新需求走正常 pipeline：`llman-sdd-propose`（含 Branch binding + Specs landing）→ `llman-sdd-apply`（须 `readyToImplement`）→ `llman-sdd-verify` → `llman-sdd-archive`。
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 
 {{ unit("skills/validation-hints") }}
 

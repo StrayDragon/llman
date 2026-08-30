@@ -27,7 +27,7 @@ metadata:
    - Change JSON 状态字段：`stage` / `specsLanded` / `readyToImplement`（`show --json`）。
 {% endif %}
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 
 {{ unit("skills/validation-hints") }}
 

@@ -35,7 +35,6 @@ const OPTIONAL_SKILL_FILES: &[&str] = &[
 ];
 
 const UNIT_FILES: &[&str] = &[
-    "skills/sdd-commands.md",
     "skills/validation-hints.md",
     "skills/human-readable-summary.md",
     "skills/git-native-flow.md",
@@ -172,7 +171,15 @@ fn load_template_with_context(
 ) -> Result<String> {
     for locale in locale_fallbacks(&config.locale) {
         if let Some(raw) = load_locale_resource(root, &locale, relative_path)? {
-            return render_template(&raw, units, vars)
+            // r139/r141: the command reference is generated from the clap
+            // command tree in the template's resolved locale — never a
+            // hand-written unit.
+            let mut vars = vars.clone();
+            vars.insert(
+                "sdd_command_reference".to_string(),
+                super::cmdref::sdd_command_reference(&locale),
+            );
+            return render_template(&raw, units, &vars)
                 .with_context(|| format!("render template {}", relative_path));
         }
     }
@@ -343,10 +350,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
             concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/skills/llman-sdd-specs-compact.md"
         ))),
-        "templates/sdd/en/units/skills/sdd-commands.md" => Some(include_str!(concat!(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
-            "/templates/sdd/en/units/skills/sdd-commands.md"
-        ))),
         "templates/sdd/en/units/skills/validation-hints.md" => Some(include_str!(concat!(
             concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/en/units/skills/validation-hints.md"
@@ -434,10 +437,6 @@ fn embedded_template(path: &str) -> Option<&'static str> {
         "templates/sdd/zh-Hans/skills/llman-sdd-specs-compact.md" => Some(include_str!(concat!(
             concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
             "/templates/sdd/zh-Hans/skills/llman-sdd-specs-compact.md"
-        ))),
-        "templates/sdd/zh-Hans/units/skills/sdd-commands.md" => Some(include_str!(concat!(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
-            "/templates/sdd/zh-Hans/units/skills/sdd-commands.md"
         ))),
         "templates/sdd/zh-Hans/units/skills/validation-hints.md" => Some(include_str!(concat!(
             concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
@@ -603,5 +602,45 @@ mod tests {
                 || format!("{err:#}").contains("max depth"),
             "{err:#}"
         );
+    }
+}
+
+/// Helper for cmdref render tests: minimal SddConfig with the given locale.
+#[cfg(test)]
+fn test_config(locale: &str) -> SddConfig {
+    SddConfig {
+        schema: "spec-driven".to_string(),
+        locale: locale.to_string(),
+        bdd: None,
+        extra_skills: None,
+        archive: None,
+        sdd: None,
+    }
+}
+
+#[test]
+fn cmdref_variable_renders_generated_block_per_locale() {
+    for (locale, marker) in [("en", "Command reference"), ("zh-Hans", "命令参考")] {
+        let rendered = load_skill_template(
+            &test_config(locale),
+            Path::new(env!("CARGO_MANIFEST_DIR")),
+            "llman-sdd-quick.md",
+            "default",
+        )
+        .expect("render quick skill");
+        assert!(
+            !rendered.contains("{{ sdd_command_reference }}"),
+            "variable must be replaced at render time"
+        );
+        assert!(
+            rendered.contains(marker),
+            "locale {locale} header missing:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("`llman sdd change`") && rendered.contains("`diff`"),
+            "generated table must list current commands"
+        );
+        // r139: removed syntax never reappears.
+        assert!(!rendered.contains("spec-md2toon"));
     }
 }

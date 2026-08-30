@@ -1,34 +1,27 @@
 ## Context
-- Gather the current change/spec state before acting.
-- Prefer `llman sdd context --task --paths` to discover relevant specs instead of guessing or full scans.
+- Check state before acting: change/spec status comes from `llman sdd show/list/validate` output.
+- Locate relevant specs with `llman sdd context --task --paths` before reading spec files.
 
 ## Goal
-- State the concrete outcome for this command/skill execution.
+- Reach one verifiable outcome for this command; report result paths and validation state.
 
 ## Constraints
-- Keep changes minimal and scoped.
-- Avoid guessing when identifiers or intent are ambiguous.
-- Use `llman sdd context --task --paths` before reading full spec files.
-- Choose workflow path by change scale: behavioral contracts use full SDD (Branch binding → Specs landing → `readyToImplement` → apply); implementation changes use quick path (live specs still require a bound branch).
-- Do not conflate skill navigation with the Git-native lifecycle; never edit live `llmanspec/specs/**` on the default branch.
+- Follow the hard rules in the skill body (not repeated here). Triage first: behavior-contract changes take the full SDD path, implementation-only changes take quick; when unsure choose full SDD.
+- Keep changes minimal; never force past a known validation failure.
 
 ## Workflow
-- Use `llman sdd` commands as the source of truth.
-- Validate outcomes when files or specs are updated.
-- Prefer `llman sdd context` over full reads or guessing.
-- When context is unavailable follow error guidance (rebuild index or fall back to `list --specs --json`).
+- Treat `llman sdd` command output as the source of truth at every step; run `llman sdd validate` after touching artifacts.
+- Command details: the generated command reference below, or `llman sdd <cmd> --help`.
 
 ## Decision Policy
-- Ask for clarification when a high-impact ambiguity remains.
-- Stop instead of forcing through known validation errors.
+- Clarify high-impact ambiguity before proceeding; verify facts yourself, ask the user only for decisions.
 
 ## Output Contract
-- Summarize actions taken.
-- Provide resulting paths and validation status.
+- Human-readable summary first (conclusion / risks / decisions needed), machine detail after.
 
 ## Ethics Governance
-- `ethics.risk_level`: classify risk as `low|medium|high|critical`.
-- `ethics.prohibited_actions`: list actions that MUST NOT be performed.
-- `ethics.required_evidence`: list required evidence before high-impact output.
-- `ethics.refusal_contract`: define when to refuse and safe alternative response.
-- `ethics.escalation_policy`: define when to escalate to user confirmation/review.
+- `ethics.risk_level`: low — reads/writes this repo and `llmanspec/` only, no outward-facing actions; a skill body may override.
+- `ethics.prohibited_actions`: actions violating the skill body's hard rules; push / PR / external upload without an explicit user request.
+- `ethics.required_evidence`: conclusions backed by command output or file paths; gate state per `llman sdd validate`.
+- `ethics.refusal_contract`: gate CRITICAL not cleared → refuse to advance; self-repair cap reached → report a blocker.
+- `ethics.escalation_policy`: pause and ask the user before changing SDD contracts/templates or irreversible actions.
