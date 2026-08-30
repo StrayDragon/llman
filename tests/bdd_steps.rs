@@ -574,7 +574,7 @@ fn given_extra_skills(name: String) {
     let skill = name.trim().trim_matches('"');
     let config_path = dir.join("llmanspec/config.yaml");
     let existing = std::fs::read_to_string(&config_path).unwrap_or_default();
-    // Preserve an existing `bdd:` block so skill bdd_mode stays consistent (r95).
+    // Preserve an existing `bdd:` block so the runner config (r2/r95) stays consistent.
     let bdd_tail = existing
         .find("\nbdd:")
         .map(|i| existing[i + 1..].to_string())
@@ -597,7 +597,7 @@ fn given_extra_skills(name: String) {
         }
     }
     std::fs::write(&config_path, config).expect("write extra_skills config");
-    // Refresh managed skills so optional skill is installed and bdd_mode matches.
+    // Refresh managed skills so the optional skill is installed with valid metadata (r95).
     run_llman_in(&dir, "sdd init --update", &[]);
 }
 

@@ -4,7 +4,6 @@ description: "人类主动触发的维护工具。压缩去重 llman SDD specs�
 metadata:
   version: "0.0.71"
   llman_sdd:
-    bdd_mode: "on"
     skill_set: "default"
 ---
 

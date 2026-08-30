@@ -4,7 +4,6 @@ description: "Single closed-loop for one change: gate→implement→test→valid
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 disable-model-invocation: true
 ---

@@ -4,7 +4,6 @@ description: "Inspect llmanspec changes and specs quickly."
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

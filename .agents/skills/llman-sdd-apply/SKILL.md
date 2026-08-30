@@ -4,7 +4,6 @@ description: "在一个闭环内实施 llman SDD 变更的 tasks：写代码 →
 metadata:
   version: "0.0.71"
   llman_sdd:
-    bdd_mode: "on"
     skill_set: "default"
 ---
 

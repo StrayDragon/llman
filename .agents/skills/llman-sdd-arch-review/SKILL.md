@@ -4,7 +4,6 @@ description: "扫描 codebase 的薄模块（接口几乎等于实现），找�
 metadata:
   version: "0.0.71"
   llman_sdd:
-    bdd_mode: "on"
     skill_set: "optional"
 ---
 

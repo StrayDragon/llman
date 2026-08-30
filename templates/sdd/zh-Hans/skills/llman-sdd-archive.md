@@ -4,7 +4,6 @@ description: "归档已完成的 llman SDD 变更。自动 ff-merge 到默认分
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

@@ -4,7 +4,6 @@ description: "Implement tasks from an llman SDD change in a closed loop — writ
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

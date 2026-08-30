@@ -4,7 +4,6 @@ description: "进入 llman SDD 探索模式：理清思路、调查需求、分�
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

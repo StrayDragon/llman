@@ -4,7 +4,6 @@ description: "快速路径：处理不改行为合约的小改动——重构、
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

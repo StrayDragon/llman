@@ -4,7 +4,6 @@ description: "人类主动触发。把大型、一团乱的工作（超出单个
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

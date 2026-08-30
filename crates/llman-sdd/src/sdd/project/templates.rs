@@ -124,8 +124,6 @@ fn build_template_vars(config: &SddConfig) -> BTreeMap<String, String> {
         "llman_version".to_string(),
         env!("CARGO_PKG_VERSION").to_string(),
     );
-    let bdd_mode = if config.bdd.is_some() { "on" } else { "off" };
-    vars.insert("bdd_mode".to_string(), bdd_mode.to_string());
     // Default skill_set; overridden per-skill in load_skill_template.
     vars.insert("skill_set".to_string(), "default".to_string());
 

@@ -4,7 +4,6 @@ description: "Create an llman SDD change proposal with planning artifacts (propo
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

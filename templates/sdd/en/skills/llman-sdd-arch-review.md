@@ -4,7 +4,6 @@ description: "Scan codebase for shallow modules (interface nearly equals impleme
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

@@ -4,7 +4,6 @@ description: "单个变更的闭环：门禁检查→实施→测试→校验→
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 disable-model-invocation: true
 ---

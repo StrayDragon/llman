@@ -4,7 +4,6 @@ description: "Handle small code changes that do NOT modify behavioral contracts 
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

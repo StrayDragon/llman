@@ -4,7 +4,6 @@ description: "进入 llman SDD 探索模式：理清思路、调查需求、分�
 metadata:
   version: "0.0.71"
   llman_sdd:
-    bdd_mode: "on"
     skill_set: "default"
 ---
 

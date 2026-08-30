@@ -4,7 +4,6 @@ description: "单个变更的闭环：门禁检查→实施→测试→校验→
 metadata:
   version: "0.0.71"
   llman_sdd:
-    bdd_mode: "on"
     skill_set: "default"
 disable-model-invocation: true
 ---

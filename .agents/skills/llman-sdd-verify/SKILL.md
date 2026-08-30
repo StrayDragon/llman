@@ -4,7 +4,6 @@ description: "验证已实施的 llman SDD 变更是否与 specs/design/tasks �
 metadata:
   version: "0.0.71"
   llman_sdd:
-    bdd_mode: "on"
     skill_set: "default"
 ---
 

@@ -4,7 +4,6 @@ description: "Validate llmanspec changes and specs with actionable fixes."
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

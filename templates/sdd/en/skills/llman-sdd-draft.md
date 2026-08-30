@@ -4,7 +4,6 @@ description: "Quickly capture a change idea as a draft proposal (proposal.md onl
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 
