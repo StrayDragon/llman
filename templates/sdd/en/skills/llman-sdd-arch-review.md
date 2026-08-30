@@ -3,8 +3,6 @@ name: "llman-sdd-arch-review"
 description: "Scan codebase for shallow modules (interface nearly equals implementation) and surface deepening candidates. Use when the user wants an architecture review, seeks module deepening opportunities, or wants to improve testability and AI-navigability."
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Architecture Review

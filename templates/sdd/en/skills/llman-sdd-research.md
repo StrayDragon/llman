@@ -3,8 +3,6 @@ name: "llman-sdd-research"
 description: "Delegate external research to a background agent. Use when the user needs official docs/API/source facts gathered, or wants the reading legwork delegated so they can keep working."
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Research

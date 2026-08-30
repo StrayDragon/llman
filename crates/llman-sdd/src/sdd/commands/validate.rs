@@ -109,7 +109,7 @@ pub(crate) fn run(root: &Path, args: ValidateArgs) -> Result<()> {
     let locale = config.locale.clone();
 
     // Managed skill metadata must match project BDD mode before any other gate.
-    crate::sdd::project::skill_consistency::check_installed_skills_metadata(root)?;
+    crate::sdd::project::skill_consistency::check_installed_skills_hygiene(root)?;
 
     let interactive = is_interactive(args.no_interactive);
     let type_override = normalize_type(args.item_type.as_deref());

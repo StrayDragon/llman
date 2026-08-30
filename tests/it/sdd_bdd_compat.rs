@@ -78,7 +78,7 @@ fn init_project(env: &TestEnvironment, bdd: Option<&str>) {
     write_config(env, None);
     seed_spec_and_change(env);
     write_config(env, bdd);
-    // Refresh skills so metadata.llman_sdd matches the final config (r95).
+    // Refresh managed skills so installed products match the final config.
     assert_success(&run(&["sdd", "init", "--update"], env));
 }
 

@@ -79,11 +79,11 @@ fn resolve_optional_skills(config: &SddConfig) -> Vec<&'static str> {
 pub(crate) fn skill_templates(config: &SddConfig, root: &Path) -> Result<Vec<SkillTemplate>> {
     let mut files = Vec::new();
     for name in DEFAULT_SKILL_FILES {
-        let content = load_skill_template(config, root, name, "default")?;
+        let content = load_skill_template(config, root, name)?;
         files.push(SkillTemplate { name, content });
     }
     for name in resolve_optional_skills(config) {
-        let content = load_skill_template(config, root, name, "optional")?;
+        let content = load_skill_template(config, root, name)?;
         files.push(SkillTemplate { name, content });
     }
     Ok(files)
@@ -93,15 +93,9 @@ pub(crate) fn root_stub_content(config: &SddConfig, root: &Path) -> Result<Strin
     load_template(config, root, "agents-root-stub.md")
 }
 
-fn load_skill_template(
-    config: &SddConfig,
-    root: &Path,
-    skill_file: &str,
-    skill_set: &str,
-) -> Result<String> {
+fn load_skill_template(config: &SddConfig, root: &Path, skill_file: &str) -> Result<String> {
     let units = load_template_units(config, root)?;
-    let mut vars = build_template_vars(config);
-    vars.insert("skill_set".to_string(), skill_set.to_string());
+    let vars = build_template_vars(config);
     load_template_with_context(
         config,
         root,
@@ -124,9 +118,6 @@ fn build_template_vars(config: &SddConfig) -> BTreeMap<String, String> {
         "llman_version".to_string(),
         env!("CARGO_PKG_VERSION").to_string(),
     );
-    // Default skill_set; overridden per-skill in load_skill_template.
-    vars.insert("skill_set".to_string(), "default".to_string());
-
     if let Some(ref bdd) = config.bdd {
         vars.insert("bdd_enabled".to_string(), "true".to_string());
         vars.insert("bdd_framework".to_string(), bdd.framework.clone());

@@ -1296,8 +1296,6 @@ sdd:
       en: "No llmanspec directory found. Run '%{cmd}' first."
 
   skill_consistency:
-    skill_set_invalid:
-      en: "Installed managed skill(s) have invalid metadata.llman_sdd (skill_set must be one of: %{expected}).%{details}\nFix: run `%{fix}` to regenerate skills from templates."
     unrendered_template_syntax:
       en: "Installed managed skill(s) still contain unrendered MiniJinja syntax (`{% ... %}`).%{details}\nFix: upgrade llman, then run `%{fix}` to regenerate skills from templates."
 

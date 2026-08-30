@@ -816,8 +816,6 @@ name: "llman-sdd-explore"
 description: "markdown override"
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # Markdown Override

@@ -3,8 +3,6 @@ name: "llman-sdd-ff"
 description: "Fast-forward：一次性创建规划壳（proposal/design/tasks），再 Branch binding + Specs landing。禁止写入 changes/<id>/specs/。"
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Fast-Forward (FF)

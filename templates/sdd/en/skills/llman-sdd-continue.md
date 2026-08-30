@@ -3,8 +3,6 @@ name: "llman-sdd-continue"
 description: "Continue an existing llman SDD change by creating the next artifact."
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Continue

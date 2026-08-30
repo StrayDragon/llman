@@ -3,8 +3,6 @@ name: "llman-sdd-continue"
 description: "继续已有 llman SDD 变更，创建下一个缺失工件。"
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Continue

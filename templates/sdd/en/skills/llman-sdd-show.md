@@ -3,8 +3,6 @@ name: "llman-sdd-show"
 description: "Inspect llmanspec changes and specs quickly."
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Show

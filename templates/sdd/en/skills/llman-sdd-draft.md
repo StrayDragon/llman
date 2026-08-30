@@ -3,8 +3,6 @@ name: "llman-sdd-draft"
 description: "Quickly capture a change idea as a draft proposal (proposal.md only, via `change new --from`). No tasks/design/specs/attach. Use to jot down ideas or future requirements; promote to full propose when ready."
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Draft
