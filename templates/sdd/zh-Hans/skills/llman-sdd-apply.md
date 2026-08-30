@@ -20,6 +20,16 @@ metadata:
 
 ### Skill 导航（非生命周期；仅指示当前 skill）
 
+```mermaid
+flowchart LR
+    propose["llman-sdd-propose<br/>提案"] --> apply
+    apply["★ llman-sdd-apply ★<br/>实施（须 readyToImplement）"]
+    apply --> verify["llman-sdd-verify<br/>验证"]
+    verify --> archive["llman-sdd-archive<br/>归档"]
+
+    style apply fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
 > 📍 你现在在完整 Git-native 生命周期图中的 **H（apply）**：进入前须 Specs-landed（或 `skip_specs_landing`）且 `readyToImplement=true` → 下一步 `llman-sdd-verify`
 
 ## 硬约束
@@ -112,7 +122,7 @@ metadata:
 
 > 💡 实施完成 → 下一步 `llman-sdd-verify`（验证）
 
-{{ sdd_command_reference }}
+> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表（r139）。
 
 {{ unit("skills/validation-hints") }}
 

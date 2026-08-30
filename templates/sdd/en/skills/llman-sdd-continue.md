@@ -37,7 +37,7 @@ Use this skill to continue an existing change and create the next missing artifa
    - Review: `llman sdd change diff <id>` (read-only)
 
 {{ unit("skills/git-native-flow") }}
-{{ sdd_command_reference }}
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

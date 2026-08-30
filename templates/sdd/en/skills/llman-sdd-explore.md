@@ -24,6 +24,17 @@ Use this skill when the user wants to think through ideas, investigate problems,
 
 ### Skill navigation (not the lifecycle; shows current skill only)
 
+```mermaid
+flowchart LR
+    explore["★ llman-sdd-explore ★<br/>Explore (you are here)"]
+    explore --> propose["llman-sdd-propose<br/>Propose (Branch binding + Specs landing)"]
+    propose --> apply["llman-sdd-apply<br/>Implement"]
+    apply --> verify["llman-sdd-verify<br/>Verify"]
+    verify --> archive["llman-sdd-archive<br/>Archive"]
+
+    style explore fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
 > 📍 You are in the explore phase (thinking only) → standard path next: `llman-sdd-propose` (propose)
 > 📎 For small changes (no behavioral contract changes), go directly to `llman-sdd-quick` (quick path)
 > 🗺️ Skill navigation ≠ Git-native lifecycle
@@ -64,6 +75,6 @@ If the user asks you to implement while in explore mode, STOP and remind them to
 
 > 💡 Explore done → next: `llman-sdd-propose` (propose) or `llman-sdd-quick` (quick path)
 
-{{ sdd_command_reference }}
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
 
 {{ unit("skills/structured-protocol") }}

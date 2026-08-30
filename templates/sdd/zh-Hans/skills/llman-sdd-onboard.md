@@ -24,7 +24,7 @@ metadata:
    - **快速路径**：不改 MUST/SHALL，直接改代码 commit（触及 live specs 须已绑定分支，见 `llman-sdd-quick`）。
 6. 使用 `llman sdd graph` 可视化变更依赖关系（depends_on/blocks）。
 
-{{ sdd_command_reference }}
+> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表（r139）。
 
 ## 备注
 - `llmanspec/config.yaml` 包含项目上下文、规则、locale 与 skills 路径。

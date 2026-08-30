@@ -1,6 +1,10 @@
 ---
 depends_on: []
 rules_edit_acked: true
+branch: sdd/update-sdd-skill-cmdref-nav
+base_sha: 319ec051fa9da164a7ebfd33de915af3a4c11777
+checkpointed: true
+checkpoint_sha: 319ec051fa9da164a7ebfd33de915af3a4c11777
 ---
 
 # skill 命令参考改由 agent 查 CLI help + 导航 mermaid 回归

@@ -1,3 +1,4 @@
+#[cfg(test)]
 pub(crate) mod cmdref;
 pub mod config;
 pub(crate) mod config_skills;

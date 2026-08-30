@@ -20,6 +20,16 @@ Unless there is a clear blocker, **DO NOT stop halfway to ask "should I continue
 
 ### Skill navigation (not the lifecycle; shows current skill only)
 
+```mermaid
+flowchart LR
+    propose["llman-sdd-propose<br/>Propose"] --> apply
+    apply["★ llman-sdd-apply ★<br/>Implement (readyToImplement)"]
+    apply --> verify["llman-sdd-verify<br/>Verify"]
+    verify --> archive["llman-sdd-archive<br/>Archive"]
+
+    style apply fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
 > 📍 You are at Git-native **H (apply)** in the full lifecycle diagram: Specs-landed (or `skip_specs_landing`) and `readyToImplement=true` required first → next: `llman-sdd-verify`
 
 ## Hard Constraints
@@ -112,7 +122,7 @@ Then suggest running `llman-sdd-verify` for the verification phase.
 
 > 💡 Implementation done → next: `llman-sdd-verify` (verify)
 
-{{ sdd_command_reference }}
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
 
 {{ unit("skills/validation-hints") }}
 

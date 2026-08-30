@@ -24,6 +24,17 @@ metadata:
 
 ### Skill 导航（非生命周期；仅指示当前 skill）
 
+```mermaid
+flowchart LR
+    explore["★ llman-sdd-explore ★<br/>探索（你现在在这里）"]
+    explore --> propose["llman-sdd-propose<br/>提案（含 Branch binding 与 Specs landing）"]
+    propose --> apply["llman-sdd-apply<br/>实施"]
+    apply --> verify["llman-sdd-verify<br/>验证"]
+    verify --> archive["llman-sdd-archive<br/>归档"]
+
+    style explore fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
 > 📍 你现在在探索阶段（仅思考）→ 常规路径下一步 `llman-sdd-propose`（提案）
 > 📎 如果是小改动（不改行为合约），可直接走 `llman-sdd-quick`（快速路径）
 > 🗺️ Skill 导航 ≠ Git-native 生命周期
@@ -64,6 +75,6 @@ metadata:
 
 > 💡 探索完成 → 下一步 `llman-sdd-propose`（提案）或 `llman-sdd-quick`（快速路径）
 
-{{ sdd_command_reference }}
+> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表（r139）。
 
 {{ unit("skills/structured-protocol") }}

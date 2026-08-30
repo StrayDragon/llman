@@ -14,6 +14,15 @@ metadata:
 
 ### Skill 导航（非生命周期；仅指示当前 skill）
 
+```mermaid
+flowchart LR
+    apply["llman-sdd-apply<br/>实施"] --> verify
+    verify["★ llman-sdd-verify ★<br/>验证（你现在在这里）"]
+    verify --> archive["llman-sdd-archive<br/>归档"]
+
+    style verify fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
 > 📍 你现在在验证阶段 → 通过后下一步 `llman-sdd-archive`（归档）；失败则回到 `llman-sdd-apply`（修复）。对应 Git-native 图中的 **I（verify）**，对象应已 Specs-landed（`readyToImplement=true`）。
 > 🗺️ Skill 导航 ≠ Git-native 生命周期；完整生命周期见底部 brief 单元。
 
@@ -64,7 +73,7 @@ metadata:
 
 {{ unit("skills/git-native-flow-brief") }}
 {{ unit("skills/human-readable-summary") }}
-{{ sdd_command_reference }}
+> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表（r139）。
 
 {{ unit("skills/validation-hints") }}
 

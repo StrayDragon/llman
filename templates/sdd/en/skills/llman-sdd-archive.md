@@ -14,6 +14,14 @@ Use this skill to archive completed changes. Prerequisites: verify all-green, an
 
 ## Pipeline Position
 
+```mermaid
+flowchart LR
+    verify["llman-sdd-verify<br/>Verify"] --> archive
+    archive["★ llman-sdd-archive ★<br/>Archive (you are here)"]
+
+    style archive fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
 > 📍 You are in the archive phase: the last stop in the Git-native lifecycle.
 > 📎 If specs get too large, run `llman-sdd-specs-compact` to compress.
 
@@ -79,7 +87,7 @@ Use this skill to archive completed changes. Prerequisites: verify all-green, an
 
 {{ unit("workflow/archive-freeze-guidance") }}
 
-{{ sdd_command_reference }}
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
 
 {{ unit("skills/validation-hints") }}
 

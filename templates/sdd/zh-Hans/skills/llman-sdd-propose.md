@@ -19,6 +19,17 @@ metadata:
 
 ### Skill 导航（非生命周期；仅指示当前 skill）
 
+```mermaid
+flowchart LR
+    explore["llman-sdd-explore<br/>探索"] --> propose
+    propose["★ llman-sdd-propose ★<br/>提案（Branch binding + Specs landing）"]
+    propose --> apply["llman-sdd-apply<br/>实施"]
+    apply --> verify["llman-sdd-verify<br/>验证"]
+    verify --> archive["llman-sdd-archive<br/>归档"]
+
+    style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
 > 📍 你现在在 propose 阶段：上方 Git-native 路径为 **Designed → Branch binding → Specs landing**（直到 `readyToImplement=true`）→ 下一步：`llman-sdd-apply`
 > 📎 小改动（不改行为合约）请走 `llman-sdd-quick`（快速路径）
 
@@ -102,7 +113,7 @@ metadata:
 
 > 💡 提案完成 → 下一步：`llman-sdd-apply`（实施）
 
-{{ sdd_command_reference }}
+> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表（r139）。
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

@@ -65,6 +65,17 @@ flowchart TB
 
 ### Skill 导航（非生命周期；仅指示当前 skill）
 
+```mermaid
+flowchart LR
+    explore["llman-sdd-explore<br/>探索"] --> propose
+    propose["★ llman-sdd-propose ★<br/>提案（Branch binding + Specs landing）"]
+    propose --> apply["llman-sdd-apply<br/>实施"]
+    apply --> verify["llman-sdd-verify<br/>验证"]
+    verify --> archive["llman-sdd-archive<br/>归档"]
+
+    style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
 > 📍 你现在在 propose 阶段：上方 Git-native 路径为 **Designed → Branch binding → Specs landing**（直到 `readyToImplement=true`）→ 下一步：`llman-sdd-apply`
 > 📎 小改动（不改行为合约）请走 `llman-sdd-quick`（快速路径）
 
@@ -144,22 +155,7 @@ flowchart TB
 
 > 💡 提案完成 → 下一步：`llman-sdd-apply`（实施）
 
-命令参考（由 CLI 命令树生成，始终与当前版本一致；细节用 `llman sdd <cmd> --help` 查看）：
-- `llman sdd review` — 聚合审查：pending/manual 规则、未绑定场景、staleness、validate 全量扫描
-- `llman sdd init` — 初始化 llmanspec（--update 刷新 skills/模板）
-- `llman sdd list` — 列出变更或 specs
-- `llman sdd show` — 查看 change 或 spec
-- `llman sdd validate` — 校验 changes/specs（--strict 门禁；--no-check 跳过 BDD）
-- `llman sdd archive` — `freeze` 把旧归档 change 目录冻结为单一冷备归档；`thaw` 从冷备归档恢复已归档 change
-- `llman sdd change` — `new` 创建草案壳 proposal（--from 可从描述推导 id）；`attach` 把已有分支 + base SHA 绑定到 change；`start` Designed→Full：干净树门禁 + 建 sdd/ 分支 + 写绑定；`checkpoint` 为归档检查点干净且过校验的分支；`finalize` 单 commit 收尾：门禁 + ff-merge + 归档改名；`diff` 查看/导出 base...HEAD diff（--json 报告 commitCount）；`archive` 封存 change：ff-merge + 文档改名到 archive/
-- `llman sdd spec` — `skeleton` 生成单轨 spec 骨架（直接通过 --strict）；`add-req` 向 spec 添加 requirement；`add-scenario` 为 requirement 添加验收场景；`next-req-id` 分配下一个空闲全局 req_id；`resolve-req` 解析 req_id 的归属 capability 与 statement
-- `llman sdd graph` — 渲染 change 依赖图（mermaid）
-- `llman sdd worktree` — `prune` 清理 change 已归档/缺失的 worktree
-- `llman sdd context` — 查找与任务/路径相关的 specs（面向 agent）
-- `llman sdd index` — `rebuild` 重建 spec 索引；`check` 检查索引新鲜度（不重建）
-- `llman sdd config` — `skills` 交互式管理 extra_skills
-- `llman sdd project` — `import` 从 OpenSpec markdown 导入 specs；`migrate` 迁移遗留 spec.toon 为单轨 .feature（仅 toon2features）；`dedupe-req-ids` 把冲突的 req_id 重映射为新的 rN 别名
-本表由 `llman sdd init --update` 重新生成；MUST NOT 手写编辑。
+> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表（r139）。
 校验修复（单轨 feature-as-spec）：
 
 1）缺少头注释（`missing # capability: header comment`）：

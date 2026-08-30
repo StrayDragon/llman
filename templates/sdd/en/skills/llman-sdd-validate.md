@@ -27,7 +27,7 @@ Use this skill to validate change/spec format and staleness.
    - Change JSON status fields: `stage` / `specsLanded` / `readyToImplement` (`show --json`).
 {% endif %}
 
-{{ sdd_command_reference }}
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
 
 {{ unit("skills/validation-hints") }}
 

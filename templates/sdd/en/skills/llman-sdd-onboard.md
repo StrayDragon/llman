@@ -24,7 +24,7 @@ Use this skill to onboard to llman SDD in a repository.
    - **Quick path**: no MUST/SHALL change; edit code and commit (live specs only on a bound branch — see `llman-sdd-quick`).
 6. Use `llman sdd graph` to visualize change dependencies.
 
-{{ sdd_command_reference }}
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
 
 ## Notes
 - `llmanspec/config.yaml` holds project context, rules, locale, and skills paths.
