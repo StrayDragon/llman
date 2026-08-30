@@ -50,8 +50,8 @@
     - determine_stage（及 show/list 同源）MUST 统一采用三态，不再区分 BDD-on/BDD-off，也不再有 Specified 态：- Draft：仅 proposal.md（或 frontmatter 无 branch/base_sha）。- Designed：proposal + design + tasks 齐全，但尚未进分支（未 attach binding）。- Full：proposal + design + tasks 齐全且 frontmatter 含非空 branch 与 base_sha（已 change start / attach）。readyToImplement MUST 遵循 r1（Full 且 specsLanded 或 skip_specs_landing），MUST NOT 仅因 stage=Full 即为 true。MUST NOT 再读取 changes/<id>/specs/ 作为规格信号（该目录已废除）。Skills apply/verify MUST 与此三态及 r1 语义一致。旧 Specified 态 MUST 作为已删除映射到 Designed 或 Draft（按 design/tasks 是否齐全）。
 
   @req:r95 @human
-  场景: 托管 skill bdd_mode 元信息与一致性门禁
-    - 托管 llman-sdd-* SKILL.md 的 metadata.llman_sdd.bdd_mode MUST 为 on 或 off，且 MUST 与 config.yaml 是否含 bdd: 段一致（有 bdd: → on；无 → off）；metadata.llman_sdd.skill_set MUST 为 default 或 optional。llman sdd validate（含单 spec/change/--all/--specs）与 llman sdd init --update MUST 在发现缺失 llman_sdd、非法枚举值、或 bdd_mode 与配置不一致时以非零退出失败，并在 stderr 指出违规 skill 路径与期望 bdd_mode，且 MUST 提示运行 llman sdd init --update 修复。MUST NOT 因无 llman-sdd- 前缀的自定义 skill 失败。
+  场景: 托管 skill llman_sdd 元信息门禁
+    - 托管 llman-sdd-* SKILL.md 的 metadata.llman_sdd MUST 存在，且 metadata.llman_sdd.skill_set MUST 为 default 或 optional（bdd_mode 已退役：MUST NOT 要求或校验该键）。llman sdd validate（含单 spec/change/--all/--specs）与 llman sdd init --update MUST 在发现缺失 llman_sdd 或 skill_set 非法枚举值时以非零退出失败，并在 stderr 指出违规 skill 路径与期望 skill_set，且 MUST 提示运行 llman sdd init --update 修复。MUST NOT 因无 llman-sdd- 前缀的自定义 skill 失败。
 
   @req:r100 @human
   场景: explore grilling 深对齐分支
@@ -211,7 +211,7 @@
 
   @executable
   @req:r95
-  场景: init --update 写入 bdd_mode 后 validate 通过
+  场景: init --update 写入 llman_sdd 元信息后 validate 通过
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
     假如 项目中存在技能目录 llman-sdd-explore
     当 在非交互终端运行 llman sdd init --update
