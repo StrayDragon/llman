@@ -14,14 +14,6 @@ metadata:
 
 ## Pipeline 位置
 
-```mermaid
-flowchart LR
-    verify["llman-sdd-verify<br/>验证"] --> archive
-    archive["★ llman-sdd-archive ★<br/>归档（你现在在这里）"]
-
-    style archive fill:#fff3cd,stroke:#ffc107,stroke-width:3px
-```
-
 > 📍 你现在在归档阶段：Git-native 生命周期的最后一站。
 > 📎 若 specs 逐渐膨胀，可运行 `llman-sdd-specs-compact` 压缩。
 
@@ -87,7 +79,7 @@ flowchart LR
 
 {{ unit("workflow/archive-freeze-guidance") }}
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 
 {{ unit("skills/validation-hints") }}
 

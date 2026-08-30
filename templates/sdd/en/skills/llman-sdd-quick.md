@@ -14,21 +14,6 @@ Use this path for small changes that don't modify behavioral contracts.
 
 ## Pipeline Position
 
-```mermaid
-flowchart LR
-    explore["llman-sdd-explore<br/>Explore"] --> quick
-
-    quick["★ llman-sdd-quick ★<br/>Quick path (you are here)"]
-    quick --> commit["git commit<br/>Done"]
-
-    explore --> propose["Full path:<br/>propose (Branch binding + Specs landing) → apply → verify → archive"]
-    propose --> apply["..."]
-    apply --> verify["..."]
-    verify --> archive["..."]
-
-    style quick fill:#d4edda,stroke:#28a745,stroke-width:3px
-```
-
 > 📍 Quick path: no behavioral contract changes, modify code and commit directly. If you find you need to change a contract → STOP, switch to full path `llman-sdd-propose`
 > 🗺️ Full path includes Git-native Branch binding + Specs landing (Specs landing is not a separate skill)
 
@@ -53,6 +38,6 @@ flowchart LR
 
 > 💡 Quick path done → git commit. If you need the full path → `llman-sdd-propose` → `llman-sdd-apply` → `llman-sdd-verify` → `llman-sdd-archive`
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 
 {{ unit("skills/ethics-governance") }}

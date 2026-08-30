@@ -14,15 +14,6 @@ metadata:
 
 ## Pipeline 位置
 
-```mermaid
-flowchart LR
-    pipeline["主 pipeline:<br/>propose → apply → verify → archive"]
-    graph["📎 llman-sdd-graph<br/>依赖可视化（辅助工具）"]
-    graph -.->|任意阶段可用| pipeline
-
-    style graph fill:#e8f4e8,stroke:#28a745,stroke-width:2px
-```
-
 > 📎 辅助工具，可在 pipeline 任意阶段使用。需要提案 → `llman-sdd-propose`；需要实施 → 仅当 `readyToImplement=true` 时用 `llman-sdd-apply`。
 
 ## 用法
@@ -71,6 +62,6 @@ blocks:
 
 > 💡 这只是辅助工具 — 主流程：`llman-sdd-propose`（含 Branch binding + Specs landing）→ `llman-sdd-apply`（须 `readyToImplement`）→ `llman-sdd-verify` → `llman-sdd-archive`。
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 
 {{ unit("skills/ethics-governance") }}

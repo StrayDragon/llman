@@ -1,6 +1,6 @@
 ## Ethics Governance
-- `ethics.risk_level`: label risk as `low|medium|high|critical`.
-- `ethics.prohibited_actions`: list actions that must never be performed.
-- `ethics.required_evidence`: list evidence required before high-impact outputs.
-- `ethics.refusal_contract`: define when to refuse and the safe alternative response.
-- `ethics.escalation_policy`: define when to escalate for user confirmation / human review.
+- `ethics.risk_level`: low — reads/writes this repo and `llmanspec/` only, no outward-facing actions; a skill body may override.
+- `ethics.prohibited_actions`: actions violating the skill body's hard rules; push / PR / external upload without an explicit user request.
+- `ethics.required_evidence`: conclusions backed by command output or file paths; gate state per `llman sdd validate`.
+- `ethics.refusal_contract`: gate CRITICAL not cleared → refuse to advance; self-repair cap reached → report a blocker.
+- `ethics.escalation_policy`: pause and ask the user before changing SDD contracts/templates or irreversible actions.

@@ -19,23 +19,12 @@ Create a new change with planning artifacts (proposal + tasks; design optional),
 
 ### Skill navigation (not the lifecycle; shows current skill only)
 
-```mermaid
-flowchart LR
-    explore["llman-sdd-explore<br/>Explore"] --> propose
-    propose["★ llman-sdd-propose ★<br/>Propose (Branch binding + Specs landing)"]
-    propose --> apply["llman-sdd-apply<br/>Implement"]
-    apply --> verify["llman-sdd-verify<br/>Verify"]
-    verify --> archive["llman-sdd-archive<br/>Archive"]
-
-    style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
-```
-
 > 📍 You are in propose: Git-native path above is **Designed → Branch binding → Specs landing** (until `readyToImplement=true`) → next: `llman-sdd-apply`
 > 📎 For small changes (no behavioral contract changes), use `llman-sdd-quick` (quick path)
 
 ## Hard Constraints
 
-- **Must confirm change id with user before writing files**: change boundaries must stay clear. **Exception**: when the user wants to quickly capture an idea (draft only, no id needed), route them to `llman-sdd-draft` instead of running full propose.
+- **Non-blocking change id (r140)**: if the user supplied an id, use it; otherwise derive a valid kebab-case id (verb prefix) per r99, announce the chosen id and how to override, and continue — MUST NOT wait for confirmation (ids are cheap to change before Branch binding). Only route to `llman-sdd-draft` when the user wants to capture an idea (draft, no id).
 - **Live specs are SSOT**: edit `llmanspec/specs/**` only **after** Branch binding, on the **bound non-default branch** (Specs landing). **Do not** edit live specs on the default branch; **do not** author under `changes/<id>/specs/` or use `change delta` (removed). The planning shell may briefly live on the default branch.
 - **Don't ask "should I continue?"**: execute the full propose phase in one pass, generate artifacts and validate.
 {% if extra_skill_continue %}
@@ -66,9 +55,8 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
    - If context unavailable, rebuild with `llman sdd index rebuild` (default `pageindex`, no model needed) and continue.
 3. Gather input:
    - A short description of the change
-   - A change id (or derive one; kebab-case, verb prefix: `add-`, `update-`, `remove-`, `refactor-`)
+   - A change id (user-supplied if given; otherwise derive per r140 and announce)
    - The impacted capability/capabilities (to name `specs/<capability>/`)
-   - Confirm the final id before writing files
 
 ### 2) Ensure project is initialized:
    - `llmanspec/` must exist; if missing, tell the user to run `llman sdd init`, then STOP.
@@ -115,7 +103,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 
 > 💡 Proposal done → next: `llman-sdd-apply` (implement)
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

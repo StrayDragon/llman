@@ -19,4 +19,4 @@
 
   @req:r141 @human
   场景: 生成式渲染变量取代静态命令单元
-    - init --update 的渲染上下文 MUST 支持生成式变量（如 sdd_command_reference）：其内容由渲染进程从 CLI 命令树与 i18n 现算，不落模板仓库；模板通过 {{ sdd_command_reference }} 引用。静态手写单元与生成式变量 MUST NOT 对同一内容双轨并存（如 skills/sdd-commands 静态单元 MUST 已删除）。生成式变量的装配 MUST 遵循 r66 的注入语义：变量缺失时渲染快速失败，one-liner 级别的缺 key 回退（clap about）不视为缺失。
+    - init --update 的渲染上下文 MUST 支持生成式变量（如 sdd_command_reference）：其内容由渲染进程从 CLI 命令树与 i18n 现算，不落模板仓库；模板通过 {{ sdd_command_reference }} 引用。静态手写单元与生成式变量 MUST NOT 对同一内容双轨并存（如 skills/sdd-commands 静态单元 MUST 已删除）。生成式变量在 skill 渲染链路（load_template_with_context）MUST 无条件按解析 locale 注入，MUST NOT 依赖模板侧判空兜底；one-liner 级别的缺 key 回退（clap about）不视为缺失。

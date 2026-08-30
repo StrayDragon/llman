@@ -1,6 +1,10 @@
 ---
 depends_on: []
 rules_edit_acked: true
+branch: sdd/add-sdd-cmdref-generation
+base_sha: 319ec051fa9da164a7ebfd33de915af3a4c11777
+checkpointed: true
+checkpoint_sha: 319ec051fa9da164a7ebfd33de915af3a4c11777
 ---
 
 # SDD skill 命令参考自动生成 + 路线一静态瘦身

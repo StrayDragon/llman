@@ -34,7 +34,7 @@ Run the propose-equivalent path quickly: planning shell → Branch binding → S
 8. Confirm `readyToImplement=true` via `llman sdd show <id> --json`, then suggest `llman-sdd-apply` (do not suggest apply before ready).
 
 {{ unit("skills/git-native-flow-brief") }}
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/ethics-governance") }}

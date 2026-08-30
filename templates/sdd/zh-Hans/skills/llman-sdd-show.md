@@ -19,7 +19,7 @@ metadata:
 4. 需要时使用 `--type change|spec` 消除歧义。
 5. 对 change 使用 `--json`：状态 SSOT 字段为 `stage` / `specsLanded` / `skipSpecsLanding` / `readyToImplement`（勿凭「完整工件」口头判断可否 apply）。
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 
 {{ unit("skills/validation-hints") }}
 

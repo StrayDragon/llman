@@ -21,7 +21,7 @@ disable-model-invocation: true
 ```bash
 llman sdd show <change-id> --json --type change
 ```
-{{ unit("skills/stage-guard") }}
+> 阶段判定：用 `llman sdd show <id> --json --type change` 的 `stage` / `readyToImplement` 字段；完整判定表见 llman-sdd-apply。
 
 - 须在绑定的非默认分支上。
 - `readyToImplement` 不为 true → STOP（先 Specs landing 或 `skip_specs_landing`）；**不要**直接 finalize。

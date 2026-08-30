@@ -27,7 +27,7 @@ Use this skill to validate change/spec format and staleness.
    - Change JSON status fields: `stage` / `specsLanded` / `readyToImplement` (`show --json`).
 {% endif %}
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 
 {{ unit("skills/validation-hints") }}
 

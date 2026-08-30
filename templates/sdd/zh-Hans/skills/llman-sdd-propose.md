@@ -19,23 +19,12 @@ metadata:
 
 ### Skill 导航（非生命周期；仅指示当前 skill）
 
-```mermaid
-flowchart LR
-    explore["llman-sdd-explore<br/>探索"] --> propose
-    propose["★ llman-sdd-propose ★<br/>提案（Branch binding + Specs landing）"]
-    propose --> apply["llman-sdd-apply<br/>实施"]
-    apply --> verify["llman-sdd-verify<br/>验证"]
-    verify --> archive["llman-sdd-archive<br/>归档"]
-
-    style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
-```
-
 > 📍 你现在在 propose 阶段：上方 Git-native 路径为 **Designed → Branch binding → Specs landing**（直到 `readyToImplement=true`）→ 下一步：`llman-sdd-apply`
 > 📎 小改动（不改行为合约）请走 `llman-sdd-quick`（快速路径）
 
 ## 硬约束
 
-- **写文件前必须与用户确认 change id**：change 边界必须保持清晰。**例外**：用户只想快速记一个 idea（仅草案、无需 id）时，转 `llman-sdd-draft`，不跑完整 propose。
+- **change id 非阻塞（r140）**：用户已给出 id 则直接采用；否则按 r99 推导规则生成合法 kebab-case id（动词前缀），宣布所用 id 与覆盖方式后继续，MUST NOT 等待确认——Branch binding 前更换 id 成本很低。仅当用户想先记 idea（草案、无需 id）时转 `llman-sdd-draft`。
 - **Live specs 是 SSOT**：只在 Branch binding **之后**、在**绑定的非默认分支**上编辑 `llmanspec/specs/**`（Specs landing）。**不要**在默认分支上改 live specs；**不要**在 `changes/<id>/specs/` 下撰写或使用 `change delta`（已移除）。规划壳可以短暂留在默认分支。
 - **不要问「要不要继续」**：一口气执行完整 propose 阶段，生成工件并校验。
 {% if extra_skill_continue %}
@@ -66,9 +55,8 @@ flowchart LR
    - context 不可用时，跑 `llman sdd index rebuild`（默认 `pageindex`，无需模型）后继续。
 3. 收集输入：
    - 一段简短的变更描述
-   - 一个 change id（或推导一个；kebab-case，动词前缀：`add-`、`update-`、`remove-`、`refactor-`）
+   - 一个 change id（用户给出则用之；否则按 r140 推导并宣布）
    - 受影响的 capability（用于命名 `specs/<capability>/`）
-   - 写文件前确认最终 id
 
 ### 2) 确认项目已初始化：
    - `llmanspec/` 必须存在；若缺失，让用户运行 `llman sdd init`，然后 STOP。
@@ -114,7 +102,7 @@ flowchart LR
 
 > 💡 提案完成 → 下一步：`llman-sdd-apply`（实施）
 
-{{ unit("skills/sdd-commands") }}
+{{ sdd_command_reference }}
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

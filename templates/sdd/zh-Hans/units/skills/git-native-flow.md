@@ -16,7 +16,7 @@ flowchart TB
   end
 
   subgraph specs_only["仅在本 change 分支"]
-    F["编辑 live llmanspec/specs/**<br/>toon / feature"]
+    F["编辑 live llmanspec/specs/**（.feature）"]
     G["commit → Specs landing<br/>base...HEAD 含 specs 路径"]
   end
 
