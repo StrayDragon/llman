@@ -1,15 +1,16 @@
 //! Consistency checks for installed managed SDD skills (`llman-sdd-*`).
 //!
-//! Validates `metadata.llman_sdd.bdd_mode` against `config.yaml` (`bdd:` present → on),
-//! and rejects leftover unrendered MiniJinja tags (e.g. `{% if ... %}`) in skill bodies.
+//! Validates `metadata.llman_sdd.skill_set` (r95; `bdd_mode` is retired and
+//! MUST NOT be required or checked), and rejects leftover unrendered MiniJinja
+//! tags (e.g. `{% if ... %}`) in skill bodies.
 
-use super::config::SddConfig;
 use anyhow::{Result, anyhow};
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 const MANAGED_SKILL_PREFIX: &str = "llman-sdd-";
+const SKILL_SET_VALUES: &[&str] = &["default", "optional"];
 
 #[derive(Debug, Deserialize)]
 struct SkillFrontmatter {
@@ -26,28 +27,20 @@ struct SkillMetadata {
 #[derive(Debug, Deserialize)]
 struct LlmanSddMeta {
     #[serde(default)]
-    bdd_mode: Option<String>,
-    #[serde(default)]
-    #[allow(dead_code)]
     skill_set: Option<String>,
 }
 
-/// Expected `bdd_mode` for the project: `on` if `bdd:` is configured, else `off`.
-pub(crate) fn expected_bdd_mode(config: &SddConfig) -> &'static str {
-    if config.bdd.is_some() { "on" } else { "off" }
-}
-
-/// Scan `.agents/skills/llman-sdd-*` and ERROR if `llman_sdd.bdd_mode` is missing,
-/// invalid, or mismatches `config`, or if the skill body still contains unrendered
-/// MiniJinja statement tags (`{% ... %}`). Non-prefixed custom skills are ignored.
-pub(crate) fn check_installed_skills_bdd_mode(root: &Path, config: &SddConfig) -> Result<()> {
+/// Scan `.agents/skills/llman-sdd-*` and ERROR if `metadata.llman_sdd` is
+/// missing, `skill_set` is invalid, or the skill body still contains
+/// unrendered MiniJinja statement tags (`{% ... %}`). A leftover `bdd_mode`
+/// key MUST NOT fail (retired, r95). Non-prefixed custom skills are ignored.
+pub(crate) fn check_installed_skills_metadata(root: &Path) -> Result<()> {
     let skills_dir = root.join(".agents").join("skills");
     if !skills_dir.exists() {
         return Ok(());
     }
 
-    let expected = expected_bdd_mode(config);
-    let mut bdd_violations: Vec<(PathBuf, String)> = Vec::new();
+    let mut meta_violations: Vec<(PathBuf, String)> = Vec::new();
     let mut jinja_violations: Vec<(PathBuf, String)> = Vec::new();
 
     for entry in fs::read_dir(&skills_dir)? {
@@ -61,53 +54,38 @@ pub(crate) fn check_installed_skills_bdd_mode(root: &Path, config: &SddConfig) -
         }
         let skill_md = entry.path().join("SKILL.md");
         if !skill_md.exists() {
-            bdd_violations.push((skill_md, "missing SKILL.md".to_string()));
+            meta_violations.push((skill_md, "missing SKILL.md".to_string()));
             continue;
         }
 
         let content = match fs::read_to_string(&skill_md) {
             Ok(c) => c,
             Err(e) => {
-                bdd_violations.push((skill_md, format!("read failed: {e}")));
+                meta_violations.push((skill_md, format!("read failed: {e}")));
                 continue;
             }
         };
 
-        match read_bdd_mode_from_content(&content) {
-            Ok(Some(mode)) if mode == expected => {}
-            Ok(Some(mode)) => {
-                bdd_violations.push((
-                    skill_md.clone(),
-                    format!("bdd_mode={mode}, expected {expected}"),
-                ));
-            }
-            Ok(None) => {
-                bdd_violations.push((
-                    skill_md.clone(),
-                    format!("missing metadata.llman_sdd.bdd_mode (expected {expected})"),
-                ));
-            }
-            Err(msg) => {
-                bdd_violations.push((skill_md.clone(), msg));
-            }
+        if let Err(msg) = validate_llman_sdd_meta(&content) {
+            meta_violations.push((skill_md.clone(), msg));
         }
 
         if let Some(snippet) = first_unrendered_jinja_snippet(&content) {
             jinja_violations.push((
-                skill_md,
+                skill_md.clone(),
                 format!("unrendered MiniJinja tag near: {snippet}"),
             ));
         }
     }
 
-    if !bdd_violations.is_empty() {
+    if !meta_violations.is_empty() {
         let mut detail = String::new();
-        for (path, reason) in &bdd_violations {
+        for (path, reason) in &meta_violations {
             detail.push_str(&format!("\n  - {}: {reason}", path.display()));
         }
         return Err(anyhow!(t!(
-            "sdd.skill_consistency.bdd_mode_mismatch",
-            expected = expected,
+            "sdd.skill_consistency.skill_set_invalid",
+            expected = SKILL_SET_VALUES.join("|"),
             details = detail.as_str(),
             fix = "llman sdd init --update"
         )));
@@ -139,26 +117,27 @@ fn first_unrendered_jinja_snippet(content: &str) -> Option<String> {
     Some(snippet)
 }
 
-fn read_bdd_mode_from_content(content: &str) -> Result<Option<String>, String> {
+fn validate_llman_sdd_meta(content: &str) -> Result<(), String> {
     let Some(yaml) = extract_frontmatter_yaml(content) else {
-        return Ok(None);
+        return Err("missing frontmatter (no llman_sdd metadata)".to_string());
     };
     let fm: SkillFrontmatter =
         serde_saphyr::from_str(yaml).map_err(|e| format!("frontmatter parse error: {e}"))?;
-    let mode = fm
+    let Some(skill_set) = fm
         .metadata
         .and_then(|m| m.llman_sdd)
-        .and_then(|l| l.bdd_mode);
-    match mode {
-        Some(m) => {
-            let m = m.trim().to_ascii_lowercase();
-            if m == "on" || m == "off" {
-                Ok(Some(m))
-            } else {
-                Err(format!("invalid bdd_mode={m} (want on|off)"))
-            }
-        }
-        None => Ok(None),
+        .and_then(|l| l.skill_set)
+    else {
+        return Err("missing metadata.llman_sdd.skill_set".to_string());
+    };
+    let skill_set = skill_set.trim().to_ascii_lowercase();
+    if SKILL_SET_VALUES.contains(&skill_set.as_str()) {
+        Ok(())
+    } else {
+        Err(format!(
+            "invalid skill_set={skill_set} (want {})",
+            SKILL_SET_VALUES.join("|")
+        ))
     }
 }
 
@@ -176,7 +155,6 @@ fn extract_frontmatter_yaml(content: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sdd::project::config::{BddConfig, SddConfig};
     use std::fs;
     use tempfile::TempDir;
 
@@ -186,53 +164,24 @@ mod tests {
         fs::write(dir.join("SKILL.md"), body).unwrap();
     }
 
-    fn cfg_bdd_on() -> SddConfig {
-        SddConfig {
-            schema: "spec-driven".into(),
-            locale: "en".into(),
-            bdd: Some(BddConfig {
-                framework: "rstest-bdd".into(),
-                feature_dir: None,
-                default_language: None,
-                run_command: Some("cargo test --features bdd".into()),
-                verify_prompt: None,
-                bindings: None,
-            }),
-            extra_skills: None,
-            archive: None,
-            sdd: None,
-        }
-    }
-
-    fn cfg_bdd_off() -> SddConfig {
-        SddConfig {
-            schema: "spec-driven".into(),
-            locale: "en".into(),
-            bdd: None,
-            extra_skills: None,
-            archive: None,
-            sdd: None,
-        }
-    }
-
     #[test]
     fn ok_when_no_skills_dir() {
         let tmp = TempDir::new().unwrap();
-        check_installed_skills_bdd_mode(tmp.path(), &cfg_bdd_on()).unwrap();
+        check_installed_skills_metadata(tmp.path()).unwrap();
     }
 
     #[test]
     fn ignores_custom_skill_without_prefix() {
         let tmp = TempDir::new().unwrap();
         write_skill(tmp.path(), "my-custom-skill", "no frontmatter\n");
-        check_installed_skills_bdd_mode(tmp.path(), &cfg_bdd_on()).unwrap();
+        check_installed_skills_metadata(tmp.path()).unwrap();
     }
 
     #[test]
     fn errors_when_metadata_missing() {
         let tmp = TempDir::new().unwrap();
         write_skill(tmp.path(), "llman-sdd-explore", "planted\n");
-        let err = check_installed_skills_bdd_mode(tmp.path(), &cfg_bdd_on()).unwrap_err();
+        let err = check_installed_skills_metadata(tmp.path()).unwrap_err();
         let msg = format!("{err:#}");
         assert!(msg.contains("init --update"), "{msg}");
         assert!(
@@ -242,32 +191,38 @@ mod tests {
     }
 
     #[test]
-    fn errors_on_mismatch() {
+    fn errors_on_invalid_skill_set() {
         let tmp = TempDir::new().unwrap();
         write_skill(
             tmp.path(),
             "llman-sdd-explore",
-            "---\nname: llman-sdd-explore\nmetadata:\n  version: \"1.0.0\"\n  llman_sdd:\n    bdd_mode: off\n    skill_set: default\n---\nbody\n",
+            "---\nname: llman-sdd-explore\nmetadata:\n  version: \"1.0.0\"\n  llman_sdd:\n    skill_set: sometimes\n---\nbody\n",
         );
-        let err = check_installed_skills_bdd_mode(tmp.path(), &cfg_bdd_on()).unwrap_err();
-        assert!(format!("{err:#}").contains("expected on"));
+        let err = check_installed_skills_metadata(tmp.path()).unwrap_err();
+        assert!(format!("{err:#}").contains("invalid skill_set=sometimes"));
     }
 
+    /// r95 (amended): both enum values pass, and a leftover `bdd_mode` key in
+    /// old installed artifacts MUST NOT fail — the retired key is ignored.
     #[test]
-    fn ok_when_matching() {
+    fn ok_for_both_skill_sets_and_leftover_bdd_mode() {
         let tmp = TempDir::new().unwrap();
+        for skill_set in ["default", "optional"] {
+            write_skill(
+                tmp.path(),
+                "llman-sdd-explore",
+                &format!(
+                    "---\nname: llman-sdd-explore\nmetadata:\n  version: \"1.0.0\"\n  llman_sdd:\n    skill_set: {skill_set}\n---\nbody\n"
+                ),
+            );
+            check_installed_skills_metadata(tmp.path()).unwrap();
+        }
         write_skill(
             tmp.path(),
             "llman-sdd-explore",
             "---\nname: llman-sdd-explore\nmetadata:\n  version: \"1.0.0\"\n  llman_sdd:\n    bdd_mode: on\n    skill_set: default\n---\nbody\n",
         );
-        check_installed_skills_bdd_mode(tmp.path(), &cfg_bdd_on()).unwrap();
-        write_skill(
-            tmp.path(),
-            "llman-sdd-explore",
-            "---\nname: llman-sdd-explore\nmetadata:\n  version: \"1.0.0\"\n  llman_sdd:\n    bdd_mode: off\n    skill_set: default\n---\nbody\n",
-        );
-        check_installed_skills_bdd_mode(tmp.path(), &cfg_bdd_off()).unwrap();
+        check_installed_skills_metadata(tmp.path()).unwrap();
     }
 
     #[test]
@@ -276,9 +231,9 @@ mod tests {
         write_skill(
             tmp.path(),
             "llman-sdd-explore",
-            "---\nname: llman-sdd-explore\nmetadata:\n  version: \"1.0.0\"\n  llman_sdd:\n    bdd_mode: on\n    skill_set: default\n---\n{% if bdd_enabled %}\n- attach\n{% endif %}\n",
+            "---\nname: llman-sdd-explore\nmetadata:\n  version: \"1.0.0\"\n  llman_sdd:\n    skill_set: default\n---\n{% if bdd_enabled %}\n- attach\n{% endif %}\n",
         );
-        let err = check_installed_skills_bdd_mode(tmp.path(), &cfg_bdd_on()).unwrap_err();
+        let err = check_installed_skills_metadata(tmp.path()).unwrap_err();
         let msg = format!("{err:#}");
         assert!(
             msg.contains("unrendered") || msg.contains("MiniJinja"),

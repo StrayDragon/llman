@@ -4,7 +4,6 @@ description: "校验 llmanspec 变更与 specs 并提供修复提示。"
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

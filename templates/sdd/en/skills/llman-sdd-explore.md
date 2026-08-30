@@ -4,7 +4,6 @@ description: "Enter llman SDD explore mode when the user wants to investigate, u
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

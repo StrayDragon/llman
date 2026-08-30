@@ -4,7 +4,6 @@ description: "Human-triggered maintenance tool. Compacts and deduplicates llman 
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

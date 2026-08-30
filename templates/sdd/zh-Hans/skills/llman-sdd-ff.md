@@ -4,7 +4,6 @@ description: "Fast-forward：一次性创建规划壳（proposal/design/tasks）
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

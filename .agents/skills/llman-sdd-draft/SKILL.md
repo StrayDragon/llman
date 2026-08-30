@@ -4,7 +4,6 @@ description: "快速把一个 change 想法记成草案提案（仅 proposal.md�
 metadata:
   version: "0.0.71"
   llman_sdd:
-    bdd_mode: "on"
     skill_set: "default"
 ---
 

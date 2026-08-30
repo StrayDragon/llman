@@ -4,7 +4,6 @@ description: "以 mermaid 图可视化 llman SDD 变更间的依赖关系（depe
 metadata:
   version: "0.0.71"
   llman_sdd:
-    bdd_mode: "on"
     skill_set: "default"
 ---
 

@@ -4,7 +4,6 @@ description: "Delegate external research to a background agent. Use when the use
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

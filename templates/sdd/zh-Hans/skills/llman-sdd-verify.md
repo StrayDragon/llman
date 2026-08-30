@@ -4,7 +4,6 @@ description: "验证已实施的 llman SDD 变更是否与 specs/design/tasks �
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

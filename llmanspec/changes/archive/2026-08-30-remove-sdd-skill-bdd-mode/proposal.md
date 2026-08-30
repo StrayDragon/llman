@@ -1,6 +1,10 @@
 ---
 depends_on: []
 rules_edit_acked: true
+branch: sdd/remove-sdd-skill-bdd-mode
+base_sha: 319ec051fa9da164a7ebfd33de915af3a4c11777
+checkpointed: true
+checkpoint_sha: 319ec051fa9da164a7ebfd33de915af3a4c11777
 ---
 
 # 退役托管 skill 的 bdd_mode 元数据与一致性门禁

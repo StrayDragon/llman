@@ -4,7 +4,6 @@ description: "以 mermaid 图可视化 llman SDD 变更间的依赖关系（depe
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

@@ -4,7 +4,6 @@ description: "创建带规划工件（proposal/tasks；先 `change start`/`attac
 metadata:
   version: "0.0.71"
   llman_sdd:
-    bdd_mode: "on"
     skill_set: "default"
 ---
 

@@ -4,7 +4,6 @@ description: "人类主动触发的维护工具。压缩去重 llman SDD specs�
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

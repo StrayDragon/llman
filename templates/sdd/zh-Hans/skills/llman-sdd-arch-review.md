@@ -4,7 +4,6 @@ description: "扫描 codebase 的薄模块（接口几乎等于实现），找�
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

@@ -4,7 +4,6 @@ description: "快速路径：处理不改行为合约的小改动——重构、
 metadata:
   version: "0.0.71"
   llman_sdd:
-    bdd_mode: "on"
     skill_set: "default"
 ---
 

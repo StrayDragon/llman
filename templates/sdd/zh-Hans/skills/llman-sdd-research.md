@@ -4,7 +4,6 @@ description: "以后台 agent 委托外部文献调研。当用户需要针对�
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

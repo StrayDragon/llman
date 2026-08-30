@@ -4,7 +4,6 @@ description: "Plan a huge, foggy chunk of work (more than one agent session can 
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 

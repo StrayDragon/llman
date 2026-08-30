@@ -4,7 +4,6 @@ description: "继续已有 llman SDD 变更，创建下一个缺失工件。"
 metadata:
   version: "{{ llman_version }}"
   llman_sdd:
-    bdd_mode: "{{ bdd_mode }}"
     skill_set: "{{ skill_set }}"
 ---
 
