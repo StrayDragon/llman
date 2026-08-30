@@ -3,8 +3,6 @@ name: "llman-sdd-wayfinder"
 description: "Plan a huge, foggy chunk of work (more than one agent session can hold) as a shared map of decision tickets, resolving them one at a time until the way is clear. Manual trigger only; the agent must not auto-invoke."
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Wayfinder

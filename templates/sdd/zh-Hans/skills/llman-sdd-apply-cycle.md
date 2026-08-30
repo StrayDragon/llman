@@ -3,8 +3,6 @@ name: "llman-sdd-apply-cycle"
 description: "单个变更的闭环：门禁检查→实施→测试→校验→verify 建议→归档→提交。仅手动触发。Agent MUST NOT 自动调用。"
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 disable-model-invocation: true
 ---
 

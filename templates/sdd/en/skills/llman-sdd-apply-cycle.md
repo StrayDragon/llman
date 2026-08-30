@@ -3,8 +3,6 @@ name: "llman-sdd-apply-cycle"
 description: "Single closed-loop for one change: gate→implement→test→validate→verify→archive→commit. Manual trigger only. Agent MUST NOT auto-invoke."
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 disable-model-invocation: true
 ---
 

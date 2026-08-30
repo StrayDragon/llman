@@ -3,8 +3,6 @@ name: "llman-sdd-wayfinder"
 description: "人类主动触发。把大型、一团乱的工作（超出单个 agent 会话容量）拆成一张决策地图，逐个解决决策直到路径清晰。仅手动触发，agent 禁止自动启用。"
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Wayfinder

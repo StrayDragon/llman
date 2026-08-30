@@ -3,8 +3,6 @@ name: "llman-sdd-validate"
 description: "Validate llmanspec changes and specs with actionable fixes."
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Validate

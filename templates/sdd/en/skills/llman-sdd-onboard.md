@@ -3,8 +3,6 @@ name: "llman-sdd-onboard"
 description: "Onboard to the llman SDD workflow in a repository."
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Onboard

@@ -3,8 +3,6 @@ name: "llman-sdd-archive"
 description: "Archive completed llman SDD changes. Auto ff-merge into the default branch, then rename change docs to archive/. Use after verify reports all-clear."
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Archive

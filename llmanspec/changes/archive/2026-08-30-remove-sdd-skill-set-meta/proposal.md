@@ -1,6 +1,10 @@
 ---
 depends_on: []
 rules_edit_acked: true
+branch: sdd/remove-sdd-skill-set-meta
+base_sha: 319ec051fa9da164a7ebfd33de915af3a4c11777
+checkpointed: true
+checkpoint_sha: 319ec051fa9da164a7ebfd33de915af3a4c11777
 ---
 
 # 退役托管 skill 的 skill_set 元数据与 llman_sdd 块

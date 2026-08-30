@@ -3,8 +3,6 @@ name: "llman-sdd-ff"
 description: "Fast-forward: create the planning shell then Branch binding + Specs landing in one pass. Never author under changes/<id>/specs/."
 metadata:
   version: "{{ llman_version }}"
-  llman_sdd:
-    skill_set: "{{ skill_set }}"
 ---
 
 # LLMAN SDD Fast-Forward (FF)

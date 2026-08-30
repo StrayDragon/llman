@@ -3,8 +3,6 @@ name: "llman-sdd-graph"
 description: "以 mermaid 图可视化 llman SDD 变更间的依赖关系（depends_on/blocks）。辅助工具，任意阶段可用，不属于主实现 pipeline。"
 metadata:
   version: "0.0.71"
-  llman_sdd:
-    skill_set: "default"
 ---
 
 # LLMAN SDD 依赖图
