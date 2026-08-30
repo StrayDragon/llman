@@ -49,10 +49,6 @@
   场景: 统一三态 stage（Draft/Designed/Full）
     - determine_stage（及 show/list 同源）MUST 统一采用三态，不再区分 BDD-on/BDD-off，也不再有 Specified 态：- Draft：仅 proposal.md（或 frontmatter 无 branch/base_sha）。- Designed：proposal + design + tasks 齐全，但尚未进分支（未 attach binding）。- Full：proposal + design + tasks 齐全且 frontmatter 含非空 branch 与 base_sha（已 change start / attach）。readyToImplement MUST 遵循 r1（Full 且 specsLanded 或 skip_specs_landing），MUST NOT 仅因 stage=Full 即为 true。MUST NOT 再读取 changes/<id>/specs/ 作为规格信号（该目录已废除）。Skills apply/verify MUST 与此三态及 r1 语义一致。旧 Specified 态 MUST 作为已删除映射到 Designed 或 Draft（按 design/tasks 是否齐全）。
 
-  @req:r95 @human
-  场景: 托管 skill llman_sdd 元信息门禁
-    - 托管 llman-sdd-* SKILL.md 的 metadata.llman_sdd MUST 存在，且 metadata.llman_sdd.skill_set MUST 为 default 或 optional（bdd_mode 已退役：MUST NOT 要求或校验该键）。llman sdd validate（含单 spec/change/--all/--specs）与 llman sdd init --update MUST 在发现缺失 llman_sdd 或 skill_set 非法枚举值时以非零退出失败，并在 stderr 指出违规 skill 路径与期望 skill_set，且 MUST 提示运行 llman sdd init --update 修复。MUST NOT 因无 llman-sdd- 前缀的自定义 skill 失败。
-
   @req:r100 @human
   场景: explore grilling 深对齐分支
     - llman-sdd-explore 技能 MUST 支持可选 grilling 分支：仅当用户显式触发（如说『深挖』『grill』『逐个问』『彻底理清』）时进入。该分支 MUST 一次只问一个问题并附推荐答案；MUST 优先通过读取 <capability>.feature/代码/运行命令自行查证事实而非询问用户，仅把决策性问题交由用户；MUST 将已解决的决策回写到该 change 的 proposal.md（BDD-on 写 feature 分支）。完成判据 MUST 为决策树每一分支均已解决或显式 defer。默认 explore 行为（问 1-3 个问题）MUST 不变。
@@ -198,26 +194,6 @@
     那么 退出码为零
     那么 相对路径 .agents/skills/llman-sdd-continue 存在
 
-
-  @executable
-  @req:r95
-  场景: validate 拒绝缺少 llman_sdd 元信息的托管 skill
-    假如 已初始化 sdd 项目且 bdd 配置为 "on"
-    假如 项目中存在技能目录 llman-sdd-explore
-    当 运行 llman sdd validate --all --strict --no-check --no-interactive
-    那么 退出码非零
-    那么 stderr 包含 init --update
-
-
-  @executable
-  @req:r95
-  场景: init --update 写入 llman_sdd 元信息后 validate 通过
-    假如 已初始化 sdd 项目且 bdd 配置为 "on"
-    假如 项目中存在技能目录 llman-sdd-explore
-    当 在非交互终端运行 llman sdd init --update
-    那么 退出码为零
-    当 运行 llman sdd validate --all --strict --no-check --no-interactive
-    那么 退出码为零
 
   @executable
   @req:r93
