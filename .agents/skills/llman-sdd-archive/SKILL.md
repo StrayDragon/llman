@@ -2,7 +2,7 @@
 name: "llman-sdd-archive"
 description: "归档已完成的 llman SDD 变更。自动 ff-merge 到默认分支，再将 change 文档改名到 archive/。在 verify 报告全绿后运行。"
 metadata:
-  version: "0.0.71"
+  version: "0.0.72"
 ---
 
 # LLMAN SDD 归档
