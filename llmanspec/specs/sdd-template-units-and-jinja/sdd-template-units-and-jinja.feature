@@ -16,7 +16,3 @@
   @req:r75 @human
   场景: 渲染产物宿主编号连续性
     - 模板单元经 unit() 注入宿主文档时 MUST NOT 破坏宿主有序步骤列表的编号连续性：渲染产物中任一有序列表 MUST 保持 1..N 连续（MUST NOT 出现 1→3 式断档或重复编号）。just check-sdd-templates MUST 对全部渲染 skill 产物执行该连续性断言。
-
-  @req:r141 @human
-  场景: 生成式渲染变量取代静态命令单元
-    - init --update 的渲染上下文 MUST 支持生成式变量（如 sdd_command_reference）：其内容由渲染进程从 CLI 命令树与 i18n 现算，不落模板仓库；模板通过 {{ sdd_command_reference }} 引用。静态手写单元与生成式变量 MUST NOT 对同一内容双轨并存（如 skills/sdd-commands 静态单元 MUST 已删除）。生成式变量在 skill 渲染链路（load_template_with_context）MUST 无条件按解析 locale 注入，MUST NOT 依赖模板侧判空兜底；one-liner 级别的缺 key 回退（clap about）不视为缺失。
