@@ -19,7 +19,7 @@ Use this skill to inspect changes, specs, and JSON output.
 4. Disambiguate with `--type change|spec` when needed.
 5. For changes, use `--json`: status SSOT fields are `stage` / `specsLanded` / `skipSpecsLanding` / `readyToImplement` (never decide apply-readiness from vague "complete artifacts" wording).
 
-{{ sdd_command_reference }}
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
 
 {{ unit("skills/validation-hints") }}
 

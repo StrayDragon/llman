@@ -14,6 +14,16 @@ metadata:
 
 ## Pipeline 位置
 
+```mermaid
+flowchart LR
+    draft["★ llman-sdd-draft ★<br/>草案（你现在在这里）"] -.->|"正式化"| propose["llman-sdd-propose<br/>提案"]
+    propose --> apply["llman-sdd-apply<br/>实施"]
+    apply --> verify["llman-sdd-verify<br/>验证"]
+    verify --> archive["llman-sdd-archive<br/>归档"]
+
+    style draft fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
 > 📍 你现在在草案阶段 → 下一步：完善 `proposal.md`，然后运行 `llman-sdd-propose` 正式化
 > 📎 本技能创建**草案** change（仅 proposal.md）。完整提案走 Git-native：tasks → Branch binding → Specs landing（见 propose 的生命周期图）
 > 🗺️ Skill 导航 ≠ Git-native 生命周期；Branch binding / Specs landing 不是独立 skill
@@ -51,6 +61,6 @@ llman sdd change new --from "<用户描述>"
 
 > 💡 草案已记 → 下一步：编辑 `proposal.md`，然后 `llman-sdd-propose` 正式化。
 
-{{ sdd_command_reference }}
+> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表（r139）。
 
 {{ unit("skills/ethics-governance") }}

@@ -37,7 +37,7 @@ metadata:
    - 审查：`llman sdd change diff <id>`（只读）
 
 {{ unit("skills/git-native-flow") }}
-{{ sdd_command_reference }}
+> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表（r139）。
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

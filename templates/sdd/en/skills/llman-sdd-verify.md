@@ -16,6 +16,15 @@ Use this skill to verify that the implementation matches the change's artifacts.
 
 ### Skill navigation (not the lifecycle; shows current skill only)
 
+```mermaid
+flowchart LR
+    apply["llman-sdd-apply<br/>Implement"] --> verify
+    verify["★ llman-sdd-verify ★<br/>Verify (you are here)"]
+    verify --> archive["llman-sdd-archive<br/>Archive"]
+
+    style verify fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
 > 📍 You are in the verify phase → if pass: next `llman-sdd-archive` (archive); if fail: go back to `llman-sdd-apply` (fix). This is Git-native **I (verify)**; the change should already be Specs-landed (`readyToImplement=true`).
 > 🗺️ Skill navigation ≠ Git-native lifecycle; see brief lifecycle unit at the bottom.
 
@@ -66,7 +75,7 @@ Use this skill to verify that the implementation matches the change's artifacts.
 
 {{ unit("skills/git-native-flow-brief") }}
 {{ unit("skills/human-readable-summary") }}
-{{ sdd_command_reference }}
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
 
 {{ unit("skills/validation-hints") }}
 

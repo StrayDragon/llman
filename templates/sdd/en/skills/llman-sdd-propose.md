@@ -19,6 +19,17 @@ Create a new change with planning artifacts (proposal + tasks; design optional),
 
 ### Skill navigation (not the lifecycle; shows current skill only)
 
+```mermaid
+flowchart LR
+    explore["llman-sdd-explore<br/>Explore"] --> propose
+    propose["★ llman-sdd-propose ★<br/>Propose (Branch binding + Specs landing)"]
+    propose --> apply["llman-sdd-apply<br/>Implement"]
+    apply --> verify["llman-sdd-verify<br/>Verify"]
+    verify --> archive["llman-sdd-archive<br/>Archive"]
+
+    style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
+```
+
 > 📍 You are in propose: Git-native path above is **Designed → Branch binding → Specs landing** (until `readyToImplement=true`) → next: `llman-sdd-apply`
 > 📎 For small changes (no behavioral contract changes), use `llman-sdd-quick` (quick path)
 
@@ -103,7 +114,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 
 > 💡 Proposal done → next: `llman-sdd-apply` (implement)
 
-{{ sdd_command_reference }}
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

@@ -14,6 +14,21 @@ metadata:
 
 ## Pipeline 位置
 
+```mermaid
+flowchart LR
+    explore["llman-sdd-explore<br/>探索"] --> quick
+
+    quick["★ llman-sdd-quick ★<br/>快速路径（你现在在这里）"]
+    quick --> commit["git commit<br/>完成"]
+
+    explore --> propose["完整路径:<br/>propose（含 Branch binding 与 Specs landing）→ apply → verify → archive"]
+    propose --> apply["..."]
+    apply --> verify["..."]
+    verify --> archive["..."]
+
+    style quick fill:#d4edda,stroke:#28a745,stroke-width:3px
+```
+
 > 📍 快速路径：不改行为合约，直接改代码 commit。如果发现需要改合约 → STOP，改走完整路径 `llman-sdd-propose`
 > 🗺️ 完整路径含 Git-native Branch binding + Specs landing（不是把 Specs landing 当成独立 skill）
 
@@ -38,6 +53,6 @@ metadata:
 
 > 💡 快速路径完成 → git commit 即可。若需要走完整路径 → `llman-sdd-propose` → `llman-sdd-apply` → `llman-sdd-verify` → `llman-sdd-archive`
 
-{{ sdd_command_reference }}
+> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表（r139）。
 
 {{ unit("skills/ethics-governance") }}
