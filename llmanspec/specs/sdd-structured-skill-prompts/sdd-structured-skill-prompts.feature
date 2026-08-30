@@ -15,7 +15,7 @@
 
   @req:r96 @human
   场景: Skill 模板按 BDD 模式条件渲染
-    - SDD skill 模板 MUST 经 MiniJinja 按项目 bdd_enabled（config 是否含 bdd:）条件渲染：BDD-on 产物的 propose/apply/verify/archive/explore description 与正文 MUST NOT 将 change 内 delta specs 表述为主要规划产物，MUST 以 feature 分支 live `<capability>.feature` 加 attach/finalize 为主路径；BDD-off 与 BDD-on 统一 Git-native 收尾（change start/attach → finalize/archive）；bdd: 仅影响 runner。对 optional skills（continue/ff/validate/new-change/arch-review/wayfinder/research）的「下一步」推荐 MUST 仅在 config.extra_skills 包含对应项时出现，否则 MUST 给出不依赖该 skill 的替代指引。渲染产物的 per-skill 导航 MUST 为一行文字（当前阶段与下一步），MUST NOT 携带独立导航 mermaid 图；权威 Git-native 生命周期 mermaid 图 MUST 仅保留在 llman-sdd-propose 渲染产物与根 AGENTS.md。sdd-commands 等共享单元 SHOULD 按模式裁剪无关命令行。
+    - SDD skill 模板 MUST 经 MiniJinja 按项目 bdd_enabled（config 是否含 bdd:）条件渲染：BDD-on 产物的 propose/apply/verify/archive/explore description 与正文 MUST NOT 将 change 内 delta specs 表述为主要规划产物，MUST 以 feature 分支 live `<capability>.feature` 加 attach/finalize 为主路径；BDD-off 与 BDD-on 统一 Git-native 收尾（change start/attach → finalize/archive）；bdd: 仅影响 runner。对 optional skills（continue/ff/validate/new-change/arch-review/wayfinder/research）的「下一步」推荐 MUST 仅在 config.extra_skills 包含对应项时出现，否则 MUST 给出不依赖该 skill 的替代指引。渲染产物 MUST 保留 per-skill 导航 mermaid（flowchart LR，当前阶段★高亮，含一行位置/下一步文字）；权威 Git-native 生命周期 mermaid 图 MUST 仅保留在 llman-sdd-propose 渲染产物与根 AGENTS.md。sdd-commands 等共享单元 SHOULD 按模式裁剪无关命令行。
 
   @req:r98 @human
   场景: 收尾提示不默认导向 PR/push
@@ -37,8 +37,8 @@
     - 校验修复模板单元（feature 头注释、tag 语法、遗留 spec.toon 迁移指引）MUST 仅注入到会编辑或审查 live specs 的技能（propose/apply/verify/archive/specs-compact）；MUST NOT 注入到 draft/quick/graph 等不编辑 live specs 的技能。注入集合的变化 MUST 经 init --update resync 反映到双 locale 渲染产物。
 
   @req:r139 @human
-  场景: skill 命令参考由 clap 命令树生成
-    - 托管 skill 的命令参考 MUST 由 CLI 命令树（clap Command）在 init --update 渲染期生成并注入（变量 sdd_command_reference），MUST NOT 存在手写命令表单元：命令的存在性以 clap 为唯一事实源（隐藏子命令 MUST 排除），one-liner 取 i18n sdd.cmdref.<dotted-path>（en 与 zh-Hans 双语），缺 key 时 MUST 回退 clap about（en）且渲染不失败。渲染产物 MUST NOT 出现 CLI 已不接受的历史语法（零兼容：用户以版本切换获得对应 skills）。
+  场景: skill 不内嵌命令参考，CLI help 即参考
+    - 托管 skill MUST NOT 内嵌命令参考（手写或渲染期生成的命令表均 MUST NOT 存在）：命令的唯一参考面是 CLI 自身的 help（`llman sdd <cmd> --help`），skill 正文 MUST 以一行指引指向它。命令存在性以 clap 命令树为唯一事实源（隐藏子命令排除）；每个可见 sdd 子命令 MUST 保持非空 clap doc comment（en 基线），并有单测守卫。渲染产物 MUST NOT 出现 CLI 已不接受的历史语法（零兼容：用户以版本切换获得对应 skills）。
 
   @req:r140 @human
   场景: propose 非阻塞推导 change id
