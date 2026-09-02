@@ -8,7 +8,7 @@
 #[macro_use]
 extern crate rust_i18n;
 
-i18n!("crates/llman-sdd/locales");
+i18n!("locales");
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser};

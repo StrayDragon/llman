@@ -1,0 +1,1722 @@
+_version: 2
+
+# NOTE: i18n strings are placeholders; English-only unless explicitly requested.
+# CLI help
+cli:
+prompt:
+  gen:
+  scope:
+    select:
+      en: "Select injection scope:"
+
+  codex:
+    target:
+      select:
+        en: "Select Codex injection target(s):"
+
+    agents_file:
+  list:
+    rule_item:
+      en: "📄 %{name}"
+
+  upsert:
+  rm:
+interactive:
+  title:
+    en: "🚀 Interactive rule file generation"
+
+  select_template:
+    en: "Select template:"
+
+  project_root_force_prompt:
+    en: "No git repository detected. Continue using current directory as project root? (equivalent to --force)"
+
+  no_templates:
+    en: "⚠️  No templates available, nothing to generate"
+
+  no_templates_hint:
+    en: "Hint: add a template with `llman x <app> prompts upsert --name <name> --content <content>`"
+
+# Messages
+messages:
+  error:
+    en: "Error: %{error}"
+
+  file_exists_overwrite:
+    en: "File %{path} already exists, overwrite?"
+
+  operation_cancelled:
+    en: "Operation cancelled"
+
+  rule_generated:
+    en: "✅ Rule file generated: %{path}"
+
+  rule_generation_success:
+    en: "✅ Rule file generated successfully!"
+
+  rule_saved:
+    en: "✅ Rule saved: %{path}"
+
+  confirm_delete:
+    en: "Are you sure you want to delete rule '%{name}'?"
+
+  file_exists_inject:
+    en: "File %{path} exists and is not managed by llman. Inject a managed block?"
+
+  file_exists_inject_second:
+    en: "This will modify %{path}. Are you REALLY sure?"
+
+  rule_deleted:
+    en: "✅ Rule deleted: %{name}"
+
+  content_or_file_required:
+    en: "Must provide content or file path"
+
+# Errors
+errors:
+  dev_project_config_required:
+    en: "🚨 Error: Running within llman development project\n💡 You must specify --config-dir to avoid conflicts with user configurations\n   Example: --config-dir ./artifacts/testing_config_home\n   Alternatively, set %{env_var} environment variable"
+
+  invalid_config_dir:
+    en: "Invalid config directory: %{error}"
+
+  invalid_config_dir_env:
+    en: "Invalid config directory in environment variable: %{error}"
+
+  io_error:
+    en: "IO Error: %{error}"
+
+  file_read_failed:
+    en: "Failed to read %{path}: %{error}"
+
+  inquire_error:
+    en: "Inquire Error: %{error}"
+
+  json_error:
+    en: "JSON Parse Error: %{error}"
+
+  glob_error:
+    en: "Glob Pattern Error: %{error}"
+
+  glob_pattern_error:
+    en: "Glob Pattern Match Error: %{error}"
+
+  config_error:
+    en: "Configuration Error: %{message}"
+
+  custom_error:
+    en: "Custom Error: %{message}"
+
+  invalid_app:
+    en: "Invalid application type: %{app}"
+
+  not_project_directory:
+    en: "Current directory is not a valid project directory"
+
+  home_directory_not_allowed:
+    en: "Home directory access not allowed"
+
+  home_dir_missing:
+    en: "Cannot find home directory"
+
+  project_scope_requires_repo:
+    en: "Project scope requires a git repository (or use --force / remove project from --scope)"
+
+  invalid_scope_for_app:
+    en: "Invalid scope '%{scope}' for app '%{app}'"
+
+  override_requires_agents_target:
+    en: "--override requires --target project-doc"
+
+  non_interactive_overwrite_requires_force:
+    en: "Non-interactive mode cannot overwrite %{path}; re-run with --force"
+
+  non_interactive_inject_requires_force:
+    en: "Non-interactive mode cannot modify existing %{path}; re-run with --force"
+
+  non_interactive_delete_requires_yes:
+    en: "Non-interactive mode cannot delete rule '%{name}'; re-run with --yes"
+
+  rule_not_found:
+    en: "Rule not found: %{name}"
+
+  interactive_prompt_error:
+    en: "Interactive prompt error: %{error}"
+
+  no_rules_found:
+    en: "No rules found"
+
+tool:
+  clean_comments:
+    start:
+      en: "Clean useless comments command"
+
+    config_explicit:
+      en: "Using explicit config: %{path}"
+
+    config_local:
+      en: "Using local config: %{path}"
+
+    config_global:
+      en: "Using global config"
+
+    scope_includes:
+      en: "Scope includes: %{patterns}"
+
+    scope_excludes:
+      en: "Scope excludes: %{patterns}"
+
+    dry_run_enabled:
+      en: "Dry run mode enabled - no files will be modified"
+
+    dry_run_hint:
+      en: "Use -y to apply changes."
+
+    interactive_enabled:
+      en: "Interactive mode enabled"
+
+    safety_dry_run_first:
+      en: "Safety: dry-run-first is enabled; running in dry-run mode only."
+
+    safety_dry_run_first_hint:
+      en: "Re-run with -y --force to apply changes."
+
+    git_dirty:
+      en: "Working tree has uncommitted changes; commit before running or use --force"
+
+    require_git_commit_no_repo:
+      en: "Warning: require-git-commit enabled but no git repository detected."
+
+    cancel:
+      en: "Operation cancelled by user."
+
+    summary_title:
+      en: "=== Processing Complete ==="
+
+    summary_files_changed:
+      en: "Files changed: %{count}"
+
+    summary_comments_removed:
+      en: "Comments removed: %{count}"
+
+    summary_errors:
+      en: "Errors: %{count}"
+
+    summary_modified_files:
+      en: "Modified files:"
+
+    confirm_title:
+      en: "=== Clean Useless Comments ==="
+
+    confirm_intro:
+      en: "This operation will remove comments from your source code files."
+
+    confirm_config:
+      en: "Using configuration: %{path}"
+
+    confirm_files:
+      en: "Files to process:"
+
+    confirm_mode_dry:
+      en: "Mode: Dry run (no files will be modified)"
+
+    confirm_mode_live:
+      en: "Mode: Live (files will be modified)"
+
+    confirm_prompt:
+      en: "Do you want to continue?"
+
+    confirm_help:
+      en: "This will start the comment cleaning process"
+
+    warn_not_git_repo:
+      en: "Warning: target path is not inside a git repository:"
+
+    processor:
+      init_tree_sitter_failed:
+        en: "Warning: Failed to initialize TreeSitter processor: %{error}"
+
+      config_missing:
+        en: "No clean useless comments configuration found"
+
+      processing_files:
+        en: "Processing files..."
+
+      processing_file:
+        en: "Processing: %{path}"
+
+      file_removed_comments:
+        en: "File: %{path} - Removed %{count} comments"
+
+      error_processing:
+        en: "Error processing %{path}: %{error}"
+
+      git_only_no_repo:
+        en: "Warning: git-only enabled but no git repository detected."
+
+      file_not_tracked:
+        en: "Warning: File not tracked by git: %{path}"
+
+      file_not_found:
+        en: "Warning: File not found: %{path}"
+
+      path_skipped_not_file:
+        en: "Warning: Skipping non-file path: %{path}"
+
+      path_symlink_skipped:
+        en: "Warning: Skipping symlink path: %{path}"
+
+      path_resolve_failed:
+        en: "Warning: Failed to resolve path: %{path} (%{error})"
+
+      walk_error:
+        en: "Error walking directory: %{error}"
+
+      preserve_patterns_found:
+        en: "Found %{count} preserve patterns"
+
+      debug_line:
+        en: "Processing line: '%{line}'"
+
+      debug_comment:
+        en: "  - comment: '%{comment}'"
+
+      debug_should_preserve:
+        en: "  - should_preserve: %{preserve}"
+
+      debug_comment_too_short:
+        en: "  - comment_too_short: %{too_short} (len: %{len}, min: %{min})"
+
+      debug_would_remove:
+        en: "  - would remove: %{remove}"
+
+      regex_build_failed:
+        en: "Failed to build regex: %{error}"
+
+      tree_sitter_unavailable:
+        en: "Tree-sitter unavailable for %{path}"
+
+      tree_sitter_failed:
+        en: "Tree-sitter processing failed for %{path}: %{error}"
+
+  sync_ignore:
+    start:
+      en: "Sync ignore rules"
+
+    dry_run_hint:
+      en: "Dry-run only. Re-run with -y/--yes to apply changes."
+
+    apply_done:
+      en: "Done."
+
+    cancelled:
+      en: "Operation cancelled."
+
+    preview:
+      root:
+        en: "Root: %{path}"
+
+      sources_title:
+        en: "Sources:"
+
+      sources_none:
+        en: "(none found)"
+
+      union_stats:
+        en: "Union: ignore=%{ignore}, include=%{include}"
+
+      targets_title:
+        en: "Targets:"
+
+      detail_title:
+        en: "=== Write preview: %{path} ==="
+
+      claude_added_title:
+        en: "=== Claude additions: %{path} (+%{count}) ==="
+
+      dry_run_default:
+        en: "Default mode is dry-run."
+
+      action:
+        create:
+          en: "create"
+        update:
+          en: "update"
+        unchanged:
+          en: "unchanged"
+        delete:
+          en: "delete"
+
+      table:
+        header:
+          target:
+            en: "TARGET"
+          action:
+            en: "ACTION"
+          ignore:
+            en: "ignore"
+          include:
+            en: "include"
+          notes:
+            en: "notes"
+        value:
+          none:
+            en: "-"
+
+      notes:
+        claude_added:
+          en: "+%{count} Read()"
+        warn_count:
+          en: "warn=%{count}"
+
+      warnings_title:
+        en: "Warnings:"
+
+      notes_title:
+        en: "Notes:"
+
+      truncated_lines:
+        en: "... (%{count} more line(s); use -v for full output)"
+
+      truncated_items:
+        en: "... (%{count} more item(s); use -v for full output)"
+
+      delete_title:
+        en: "=== Delete: %{path} ==="
+
+    interactive:
+      select_targets:
+        en: "Select outputs to sync:"
+
+      exists:
+        en: "exists"
+
+      missing:
+        en: "missing"
+
+      confirm_delete:
+        en: "You deselected %{path}. Delete it?"
+
+      confirm_apply:
+        en: "Apply changes?"
+
+    warn:
+      include_not_supported_in_claude:
+        en: "Claude Code deny rules do not support include (!pattern); skipped %{count} include pattern(s)."
+      claude_jsonc_patch_fallback:
+        en: "Could not patch JSONC in-place for %{path}; overwriting with pretty JSON (comments may be lost)."
+
+    note:
+      no_sources:
+        en: "No source ignore files found."
+
+      claude_skip_non_read:
+        en: "Claude deny rule skipped (only Read(...) is supported): %{rule}"
+
+      claude_missing_permissions:
+        en: "Note: Claude settings has no 'permissions' object; one will be created if applying."
+
+    error:
+      no_git_repo:
+        en: "No git repository detected; re-run with --force to use the current directory as root."
+      unsupported_json_input:
+        en: "Unsupported JSON input: %{path} (only .claude/settings*.json is supported)."
+      gitignore_not_supported:
+        en: "This tool does not process .gitignore (it is already respected by most tools): %{path}"
+
+      read_failed:
+        en: "Failed to read %{path}"
+
+      parse_claude_failed:
+        en: "Failed to parse Claude Code settings (JSON/JSONC)."
+
+      serialize_failed:
+        en: "Failed to serialize updated settings."
+
+      create_dir_failed:
+        en: "Failed to create directory: %{path}"
+
+      write_failed:
+        en: "Failed to write %{path}"
+
+      delete_failed:
+        en: "Failed to delete %{path}"
+
+  config:
+    not_found:
+      en: "Configuration file not found: %{path}"
+
+    parse_failed:
+      en: "Failed to parse configuration: %{error}"
+
+    schema_invalid:
+      en: "Configuration does not match schema: %{path} (%{error})"
+
+    not_found_with_priority:
+      en: "No configuration file found. Tried local: %{local} and global config"
+
+    schema_generate_failed:
+      en: "Failed to generate JSON schema: %{error}"
+
+    legacy_key_unsupported:
+      en: "Legacy config key is not supported: %{key} (use %{replacement})"
+
+  tree_sitter:
+    set_language_failed:
+      en: "Failed to set language: %{error}"
+
+    parse_content_failed:
+      en: "Failed to parse content"
+
+  rm_empty_dirs:
+    start_title:
+      en: "Remove useless directories"
+
+    target_label:
+      en: "Target: %{path}"
+
+    dry_run_enabled:
+      en: "Dry run mode enabled (use -y to delete)."
+
+    live_mode_enabled:
+      en: "Live mode enabled (useless directories will be removed)."
+
+    prune_ignored_enabled:
+      en: "Prune ignored entries enabled (ignored files/dirs may be deleted)."
+
+    verbose_gitignore_using:
+      en: "Using .gitignore: %{path}"
+
+    verbose_gitignore_none:
+      en: "No .gitignore configured."
+
+    note_root_would_be_empty:
+      en: "Note: target directory would be empty after removal; root directory is not removed."
+
+    note_root_empty:
+      en: "Note: target directory is empty; root directory is not removed."
+
+    summary_title:
+      en: "=== Summary ==="
+
+    summary_empty_dirs_found:
+      en: "Useless directories found: %{count}"
+
+    summary_empty_dirs_removed:
+      en: "Useless directories removed: %{count}"
+
+    summary_empty_dirs_failed:
+      en: "Useless directories failed: %{count}"
+
+    summary_dirs_scanned:
+      en: "Directories scanned: %{count}"
+
+    summary_files_scanned:
+      en: "Files scanned: %{count}"
+
+    summary_ignored_entries_zero:
+      en: "Ignored entries: 0"
+
+    summary_ignored_entries:
+      en: "Ignored entries: %{total} (dirs: %{dirs}, files: %{files})"
+
+    summary_errors:
+      en: "Errors: %{count}"
+
+    list_to_remove:
+      en: "Directories to remove"
+
+    list_removed:
+      en: "Directories removed"
+
+    skipping_protected_path:
+      en: "Skipping protected path: %{path}"
+
+    list_failed_title:
+      en: "Directories failed to remove"
+
+    skipping_ignored_path:
+      en: "Skipping ignored path: %{path}"
+
+    would_remove_dir:
+      en: "Would remove: %{path}"
+
+    removing_dir:
+      en: "Removing: %{path}"
+
+    would_remove_ignored_file:
+      en: "Would remove ignored file: %{path}"
+
+    removing_ignored_file:
+      en: "Removing ignored file: %{path}"
+
+    error:
+      target_not_exist:
+        en: "Target path does not exist: %{path}"
+
+      target_not_dir:
+        en: "Target path is not a directory: %{path}"
+
+      read_dir_failed:
+        en: "Warning: failed to read directory %{path}: %{error}"
+
+      read_entry_failed:
+        en: "Warning: failed to read entry in %{path}: %{error}"
+
+      read_file_type_failed:
+        en: "Warning: failed to read file type for %{path}: %{error}"
+
+      remove_dir_failed:
+        en: "Warning: failed to remove %{path}: %{error}"
+
+      remove_ignored_file_failed:
+        en: "Warning: failed to remove ignored file %{path}: %{error}"
+
+      gitignore_not_exist:
+        en: ".gitignore path does not exist: %{path}"
+
+      gitignore_not_file:
+        en: ".gitignore path is not a file: %{path}"
+
+      gitignore_parse_warning:
+        en: "Warning: failed to fully parse %{path}: %{error}"
+
+  agents_md:
+    scan:
+      start:
+        en: "Scanning project for agent init files"
+      names:
+        en: "Scan names: %{names}"
+      found_title:
+        en: "Discovered agent init files:"
+      none:
+        en: "(none found)"
+      upsert_done:
+        en: "Wrote manifest to %{path}"
+
+    clean:
+      start:
+        en: "Cleaning agent init files"
+      empty_manifest:
+        en: "No agents-md manifest in project config; nothing to clean. Run `llman tool agents-md scan --upsert-project-configs` first."
+      manifest:
+        en: "Manifest: %{paths}"
+      no_targets:
+        en: "No tracked files match the manifest; nothing to clean."
+      preview_title:
+        en: "Files to remove:"
+      dry_run_hint:
+        en: "Dry run only — pass --yes or --commit to apply."
+      deleted_count:
+        en: "Removed %{count} file(s)."
+      committed:
+        en: "Changes committed."
+      error:
+        default_branch:
+          en: "Refusing to commit clean on the default branch (`%{branch}`); pass --force to override."
+
+    revert:
+      start:
+        en: "Restoring agent init files from default branch"
+      empty_manifest:
+        en: "No agents-md manifest in project config; nothing to revert."
+      no_targets:
+        en: "No tracked files match the manifest; nothing to revert."
+      from_ref:
+        en: "Restoring from %{ref}"
+      preview_title:
+        en: "Files to restore:"
+      dry_run_hint:
+        en: "Dry run only — pass --yes or --commit to apply."
+      restored_count:
+        en: "Restored %{count} file(s)."
+      committed:
+        en: "Restoration committed."
+      branch_created:
+        en: "Created recovery branch `%{branch}`."
+      skip_missing:
+        en: "Skip %{path} (not on default branch): %{error}"
+
+    preview:
+      header:
+        path:
+          en: "Path"
+        exists:
+          en: "Exists"
+        ref:
+          en: "Ref"
+      yes:
+        en: "yes"
+      no:
+        en: "no"
+
+    error:
+      detached_head:
+        en: "HEAD is detached; this operation requires a checked-out branch"
+      no_git_repo:
+        en: "Not inside a git repository; cd into the project root or use a git-tracked project."
+      create_dir:
+        en: "Failed to create directory %{path}"
+      write_failed:
+        en: "Failed to write %{path}"
+      delete_failed:
+        en: "Failed to delete %{path}"
+      serialize:
+        en: "Failed to serialize config: %{error}"
+
+# Extensions
+x:
+composer:
+claude_code:
+  interactive:
+    select_config_group:
+      en: "Select a configuration group to activate:"
+
+    import_title:
+      en: "Import configuration group from JSON"
+
+    config_group_name:
+      en: "Configuration group name:"
+
+    multi_line_json:
+      en: "Multi-line JSON Input"
+
+    you_can_now_paste:
+      en: "You can now paste multi-line JSON!"
+
+    supported_formats:
+      en: "Supported formats"
+
+    format_1:
+      en: "Format 1: {\"env\": {...}}"
+
+    format_2:
+      en: "Format 2: {\"KEY\": \"value\", ...}"
+
+    how_to_use_editor:
+      en: "How to use the editor"
+
+    paste_json:
+      en: "Paste your JSON"
+
+    supports_multiple_lines:
+      en: "supports multiple lines"
+
+    navigate:
+      en: "Use arrow keys to navigate"
+
+    use_arrow_keys:
+      en: "use arrow keys"
+
+    finish:
+      en: "Press Enter on empty line or Ctrl+D to finish"
+
+    ctrl_d_or_enter:
+      en: "Ctrl+D or Enter on empty line"
+
+    cancel:
+      en: "Press Esc to cancel"
+
+    esc:
+      en: "Esc"
+
+    example:
+      en: "Example"
+
+    json_example:
+      en: "{\n  \"env\": {\n    \"ANTHROPIC_BASE_URL\": \"https://api.anthropic.com\",\n    \"ANTHROPIC_AUTH_TOKEN\": \"your-api-key\",\n    \"ANTHROPIC_MODEL\": \"claude-3-5-sonnet-20241022\"\n  }\n}"
+
+    json_configuration:
+      en: "JSON configuration:"
+
+    editor_help:
+      en: "Paste the complete JSON configuration here (multi-line supported). Press Ctrl+D or Enter on empty line to finish."
+
+    editor_empty:
+      en: "<empty>"
+
+    editor_summary:
+      en: "%{lines} lines, %{chars} chars"
+
+    warning_empty_config:
+      en: "Warning: No environment variables found in the JSON configuration."
+
+    confirm_empty_import:
+      en: "Continue importing empty configuration?"
+
+    parsed_env_vars:
+      en: "Parsed environment variables:"
+
+    confirm_import:
+      en: "Import configuration group \"%{name}\"?"
+
+    import_cancelled:
+      en: "Import cancelled."
+
+    check_format_retry:
+      en: "Please check your JSON format and try again."
+
+    no_config_groups:
+      en: "No configuration groups found."
+
+    use_import_command:
+      en: "Use 'llman x claude-code account import' to import a new configuration."
+
+    config_file_location:
+      en: "Create a configuration file at"
+
+    unknown_path:
+      en: "unknown"
+
+    example_configuration:
+      en: "Example configuration"
+
+    toml_example:
+      en: "[groups]\n\n[groups.my-group]\nANTHROPIC_BASE_URL = \"https://api.anthropic.com\"\nANTHROPIC_AUTH_TOKEN = \"your-api-key-here\"\nANTHROPIC_MODEL = \"claude-3-5-sonnet-20241022\""
+
+    no_env_vars:
+      en: "no environment variables set"
+
+    configuration_groups:
+      en: "Configuration groups"
+
+    see_examples:
+      en: "See examples"
+
+  config:
+    read_failed:
+      en: "Failed to read config file: %{path}"
+
+    parse_all_failed:
+      en: "Failed to parse TOML config file (both old and new formats)"
+
+    parse_new_failed:
+      en: "Failed to parse new format config"
+
+    parse_old_failed:
+      en: "Failed to parse old format config"
+
+    create_dir_failed:
+      en: "Failed to create config directory: %{path}"
+
+    serialize_failed:
+      en: "Failed to serialize config to TOML"
+
+    write_failed:
+      en: "Failed to write config file: %{path}"
+
+    json_repairing:
+      en: "⚠️  JSON format appears to be malformed, attempting to repair..."
+
+    json_repaired:
+      en: "✅ Successfully repaired JSON format"
+
+    json_repair_failed:
+      en: "Failed to parse JSON string even after repair attempts: %{error}"
+
+    json_env_invalid:
+      en: "env field must be an object"
+
+    json_must_object:
+      en: "JSON must be an object"
+
+  validation:
+    name_required:
+      en: "Group name is required"
+
+    no_spaces:
+      en: "Group name cannot contain spaces"
+
+  main:
+    no_configs_found:
+      en: "No configuration groups found."
+
+    suggestion_import:
+      en: "Suggestions:"
+
+    command_import:
+      en: "• Import a configuration: llman x claude-code account import"
+
+    command_edit:
+      en: "• Edit configuration: llman x claude-code account edit"
+
+    alternative_config:
+      en: "Or create a configuration file manually at:"
+
+    unknown_path:
+      en: "unknown"
+
+  account:
+    config_created:
+      en: "Created default configuration at: %{path}"
+
+    editing:
+      en: "Editing configuration: %{path}"
+
+    edited:
+      en: "✓ Configuration edited successfully"
+
+    group_exists:
+      en: "Configuration group \"%{name}\" already exists."
+
+    use_different_name_or_force:
+      en: "Use a different name, edit the configuration manually, or use --force to overwrite."
+
+    overwriting_group:
+      en: "Overwriting existing configuration group: \"%{name}\""
+
+    import_success:
+      en: "✓ Successfully imported configuration group: \"%{name}\""
+
+    group_not_found:
+      en: "Configuration group \"%{name}\" not found."
+
+    use_list_command:
+      en: "Use 'llman x claude-code account list' to see available configuration groups."
+
+    env_invalid_keys:
+      en: "Invalid environment variable key(s): %{keys}"
+
+    env_dangerous_keys:
+      en: "Refused dangerous environment variable key(s): %{keys}"
+
+  migrate:
+  run:
+    interactive:
+      prompt_args:
+        en: "Do you want to pass arguments to claude?"
+      enter_args:
+        en: "Enter arguments for claude command:"
+      args_help:
+        en: "e.g., --version --help project create"
+      args_parse_failed:
+        en: "Invalid argument string: %{error}. Please try again."
+    using_config:
+      en: "Using configuration: %{name}"
+    session_ended:
+      en: "👋 Session ended. You were using: %{name}"
+    error:
+      group_required_non_interactive:
+        en: "Error: In non-interactive mode, --group is required"
+      use_i_or_group:
+        en: "Use -i for interactive mode or specify --group <name>"
+
+  error:
+    parsing_json:
+      en: "Error parsing JSON configuration"
+
+    open_editor_failed:
+      en: "Failed to open editor: %{editor}"
+
+    invalid_editor_command:
+      en: "Invalid editor command: %{editor} (%{error})"
+
+    editor_exit_status:
+      en: "Editor exited with status: %{status}"
+
+    failed_claude_command:
+      en: "Failed to run claude command"
+
+    load_config_failed:
+      en: "Failed to load configuration"
+
+    execute_failed:
+      en: "Failed to execute claude command"
+
+    save_after_import_failed:
+      en: "Failed to save configuration after import"
+
+    no_configuration_selected:
+      en: "No configuration selected"
+
+    prompt_args_failed:
+      en: "Failed to prompt for arguments"
+
+    args_input_failed:
+      en: "Failed to get claude arguments"
+
+    select_config_failed:
+      en: "Failed to select configuration group"
+
+    input_group_name_failed:
+      en: "Failed to input group name"
+
+    input_json_failed:
+      en: "Failed to input JSON configuration"
+
+    confirm_import_failed:
+      en: "Failed to confirm import"
+
+  security:
+    parse_error:
+      en: "Error parsing settings file %{path}: %{error}"
+
+    read_settings_failed:
+      en: "Failed to read settings file: %{path}"
+
+    parse_json_failed:
+      en: "Failed to parse JSON even after repair: %{error}"
+
+    reason_pattern_detected:
+      en: "Dangerous command pattern detected: %{pattern}"
+
+    warning_header:
+      en: "%{count} Security Warnings Detected:"
+
+    blocked_by_warnings:
+      en: "Aborting: %{count} security warning(s) must be resolved before launching Claude."
+
+    warning_separator_char:
+      en: "═"
+
+    warning_item_title:
+      en: "Dangerous Permission Detected"
+
+    label_location:
+      en: "Location:"
+
+    label_setting:
+      en: "Setting:"
+
+    label_pattern:
+      en: "Pattern:"
+
+    label_description:
+      en: "Description:"
+
+    label_recommendation:
+      en: "Recommendation:"
+
+    footer_line1:
+      en: "These permissions are defined in your Claude Code settings but conflict with"
+
+    footer_line2:
+      en: "security rules in <llman config>/claude-code.toml"
+
+    severity:
+      critical:
+        en: "CRITICAL"
+      high:
+        en: "HIGH"
+      medium:
+        en: "MEDIUM"
+      low:
+        en: "LOW"
+
+    pattern:
+      rm_rf:
+        description:
+          en: "Force deletion of files and directories without confirmation"
+        recommendation:
+          en: "This can cause irreversible data loss. Consider using more specific permissions or add confirmation prompts."
+
+      sudo_rm:
+        description:
+          en: "Deletion of files with root privileges"
+        recommendation:
+          en: "Extremely dangerous as it can delete system files. Always avoid in automated tools."
+
+      dd_if:
+        description:
+          en: "Raw disk writing that can destroy filesystems"
+        recommendation:
+          en: "This can wipe entire disks or partitions. Use with extreme caution."
+
+      mkfs_or_format:
+        description:
+          en: "Filesystem formatting that destroys all data"
+        recommendation:
+          en: "This will erase all data on the target filesystem. Double-check targets."
+
+      chmod_777:
+        description:
+          en: "Setting world-writable permissions on files"
+        recommendation:
+          en: "This creates serious security vulnerabilities. Use more specific permissions."
+
+      chown_root:
+        description:
+          en: "Changing file ownership to root"
+        recommendation:
+          en: "Can lead to privilege escalation vulnerabilities. Verify ownership changes carefully."
+
+      curl_or_wget_sh:
+        description:
+          en: "Downloading and executing scripts from the internet"
+        recommendation:
+          en: "This can execute malicious code. Download first, review contents, then execute manually."
+
+      eval_or_exec:
+        description:
+          en: "Dynamic command execution that can be exploited"
+        recommendation:
+          en: "This can lead to command injection attacks. Use safer alternatives."
+
+      system_call:
+        description:
+          en: "Executing system commands through various programming languages"
+        recommendation:
+          en: "This bypasses shell safeguards. Validate all inputs thoroughly."
+
+      crontab:
+        description:
+          en: "Modifying scheduled tasks that can persist malicious activities"
+        recommendation:
+          en: "Cron jobs can hide persistent malware. Review scheduled changes carefully."
+
+      system_service:
+        description:
+          en: "Managing system services that can enable persistence"
+        recommendation:
+          en: "Service modifications can create backdoors. Verify service configurations."
+
+      firewall:
+        description:
+          en: "Modifying firewall rules that can expose systems to attack"
+        recommendation:
+          en: "Firewall changes can open attack vectors. Document and review all rule changes."
+
+      registry:
+        description:
+          en: "Modifying Windows Registry which controls system behavior"
+        recommendation:
+          en: "Registry changes can cause system instability or security issues. Backup first."
+
+      net_user:
+        description:
+          en: "Managing user accounts that can grant unauthorized access"
+        recommendation:
+          en: "User account changes can create backdoors. Use principle of least privilege."
+
+      shell_exec:
+        description:
+          en: "Executing command interpreters that can run arbitrary commands"
+        recommendation:
+          en: "Shell execution can bypass security controls. Validate and sanitize inputs."
+
+      python_system:
+        description:
+          en: "Python system command execution that can run shell commands"
+        recommendation:
+          en: "This can execute arbitrary shell commands. Use safer subprocess alternatives."
+
+      default:
+        description:
+          en: "Pattern detected in command execution permissions"
+        recommendation:
+          en: "Review this command pattern for potential security implications."
+
+# OpenAI Codex configuration - provider upsert + env injection
+codex:
+  account:
+    config_created:
+      en: "Created default configuration at: %{path}"
+
+    editing:
+      en: "Editing configuration: %{path}"
+    edited:
+      en: "✓ Configuration edited successfully"
+    imported:
+      en: "✓ Provider '%{name}' imported successfully"
+
+  interactive:
+    select_group:
+      en: "Select a configuration group to activate:"
+    import_group_name:
+      en: "Provider group name:"
+    import_group_name_help:
+      en: "e.g., openai, minimax, custom-provider"
+    import_base_url:
+      en: "Base URL:"
+    import_base_url_help:
+      en: "e.g., https://api.openai.com/v1"
+    import_env_key_id:
+      en: "Environment variable name for API key:"
+    import_env_key_id_help:
+      en: "The env var codex will read (default: CODEX_API_KEY)"
+    import_api_key_value:
+      en: "API key value:"
+    import_api_key_value_help:
+      en: "Your actual API key (stored in llman config only)"
+
+  main:
+    no_configs_found:
+      en: "No codex provider configurations found"
+    suggestion:
+      en: "Get started with:"
+    command_import:
+      en: "llman x codex account import"
+    command_edit:
+      en: "llman x codex account edit"
+    config_location:
+      en: "Configuration file"
+
+  run:
+    interactive:
+      prompt_args:
+        en: "Do you want to pass arguments to codex?"
+      enter_args:
+        en: "Enter arguments for codex command:"
+      args_help:
+        en: "e.g., --version --help"
+      args_parse_failed:
+        en: "Invalid argument string: %{error}. Please try again."
+    using_config:
+      en: "Using configuration: %{name}"
+    session_ended:
+      en: "👋 Session ended. You were using: %{name}"
+    provider_synced:
+      en: "✓ Provider '%{name}' synced to ~/.codex/config.toml"
+    error:
+      group_required_non_interactive:
+        en: "Error: In non-interactive mode, --group is required"
+      use_i_or_group:
+        en: "Use -i for interactive mode or specify --group <name>"
+
+  error:
+    group_not_found:
+      en: "Provider '%{name}' not found"
+    group_exists:
+      en: "Provider '%{name}' already exists. Use 'account edit' to modify."
+    failed_codex_command:
+      en: "Failed to run codex command"
+    open_editor_failed:
+      en: "Failed to open editor: %{editor}"
+    invalid_editor_command:
+      en: "Invalid editor command: %{editor} (%{error})"
+    editor_exit_status:
+      en: "Editor exited with status: %{status}"
+    execute_failed:
+      en: "Failed to execute codex"
+    env_dangerous_keys:
+      en: "Refused dangerous environment variable key(s): %{keys}"
+    env_invalid_keys:
+      en: "Invalid environment variable key(s): %{keys}"
+    select_group_failed:
+      en: "Failed to select group"
+    no_configuration_selected:
+      en: "No configuration selected"
+    prompt_args_failed:
+      en: "Failed to prompt for arguments"
+    args_input_failed:
+      en: "Failed to get codex arguments"
+    import_prompt_failed:
+      en: "Failed during import prompt"
+    load_config_failed:
+      en: "Failed to load configuration"
+    parse_config_failed:
+      en: "Failed to parse configuration: %{path}"
+    create_config_dir_failed:
+      en: "Failed to create config directory: %{path}"
+    serialize_config_failed:
+      en: "Failed to serialize configuration"
+    write_config_failed:
+      en: "Failed to write configuration: %{path}"
+    home_dir_failed:
+      en: "Failed to get home directory"
+    read_codex_config_failed:
+      en: "Failed to read ~/.codex/config.toml"
+    parse_codex_config_failed:
+      en: "Failed to parse ~/.codex/config.toml"
+    codex_config_not_table:
+      en: "~/.codex/config.toml root is not a TOML table"
+    override_name_blank:
+      en: "Invalid override_name for provider '%{name}': value must not be empty"
+    create_codex_dir_failed:
+      en: "Failed to create ~/.codex directory"
+    serialize_codex_config_failed:
+      en: "Failed to serialize codex config"
+    write_codex_config_failed:
+      en: "Failed to write ~/.codex/config.toml"
+
+# SDD workflow
+sdd:
+  # r112: emitted to stderr (human) / surfaced as `matchedViaPrefix` (JSON) when
+  # a change name is resolved via a unique prefix rather than an exact match.
+  prefix_match_hint:
+    en: "'%{input}' -> '%{resolved}' (prefix match)"
+  config:
+    read_failed:
+      en: "Failed to read llmanspec config: %{error}"
+    parse_failed:
+      en: "Failed to parse llmanspec config: %{error}"
+    missing:
+      en: "No llmanspec config found at %{path}. Run 'llman sdd init' first."
+    schema_invalid:
+      en: "llmanspec config does not match schema: %{path} (%{error})"
+    serialize_failed:
+      en: "Failed to serialize llmanspec config: %{error}"
+    write_failed:
+      en: "Failed to write llmanspec config: %{error}"
+    skills:
+      enabled:
+        en: "Enabled optional skills:"
+      available:
+        en: "Available but not enabled:"
+      non_interactive_hint:
+        en: "(Run without --no-interactive to edit interactively.)"
+      prompt:
+        en: "Toggle optional skills to enable (Space to toggle, Enter to confirm):"
+      confirm:
+        en: "Write these changes to config.yaml? (comments in the file will be lost)"
+      cancelled:
+        en: "Cancelled; config.yaml unchanged."
+      no_change:
+        en: "No changes; config.yaml unchanged."
+      written_hint:
+        en: "config.yaml updated. Run `llman sdd init --update` to apply skill files."
+    overview:
+      schema:
+        en: "schema"
+      locale:
+        en: "locale"
+      extra_skills:
+        en: "extra_skills (enabled/total)"
+      bdd:
+        en: "bdd"
+      archive:
+        en: "archive"
+
+  style:
+  yaml:
+  templates:
+    read_failed:
+      en: "Failed to read template %{path}: %{error}"
+    not_found:
+      en: "Template not found: %{path}"
+  shared:
+    invalid_id:
+      en: "Invalid %{kind} id '%{id}'. Use a simple identifier (no '/', '\\', '.' or '..')."
+    non_interactive:
+      tail:
+        en: "Or run in an interactive terminal."
+
+  update_skills:
+    no_llmanspec:
+      en: "No llmanspec directory found. Run '%{cmd}' first."
+
+  skill_consistency:
+    unrendered_template_syntax:
+      en: "Installed managed skill(s) still contain unrendered MiniJinja syntax (`{% ... %}`).%{details}\nFix: upgrade llman, then run `%{fix}` to regenerate skills from templates."
+
+  list:
+    no_changes_dir:
+      en: "No llmanspec changes directory found. Run 'llman sdd init' first."
+    no_active_changes:
+      en: "No active changes found."
+    changes_header:
+      en: "Active changes:"
+    no_specs:
+      en: "No specs found."
+    specs_header:
+      en: "Available specs:"
+    idle_days:
+      en: "idle %{days}d"
+    no_tasks_status:
+      en: "no tasks"
+    complete_status:
+      en: "complete"
+    just_now:
+      en: "just now"
+    conflicting_flags:
+      en: "Flags --specs and --changes are mutually exclusive."
+
+  show:
+    option_change:
+      en: "Change"
+    option_spec:
+      en: "Spec"
+    select_type:
+      en: "What would you like to show?"
+    no_changes_found:
+      en: "No changes found."
+    pick_change:
+      en: "Pick a change"
+    no_specs_found:
+      en: "No specs found."
+    pick_spec:
+      en: "Pick a spec"
+    non_interactive:
+      line1:
+        en: "Nothing to show. Try one of:"
+      line2:
+        en: "  llman sdd show <item>"
+      line3:
+        en: "  llman sdd show --type change"
+      line4:
+        en: "  llman sdd show --type spec"
+    unknown_item:
+      en: "Unknown item '%{item}'"
+    did_you_mean:
+      en: "Did you mean: %{items}?"
+    ambiguous_item:
+      en: "Ambiguous item '%{item}' matches both a change and a spec."
+    ambiguous_hint:
+      en: "Pass --type change|spec."
+    change_not_found:
+      en: "Change '%{id}' not found."
+    spec_not_found:
+      en: "Spec '%{id}' not found."
+    spec_not_found_with_reason:
+      en: "Spec '%{id}' unavailable: %{reason}"
+    change_stage:
+      en: "Stage: %{stage}"
+    requirements_only_deprecated:
+      en: "Flag --requirements-only is deprecated; use --deltas-only instead."
+    requirements_conflict:
+      en: "Options --requirements and --requirement cannot be used together."
+    ignore_flags:
+      en: "Warning: Ignoring flags not applicable to %{item_type}: %{flags}"
+
+  validate:
+    option_change:
+      en: "Change"
+    option_spec:
+      en: "Spec"
+    select_scope:
+      en: "What would you like to validate?"
+    option_all:
+      en: "All (changes + specs)"
+    option_changes:
+      en: "All changes"
+    option_specs:
+      en: "All specs"
+    option_pick_one:
+      en: "Pick a specific change or spec"
+    pick_item:
+      en: "Pick an item"
+    no_items:
+      en: "No items found to validate."
+    invalid_pick:
+      en: "Invalid selection."
+    unknown_item:
+      en: "Unknown item '%{item}'"
+    did_you_mean:
+      en: "Did you mean: %{items}?"
+    ambiguous_item:
+      en: "Ambiguous item '%{item}' matches both a change and a spec."
+    ambiguous_hint:
+      en: "Pass --type change|spec."
+    item_valid:
+      en: "%{item} '%{id}' is valid"
+    item_invalid:
+      en: "%{item} '%{id}' has issues"
+    issue_line:
+      en: "[%{label}] %{path}: %{message}"
+    spec_read_failed:
+      en: "Failed to read spec file: %{error}"
+    sections_example:
+      en: |
+        Example:
+        ```ison
+        {
+          "version": "1.0.0",
+          "kind": "llman.sdd.spec",
+          "name": "sample",
+          "purpose": "State the goal in one sentence.",
+          "requirements": [
+            {
+              "req_id": "sample-requirement",
+              "title": "Sample requirement",
+              "statement": "The system MUST ...",
+              "scenarios": [
+                { "id": "happy-path", "text": "- **WHEN** ...\n- **THEN** ..." }
+              ]
+            }
+          ]
+        }
+        ```
+
+    scenario_example:
+      en: |
+        Example:
+        ```ison
+        { "id": "sample-scenario", "text": "- **WHEN** ...\n- **THEN** ..." }
+        ```
+
+    delta_example:
+      en: |
+        Example:
+        ```ison
+        {
+          "version": "1.0.0",
+          "kind": "llman.sdd.delta",
+          "ops": [
+            {
+              "op": "add_requirement",
+              "req_id": "sample-requirement",
+              "title": "Sample requirement",
+              "statement": "The system MUST ...",
+              "scenarios": [
+                { "id": "sample-scenario", "text": "- **WHEN** ...\n- **THEN** ..." }
+              ]
+            }
+          ]
+        }
+        ```
+    proposal_missing:
+      en: "Change is missing proposal.md."
+    proposal_frontmatter_invalid_yaml:
+      en: "proposal.md frontmatter YAML parse error: %{error}"
+    proposal_frontmatter_unknown_field:
+      en: "proposal.md frontmatter has unknown field '%{field}'; allowed fields are: %{allowed}. Stage is inferred from on-disk artifacts (run `llman sdd show` / `llman sdd list`); do not store lifecycle state in frontmatter."
+    proposal_depends_on_unknown:
+      en: "proposal.md depends_on references unknown change: %{id}"
+    proposal_depends_on_format:
+      en: "proposal.md depends_on must be a list of change ID strings"
+    proposal_blocks_format:
+      en: "proposal.md blocks must be a list of change ID strings"
+    proposal_blocks_unknown:
+      en: "proposal.md blocks references unknown change: %{id}"
+    proposal_depends_on_archived:
+      en: "proposal.md depends_on references archived change: %{id}"
+    proposal_blocks_archived:
+      en: "proposal.md blocks references archived change: %{id}"
+    proposal_depends_on_may_be_frozen:
+      en: "proposal.md depends_on references change '%{id}' (frozen or does not exist — use 'llman sdd archive freeze --list' to check)"
+    proposal_blocks_may_be_frozen:
+      en: "proposal.md blocks references change '%{id}' (frozen or does not exist — use 'llman sdd archive freeze --list' to check)"
+    dag_cycle_detected:
+      en: "Dependency cycle detected: %{cycle}"
+    tasks_missing:
+      en: "Change is missing tasks.md."
+    task_pending:
+      en: "Pending task (line %{line}): %{task}"
+    design_present:
+      en: "design.md is present."
+    tasks_without_design:
+      en: "Change has tasks.md but missing design.md. Tasks MUST be generated after design decisions are documented. Create design.md first, then regenerate tasks.md."
+    stage_draft_hint:
+      en: "Change is in 'draft' stage (next: add design.md + tasks.md, then `llman sdd change start <id>` to enter a feature branch)"
+    stage_designed_hint:
+      en: "Change is in 'designed' stage (next: `llman sdd change start` to enter feature branch and reach 'full')"
+    next_steps:
+      en: "Next steps:"
+    change_step_1:
+      en: "- Edit live single-track specs (`llmanspec/specs/<capability>.feature`) on the feature branch (@human constraints and @executable acceptance share one track, linked via @req); run `llman sdd change start <id>` or `change attach <id>`"
+    change_step_2:
+      en: "- Ensure proposal.md, design.md (if needed), and tasks.md are complete before apply"
+    change_step_3:
+      en: "- Debug change state: llman sdd show <id> --json --type change"
+    spec_step_1:
+      en: "- Ensure spec ISON includes `purpose` and `requirements`"
+    spec_step_2:
+      en: "- Each requirement MUST include at least one scenario object"
+    spec_step_3:
+      en: "- Re-run with --json to see structured report"
+    bulk_ok:
+      en: "OK %{item}"
+    bulk_fail:
+      en: "FAIL %{item}"
+    bulk_summary:
+      en: "Totals: %{passed} passed, %{failed} failed (%{items} items)"
+    staleness_status:
+      en: "Staleness: %{status}"
+    staleness_touched:
+      en: "Touched scope paths: %{paths}"
+    staleness_spec_updated:
+      en: "Spec file updated since base."
+    staleness_dirty:
+      en: "Working tree is dirty; results may be unreliable."
+    staleness_note:
+      en: "Note: %{note}"
+    staleness_scope_missing:
+      en: "Spec validation scope is missing."
+    staleness_base_missing:
+      en: "Unable to resolve base ref for staleness check. Set LLMANSPEC_BASE_REF (e.g. 'main' or 'origin/main'), or upgrade llman if below 0.0.60."
+    staleness_base_ref_invalid:
+      en: "Invalid LLMANSPEC_BASE_REF %{value}: must be non-empty and must not start with '-'."
+    staleness_stale:
+      en: "Spec may be stale; scope changed without spec update."
+    staleness_git_failed:
+      en: "Git command failed during staleness evaluation."
+    full_mode_spawn_failed:
+      en: "Failed to run BDD check command `%{command}`: %{error}"
+    full_mode_failed:
+      en: "BDD check failed (`%{command}`). Runner output:"
+    full_mode_passed:
+      en: "Full mode: %{count} feature(s) parsed, BDD check passed."
+    full_mode_reused:
+      en: "BDD check reused for identical run_command (`%{command}`) in this validate batch."
+    full_mode_cached_failure:
+      en: "Cached failure from an earlier BDD run in this validate batch (`%{command}`): the same failure applies here — see the first failing spec above for full runner output. Original failure: %{summary}"
+    full_mode_quiet_hint:
+      en: "Running BDD check (`%{command}`). Quiet by design: no progress lines; only failures/errors are printed. Structure-only validation: pass `--no-check`."
+      zh-Hans: "正在运行 BDD check（`%{command}`）。故意静默：无进度输出，仅失败/错误会打印。只要结构门禁请加 `--no-check`。"
+    meta_field_empty:
+      en: "Spec %{key} must not be empty (add it inside the .toon document)."
+    check_deprecated_no_bdd:
+      en: "--check has no effect without bdd configuration. Configure `bdd:` in llmanspec/config.yaml to enable BDD check."
+    bdd_next_step_feature:
+      en: "- Edit the live `.feature` on your feature branch (Git-native BDD-on); run `llman sdd change checkpoint <change-id>` after fixing Partitioned links."
+      zh-Hans: "- 在 feature 分支上编辑 live `.feature`（Git-native BDD-on）；修好 Partitioned 链接后运行 `llman sdd change checkpoint <change-id>`。"
+    non_interactive:
+      line1:
+        en: "Nothing to validate. Try one of:"
+      line2:
+        en: "  llman sdd validate --all"
+      line3:
+        en: "  llman sdd validate --changes"
+      line4:
+        en: "  llman sdd validate --specs"
+      line5:
+        en: "  llman sdd validate <item-name>"
+
+  change:
+    commits_since_base:
+      en: "Commits since base: %{count}"
+    multi_commit_hint:
+      en: "Note: %{count} commits since base — prefer a semantic single-commit finalize (apply-skill commit policy)."
+  archive:
+    change_required:
+      en: "Change id is required."
+    change_not_found:
+      en: "Change '%{id}' not found."
+    archive_exists:
+      en: "Archive '%{name}' already exists."
+    archived:
+      en: "Change '%{change}' archived as '%{archive}'."
+    finalize_next_step:
+      en: "Next: commit the archive rename (and any remaining dirty work) on '%{default}' locally (push / hosting PR optional — only if explicitly required)."
+    dry_run_move:
+      en: "Would move %{from} -> %{to}"
+    task_gate_blocked:
+      en: "Archive blocked: %{pending} unchecked task(s)."
+    task_gate_options:
+      en: "Options:\n  1. Complete the remaining tasks\n  2. Use --force to archive anyway (not recommended)"
+    task_gate_item:
+      en: "  - [ ] %{task}"
+    task_completion_low:
+      en: "Task completion ratio %{ratio}%% is below minimum %{min}%%."
+
+  solidify:
+skills:
+  conflict:
+  hash:
+    strip_prefix_failed:
+      en: "Failed to compute relative path:"
+  copy:
+  target:
+    not_directory:
+      en: "Target path is not a directory: %{path}"
+    not_symlink:
+      en: "Target entry exists and is not a symlink: %{path}"
+    not_managed:
+      en: "Target entry is not managed by llman; skipping removal: %{path}"
+  target_conflict:
+    prompt:
+      en: "Target %{target} for %{skill} already exists. Choose a conflict action."
+    prompt_failed:
+      en: "Failed to resolve target conflict: %{error}"
+    requires_flag:
+      en: "Non-interactive mode requires --target-conflict=overwrite|skip for %{skill} in %{target}."
+    option_overwrite:
+      en: "overwrite"
+    option_skip:
+      en: "skip"
+  manager:
+    no_skills:
+      en: "No skills found to manage."
+    duplicate_skill_id:
+      en: "Duplicate skill id %{skill} found at %{path}; using %{chosen}."
+    select_skills:
+      en: "Select skills:"
+    select_skill:
+      en: "Select a skill to manage"
+    select_agent_tools:
+      en: "Select which agent tools to manage"
+    select_scope:
+      en: "Select scope to manage"
+    select_presets:
+      en: "Select preset groups (optional; checked groups preselect all their skills):"
+    prompt_failed:
+      en: "Failed to read selection: %{error}"
+    exit:
+      en: "Exit"
+    confirm_apply:
+      en: "Apply changes for %{target}?"
+    state_skip:
+      en: "skip (read-only)"
+    read_only:
+      en: "Target is read-only and cannot be toggled."
+    hidden_user_scope_skills_hint:
+      en: "Hidden %{count} skills already managed in user scope."
+    legacy_registry_detected:
+      en: "Legacy skills registry detected at %{path}; it is ignored in realtime mode."
+    preset_empty:
+      en: "Preset '%{preset}' resolves to an empty skill set."
+  config:
+    read_failed:
+      en: "Failed to read skills config: %{error}"
+    parse_failed:
+      en: "Failed to parse skills config: %{error}"
+    llman_read_failed:
+      en: "Failed to read llman config: %{error}"
+    llman_parse_failed:
+      en: "Failed to parse llman config: %{error}"
+    llman_schema_invalid:
+      en: "llman config does not match schema: %{path} (%{error})"
+    unsupported_version:
+      en: "Unsupported skills config version %{version}."
+    invalid_target_mode:
+      en: "Unsupported target mode %{mode}. Expected link, copy, or skip."
+    sources_removed:
+      en: "Skills config v2 does not support [[source]] entries. Use targets-only config under <skills_root>."
+    skills_dir_invalid_cli:
+      en: "Invalid skills directory: %{error}"
+    skills_dir_invalid_env:
+      en: "Invalid skills directory in LLMAN_SKILLS_DIR: %{error}"
+    skills_dir_invalid_config:
+      en: "Invalid skills directory in config.yaml: %{error}"
+    repo_path_missing:
+      en: "Warning: skills.repo entry '%{name}' path not found or not a directory, skipping: %{path}"
+    home_missing:
+      en: "Unable to resolve home directory for path expansion."
+  registry:
+self:
+  schema:
+    generate_start:
+      en: "Generating config schemas..."
+    generate_written:
+      en: "Wrote schema: %{path}"
+    generate_failed:
+      en: "Failed to generate schema: %{error}"
+    apply_start:
+      en: "Applying schema headers..."
+    apply_updated:
+      en: "Updated schema header: %{path}"
+    apply_unchanged:
+      en: "Schema header already present: %{path}"
+    apply_skipped:
+      en: "Skipped missing config: %{path}"
+    check_start:
+      en: "Checking config schemas..."
+    check_ok:
+      en: "Schema check passed."
+    check_missing:
+      en: "Schema file missing: %{path}"
+    check_invalid:
+      en: "Invalid schema at %{path}: %{error}"
+    check_failed:
+      en: "Schema validation failed for %{name}: %{error}"
+    read_failed:
+      en: "Failed to read file: %{path} (%{error})"
+    write_failed:
+      en: "Failed to write file: %{path} (%{error})"
+    yaml_parse_failed:
+      en: "Failed to parse YAML: %{path} (%{error})"
+  completion:
+    install_prompt:
+      en: "Install llman completion block into %{path}?"
+    install_help:
+      en: "This will add or update the marked llman completion block."
+    non_interactive:
+      en: "Non-interactive mode cannot modify %{path}; re-run with --yes."
+    profile_outside_home:
+      en: "PowerShell $PROFILE resolves to %{path}, which is outside the user home directory; refusing to install completions."
+    read_failed:
+      en: "Failed to read file: %{path} (%{error})"
+    write_failed:
+      en: "Failed to write file: %{path} (%{error})"
+    invalid_marker:
+      en: "Invalid completion marker state in %{path}."

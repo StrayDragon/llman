@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""i18n key audit for crates/llman-sdd/locales/app.yml (rust-i18n).
+"""i18n key audit for locales/app.yml (rust-i18n).
 
 Two directions:
   1. dead keys   — keys defined in app.yml never referenced in Rust sources
@@ -16,9 +16,12 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-# Locales live inside llman-sdd (SSOT for both crates; rust-i18n embeds them
-# at compile time relative to each crate's CARGO_MANIFEST_DIR).
-LOCALES = REPO / "crates/llman-sdd/locales"
+# Locales are duplicated per published crate: the root package and llman-sdd
+# each embed their own copy (workspace members are excluded from root .crate,
+# so cross-crate embed paths break in release artifacts). Both copies must
+# stay byte-identical — the consistency gate below enforces that.
+LOCALES = REPO / "locales"
+LLMAN_SDD_COPY = REPO / "crates" / "llman-sdd" / "locales" / "app.yml"
 CODE_DIRS = ("src", "crates", "tests")
 
 SECTION_RE = re.compile(r"^(\s*)([A-Za-z0-9_-]+):\s*$")
@@ -129,6 +132,15 @@ def strip_dead_keys(path: Path, dead: set[str]) -> int:
 
 
 def main() -> int:
+    # Consistency gate: the llman-sdd copy must match the root copy byte-for-
+    # byte (both are compile-time embedded; drift would ship stale translations
+    # in one of the published crates). --fix does NOT propagate — edit the root
+    # copy and copy it over, or fix both files identically.
+    if LLMAN_SDD_COPY.is_file() and LLMAN_SDD_COPY.read_bytes() != (LOCALES / "app.yml").read_bytes():
+        print(f"ERROR: {LLMAN_SDD_COPY} out of sync with {LOCALES / 'app.yml'}")
+        print("  run: cp locales/app.yml crates/llman-sdd/locales/app.yml")
+        return 1
+
     if "--fix" in sys.argv:
         defined_before = collect_key_paths(parse_locale_tree(LOCALES / "app.yml"))
         dead = {key for key in defined_before if not key_referenced_in_code(key)}

@@ -4,7 +4,7 @@ use std::io;
 fn load_i18n_template(key: &str, locale: &str) -> String {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let path = std::path::Path::new(manifest_dir)
-        .join("crates/llman-sdd/locales")
+        .join("locales")
         .join("app.yml");
     let content = std::fs::read_to_string(path).expect("Failed to read locales/app.yml");
     let key_parts: Vec<&str> = key.split('.').collect();

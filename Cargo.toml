@@ -2,7 +2,7 @@
 members = [".", "crates/gherkin-zh", "crates/llman-core", "crates/llman-sdd"]
 
 [workspace.package]
-version = "0.0.74"
+version = "0.0.75"
 edition = "2024"
 
 # Single source of truth for dependency versions shared across workspace
@@ -61,8 +61,8 @@ llm_json = "1.0.2"
 ureq = { version = "3", features = ["json"] }
 # Versions required for publish: cargo rewrites path deps to crates.io
 # version reqs. Keep in sync with [workspace.package] version.
-llman-core = { path = "crates/llman-core", version = "0.0.74" }
-llman-sdd = { path = "crates/llman-sdd", version = "0.0.74" }
+llman-core = { path = "crates/llman-core", version = "0.0.75" }
+llman-sdd = { path = "crates/llman-sdd", version = "0.0.75" }
 
 # Workspace-wide lint policy (SSOT). Every crate opts in via
 # `[lints] workspace = true`. Tighten deliberately: anything warn-level here
