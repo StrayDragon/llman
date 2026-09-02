@@ -29,6 +29,17 @@ install:
 # 发布命令
 # =============================================================================
 
+# 发布到 crates.io（依赖顺序：gherkin-zh → llman-core → llman-sdd → llman）。
+# 可追加额外参数（如 `just publish --dry-run`）；首次发布链上，未发布的依赖
+# 会让后续 crate 报「no matching package」——属预期，真实发布按顺序执行即可。
+# 版本 SSOT 在 workspace.package.version（gherkin-zh 固定 0.16.0），
+# 已发布的版本号需先 bump。
+publish *args:
+    cargo publish -p gherkin-zh {{args}}
+    cargo publish -p llman-core {{args}}
+    cargo publish -p llman-sdd {{args}}
+    cargo publish -p llman {{args}}
+
 # git-tag 分发：打带注释 tag 并推送（配合
 # `cargo install --git https://github.com/StrayDragon/llman --tag v<version>`）。
 # 不做 crates.io 发布：workspace 的 git 依赖（gherkin fork）会被发布归一化剥成

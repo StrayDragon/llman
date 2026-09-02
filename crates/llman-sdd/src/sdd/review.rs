@@ -257,7 +257,10 @@ fn print_text(review: &Review) {
 }
 
 fn write_html(path: &Path, review: &Review) -> Result<()> {
-    const TEMPLATE: &str = include_str!("../../../../templates/sdd/shared/review.html");
+    const TEMPLATE: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/templates/sdd/shared/review.html"
+    ));
     let mut mermaid = String::from("graph TD\n");
     let mut sig_json: Vec<serde_json::Value> = Vec::new();
     for (idx, s) in review.signals.iter().enumerate() {

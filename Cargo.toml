@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/llman-core", "crates/llman-sdd"]
+members = [".", "crates/gherkin-zh", "crates/llman-core", "crates/llman-sdd"]
 
 [workspace.package]
 version = "0.0.73"
@@ -44,14 +44,15 @@ glob = "0.3.3"
 ignore = "0.4.26"
 sha2 = "0.11.0"
 regex = "1.12.3"
-# Fork of gherkin adding the missing zh-CN 规则 rule keyword (upstream zh-CN
-# dict only localizes part of Gherkin 6 keywords). Depended on directly via
-# git + version, NOT via [patch]: patch sections are stripped from published
-# manifests, so a plain crates.io dep would silently lose the 规则 gate for
-# crates installed from crates.io. rstest-bdd-macros pins upstream gherkin
-# 0.14 and keeps upstream; harmless because it never collects Rule-block
-# scenarios anyway (llman's gate rejects them first).
-gherkin = { version = "0.16", git = "https://github.com/StrayDragon/gherkin.git" }
+# gherkin fork vendored + published as its own registry crate (gherkin-zh):
+# cargo strips git sources from published manifests, so a git dep would
+# silently resolve to upstream gherkin 0.16 (no zh-CN 规则 keyword) for
+# crates.io consumers. Vended from https://github.com/StrayDragon/gherkin
+# (single commit: i18n(zh-CN): add 规则 as rule keyword on top of 0.16.0).
+# rstest-bdd-macros pins upstream gherkin 0.14 and keeps upstream;
+# harmless because it never collects Rule-block scenarios anyway (llman's
+# gate rejects them first).
+gherkin-zh = { path = "crates/gherkin-zh", version = "0.16.0" }
 sevenz-rust2 = "0.22.2"
 llm_json = "1.0.2"
 # Blocking HTTP (rustls) for the sdd pageindex chat-model invoker. Chosen over

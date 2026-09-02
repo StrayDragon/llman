@@ -265,7 +265,9 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     templates_root = repo_root / "templates"
     errors: List[str] = []
-    sdd_root = templates_root / "sdd"
+    # sdd templates live inside llman-sdd (embed must stay within the crate
+    # so the published .crate builds standalone).
+    sdd_root = repo_root / "crates" / "llman-sdd" / "templates" / "sdd"
 
     sdd_locales = validate_markdown_root(sdd_root, errors)
 

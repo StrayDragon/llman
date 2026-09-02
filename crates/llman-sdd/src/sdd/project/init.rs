@@ -77,11 +77,11 @@ fn write_llmanspec_agents_file(llmanspec_path: &Path) -> Result<()> {
         let locale = load_or_create_config(llmanspec_path)?.locale;
         let stub = match locale.as_str() {
             "zh-Hans" => include_str!(concat!(
-                concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
+                env!("CARGO_MANIFEST_DIR"),
                 "/templates/sdd/zh-Hans/llmanspec-agents-stub.md"
             )),
             _ => include_str!(concat!(
-                concat!(env!("CARGO_MANIFEST_DIR"), "/../.."),
+                env!("CARGO_MANIFEST_DIR"),
                 "/templates/sdd/en/llmanspec-agents-stub.md"
             )),
         };

@@ -53,7 +53,7 @@
 - `src/x/` contains experimental integrations (cursor, claude_code, codex).
 - `src/tool/` contains developer utilities used by the CLI.
 - `tests/` contains integration tests; files are named `*_tests.rs`.
-- `templates/` stores prompt templates; `locales/` stores i18n YAML files.
+- `templates/` stores prompt templates (codex/claude-code); `crates/llman-sdd/templates/sdd/` + `crates/llman-sdd/locales/` hold the sdd templates and i18n YAML files (SSOT inside the llman-sdd crate: both are compile-time embedded via `include_str!`/`i18n!` relative to that crate's `CARGO_MANIFEST_DIR`, which keeps the published `.crate` self-contained).
 - `artifacts/testing_config_home/` is the test fixture config root used by dev commands.
 - `scripts/` has helper scripts. SDD workflow SSOT is root `AGENTS.md` + `llmanspec/` (not a parallel `docs/sdd` tree).
 
@@ -84,8 +84,8 @@ Cargo equivalents use `cargo +nightly ...`.
 - Use `LLMAN_CONFIG_DIR=./artifacts/testing_config_home` to avoid touching real user config.
 - Avoid workspace pollution: tests that may create files/dirs MUST use `tempfile::TempDir` (or `TestEnvironment`) and write only inside it so everything is auto-cleaned.
 - Avoid parallel test collisions: don’t use fixed relative paths/identifiers in the repo root (e.g. `config`, `config.yaml`); prefer unique temp paths and guard env/cwd changes with `crate::test_utils::TestProcess`.
-- Editing `locales/*.yml` triggers rebuild automatically (`build.rs` declares `rerun-if-changed`); no need to touch sources after translation edits.
-- When editing `templates/sdd/**`, run `just check-sdd-templates` (also in `just check-all`).
+- Editing `crates/llman-sdd/locales/*.yml` triggers rebuild automatically (`build.rs` declares `rerun-if-changed`); no need to touch sources after translation edits.
+- When editing `crates/llman-sdd/templates/sdd/**`, run `just check-sdd-templates` (also in `just check-all`).
 
 ## Human Review Checkpoint (SDD)
 
