@@ -44,15 +44,24 @@ glob = "0.3.3"
 ignore = "0.4.26"
 sha2 = "0.11.0"
 regex = "1.12.3"
-gherkin = "0.16"
+# Fork of gherkin adding the missing zh-CN 规则 rule keyword (upstream zh-CN
+# dict only localizes part of Gherkin 6 keywords). Depended on directly via
+# git + version, NOT via [patch]: patch sections are stripped from published
+# manifests, so a plain crates.io dep would silently lose the 规则 gate for
+# crates installed from crates.io. rstest-bdd-macros pins upstream gherkin
+# 0.14 and keeps upstream; harmless because it never collects Rule-block
+# scenarios anyway (llman's gate rejects them first).
+gherkin = { version = "0.16", git = "https://github.com/StrayDragon/gherkin.git" }
 sevenz-rust2 = "0.22.2"
 llm_json = "1.0.2"
 # Blocking HTTP (rustls) for the sdd pageindex chat-model invoker. Chosen over
 # reqwest/async-openai: the agentic loop is sequential, one JSON round-trip per
 # turn — an async runtime + hyper stack would be ~45% of the dependency graph.
 ureq = { version = "3", features = ["json"] }
-llman-core = { path = "crates/llman-core" }
-llman-sdd = { path = "crates/llman-sdd" }
+# Versions required for publish: cargo rewrites path deps to crates.io
+# version reqs. Keep in sync with [workspace.package] version.
+llman-core = { path = "crates/llman-core", version = "0.0.72" }
+llman-sdd = { path = "crates/llman-sdd", version = "0.0.72" }
 
 # Workspace-wide lint policy (SSOT). Every crate opts in via
 # `[lints] workspace = true`. Tighten deliberately: anything warn-level here
@@ -79,6 +88,9 @@ authors = ["L8ng <straydragonl@foxmail.com>"]
 description = "A tool for managing LLM application rules(prompts) ..."
 license = "MIT"
 repository = "https://github.com/StrayDragon/llman"
+# Dev/test/docs trees that must not ship inside the published .crate.
+# templates/ + locales/ stay (runtime resources; build.rs reruns on locales).
+exclude = ["artifacts/", "llmanspec/"]
 
 # One consolidated integration-test target instead of 22 auto-discovered
 # per-file binaries (each statically linking the whole workspace). Modules
@@ -173,11 +185,3 @@ debug = "line-tables-only"
 
 [profile.test.package."*"]
 debug = 0
-
-# Fork of gherkin adding the missing zh-CN 规则 rule keyword
-# (upstream zh-CN dict only localizes part of Gherkin 6 keywords).
-# NOTE: semver-scoped — replaces gherkin 0.16 consumers (llman itself).
-# rstest-bdd-macros pins gherkin 0.14 and keeps upstream; harmless because it
-# never collects Rule-block scenarios anyway (llman's gate rejects them first).
-[patch.crates-io]
-gherkin = { git = "https://github.com/StrayDragon/gherkin.git" }

@@ -5,7 +5,6 @@ edition.workspace = true
 description = "Spec-driven development core of llman (sdd subcommands, spec IR/validation, change lifecycle, project management)."
 license = "MIT"
 repository = "https://github.com/StrayDragon/llman"
-publish = false
 
 [lints]
 workspace = true
