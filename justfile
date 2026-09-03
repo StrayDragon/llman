@@ -87,8 +87,10 @@ clean-bdd-targets:
 
 # 运行测试（优先 cargo-nextest 并发；未安装则回退 cargo test）
 # T11 拆出 crates/llman-core 后根包默认只测根包自身，必须显式 --workspace
+# CI 与本地一致：nextest 不跑 doctest，所以 nextest 分支后补 `cargo test --doc
+# --workspace`（CI 无 nextest 时 fallback 的 cargo test 已含 doctest，不重复）。
 test:
-    if command -v cargo-nextest >/dev/null; then cargo nextest run --workspace --profile ci; else cargo test --workspace; fi
+    if command -v cargo-nextest >/dev/null; then cargo nextest run --workspace --profile ci && cargo test --doc --workspace; else cargo test --workspace; fi
 
 # 运行 BDD 测试（feature-as-spec 可执行验证，需 --features bdd）
 test-bdd:
@@ -124,8 +126,10 @@ check: fmt-check lint test
 # 完整检查（核心检查 + 文档 + release构建 + SDD模板检查）
 check-all: check doc-check build-release check-sdd-templates check-schemas
 
-# 本地质量审计：完整检查 + i18n 键审计 + 未用依赖扫描
-qa: check-all check-i18n machete
+# 本地质量审计：完整检查 + i18n 键审计 + 未用依赖扫描 + 供应链审计
+#（覆盖 CI 全部 job：Test Suite=check-all、Build Check=build-release、
+#  Supply-chain=deny；另有 check-i18n/machete 富余）
+qa: check-all check-i18n machete deny
 
 # =============================================================================
 # 工具命令
@@ -143,6 +147,11 @@ check-i18n *args:
 # 扫描未在代码中使用的 crate 依赖（未安装则跳过并提示）
 machete:
     @command -v cargo-machete >/dev/null 2>&1 && cargo machete || echo "skip: cargo-machete 未安装（cargo install cargo-machete --locked）"
+
+# 供应链审计：许可 allowlist + RustSec 漏洞 + ban 策略（deny.toml），对齐 CI 的
+# Supply-chain job（EmbarkStudios/cargo-deny-action）（未安装则跳过并提示）
+deny:
+    @command -v cargo-deny >/dev/null 2>&1 && cargo deny check || echo "skip: cargo-deny 未安装（cargo install cargo-deny --locked）"
 
 # 检查 SDD 模板版本与本地化一致性
 check-sdd-templates:
