@@ -29,15 +29,28 @@ install:
 # 发布命令
 # =============================================================================
 
-# 发布到 crates.io（按依赖顺序：llman-core → llman-sdd → llman）。
-# 可追加额外参数（如 `just publish --dry-run`）；首次发布前 dry-run 时
-# llman-sdd/llman 会因 llman-core 尚未在 registry 上而报
-# 「no matching package」——属预期，真实发布按顺序执行即可。
-# 版本 SSOT 在 workspace.package.version，已发布的版本号需先 bump。
-publish *args:
-    cargo publish -p llman-core {{args}}
-    cargo publish -p llman-sdd {{args}}
-    cargo publish -p llman {{args}}
+# git-tag 分发：打带注释 tag 并推送（配合
+# `cargo install --git https://github.com/StrayDragon/llman --tag v<version>`）。
+# 不做 crates.io 发布：workspace 的 git 依赖（gherkin fork）会被发布归一化剥成
+# registry 版本，编译期嵌入（locales/templates）也会在独立 .crate 里失去路径。
+# 版本号取自 workspace.package.version；tag 已存在或工作区脏时会拒绝。
+release:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        echo "❌ working tree dirty — commit first"
+        exit 1
+    fi
+    VERSION="$(sed -n 's/^version = "\([^"]*\)".*/\1/p' Cargo.toml | head -1)"
+    TAG="v$VERSION"
+    if git rev-parse "$TAG" >/dev/null 2>&1; then
+        echo "❌ tag $TAG already exists — bump workspace.package.version first"
+        exit 1
+    fi
+    git tag -a "$TAG" -m "release $TAG"
+    git push origin "$TAG"
+    echo "✅ $TAG pushed — install with:"
+    echo "   cargo install --git https://github.com/StrayDragon/llman --tag $TAG"
 
 # 清理构建产物
 clean:
