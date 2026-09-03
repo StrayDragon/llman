@@ -147,13 +147,13 @@ impl FeatureBackend {
         let header_lang = detect_language(content);
         let mut candidates: Vec<String> = vec![header_lang.clone(), "zh-CN".to_string()];
         candidates.dedup();
-        let mut parsed: Option<(gherkin::Feature, String)> = None;
+        let mut parsed: Option<(gherkin_zh::Feature, String)> = None;
         let mut last_err = String::new();
         for lang in &candidates {
-            match gherkin::GherkinEnv::new(lang)
+            match gherkin_zh::GherkinEnv::new(lang)
                 .map_err(|err| anyhow!("{context}: gherkin env `{lang}`: {err}"))
                 .and_then(|env| {
-                    gherkin::Feature::parse(content, env)
+                    gherkin_zh::Feature::parse(content, env)
                         .map_err(|err| anyhow!("{context}: failed to parse Gherkin: {err}"))
                 }) {
                 Ok(feature) => {
@@ -185,9 +185,9 @@ impl FeatureBackend {
             let mut then_ = Vec::new();
             for step in &sc.steps {
                 match step.ty {
-                    gherkin::StepType::Given => given.push(step.value.clone()),
-                    gherkin::StepType::When => when_.push(step.value.clone()),
-                    gherkin::StepType::Then => then_.push(step.value.clone()),
+                    gherkin_zh::StepType::Given => given.push(step.value.clone()),
+                    gherkin_zh::StepType::When => when_.push(step.value.clone()),
+                    gherkin_zh::StepType::Then => then_.push(step.value.clone()),
                 }
             }
             let tags = sc.tags.clone();

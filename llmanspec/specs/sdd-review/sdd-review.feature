@@ -23,7 +23,7 @@
 
   @req:r51 @human
   场景: 单文件离线 HTML 视图
-    - review --export-html <path> MUST 产出单个自包含 HTML 文件：内嵌 mermaid capability↔req↔scenario 层级图与过滤器；MUST NOT 引用外部网络资源或要求本地 server；动态文本 MUST 经最小转义。模板 canonical 位于 templates/sdd/shared/ 并在编译期内嵌进二进制。
+    - review --export-html <path> MUST 产出单个自包含 HTML 文件：内嵌 mermaid capability↔req↔scenario 层级图与过滤器；MUST NOT 引用外部网络资源或要求本地 server；动态文本 MUST 经最小转义。模板 canonical 位于 crates/llman-sdd/templates/sdd/shared/ 并在编译期内嵌进二进制。
 
   @executable
   @req:r5

@@ -9,12 +9,18 @@
 
 ## 安装
 
-通过 git tag 分发（需要 nightly 工具链，`rust-toolchain.toml` 会自动切换）：
+crates.io 发行（llman-core / llman-sdd / gherkin-zh 一并发布）：
 
 ```bash
-# 固定版本（推荐）
-cargo install --git https://github.com/StrayDragon/llman --tag v0.0.72
-
-# 最新主干
-cargo install --git https://github.com/StrayDragon/llman
+cargo install llman --version 0.0.73
 ```
+
+> [!note]
+>
+> 发布过渡期快捷安装（从 GitHub tag 直接构建，效果等价）：
+>
+> ```bash
+> cargo install --git https://github.com/StrayDragon/llman --tag v0.0.73
+> ```
+
+需要 nightly 工具链（`rust-toolchain.toml` 会自动切换）。

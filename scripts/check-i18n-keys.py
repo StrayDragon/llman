@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""i18n key audit for locales/app.yml (rust-i18n).
+"""i18n key audit for crates/llman-sdd/locales/app.yml (rust-i18n).
 
 Two directions:
   1. dead keys   — keys defined in app.yml never referenced in Rust sources
@@ -16,7 +16,9 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-LOCALES = REPO / "locales"
+# Locales live inside llman-sdd (SSOT for both crates; rust-i18n embeds them
+# at compile time relative to each crate's CARGO_MANIFEST_DIR).
+LOCALES = REPO / "crates/llman-sdd/locales"
 CODE_DIRS = ("src", "crates", "tests")
 
 SECTION_RE = re.compile(r"^(\s*)([A-Za-z0-9_-]+):\s*$")

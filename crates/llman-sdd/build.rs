@@ -3,5 +3,5 @@ fn main() {
     // locale files with Cargo's change detection. Declare them here so any
     // translation edit triggers a real rebuild (mirrors the facade build.rs;
     // path is relative to this crate's CARGO_MANIFEST_DIR).
-    println!("cargo:rerun-if-changed=../../locales");
+    println!("cargo:rerun-if-changed=locales");
 }
