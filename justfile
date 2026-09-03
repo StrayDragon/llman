@@ -48,7 +48,8 @@ release:
         exit 1
     fi
     git tag -a "$TAG" -m "release $TAG"
-    git push origin "$TAG"
+    # push main first so the tag's commit is reachable, then the tag itself
+    git push origin main "$TAG"
     echo "✅ $TAG pushed — install with:"
     echo "   cargo install --git https://github.com/StrayDragon/llman --tag $TAG"
 
