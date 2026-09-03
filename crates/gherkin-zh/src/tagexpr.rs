@@ -16,7 +16,7 @@
 //! #### Usage
 //!
 //! ```
-//! use gherkin::tagexpr::TagOperation;
+//! use gherkin_zh::tagexpr::TagOperation;
 //! # fn main() -> Result<(), peg::error::ParseError<peg::str::LineCol>> {
 //! let op: TagOperation = "@a and @b".parse()?;
 //! # Ok(())
