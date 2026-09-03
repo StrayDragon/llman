@@ -1449,7 +1449,7 @@ dependencies = [
 
 [[package]]
 name = "llman"
-version = "0.0.72"
+version = "0.0.73"
 dependencies = [
  "anyhow",
  "clap",
@@ -1488,7 +1488,7 @@ dependencies = [
 
 [[package]]
 name = "llman-core"
-version = "0.0.72"
+version = "0.0.73"
 dependencies = [
  "anyhow",
  "jsonschema",
@@ -1499,7 +1499,7 @@ dependencies = [
 
 [[package]]
 name = "llman-sdd"
-version = "0.0.72"
+version = "0.0.73"
 dependencies = [
  "anyhow",
  "clap",
