@@ -25,6 +25,20 @@ run-prod *args:
 install:
     cargo install --path .
 
+# =============================================================================
+# 发布命令
+# =============================================================================
+
+# 发布到 crates.io（按依赖顺序：llman-core → llman-sdd → llman）。
+# 可追加额外参数（如 `just publish --dry-run`）；首次发布前 dry-run 时
+# llman-sdd/llman 会因 llman-core 尚未在 registry 上而报
+# 「no matching package」——属预期，真实发布按顺序执行即可。
+# 版本 SSOT 在 workspace.package.version，已发布的版本号需先 bump。
+publish *args:
+    cargo publish -p llman-core {{args}}
+    cargo publish -p llman-sdd {{args}}
+    cargo publish -p llman {{args}}
+
 # 清理构建产物
 clean:
     cargo clean
