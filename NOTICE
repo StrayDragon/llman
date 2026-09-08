@@ -15,7 +15,8 @@ Copyright (c) 2025 L8ng
 
 作者：Matt Pocock
 
-上述能力已在 llman 中按本项目架构（单 SSOT = spec.toon、Git-native BDD 流程）
+上述能力已在 llman 中按本项目架构（单 SSOT = 单轨 feature-as-spec
+（`llmanspec/specs/<capability>.feature`）、Git-native BDD 流程）
 重新实现，非源代码的直接复制。原项目以 MIT 协议开源，其版权与许可声明如下：
 
     MIT License

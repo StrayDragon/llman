@@ -55,7 +55,7 @@ Non-goals:
 
 Guiding principles:
 - Small, mergeable steps (one task at a time).
-- Prefer shared helpers in `src/config.rs` and `src/path_utils.rs`.
+- Prefer shared helpers in `src/config.rs` and `crates/llman-core/src/path_utils.rs` (re-exported as `llman::path_utils`).
 - Fail loudly and consistently for errors.
 - Avoid risky behavior when parsing or modifying user files.
 
@@ -73,5 +73,5 @@ Milestones:
 Acceptance overview:
 - `cargo +nightly fmt -- --check` passes.
 - `cargo +nightly clippy --all-targets --all-features -- -D warnings` passes.
-- `cargo +nightly test --all` passes.
+- `cargo +nightly test --workspace` passes.
 - Manual smoke checks for `llman x cc`, `llman x codex`, `llman x cursor`, `llman prompt`, `llman tool`.

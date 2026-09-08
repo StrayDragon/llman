@@ -298,13 +298,10 @@ fn print_index_status(context_dir: &Path, specs_dir: &Path) {
 }
 
 /// Rebuild the pageindex tree index.
-pub(crate) fn index_rebuild(
-    _api_url: Option<String>,
-    _model: Option<String>,
-    _api_key: Option<String>,
-    _run_async: bool,
-    _backend: Backend,
-) -> Result<()> {
+///
+/// `_backend` is validated upstream (`resolve_backend`); `pageindex` is the
+/// only implementation, so the value is not needed here.
+pub(crate) fn index_rebuild(_backend: Backend) -> Result<()> {
     let llmanspec_dir = find_llmanspec_dir(Path::new("."))?;
     let context_dir = llmanspec_dir.join(".context");
     let specs_dir = llmanspec_dir.join("specs");
