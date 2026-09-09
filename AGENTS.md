@@ -31,7 +31,7 @@
 | `llman-sdd-wayfinder` | user-invoked | 把大型、一团乱的工作拆成决策地图，逐个解决决策 |
 | `llman-sdd-research` | model-invoked | 后台 agent 委托查一手资料（官方文档/源码/API） |
 
-> 注：上述独立 skill 已列入 `OPTIONAL_SKILL_NAMES`；经 `llmanspec/config.yaml` 的 `extra_skills` 启用后，`init --update` 会写入/刷新。未列入 candidate 的 `llman-sdd-*` 目录会被清理——启用前先配 `extra_skills`。
+> 注：可选 skill 候选名单 SSOT 是 `crates/llman-sdd/src/sdd/project/config.rs` 的 `OPTIONAL_SKILL_NAMES`（continue / ff / validate / arch-review / wayfinder / research 六项）；经 `llmanspec/config.yaml` 的 `extra_skills` 启用后，`init --update` 会写入/刷新。未列入 candidate 的 `llman-sdd-*` 目录会被清理——启用前先配 `extra_skills`。
 
 ### 设计词汇
 
@@ -52,7 +52,7 @@
 - `src/` holds the Rust library and CLI code; `src/main.rs` wires the CLI and i18n.
 - `src/x/` contains experimental integrations (cursor, claude_code, codex).
 - `src/tool/` contains developer utilities used by the CLI.
-- `tests/` contains integration tests; files are named `*_tests.rs`.
+- `tests/it/` holds the consolidated integration-test target (single `it` binary; modules registered in `tests/it/main.rs`); `tests/bdd_steps.rs` hosts the BDD step library.
 - `templates/` stores prompt templates (codex/claude-code); `crates/llman-sdd/templates/sdd/` holds sdd templates (compile-time embedded via `include_str!` inside llman-sdd). `locales/` (root) + `crates/llman-sdd/locales/` are byte-identical copies — each published `.crate` must embed within itself (workspace member dirs are excluded from the root `.crate`, so cross-crate embed paths break in release artifacts); `scripts/check-i18n-keys.py` gates the copy consistency.
 - `artifacts/testing_config_home/` is the test fixture config root used by dev commands.
 - `scripts/` has helper scripts. SDD workflow SSOT is root `AGENTS.md` + `llmanspec/` (not a parallel `docs/sdd` tree).
@@ -68,6 +68,7 @@ This project targets Rust edition 2024 and uses the nightly toolchain.
 - `just check`: format check, lint, and tests.
 - `just check-all`: check plus docs (`RUSTDOCFLAGS=-D warnings`), release build, and SDD template checks.
 - `just check-sdd-templates`: verify SDD template version headers and locale parity.
+- `just readme` / `just check-readme`: regenerate / verify the README sections marked `<!-- README:GENERATED ... -->` (install version + command tables, sourced from CLI `--help` and `Cargo.toml`); run `just readme` after changing the CLI surface or bumping the version.
 - `just fmt` / `just lint`: rustfmt and clippy.
 
 Cargo equivalents use `cargo +nightly ...`.
@@ -75,11 +76,10 @@ Cargo equivalents use `cargo +nightly ...`.
 ## Coding Style and Naming Conventions
 - Use rustfmt defaults (4-space indentation) and keep code warning-free; clippy runs with `-D warnings`.
 - Use `snake_case` for file and module names; keep CLI subcommands lowercase with hyphens for multi-word names.
-- Prefer small, focused functions and reuse shared helpers in `src/path_utils.rs` and `src/config.rs`.
+- Prefer small, focused functions and reuse shared helpers in `crates/llman-core/src/path_utils.rs` (re-exported as `llman::path_utils`) and `src/config.rs`.
 
 ## Testing Guidelines
-- Add unit tests near the code when possible, and integration tests under `tests/`.
-- Name new integration test files `*_tests.rs` and keep test names descriptive.
+- Add unit tests near the code when possible, and integration tests as modules under `tests/it/` (register them in `tests/it/main.rs`); keep test names descriptive.
 - Interactive CLI flows (e.g. `inquire` prompts) do not require automated tests; test the core, non-interactive logic instead.
 - Use `LLMAN_CONFIG_DIR=./artifacts/testing_config_home` to avoid touching real user config.
 - Avoid workspace pollution: tests that may create files/dirs MUST use `tempfile::TempDir` (or `TestEnvironment`) and write only inside it so everything is auto-cleaned.
@@ -132,13 +132,13 @@ draft [proposal.md]
 - 约束 = `@req:<id> @human` 场景（statement 全文放描述）；验收 = `@executable` 场景（用 `@req:<id>` 挂回）。
 - 三态分级：enforced / manual(`@manual`) / pending —— `list --specs` 与 `show` 输出。
 - 禁止把场景嵌进 `Rule:` 块（rstest-bdd scenarios! 会静默跳过）。
-- `change delta` / solidify / `*.feature.delta.toon` / `bdd.bindings` 均已移除。
+- `change delta` / solidify / `*.feature.delta.toon` 已移除；`bdd.bindings` 已退役为可选 override（tag 即声明，配置段保留仅为兼容下游自定义 step 库 tag）。
 
 
 
 ## BDD 兼容测试维护规则
 
-`tests/sdd_bdd_compat_tests.rs` 承载实现细节层（init 结构、serde 向后兼容、子命令 smoke）；
+`tests/it/sdd_bdd_compat.rs` 承载实现细节层（init 结构、serde 向后兼容、子命令 smoke）；
 行为合约在 `llmanspec/specs/sdd-bdd-mode-compat/*.feature`。改动以下内容必须同步适配：
 validate `--check` 语义、change 生命周期命令面、锁定门禁、index rebuild embed、
 sdd 子命令增删（smoke 列表）、step 库（保持泛化 step 可驱动全部 @executable 场景；

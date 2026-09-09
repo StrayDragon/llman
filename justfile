@@ -42,8 +42,7 @@ publish *args:
 
 # git-tag 分发：打带注释 tag 并推送（配合
 # `cargo install --git https://github.com/StrayDragon/llman --tag v<version>`）。
-# 不做 crates.io 发布：workspace 的 git 依赖（gherkin fork）会被发布归一化剥成
-# registry 版本，编译期嵌入（locales/templates）也会在独立 .crate 里失去路径。
+# crates.io 发行走 `just publish`；本 recipe 用于不走 registry 的 tag 安装源。
 # 版本号取自 workspace.package.version；tag 已存在或工作区脏时会拒绝。
 release:
     #!/usr/bin/env bash
@@ -69,7 +68,7 @@ clean:
     cargo clean
 
 # 清理 validate full mode 残留的 BDD 校验沙箱 target 目录（用后不回收会持续累积，
-# why 记录见 llmanspec/changes/src-cleanup-pre-split/proposal.md「磁盘卫生」）
+# why 记录见 llmanspec/changes/archive/2026-08-28-src-cleanup-pre-split/proposal.md「磁盘卫生」）
 clean-bdd-targets:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -123,8 +122,8 @@ doc-check:
 # 核心检查（格式化检查 + lint + 测试）
 check: fmt-check lint test
 
-# 完整检查（核心检查 + 文档 + release构建 + SDD模板检查）
-check-all: check doc-check build-release check-sdd-templates check-schemas
+# 完整检查（核心检查 + 文档 + release构建 + SDD模板检查 + README 托管段一致性）
+check-all: check doc-check build-release check-sdd-templates check-schemas check-readme
 
 # 本地质量审计：完整检查 + i18n 键审计 + 未用依赖扫描 + 供应链审计
 #（覆盖 CI 全部 job：Test Suite=check-all、Build Check=build-release、
@@ -157,13 +156,13 @@ deny:
 check-sdd-templates:
     ./scripts/check-sdd-templates.py
 
-# 评估 SDD prompts（临时目录：生成 baseline/candidate prompts + promptfoo eval）
-sdd-prompts-eval *args:
-    bash ./scripts/sdd-prompts-eval.sh {{args}}
+# 重新生成 README 的托管段（README:GENERATED 标记：安装版本号 + 命令一览）
+readme:
+    ./scripts/gen_readme.py
 
-# Claude Code agentic multi-style eval（ison/toon/yaml；硬门禁：sdd validate --strict；支持 --fixture v1|v2；--runs N>=2 生成 aggregate）
-sdd-claude-style-eval *args:
-    bash ./scripts/sdd-claude-style-eval.sh {{args}}
+# 校验 README 托段是否最新（过期即非零退出；已接入 check-all / CI）
+check-readme:
+    ./scripts/gen_readme.py --check
 
 # 重新生成并检查配置 schema
 check-schemas:

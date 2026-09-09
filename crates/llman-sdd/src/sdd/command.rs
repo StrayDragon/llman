@@ -273,11 +273,8 @@ pub struct IndexCommands {
 
 #[derive(Subcommand)]
 pub enum IndexSubcommand {
-    /// Rebuild the index (sync or async)
+    /// Rebuild the index (sync)
     Rebuild {
-        /// Run rebuild in background and return immediately
-        #[arg(long)]
-        run_async: bool,
         /// Which backend's index to rebuild: `pageindex` (default).
         ///
         /// Can also be preset via `LLMAN_SDD_INDEX_BACKEND`.
@@ -832,9 +829,9 @@ fn run_command(args: &SddArgs) -> Result<()> {
         }
         SddCommands::Index(cmd) => match &cmd.command {
             IndexSubcommand::Check {} => crate::sdd::context::index_check(),
-            IndexSubcommand::Rebuild { run_async, backend } => {
+            IndexSubcommand::Rebuild { backend } => {
                 let backend = crate::sdd::context::resolve_backend(backend.clone())?;
-                crate::sdd::context::index_rebuild(None, None, None, *run_async, backend)
+                crate::sdd::context::index_rebuild(backend)
             }
         },
         SddCommands::Worktree(args) => match &args.command {
