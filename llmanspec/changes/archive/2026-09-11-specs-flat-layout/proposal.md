@@ -2,8 +2,9 @@
 depends_on: []
 branch: sdd/specs-flat-layout
 base_sha: 0189a539a6da68dc280029bdf85862a320b63e6e
-checkpointed: false
+checkpointed: true
 rules_edit_acked: true
+checkpoint_sha: 0189a539a6da68dc280029bdf85862a320b63e6e
 ---
 
 # Specs 布局扁平化 + 平铺迁移 + 协作提示
