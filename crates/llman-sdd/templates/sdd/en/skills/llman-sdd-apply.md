@@ -90,7 +90,7 @@ For each unchecked task:
 Run project gate commands (adapt to the actual project):
 - Relevant test suite: `just test` or `cargo test --all`
 - Format/lint: `just check` or `just lint` + `just fmt`
-- Git-native: stay on the bound feature branch; edit live `llmanspec/specs/<capability>/<capability>.feature` (rules `@human`, acceptance `@executable`) as needed; run `llman sdd validate --specs` after spec edits. Do not run `checkpoint` after every task. Do not use `change delta` / solidify / feature_delta.
+- Git-native: stay on the bound feature branch; edit live `llmanspec/specs/<capability>.feature` (flat, or directory `llmanspec/specs/<capability>/` main file; rules `@human`, acceptance `@executable`) as needed; run `llman sdd validate --specs` after spec edits. Do not run `checkpoint` after every task. Do not use `change delta` / solidify / feature_delta.
 - SDD validation: `llman sdd validate <id> --strict --no-interactive`
 
 **On failure → enter self-healing loop (don't ask "should I continue?"):**

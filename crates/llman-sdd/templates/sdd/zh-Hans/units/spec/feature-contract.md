@@ -1,6 +1,6 @@
 ## 单轨 Feature 合约规范
 
-每个 capability 只有一个 Gherkin 文件：`llmanspec/specs/<capability>/<capability>.feature`。
+每个 capability 只有一个 Gherkin 文件：扁平 `llmanspec/specs/<capability>.feature`（新默认）或目录 `llmanspec/specs/<capability>/` 内同名主文件（spec-format r131）。
 它是唯一的 spec 工件——不存在 `spec.toon`。
 
 ```gherkin

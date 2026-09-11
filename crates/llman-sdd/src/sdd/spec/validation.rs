@@ -572,6 +572,7 @@ fn has_meta_errors(issues: &[ValidationIssue]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sdd::shared::discovery::list_spec_locs;
 
     #[test]
     fn meta_missing_is_error() {
@@ -629,6 +630,7 @@ mod tests {
                 locale: None,
                 check_mode: false,
                 full_mode_cache: None,
+                spec_id: None,
             },
         );
         assert!(
@@ -650,6 +652,7 @@ mod tests {
                 locale: None,
                 check_mode: false,
                 full_mode_cache: None,
+                spec_id: None,
             },
         );
         assert!(
@@ -671,6 +674,7 @@ mod tests {
                 locale: None,
                 check_mode: false,
                 full_mode_cache: None,
+                spec_id: None,
             },
         );
         assert!(v3.report.issues.iter().any(
@@ -697,7 +701,86 @@ mod tests {
         let err = resolve_spec_file(&specs_root, "multi")
             .unwrap_err()
             .to_string();
-        assert!(err.contains("exactly one"), "got: {err}");
+        assert!(err.contains("none is named `multi.feature`"), "got: {err}");
+    }
+
+    /// spec-format r131 resolution priority matrix (design §3.1): flat file,
+    /// directory with same-named main, directory backfill, and the error
+    /// shapes (multi without main, same-id dual layout).
+    #[test]
+    fn resolve_spec_file_dual_layout_priority_matrix() {
+        let tmp = tempfile::tempdir().unwrap();
+        let specs_root = tmp.path().join("specs");
+
+        // Flat file resolves to itself (id = stem).
+        fs::create_dir_all(&specs_root).unwrap();
+        fs::write(specs_root.join("flat.feature"), "# capability: flat\n").unwrap();
+        let res = resolve_spec_file_detailed(&specs_root, "flat").unwrap();
+        assert_eq!(res.path, specs_root.join("flat.feature"));
+        assert!(res.extra_features.is_empty());
+
+        // Directory with same-named main file wins over extras.
+        let dir = specs_root.join("maincap");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("maincap.feature"), "# capability: maincap\n").unwrap();
+        fs::write(dir.join("draft.feature"), "# capability: maincap\n").unwrap();
+        let res = resolve_spec_file_detailed(&specs_root, "maincap").unwrap();
+        assert_eq!(res.path, dir.join("maincap.feature"));
+        assert_eq!(res.extra_features, vec![dir.join("draft.feature")]);
+
+        // Directory with a single foreign-named .feature backfills.
+        let dir = specs_root.join("solo");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("inner.feature"), "# capability: solo\n").unwrap();
+        let res = resolve_spec_file_detailed(&specs_root, "solo").unwrap();
+        assert_eq!(res.path, dir.join("inner.feature"));
+
+        // Same id in both layouts is a conflict ERROR even on direct resolve.
+        fs::write(specs_root.join("dupe.feature"), "# capability: dupe\n").unwrap();
+        let dir = specs_root.join("dupe");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("dupe.feature"), "# capability: dupe\n").unwrap();
+        let err = resolve_spec_file(&specs_root, "dupe")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("cannot coexist"), "got: {err}");
+
+        // Unknown id names both expected layouts in the hint.
+        let err = resolve_spec_file(&specs_root, "ghost")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("ghost.feature"), "got: {err}");
+    }
+
+    /// list_spec_locs sees both layouts and ERRORs on same-id dual sources
+    /// (spec-format r131); directories without specs are not capabilities.
+    #[test]
+    fn list_spec_locs_flat_dirs_and_conflict() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let specs_root = root.join("llmanspec").join("specs");
+        fs::create_dir_all(specs_root.join("dircap")).unwrap();
+        fs::write(specs_root.join("dircap/dircap.feature"), "x\n").unwrap();
+        fs::write(specs_root.join("flatcap.feature"), "x\n").unwrap();
+        fs::create_dir_all(specs_root.join("emptydir")).unwrap();
+
+        let locs = list_spec_locs(root).unwrap();
+        let ids: Vec<_> = locs.iter().map(|l| l.id.as_str()).collect();
+        assert_eq!(ids, vec!["dircap", "flatcap"]);
+        assert_eq!(
+            locs.iter().find(|l| l.id == "flatcap").unwrap().path,
+            "flatcap.feature"
+        );
+        assert_eq!(
+            locs.iter().find(|l| l.id == "dircap").unwrap().path,
+            "dircap"
+        );
+
+        // Dual-source conflict.
+        fs::write(specs_root.join("dircap.feature"), "x\n").unwrap();
+        let err = list_spec_locs(root).unwrap_err().to_string();
+        assert!(err.contains("duplicate spec id"), "got: {err}");
+        assert!(err.contains("dircap"), "got: {err}");
     }
 
     // --- Change-level validation tests ---

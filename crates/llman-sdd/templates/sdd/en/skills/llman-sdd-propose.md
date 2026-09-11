@@ -7,7 +7,7 @@ metadata:
 
 # LLMAN SDD Propose
 
-Create a new change with planning artifacts (proposal + tasks; design optional), **first** `change start` (or `attach`) for Branch binding, **then** edit live `llmanspec/specs/<capability>/*.feature` on the bound branch (Specs landing), validate, and suggest next actions.
+Create a new change with planning artifacts (proposal + tasks; design optional), **first** `change start` (or `attach`) for Branch binding, **then** edit live `llmanspec/specs/<capability>.feature` (flat, or directory main file) on the bound branch (Specs landing), validate, and suggest next actions.
 
 ## Pipeline Position
 
@@ -64,7 +64,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 3. Gather input:
    - A short description of the change
    - A change id (user-supplied if given; otherwise derive per r140 and announce)
-   - The impacted capability/capabilities (to name `specs/<capability>/`)
+   - The impacted capability/capabilities (to name `specs/<capability>`)
 
 ### 2) Ensure project is initialized:
    - `llmanspec/` must exist; if missing, tell the user to run `llman sdd init`, then STOP.
@@ -81,7 +81,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
    - **Confirm seams before writing tasks.md**: list the seams to be tested and confirm with the user. A seam = the public boundary driven by `*.feature` GWT steps (CLI subprocess or public interface) — MUST reuse existing harness seams, MUST NOT invent seams detached from `.feature`. Without `.feature`, seam = the CLI subcommand or public function boundary under test.
    - `tasks.md`: split into **vertical slices** (each task cuts a narrow but complete path through schema→API→UI→tests, independently verifiable), with `[blocked-by: <task-id>]` dependency markers. **Wide-refactor exception** (one mechanical change sweeping the codebase, single edit breaks many call sites): sequence as expand-contract (add new beside old → migrate call sites in batches → delete old), don't force into a vertical slice.
    - **First** `llman sdd change start <change-id>` (recommended; clean tree on the default branch) or manually create a branch then `change attach <change-id>` to reach Full (bound).
-   - **Then** edit live `llmanspec/specs/<capability>/<capability>.feature` on the bound non-default branch and commit (Specs landing). **Do not** edit live specs before start; **do not** commit live specs to the default branch just to satisfy the clean-tree gate. If already attached, do not re-run `start` (recover lost specs by checkout/recreate + `attach --force` if needed).
+   - **Then** edit live `llmanspec/specs/<capability>.feature` (flat, or directory `llmanspec/specs/<capability>/` main file) on the bound non-default branch and commit (Specs landing). **Do not** edit live specs before start; **do not** commit live specs to the default branch just to satisfy the clean-tree gate. If already attached, do not re-run `start` (recover lost specs by checkout/recreate + `attach --force` if needed).
    - For changes with no live contract edits, set frontmatter `skip_specs_landing: true`. Enter apply only when `llman sdd show <id> --json` has `readyToImplement=true`.
 
 ### 4) Validate:

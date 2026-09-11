@@ -429,3 +429,80 @@ fn test_validate_change_next_steps_branches_on_bdd_mode() {
         );
     }
 }
+
+// ── 实现细节：specs 布局扁平化（spec-format r131/r141）───────────────────────
+
+/// skeleton 默认写扁平 `specs/<cap>.feature`，不再建目录；产出过 strict validate。
+#[test]
+fn test_skeleton_writes_flat_layout_by_default() {
+    let env = TestEnvironment::new();
+    init_project(&env, None);
+    commit(&env, "seed");
+
+    assert_success(&run(
+        &["sdd", "spec", "skeleton", "demo-cap", "--force"],
+        &env,
+    ));
+
+    assert!(
+        env.work_dir
+            .join("llmanspec/specs/demo-cap.feature")
+            .is_file(),
+        "flat specs/demo-cap.feature must exist"
+    );
+    assert!(
+        !env.work_dir.join("llmanspec/specs/demo-cap").exists(),
+        "skeleton must not create a capability directory"
+    );
+    // Flat skeleton output is strict-valid out of the box.
+    assert_success(&run(
+        &[
+            "sdd",
+            "validate",
+            "demo-cap",
+            "--strict",
+            "--no-check",
+            "--no-interactive",
+        ],
+        &env,
+    ));
+}
+
+/// `--kind` 解析面：specs-flatten 合法（--prompt 直印说明），spec-md2toon /
+/// partitioned 仍在解析层拒绝并提示合法 kind（r136 + spec-format r141）。
+#[test]
+fn test_migrate_kind_parsing_specs_flatten_and_rejections() {
+    let env = TestEnvironment::new();
+    init_project(&env, None);
+    commit(&env, "seed");
+
+    // --prompt prints the collaboration notes and exits 0 without migrating.
+    let out = run(
+        &[
+            "sdd",
+            "project",
+            "migrate",
+            "--kind",
+            "specs-flatten",
+            "--prompt",
+        ],
+        &env,
+    );
+    assert_success(&out);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("specs-flatten"), "stdout:\n{stdout}");
+    assert!(stdout.contains("toon2features"), "stdout:\n{stdout}");
+
+    for bad in ["spec-md2toon", "partitioned", "partition-migrate"] {
+        let out = run(&["sdd", "project", "migrate", "--kind", bad], &env);
+        assert!(
+            !out.status.success(),
+            "--kind {bad} must be rejected at the parser"
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("toon2features"),
+            "rejection must list the valid kinds; stderr:\n{stderr}"
+        );
+    }
+}

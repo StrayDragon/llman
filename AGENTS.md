@@ -125,9 +125,9 @@ draft [proposal.md]
   → apply → verify → finalize/archive
 ```
 
-### 单轨格式（spec-format r131-r136）
+### 单轨格式（spec-format r131-r136, r141）
 
-- 每个 capability 目录只有**一个** `<capability>.feature`；`spec.toon` 已废除（出现即 ERROR，跑 toon2features）。
+- 每个 capability 恰好**一个** `.feature` 事实源，布局二选一：扁平 `specs/<capability>.feature`（新默认）或目录 `specs/<capability>/`（兼容存量；同一 id 双布局并存 = 冲突 ERROR，可用 `llman sdd project migrate --kind specs-flatten` 一次性平铺）；`spec.toon` 已废除（出现即 ERROR，跑 toon2features）。
 - 头注释 `# capability:` / `# purpose:` / `# scope:` 必填（scope 驱动 staleness）。
 - 约束 = `@req:<id> @human` 场景（statement 全文放描述）；验收 = `@executable` 场景（用 `@req:<id>` 挂回）。
 - 三态分级：enforced / manual(`@manual`) / pending —— `list --specs` 与 `show` 输出。
