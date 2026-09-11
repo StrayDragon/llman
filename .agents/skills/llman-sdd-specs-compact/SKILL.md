@@ -63,7 +63,7 @@ flowchart LR
 校验修复（单轨 feature-as-spec）：
 
 1）缺少头注释（`missing # capability: header comment`）：
-每个 `llmanspec/specs/<capability>/<capability>.feature` 必须以以下注释开头：
+每个 capability `.feature`（`llmanspec/specs/<capability>.feature` 或 `llmanspec/specs/<capability>/<capability>.feature`）必须以以下注释开头：
 ```
 # language: zh-CN
 # capability: <capability>
