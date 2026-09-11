@@ -30,7 +30,8 @@ pub struct SddSpecArgs {
 pub enum SddSpecCommands {
     /// Generate a single-track spec skeleton for a capability (r114).
     ///
-    /// Creates ONLY `llmanspec/specs/<cap>/<cap>.feature`:
+    /// Creates ONLY `llmanspec/specs/<cap>.feature` (flat layout, spec-format
+    /// r131; no directory is created):
     ///
     /// ```text
     /// # language: en            (or zh-CN per config)
@@ -343,16 +344,24 @@ pub enum SddProjectCommands {
         #[arg(long)]
         no_interactive: bool,
     },
-    /// Convert legacy standalone `spec.toon` carriers into per-capability
-    /// single-track specs (`toon2features`, r136).
+    /// Convert legacy spec layouts in one idempotent pass: `toon2features`
+    /// converts legacy `spec.toon` carriers into per-capability single-track
+    /// specs (r136); `specs-flatten` flattens pure single-file directories
+    /// `specs/<cap>/<cap>.feature` into flat `specs/<cap>.feature`
+    /// (spec-format r141).
     ///
-    /// This is the only migration kind: `--kind spec-md2toon`,
-    /// `--kind partitioned` and alias `partition-migrate` are rejected at the
-    /// parser so agents see the valid kind instead of a raw clap error.
+    /// `--kind spec-md2toon` and `--kind partitioned` (alias
+    /// `partition-migrate`) are rejected at the parser so agents see the
+    /// valid kinds instead of a raw error.
     Migrate {
-        /// Migration kind (only `toon2features` is supported; legacy
-        /// `spec-md2toon` is rejected here so agents see the valid kind)
-        #[arg(long, default_value = "toon2features", value_parser = ["toon2features"])]
+        /// Migration kind: `toon2features` (legacy spec.toon → .feature,
+        /// r136) or `specs-flatten` (single-file dirs → flat .feature,
+        /// spec-format r141)
+        #[arg(
+            long,
+            default_value = "toon2features",
+            value_parser = ["toon2features", "specs-flatten"]
+        )]
         kind: String,
         /// Scan and report without writing files (no confirmation prompt)
         #[arg(long)]
@@ -363,6 +372,10 @@ pub enum SddProjectCommands {
         /// Skip the confirmation prompt and apply (for agents/scripts)
         #[arg(short = 'y', long)]
         yes: bool,
+        /// Print the built-in collaboration notes for `project migrate` and
+        /// exit without migrating (spec-format r141)
+        #[arg(long)]
+        prompt: bool,
         /// Treat the terminal as non-interactive
         #[arg(long)]
         no_interactive: bool,
@@ -864,13 +877,16 @@ fn run_command(args: &SddArgs) -> Result<()> {
                 dry_run,
                 force,
                 yes,
+                prompt,
                 no_interactive,
             } => {
-                let _ = kind; // clap value_parser admits only "toon2features" (r136)
+                // clap value_parser admits only "toon2features" / "specs-flatten".
                 migrate::run(migrate::MigrateArgs {
+                    kind: kind.clone(),
                     dry_run: *dry_run,
                     force: *force,
                     yes: *yes,
+                    prompt: *prompt,
                     no_interactive: *no_interactive,
                 })
             }

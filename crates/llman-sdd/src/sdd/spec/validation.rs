@@ -105,6 +105,32 @@ pub(crate) struct SpecValidateCtx<'a> {
     pub(crate) locale: Option<&'a str>,
     pub(crate) check_mode: bool,
     pub(crate) full_mode_cache: Option<&'a mut FullModeCache>,
+    /// The resolved capability id (r131 dual layout): flat file stem or
+    /// directory name. Header matching and issue paths key off this instead
+    /// of path derivation, which cannot distinguish `specs/foo.feature` from
+    /// a backfilled `specs/foo/bar.feature`. `None` falls back to deriving
+    /// the id from the path (file stem, then parent directory).
+    pub(crate) spec_id: Option<&'a str>,
+}
+
+/// Fallback id derivation for [`validate_spec_content`] callers that don't
+/// carry a resolved id: the file stem (flat layout `specs/foo.feature`),
+/// else the parent directory name (directory layout `specs/foo/foo.feature`).
+fn derive_spec_name_from_path(path: &Path) -> String {
+    if let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+        && path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            != Some(stem)
+    {
+        return stem.to_string();
+    }
+    path.parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("spec")
+        .to_string()
 }
 
 pub(crate) fn validate_spec_content(
@@ -119,13 +145,11 @@ pub(crate) fn validate_spec_content(
         locale: _locale,
         check_mode,
         full_mode_cache,
+        spec_id,
     } = ctx;
-    let spec_name = path
-        .parent()
-        .and_then(|p| p.file_name())
-        .and_then(|n| n.to_str())
-        .unwrap_or("spec")
-        .to_string();
+    let spec_name = spec_id
+        .map(str::to_string)
+        .unwrap_or_else(|| derive_spec_name_from_path(path));
 
     let context = format!("spec `{}`", spec_name);
     let bdd_enabled = bdd_config.is_some();
@@ -184,7 +208,8 @@ pub(crate) fn validate_spec_content(
                     level: ValidationLevel::Warning,
                     path: format!("{}/meta.name", spec_name),
                     message: format!(
-                        "Spec `# capability:` header must match spec directory name: `{}` != `{}`",
+                        "Spec `# capability:` header must match spec id (flat file stem or \
+                         directory name): `{}` != `{}`",
                         parsed.name.trim(),
                         spec_name
                     ),
@@ -222,42 +247,106 @@ pub(crate) fn validate_spec_content(
     }
 }
 
-/// Resolve a capability's single-track spec file (r131).
+/// Resolution outcome for one capability: the single-track file plus any
+/// non-main `.feature` files found alongside it (directory layout only).
+pub(crate) struct SpecFileResolution {
+    pub(crate) path: std::path::PathBuf,
+    /// Directory-layout extras: `.feature` files that are not the resolved
+    /// main file. Callers that surface diagnostics (validate) turn these into
+    /// warnings; path-only callers ignore them.
+    pub(crate) extra_features: Vec<std::path::PathBuf>,
+}
+
+/// Resolve a capability's single-track spec file (r131 dual layout).
 ///
-/// - exactly one `*.feature` → that file;
-/// - a legacy `spec.toon` present → error pointing at `toon2features`;
-/// - zero or multiple `.feature` files → error.
+/// Layouts, by priority:
+/// - flat file `specs/<id>.feature` → itself (id = stem);
+/// - directory `specs/<id>/` with a same-named main file → that file;
+/// - directory with exactly one `.feature` (no same-named main) → backfill
+///   resolution to that file;
+/// - directory with several `.feature` files and no main → error.
+///
+/// A legacy `spec.toon` present → error pointing at `toon2features`.
+pub(crate) fn resolve_spec_file_detailed(
+    specs_root: &Path,
+    id: &str,
+) -> Result<SpecFileResolution, anyhow::Error> {
+    let flat = specs_root.join(format!("{id}.feature"));
+    let dir = specs_root.join(id);
+    match (flat.is_file(), dir.is_dir()) {
+        // Flat file wins only when there is no directory counterpart; the
+        // dual-source conflict is reported by discovery (list_spec_locs), but
+        // resolve must stay deterministic if asked directly.
+        (true, true) => {
+            let features = discover_features(&dir);
+            if features.is_empty() {
+                return Ok(SpecFileResolution {
+                    path: flat,
+                    extra_features: Vec::new(),
+                });
+            }
+            Err(anyhow::anyhow!(
+                "spec id `{id}` exists as both `{}` and `{}` — flat file and directory layouts \
+                 cannot coexist (spec-format r131); remove or rename one",
+                flat.display(),
+                dir.display()
+            ))
+        }
+        (true, false) => Ok(SpecFileResolution {
+            path: flat,
+            extra_features: Vec::new(),
+        }),
+        (false, false) => Err(anyhow::anyhow!(
+            "spec `{id}` not found under {} (expected `{id}.feature` or `{id}/`)",
+            specs_root.display()
+        )),
+        (false, true) => {
+            if dir.join(SPEC_FILE).exists() {
+                return Err(anyhow::anyhow!(
+                    "legacy `spec.toon` found under `{}` (spec `{id}`): the single-track format reads \
+                     only `<capability>.feature` files — run `llman sdd project migrate --kind toon2features`",
+                    dir.display()
+                ));
+            }
+            let mut features = discover_features(&dir);
+            let main_name = format!("{id}.feature");
+            // Compare by file name: glob output and `dir.join` can differ in
+            // textual prefix (`./`) while denoting the same file.
+            let main_idx = features
+                .iter()
+                .position(|p| p.file_name().and_then(|n| n.to_str()) == Some(main_name.as_str()));
+            if let Some(idx) = main_idx {
+                let main = features.remove(idx);
+                return Ok(SpecFileResolution {
+                    path: main,
+                    extra_features: features,
+                });
+            }
+            match features.len() {
+                0 => Err(anyhow::anyhow!(
+                    "no `.feature` spec found under {} (r131: one .feature per capability)",
+                    dir.display()
+                )),
+                1 => Ok(SpecFileResolution {
+                    path: features.remove(0),
+                    extra_features: Vec::new(),
+                }),
+                n => Err(anyhow::anyhow!(
+                    "{n} `.feature` files found under {} and none is named `{id}.feature`; \
+                     promote one to the main file or merge them (spec-format r131)",
+                    dir.display()
+                )),
+            }
+        }
+    }
+}
+
+/// Path-only convenience wrapper over [`resolve_spec_file_detailed`].
 pub(crate) fn resolve_spec_file(
     specs_root: &Path,
     id: &str,
 ) -> Result<std::path::PathBuf, anyhow::Error> {
-    let dir = specs_root.join(id);
-    if !dir.is_dir() {
-        return Err(anyhow::anyhow!(
-            "spec directory not found: {}",
-            dir.display()
-        ));
-    }
-    if dir.join(SPEC_FILE).exists() {
-        return Err(anyhow::anyhow!(
-            "legacy `spec.toon` found under `{}` (spec `{id}`): the single-track format reads \
-             only `<capability>.feature` files — run `llman sdd project migrate --kind toon2features`",
-            dir.display()
-        ));
-    }
-    let features = discover_features(&dir);
-    let mut features = features;
-    match features.len() {
-        1 => Ok(features.remove(0)),
-        0 => Err(anyhow::anyhow!(
-            "no `.feature` spec found under {} (r131: one .feature per capability)",
-            dir.display()
-        )),
-        n => Err(anyhow::anyhow!(
-            "{n} `.feature` files found under {} but r131 mandates exactly one; merge them",
-            dir.display()
-        )),
-    }
+    resolve_spec_file_detailed(specs_root, id).map(|r| r.path)
 }
 
 /// Validate the rich parse of one capability against the single-track grammar
