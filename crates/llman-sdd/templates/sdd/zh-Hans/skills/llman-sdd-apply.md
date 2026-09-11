@@ -27,7 +27,7 @@ flowchart LR
     style apply fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在完整 Git-native 生命周期图中的 **H（apply）**：进入前须 Specs-landed（或 `skip_specs_landing`）且 `readyToImplement=true` → 下一步 `llman-sdd-verify`
+> 📍 你现在在完整 Git-native 生命周期图中的 **H（apply）**：进入前须 Specs-landed（或 `needs_specs_change: false`）且 `readyToImplement=true` → 下一步 `llman-sdd-verify`
 
 ## 硬约束
 

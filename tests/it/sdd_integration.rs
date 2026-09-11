@@ -86,27 +86,23 @@ fn author_sample_change(work_dir: &Path, change_id: &str) {
     let llmanspec_dir = work_dir.join("llmanspec");
     let change_dir = llmanspec_dir.join("changes").join(change_id);
     fs::create_dir_all(&change_dir).expect("create change dir");
-    // Docs-only archive fixtures: no live specs edit → skip landing gate (r1).
-    let proposal = "---\ndepends_on: []\nskip_specs_landing: true\n---\n\n## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n";
+    // Docs-only archive fixtures: no live specs edit → needs_specs_change: false (r1).
+    let proposal = "---\ndepends_on: []\nneeds_specs_change: false\n---\n\n## Why\nNeed a sample change.\n\n## What Changes\n- Add requirement.\n";
     fs::write(change_dir.join("proposal.md"), proposal).expect("write proposal");
     fs::write(change_dir.join("design.md"), "# Design\n").expect("write design");
     fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
 }
 
-/// Designed → Full → checkpointed, ready for `change archive` (strict gates).
+/// Designed → Full, ready for `change archive` (strict gates).
 fn prepare_change_for_archive(work_dir: &Path, change_id: &str) {
+    // r25: `change checkpoint` is removed; archive on its own no longer
+    // requires any checkpointed field — binding + clean tree suffice.
     assert_success(&run_llman(
         &["sdd", "change", "start", change_id],
         work_dir,
         work_dir,
     ));
     git_commit_all(work_dir, "change start binding");
-    assert_success(&run_llman(
-        &["sdd", "change", "checkpoint", change_id, "--no-check"],
-        work_dir,
-        work_dir,
-    ));
-    git_commit_all(work_dir, "checkpoint");
 }
 
 #[test]
@@ -197,7 +193,7 @@ fn test_sdd_show_validate_archive_flow() {
     fs::create_dir_all(&change_dir).expect("create change dir");
     let proposal = r#"---
 depends_on: []
-skip_specs_landing: true
+needs_specs_change: false
 ---
 
 ## Why
@@ -611,8 +607,8 @@ fn test_sdd_show_change_json_uses_delta_specs() {
     assert_eq!(show_json["deltaCount"], 0);
     assert!(show_json["deltas"].as_array().unwrap().is_empty());
 
-    // stage: proposal+design+tasks but no attach -> designed (r93).
-    assert_eq!(show_json["stage"], "designed");
+    // stage: proposal+design+tasks but no attach -> planned (r93 four tiers).
+    assert_eq!(show_json["stage"], "planned");
     assert_eq!(show_json["readyToImplement"], false);
     let artifacts = show_json["artifacts"]
         .as_array()
@@ -1305,7 +1301,7 @@ fn test_sdd_list_shows_stage_column() {
 /// A full change with attach binding MUST report `stage: full`. Under the
 /// git-native-v2 gateChecks semantics `readyToImplement` is true only when
 /// EVERY gate passes — clean tree, on the bound branch, tasks done, plus a
-/// `skip_specs_landing` exemption for the missing live specs diff.
+/// `needs_specs_change: false` exemption for the missing live specs diff.
 #[test]
 fn test_sdd_show_change_full_stage_ready_to_implement() {
     let env = TestEnvironment::new();
@@ -1341,7 +1337,7 @@ fn test_sdd_show_change_full_stage_ready_to_implement() {
     fs::write(
         change_dir.join("proposal.md"),
         format!(
-            "---\nbranch: feat/x\nbase_sha: {head}\nskip_specs_landing: true\n---\n# Proposal\n\n## Why\nFull change.\n\n## What Changes\n- Add behavior.\n"
+            "---\nbranch: feat/x\nbase_sha: {head}\nneeds_specs_change: false\n---\n# Proposal\n\n## Why\nFull change.\n\n## What Changes\n- Add behavior.\n"
         ),
     )
     .expect("write proposal");
@@ -1365,7 +1361,7 @@ fn test_sdd_show_change_full_stage_ready_to_implement() {
     assert_success(&show_output);
     let show_json: Value = serde_json::from_slice(&show_output.stdout).expect("show change json");
     assert_eq!(show_json["stage"], "full");
-    assert_eq!(show_json["skipSpecsLanding"], true);
+    assert_eq!(show_json["needsSpecsChange"], false);
     assert_eq!(show_json["readyToImplement"], true);
     assert_eq!(show_json["specsLanded"], false);
     // gateChecks present; hint is empty exactly when pass=true.

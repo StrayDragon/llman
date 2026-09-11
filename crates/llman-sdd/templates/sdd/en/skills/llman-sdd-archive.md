@@ -7,7 +7,7 @@ metadata:
 
 # LLMAN SDD Archive
 
-Use this skill to archive completed changes. Prerequisites: verify all-green, and the change already has Branch binding plus Specs landing (or `skip_specs_landing`; live specs are on the bound branch). Archive/finalize **auto ff-merges** into the default branch, then **renames** change docs to `changes/archive/` (one follow-up `git commit` for the dirty rename). `git push` / hosting PR are optional.
+Use this skill to archive completed changes. Prerequisites: verify all-green, and the change already has Branch binding plus Specs landing (or `needs_specs_change: false`; live specs are on the bound branch). Archive/finalize **auto ff-merges** into the default branch, then **renames** change docs to `changes/archive/` (one follow-up `git commit` for the dirty rename). `git push` / hosting PR are optional.
 
 ## Pipeline Position
 
@@ -64,7 +64,7 @@ flowchart LR
   - **Fallback: multi-commit sequence (`checkpoint` + `archive`)** — when you need a strict `checkpoint_sha`, or want a mid-flight review snapshot:
     ```text
     1. git commit   # commit live specs + code (clean tree required for checkpoint)
-    2. llman sdd change checkpoint <id>   # writes checkpointed / checkpoint_sha (implementation HEAD)
+    2. llman sdd change finalize <id>    # auto commit `archive(sdd): <id>` (r25)
     3. git commit   # commit proposal.md checkpoint metadata
     4. llman sdd change archive <id>      # ff-merge + rename change docs
     5. git commit   # commit archive rename

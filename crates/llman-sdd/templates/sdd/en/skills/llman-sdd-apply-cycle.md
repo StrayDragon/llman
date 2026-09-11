@@ -21,7 +21,7 @@ llman sdd show <change-id> --json --type change
 > Stage gate: decide from `stage` / `readyToImplement` in `llman sdd show <id> --json --type change`; full decision table lives in llman-sdd-apply.
 
 - Must be on the bound non-default branch.
-- If `readyToImplement` is not true → STOP (finish Specs landing or `skip_specs_landing`); **do not** finalize yet.
+- If `readyToImplement` is not true → STOP (finish Specs landing or `needs_specs_change: false`); **do not** finalize yet.
 - Track progress via `tasks.md` checkboxes (or `llman sdd list` task counts); still read `tasks.md`, proposal/design, and live `llmanspec/specs/**` on the bound branch (SSOT).
 
 ### 1) Loop: implement → test

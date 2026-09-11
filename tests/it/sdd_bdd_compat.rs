@@ -55,7 +55,7 @@ fn seed_spec_and_change(env: &TestEnvironment) {
     fs::create_dir_all(&change_dir).expect("mkdir change");
     fs::write(
         change_dir.join("proposal.md"),
-        "---\ndepends_on: []\nskip_specs_landing: true\n---\n\n## Why\nAdd r2 to sample.\n\n## What Changes\n- Add requirement r2.\n",
+        "---\ndepends_on: []\nneeds_specs_change: false\n---\n\n## Why\nAdd r2 to sample.\n\n## What Changes\n- Add requirement r2.\n",
     )
     .expect("write proposal");
     fs::write(change_dir.join("design.md"), "# Design\n").expect("write design");
@@ -290,27 +290,41 @@ fn test_bdd_on_attach_checkpoint_archive_docs_only() {
     assert_success(&run(&["sdd", "change", "attach", "add-scen"], &env));
     commit(&env, "attach binding");
 
-    // Dirty tree blocks checkpoint.
-    fs::write(env.work_dir.join("dirty.txt"), "x").unwrap();
-    let dirty = run(
-        &["sdd", "change", "checkpoint", "add-scen", "--no-check"],
-        &env,
+    // r25: `change checkpoint` is removed — any call fails with a pointer.
+    let removed = run(&["sdd", "change", "checkpoint", "add-scen"], &env);
+    assert!(!removed.status.success());
+    let removed_msg = format!(
+        "{}{}",
+        String::from_utf8_lossy(&removed.stdout),
+        String::from_utf8_lossy(&removed.stderr)
     );
-    assert!(!dirty.status.success());
-    fs::remove_file(env.work_dir.join("dirty.txt")).unwrap();
-
-    assert_success(&run(
-        &["sdd", "change", "checkpoint", "add-scen", "--no-check"],
-        &env,
-    ));
-    // Checkpoint updates proposal frontmatter — commit so archive sees a clean tree.
-    commit(&env, "checkpoint");
+    assert!(
+        removed_msg.contains("change checkpoint is removed; use change finalize"),
+        "expected removed pointer, got: {removed_msg}"
+    );
 
     // Diff is read-only and non-empty after attach (may be empty if no commits since base).
     let _ = run(&["sdd", "change", "diff", "add-scen"], &env);
 
-    // Archive moves docs only; live feature remains.
-    assert_success(&run(&["sdd", "change", "archive", "add-scen"], &env));
+    // Finalize: relaxed gates + ff-merge + docs-only rename + auto commit.
+    assert_success(&run(
+        &["sdd", "change", "finalize", "add-scen", "--no-check"],
+        &env,
+    ));
+    // Auto commit subject is the fixed r25 message.
+    let log = git(&env, &["log", "-1", "--format=%s"]);
+    let log_msg = format!(
+        "{}{}",
+        String::from_utf8_lossy(&log.stdout),
+        String::from_utf8_lossy(&log.stderr)
+    );
+    assert!(
+        log_msg.contains("archive(sdd): add-scen"),
+        "expected archive(sdd) commit subject, got: {log_msg}"
+    );
+
+    // Docs moved; live feature remains.
+    assert_success(&git(&env, &["checkout", "main"]));
     assert!(
         env.work_dir
             .join("llmanspec/specs/sample/sample.feature")
