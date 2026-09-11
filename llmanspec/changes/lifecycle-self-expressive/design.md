@@ -136,7 +136,7 @@ finalize <id> [--no-check] [--yes] [--no-commit]
 
 - **语法**：`.feature` 场景 tag，`@agent` 必须与 `@human` 同场景（`@req:rX @human @agent`）。
   - 单独 `@agent`（无 `@human`）→ validate ERROR（`@agent requires @human`）。
-  - `@agent` 场景仍属 Locked tier（锁定哈希包含 tag 变化——增删 `@agent` 会改变哈希 → 属于锁定规则编辑，走同一确认路径）。
+  - `@agent` 场景仍属 Locked tier（锁定哈希 = id+name+description+steps（r135），tag 不入哈希：仅给规则**加 `@agent` 标记本身不触发锁定门禁**；改动规则文本仍走同一确认路径）。
 - **授权**：`--yes` 仅对此类规则的改动生效（§6.1）。
 - **审计**：新增可选 frontmatter 字段 `agent_acked: [<req-id>...]`（合法字段集新增；仅 agent 写回时填入）。呈现：
   - `llman sdd review` 的 locked 信号 detail 追加「N rule(s) ack'd by agent」；

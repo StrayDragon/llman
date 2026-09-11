@@ -23,6 +23,7 @@ pub(crate) struct FinalizeArgs {
     pub(crate) no_check: bool,
     pub(crate) no_commit: bool,
     pub(crate) yes: bool,
+    pub(crate) no_interactive: bool,
 }
 
 /// Auto-commit the finalized tree as `archive(sdd): <change-id>`. Returns the
@@ -36,7 +37,7 @@ fn auto_commit(root: &Path, change_id: &str) -> Result<Option<String>> {
         return Ok(None);
     }
     let msg = format!("archive(sdd): {change_id}");
-    let out = crate::git_utils::run_git(root, &["commit", "-m", &msg]).map_err(|err| {
+    crate::git_utils::run_git(root, &["commit", "-m", &msg]).map_err(|err| {
         anyhow::anyhow!(
             "auto-commit failed (pre-commit hook or identity?): {err}. \
 The archive rename is already done and NOT rolled back. \
@@ -44,21 +45,21 @@ Finish manually: `git add -A && git commit -m \"{msg}\"`, \
 or re-run `llman sdd change finalize {change_id} --no-commit`."
         )
     })?;
-    // Last line of `git commit` is the short sha when not suppressed.
-    let sha = out
-        .lines()
-        .rev()
-        .find(|l| l.contains("["))
-        .map(|l| l.trim().to_string())
-        .unwrap_or_default();
-    Ok(Some(sha))
+    // Commit succeeded: HEAD is authoritative (no output parsing).
+    let sha = crate::git_utils::run_git(root, &["rev-parse", "--short", "HEAD"])?;
+    Ok(Some(sha.trim().to_string()))
 }
 
 /// Locked-rule confirmation path (spec-format r135, see lock_gate.rs):
 /// - interactive: one y/n over the undeclared edits (writes rules_touched);
 /// - `--yes`: auto-writes only `@agent`-marked rules (agent_acked audit too);
 /// - otherwise non-interactive error listing the req-ids + copy-paste fix.
-fn confirm_locked_rules(root: &Path, change_id: &str, yes: bool) -> Result<()> {
+fn confirm_locked_rules(
+    root: &Path,
+    change_id: &str,
+    yes: bool,
+    no_interactive: bool,
+) -> Result<()> {
     let (issues, fm) = crate::sdd::spec::validation::check_proposal_frontmatter(
         crate::sdd::shared::discovery::resolve_change_dir(root, change_id)?.as_path(),
         &[],
@@ -81,6 +82,29 @@ fn confirm_locked_rules(root: &Path, change_id: &str, yes: bool) -> Result<()> {
     }
 
     let undeclared = crate::sdd::change::lock_gate::undeclared_ids(root, base.trim(), &ack);
+    if !yes && !no_interactive && crate::sdd::shared::interactive::is_interactive(false) {
+        // r135 interactive confirmation: one y/n over ALL undeclared edits;
+        // y writes rules_touched (full ack), n stops with the same list.
+        eprintln!(
+            "locked @human scenarios were modified without human acknowledgement (spec-format r135):"
+        );
+        for issue in &lock_issues {
+            eprintln!("  {}", issue.message);
+        }
+        let confirmed = inquire::Confirm::new(
+            "Acknowledge ALL listed locked-rule edits (writes rules_touched) and continue?",
+        )
+        .with_default(false)
+        .prompt()
+        .unwrap_or(false);
+        if !confirmed {
+            anyhow::bail!(
+                "locked-rule gate failed: add `rules_touched: [<req-id>,...]` to proposal frontmatter, or pass `--yes` to acknowledge @agent-marked rules"
+            );
+        }
+        crate::sdd::change::lock_gate::ack_all_undeclared(root, change_id, &undeclared)?;
+        return Ok(());
+    }
     if yes {
         // --yes: acknowledge @agent-marked rules only; plain @human edits still error.
         crate::sdd::change::lock_gate::ack_agent_marked(root, change_id, &undeclared)?;
@@ -166,8 +190,8 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
     let binding =
         crate::sdd::change::git_native::enforce_bdd_archive_gates_relaxed(root, &change_name)?;
 
-    // 3. Locked-rule confirmation / acknowledgement.
-    confirm_locked_rules(root, &change_name, args.yes)?;
+    // 3. Locked-rule confirmation / acknowledgement (r135).
+    confirm_locked_rules(root, &change_name, args.yes, args.no_interactive)?;
 
     // 4. Validate (unless --no-check): live specs strict + change docs.
     if !args.no_check {
@@ -386,6 +410,7 @@ mod tests {
                 no_check: true,
                 no_commit: false,
                 yes: false,
+                no_interactive: true,
             },
         )
         .expect("finalize succeeds");
@@ -441,6 +466,7 @@ mod tests {
                 no_check: true,
                 no_commit: true,
                 yes: false,
+                no_interactive: true,
             },
         )
         .expect("finalize --no-commit succeeds");
@@ -485,6 +511,7 @@ mod tests {
                 no_check: true,
                 no_commit: false,
                 yes: false,
+                no_interactive: true,
             },
         )
         .unwrap_err();
@@ -499,7 +526,7 @@ mod tests {
     fn finalize_idempotent_after_partial_failure() {
         // Simulate "rename done, auto-commit failed": pre-create the archive
         // entry, wipe the active dir, then finalize again → finishes the commit.
-        let (tmp, id, base_sha) = setup_repo_with_attached_change("finalize-idem");
+        let (tmp, id, _base_sha) = setup_repo_with_attached_change("finalize-idem");
         let root = tmp.path();
         let changes_dir = root.join("llmanspec/changes");
         let archived = changes_dir.join("archive").join(archive_name_for(&id));
@@ -514,6 +541,7 @@ mod tests {
                 no_check: false, // skipped: idempotent path returns early
                 no_commit: false,
                 yes: false,
+                no_interactive: true,
             },
         )
         .expect("finalize succeeds (idempotent)");
@@ -544,6 +572,7 @@ mod tests {
                 no_check: true,
                 no_commit: false,
                 yes: false,
+                no_interactive: true,
             },
         )
         .expect("unified finalize should succeed without bdd: block");
