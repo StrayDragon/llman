@@ -41,10 +41,9 @@ flowchart LR
 
 ## Commit 策略
 
-- **apply 循环内禁止逐 task commit**（自修复轮次同样适用）：所有改动保持在工作区；tasks.md 的 checkbox 勾选只是工作区编辑，MUST NOT 单独成 commit。逐步提交的「步骤日志」会淹没语义变更，迫使 reviewer 依赖裸 diff。
-- **默认收尾**：全部 task 过门禁且 verify 全绿后，由 `llman sdd change finalize <id>` 单 commit 收尾（实现 + frontmatter + archive 改名一次提交）。不要在 apply 循环内 finalize。
+- **change 分支上提交自由**（r25/Q4b）：可按 task/里程碑分段提交（利于 review），也可保持工作区不提交、交给 finalize 一次收尾——两条路都是一等公民。`change checkpoint` 已不存在，因此没有「中途存档点」要维护；`change finalize` 对两种形态都原生支持（不要求干净树）。
+- **默认收尾**：全部 task 过门禁且 verify 全绿后，`llman sdd change finalize <id>` 自动提交 `archive(sdd): <change-id>`（未提交的实现 diff + frontmatter + archive 改名一次提交）。不要在 apply 循环内 finalize。`--no-commit` 可跳过自动提交（手动/CI 历史、pre-commit hook 冲突场景）。
 - **blocker 中断**：必须因 blocker STOP 时，先做**一次** WIP commit（如 `wip(sdd): <change-id> <摘要>`）保全现场，再报告。
-- **中途快照是例外**：仅当用户明确要求严格 `checkpoint_sha` 或可 review 的中间点时才逐段提交，并遵循 archive skill 的多 commit fallback 时序。
 
 ## 步骤
 
@@ -90,7 +89,7 @@ flowchart LR
 运行项目门禁命令（根据项目实际选择）：
 - 相关测试集：`just test` 或 `cargo test --all`
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
-- Git-native：留在绑定 feature 分支；按需编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件；规则 `@human`，验收 `@executable`）；spec 改动后跑 `llman sdd validate --specs`。勿在每个 task 后跑 `checkpoint`。勿使用 `change delta` / solidify / feature_delta。
+- Git-native：留在绑定 feature 分支；按需编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件；规则 `@human`，验收 `@executable`）；spec 改动后跑 `llman sdd validate --specs`；分支上可自由提交（分段，或留脏交给 finalize）。勿使用 `change delta` / solidify / feature_delta；`change checkpoint` 已移除。
 - SDD 校验：`llman sdd validate <id> --strict --no-interactive`
 
 **若失败 → 进入自修复循环（不要问要不要继续）：**

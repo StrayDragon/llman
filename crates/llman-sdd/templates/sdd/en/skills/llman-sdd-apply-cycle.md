@@ -41,18 +41,15 @@ On failure, fix and retry (same self-repair budget as `llman-sdd-apply`: cap 8 r
 Prefer `llman-sdd-verify` (or equivalent dual-axis self-check). CRITICAL → STOP; do not archive.
 
 ### 4) Archive
-Prefer:
 ```bash
 llman sdd change finalize <change-id>
 ```
-(dirty tree OK; ff-merge + docs rename; then one `git commit`.)
+(dirty tree OK; ff-merge + docs rename + **auto commit** `archive(sdd): <change-id>` in one process. `--no-commit` skips the auto commit for manual/CI histories — then commit with `git add -A && git commit -m "archive(sdd): <change-id>"`.)
 
-Fallback: `checkpoint` → `archive` (see `llman-sdd-archive`).
+`change checkpoint` is removed; the plain `change archive` command stays as a fallback (no checkpointed field required).
 
-### 5) Commit
-```bash
-git add -A && git commit -m "<prefix>: <description>"
-```
+### 5) Commit (see step 4)
+Finalize already auto-committed unless `--no-commit` was passed.
 
 ### 6) Optional cleanup
 ```bash
