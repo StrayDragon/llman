@@ -27,7 +27,7 @@
 
   @req:r135 @human
   场景: 锁定哈希门禁
-    - 所有 @human 场景按规范化规则（id+name+description+steps 逐行 trim 尾随空白后 SHA-256）计算哈希；validate --strict 与 change finalize/checkpoint/diff MUST 对比 base_sha...HEAD 内哈希集合，任何增删改 MUST 报 ERROR，除非该 change proposal frontmatter 含 rules_edit_acked: true。rules_edit_acked MUST 加入 proposal frontmatter 合法字段集并同步 JSON Schema。
+    - 所有 @human 场景按规范化规则（id+name+description+steps 逐行 trim 尾随空白后 SHA-256）计算哈希；validate --strict 与 change finalize/checkpoint/diff MUST 对比「有效范围」内哈希集合（有效范围 = 现算 `git merge-base <本地默认分支> HEAD`...HEAD，见 sdd-workflow r111 的审计说明与 r130；git/绑定不可用时回退存储 base_sha，fail-open），任何增删改 MUST 报 ERROR 且报告 MUST 按 req-id 指明被改动的规则（不得只给哈希摘要），除非该 change proposal frontmatter 的 `rules_touched` 列表覆盖了被改动规则的 req-id（legacy `rules_edit_acked: true` ≈ 全量豁免，读取兼容；新写入统一使用 rules_touched）。rules_touched MUST 加入 proposal frontmatter 合法字段集并同步 JSON Schema。
 
   @req:r136 @human
   场景: toon2features 一次性迁移
