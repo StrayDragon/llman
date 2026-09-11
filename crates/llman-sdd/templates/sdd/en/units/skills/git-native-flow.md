@@ -5,8 +5,9 @@ Do not conflate two layers: the **Git-native lifecycle** (Branch binding → Spe
 ```mermaid
 flowchart TB
   subgraph main_ok["OK briefly on default branch"]
-    A["change new → Draft<br/>proposal.md only"]
-    B["Fill design + tasks → Designed"]
+    A["change new → draft<br/>proposal.md only"]
+    B1["add design.md → designed"]
+    B2["add tasks.md → planned"]
   end
 
   subgraph gate_start["Branch binding"]
@@ -23,10 +24,10 @@ flowchart TB
   subgraph implement["Implement"]
     H["apply: code per tasks<br/>may keep editing specs"]
     I["verify"]
-    J["finalize / archive<br/>ff-merge → specs first hit default branch"]
+    J["finalize<br/>ff-merge → rename → auto commit archive(sdd): &lt;id&gt;<br/>specs first hit default branch"]
   end
 
-  A --> B --> C
+  A --> B1 --> B2 --> C
   C -->|yes| D --> F
   C -->|already on feature| E --> F
   F --> G --> H --> I --> J
@@ -34,5 +35,6 @@ flowchart TB
 
 Hard rules:
 1. **First** `change start` / `attach` (Branch binding) to enter Full; **then** edit `llmanspec/specs/**` on the bound non-default branch and commit (Specs landing).
-2. For changes with no live contract edits, set frontmatter `needs_specs_change: false``. Enter apply only when `llman sdd show <id> --json` has `readyToImplement=true` — `Full ∧` every `gateChecks` item passes (specs-landed = `specsLanded ∨ skip`; ranges are live merge-bases, stored `base_sha` is audit-only).
-3. **Do not** commit live specs to the default branch just to satisfy the clean-tree gate; if already attached, do not re-run `start`.
+2. For changes with no live contract edits, set frontmatter `needs_specs_change: false`. Enter apply only when `llman sdd show <id> --json` has `readyToImplement=true` — `Full ∧` every `gateChecks` item passes (specs-landed = `specsLanded ∨ needs_specs_change=false`; ranges are live merge-bases, stored `base_sha` is audit-only).
+3. `change checkpoint` is removed (r25): close-out is `llman sdd change finalize <id>`, which auto-commits `archive(sdd): <id>` (impl diff + rename in one commit); `--no-commit` skips the auto commit for manual/CI histories. Commits on the change branch are free (segmented or finalize single-shot).
+4. **Do not** commit live specs to the default branch just to satisfy the clean-tree gate; if already attached, do not re-run `start`.

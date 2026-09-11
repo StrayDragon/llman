@@ -27,7 +27,7 @@ flowchart LR
     style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are in propose: Git-native path above is **Designed → Branch binding → Specs landing** (until `readyToImplement=true`) → next: `llman-sdd-apply`
+> 📍 You are in propose: the Git-native path above is **planning shell (draft → designed → planned) → Branch binding → Specs landing** (until `readyToImplement=true`) → next: `llman-sdd-apply`
 > 📎 For small changes (no behavioral contract changes), use `llman-sdd-quick` (quick path)
 
 ## Hard Constraints
@@ -40,7 +40,7 @@ flowchart LR
 {% else %}
 - **If change already exists**: STOP. If `readyToImplement=true`, suggest `llman-sdd-apply`; otherwise finish the planning shell / Branch binding / Specs landing (edit `llmanspec/changes/<id>/`, or enable `extra_skills: [llman-sdd-continue]`).
 {% endif %}
-- **Frontmatter has a fixed schema**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted (including `depends_on`, `blocks`, `branch`, `base_sha`/`baseSha`, `checkpointed`, `checkpoint_sha`/`checkpointSha`, `needs_specs_change: false`). `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR; lifecycle stage is inferred (query via `llman sdd show`/`list`), never stored in frontmatter. Do not re-declare frontmatter fields in the prose body; the body H1 is a human-readable title, not a repeat of the change id.
+- **Frontmatter has a fixed schema**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted (including `depends_on`, `blocks`, `branch`, `base_sha`, `needs_specs_change`, `rules_touched`, `agent_acked`). `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR; lifecycle stage is inferred (query via `llman sdd show`/`list`), never stored in frontmatter. Do not re-declare frontmatter fields in the prose body; the body H1 is a human-readable title, not a repeat of the change id.
 
 ## Quick-capture routing
 
@@ -82,7 +82,8 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
    - `tasks.md`: split into **vertical slices** (each task cuts a narrow but complete path through schema→API→UI→tests, independently verifiable), with `[blocked-by: <task-id>]` dependency markers. **Wide-refactor exception** (one mechanical change sweeping the codebase, single edit breaks many call sites): sequence as expand-contract (add new beside old → migrate call sites in batches → delete old), don't force into a vertical slice.
    - **First** `llman sdd change start <change-id>` (recommended; clean tree on the default branch) or manually create a branch then `change attach <change-id>` to reach Full (bound).
    - **Then** edit live `llmanspec/specs/<capability>.feature` (flat, or directory `llmanspec/specs/<capability>/` main file) on the bound non-default branch and commit (Specs landing). **Do not** edit live specs before start; **do not** commit live specs to the default branch just to satisfy the clean-tree gate. If already attached, do not re-run `start` (recover lost specs by checkout/recreate + `attach --force` if needed).
-   - For changes with no live contract edits, set frontmatter `needs_specs_change: false``. Enter apply only when `llman sdd show <id> --json` has `readyToImplement=true`.
+   - For changes with no live contract edits, set frontmatter `needs_specs_change: false`. Enter apply only when `llman sdd show <id> --json` has `readyToImplement=true`.
+   - **Breaking contract changes** (removed/renamed fields, commands, tags, or stage values) MUST plan the upgrade path: `migrations/v<from>-v<to>/` with README prompt + one-shot script (r28) — include it in the proposal's What Changes.
 
 ### 4) Validate:
    ```bash

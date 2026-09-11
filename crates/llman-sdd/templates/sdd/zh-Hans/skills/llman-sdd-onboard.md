@@ -17,7 +17,7 @@ metadata:
 3. 根据 context 的 `direct`/`related` 分类，只读 target spec 全文。
 4. 判断变更规模（见 triage 规则），决定走完整 SDD 流程或快速路径。
 5. 按路径推进：
-   - **完整路径**：Designed 规划壳 → Branch binding → Specs landing（或 `needs_specs_change: false`）→ `readyToImplement=true` → apply → verify → archive（Skill 导航：propose → apply → verify → archive）。
+   - **完整路径**：规划壳（draft → designed [+design.md] → planned [+tasks.md]）→ Branch binding → Specs landing（或 `needs_specs_change: false`）→ `readyToImplement=true` → apply → verify → finalize/archive（Skill 导航：propose → apply → verify → archive）。
    - **快速路径**：不改 MUST/SHALL，直接改代码 commit（触及 live specs 须已绑定分支，见 `llman-sdd-quick`）。
 6. 使用 `llman sdd graph` 可视化变更依赖关系（depends_on/blocks）。
 

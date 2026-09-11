@@ -17,7 +17,7 @@ Use this skill to onboard to llman SDD in a repository.
 3. Read only the `direct` spec files from context output.
 4. Assess change scale (see triage rules): behavioural contract change → full SDD; implementation change → quick path.
 5. Advance by path:
-   - **Full path**: Designed planning shell → Branch binding → Specs landing (or `needs_specs_change: false`) → `readyToImplement=true` → apply → verify → archive (skill navigation: propose → apply → verify → archive).
+   - **Full path**: planning shell (draft → designed [+design.md] → planned [+tasks.md]) → Branch binding → Specs landing (or `needs_specs_change: false`) → `readyToImplement=true` → apply → verify → finalize/archive (skill navigation: propose → apply → verify → archive).
    - **Quick path**: no MUST/SHALL change; edit code and commit (live specs only on a bound branch — see `llman-sdd-quick`).
 6. Use `llman sdd graph` to visualize change dependencies.
 

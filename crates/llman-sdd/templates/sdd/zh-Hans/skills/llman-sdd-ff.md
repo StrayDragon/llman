@@ -26,7 +26,7 @@ metadata:
    - `design.md`（按需）
    - `tasks.md`
 5. **Branch binding**：`llman sdd change start <id>`（干净树 + 默认分支）或手动建分支后 `change attach <id>`。
-6. **Specs landing**：在绑定分支编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录主文件）并 commit；无合约变更则 `needs_specs_change: false``。
+6. **Specs landing**：在绑定分支编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录主文件）并 commit；无合约变更则 `needs_specs_change: false`。
 7. 校验：`llman sdd validate <id> --strict --no-interactive`。
 8. 用 `llman sdd show <id> --json` 确认 `readyToImplement=true` 后，建议 `llman-sdd-apply`（不要在未就绪时建议 apply）。
 
