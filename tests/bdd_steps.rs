@@ -233,10 +233,22 @@ fn seed_bdd_project(mode: &str) {
 
     // git init+commit: staleness checks need a base ref.
     Command::new("git")
-        .args(["init", "--quiet"])
+        .args(["init", "--quiet", "--initial-branch=main"])
         .current_dir(&dir)
         .output()
         .expect("git init fixture");
+    // Local identity so internal `git commit` calls (e.g. finalize's auto
+    // commit) work on CI runners without a global git identity.
+    Command::new("git")
+        .args(["config", "user.name", "t"])
+        .current_dir(&dir)
+        .output()
+        .expect("git config user.name");
+    Command::new("git")
+        .args(["config", "user.email", "t@x"])
+        .current_dir(&dir)
+        .output()
+        .expect("git config user.email");
     Command::new("git")
         .args(["add", "."])
         .current_dir(&dir)

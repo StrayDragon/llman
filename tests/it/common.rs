@@ -244,10 +244,22 @@ impl TestEnvironment {
 
         // Initialize git repo for testing
         std::process::Command::new("git")
-            .args(["init", "--quiet"])
+            .args(["init", "--quiet", "--initial-branch=main"])
             .current_dir(&work_dir)
             .output()
             .expect("Failed to initialize git repo");
+        // Local identity so internal `git commit` calls (e.g. finalize's auto
+        // commit) work on CI runners without a global git identity.
+        std::process::Command::new("git")
+            .args(["config", "user.name", "t"])
+            .current_dir(&work_dir)
+            .output()
+            .expect("git config user.name");
+        std::process::Command::new("git")
+            .args(["config", "user.email", "t@x"])
+            .current_dir(&work_dir)
+            .output()
+            .expect("git config user.email");
 
         Self { temp_dir, work_dir }
     }
