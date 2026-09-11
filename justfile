@@ -30,15 +30,23 @@ install:
 # =============================================================================
 
 # 发布到 crates.io（依赖顺序：gherkin-zh → llman-core → llman-sdd → llman）。
-# 可追加额外参数（如 `just publish --dry-run`）；首次发布链上，未发布的依赖
-# 会让后续 crate 报「no matching package」——属预期，真实发布按顺序执行即可。
+# 可追加额外参数（如 `just publish --dry-run`）。
+# 自动跳过已在 crates.io 上的（crate, version）——gherkin-zh 固定 0.16.0 通常已发布，
+# 不重复发；版本发新链时（如 bump gherkin-zh）会自动包含。
 # 版本 SSOT 在 workspace.package.version（gherkin-zh 固定 0.16.0），
 # 已发布的版本号需先 bump。
 publish *args:
-    cargo publish -p gherkin-zh {{args}}
-    cargo publish -p llman-core {{args}}
-    cargo publish -p llman-sdd {{args}}
-    cargo publish -p llman {{args}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for crate in gherkin-zh llman-core llman-sdd llman; do
+        ver="$(cargo metadata --format-version 1 --no-deps 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print([p['version'] for p in d['packages'] if p['name']=='$crate'][0])")"
+        if curl -sf -H "User-Agent: llman-publish" "https://crates.io/api/v1/crates/$crate/$ver" >/dev/null 2>&1; then
+            echo "skip $crate@$ver (already on crates.io)"
+        else
+            echo "publish $crate@$ver ..."
+            cargo publish -p "$crate" "$@"
+        fi
+    done
 
 # git-tag 分发：打带注释 tag 并推送（配合
 # `cargo install --git https://github.com/StrayDragon/llman --tag v<version>`）。
