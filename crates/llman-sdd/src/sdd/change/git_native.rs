@@ -591,6 +591,25 @@ mod tests {
     use std::process::Command;
     use tempfile::tempdir;
 
+    /// Frontmatter rewrites must be EOF-hook-clean: the rebuilt file ends
+    /// with exactly one trailing newline even when the input lacked one, and
+    /// rewriting twice is byte-identical (idempotent).
+    #[test]
+    fn upsert_frontmatter_preserves_and_canonicalizes_trailing_newline() {
+        let with_newline = "---\ndepends_on: []\n---\n\n## Why\nx.\n";
+        let without_newline = "---\ndepends_on: []\n---\n\n## Why\nx.";
+        let updates = vec![("branch", "sdd/c1".to_string())];
+
+        let rebuilt_a = upsert_frontmatter_fields(with_newline, &updates).unwrap();
+        let rebuilt_b = upsert_frontmatter_fields(without_newline, &updates).unwrap();
+        assert!(rebuilt_a.ends_with("x.\n"), "got: {rebuilt_a:?}");
+        assert!(rebuilt_b.ends_with("x.\n"), "got: {rebuilt_b:?}");
+
+        // Idempotent: rewriting the rewritten file changes nothing.
+        let twice = upsert_frontmatter_fields(&rebuilt_a, &updates).unwrap();
+        assert_eq!(twice, rebuilt_a);
+    }
+
     fn git(root: &Path, args: &[&str]) {
         let out = Command::new("git")
             .args(args)
