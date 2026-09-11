@@ -1,6 +1,18 @@
 ---
 depends_on: []
-blocks: [lifecycle-self-expressive]
+blocks:
+- lifecycle-self-expressive
+branch: sdd/git-native-v2
+base_sha: 0189a539a6da68dc280029bdf85862a320b63e6e
+rules_touched:
+- r1
+- r111
+- r124
+- r130
+- r137
+- r135
+checkpointed: true
+checkpoint_sha: 0189a539a6da68dc280029bdf85862a320b63e6e
 ---
 
 # Git-native 语义 v2：范围换锚 + rules_touched + show gateChecks

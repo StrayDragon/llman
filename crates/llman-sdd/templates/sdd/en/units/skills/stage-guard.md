@@ -6,7 +6,7 @@ Decide from authoritative JSON (never from vague "complete artifacts" wording):
 llman sdd show <id> --json --type change
 ```
 
-Read: `stage`, `specsLanded`, `skipSpecsLanding`, `readyToImplement`.
+Read: `stage`, `specsLanded`, `skipSpecsLanding`, `readyToImplement`, `gateChecks` (per-item `pass` + one-line `hint` when failing).
 
 | Condition | Action |
 |-----------|--------|

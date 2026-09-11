@@ -357,12 +357,17 @@ pub(crate) fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
     if is_default_branch(root, &branch)? {
         bail!("cannot checkpoint on the default branch");
     }
-    // r137: surface commits since base; non-blocking hint when > 1.
-    print_commit_count(root, &binding.base_sha)?;
+    // r137: surface commits since the effective range base; non-blocking
+    // hint when > 1. Range base = live merge-base (D1), fallback stored
+    // base_sha (audit).
+    let range_base =
+        crate::sdd::change::lock_gate::effective_range_base(root, Some(&binding.base_sha))
+            .unwrap_or_else(|_| binding.base_sha.clone());
+    print_commit_count(root, &range_base)?;
     // Locked-rule integrity (spec-format r135).
     {
-        let acked = crate::sdd::change::lock_gate::rules_edit_acked_for(root, &change_name);
-        let lock_issues = crate::sdd::change::lock_gate::check(root, &binding.base_sha, acked);
+        let ack = crate::sdd::change::lock_gate::locked_ack_for(root, &change_name);
+        let lock_issues = crate::sdd::change::lock_gate::check(root, &range_base, &ack);
         for issue in &lock_issues {
             match issue.level {
                 crate::sdd::spec::validation::ValidationLevel::Error => {
@@ -475,7 +480,10 @@ pub(crate) fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
         );
     }
     if args.json {
-        let commit_count = commit_count_since_base(root, &binding.base_sha)?;
+        let range_base =
+            crate::sdd::change::lock_gate::effective_range_base(root, Some(&binding.base_sha))
+                .unwrap_or_else(|_| binding.base_sha.clone());
+        let commit_count = commit_count_since_base(root, &range_base)?;
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
@@ -487,8 +495,11 @@ pub(crate) fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
         );
         return Ok(());
     }
-    print_commit_count(root, &binding.base_sha)?;
-    let diff = branch_diff(root, &binding.base_sha)?;
+    let range_base =
+        crate::sdd::change::lock_gate::effective_range_base(root, Some(&binding.base_sha))
+            .unwrap_or_else(|_| binding.base_sha.clone());
+    print_commit_count(root, &range_base)?;
+    let diff = branch_diff(root, &range_base)?;
     if let Some(path) = &args.export_patch {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;

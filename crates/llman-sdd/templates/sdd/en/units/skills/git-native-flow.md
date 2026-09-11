@@ -17,7 +17,7 @@ flowchart TB
 
   subgraph specs_only["Only on this change branch"]
     F["Edit live llmanspec/specs/** (.feature)"]
-    G["commit → Specs landing<br/>base...HEAD includes specs paths"]
+    G["commit → Specs landing<br/>live merge-base...HEAD includes specs paths"]
   end
 
   subgraph implement["Implement"]
@@ -34,5 +34,5 @@ flowchart TB
 
 Hard rules:
 1. **First** `change start` / `attach` (Branch binding) to enter Full; **then** edit `llmanspec/specs/**` on the bound non-default branch and commit (Specs landing).
-2. For changes with no live contract edits, set frontmatter `skip_specs_landing: true`. Enter apply only when `llman sdd show <id> --json` has `readyToImplement=true` (`Full ∧ (specsLanded ∨ skip)`).
+2. For changes with no live contract edits, set frontmatter `skip_specs_landing: true`. Enter apply only when `llman sdd show <id> --json` has `readyToImplement=true` — `Full ∧` every `gateChecks` item passes (specs-landed = `specsLanded ∨ skip`; ranges are live merge-bases, stored `base_sha` is audit-only).
 3. **Do not** commit live specs to the default branch just to satisfy the clean-tree gate; if already attached, do not re-run `start`.

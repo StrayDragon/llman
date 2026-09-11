@@ -80,19 +80,19 @@ pub(crate) fn evaluate_specs_landing(root: &Path, change_dir: &Path) -> SpecsLan
         Ok(false) => (
             false,
             Some(format!(
-                "specs not landed: change bound to `{}` but `{}...{}` has no changes under `{SPECS_PATHSPEC}/`. \
+                "specs not landed: change bound to `{}` but the live range (merge-base of the local default branch with HEAD, git-native-v2) to `{}` shows no changes under `{SPECS_PATHSPEC}/`. \
 Edit live specs on that branch and commit. Skill: llman-sdd-propose (land specs) — do NOT re-run change start if already attached. \
 Apply only when `llman sdd show <id> --json` has readyToImplement=true (llman-sdd-apply). \
 Or set `skip_specs_landing: true` in proposal frontmatter if this change has no live contract edits.",
-                binding.branch, binding.base_sha, binding.branch
+                binding.branch, binding.branch
             )),
         ),
         Err(err) => (
             false,
             Some(format!(
-                "specs landing check failed for branch `{}` (base {}): {err}. \
+                "specs landing check failed for branch `{}`: {err}. \
 Ensure the bound branch exists locally; recover by checkout/recreate then `change attach --force` if needed. Skill: llman-sdd-propose.",
-                binding.branch, binding.base_sha
+                binding.branch
             )),
         ),
     };
@@ -117,9 +117,14 @@ fn read_binding_for_change(root: &Path, change_dir: &Path) -> Option<ChangeGitBi
     read_binding(root, name).ok().flatten()
 }
 
-/// True when three-dot diff `base_sha...branch` lists any path under live specs.
+/// True when three-dot diff `<effective base>...branch` lists any path under live specs.
+/// Range base is the live merge-base against the local default branch
+/// (git-native-v2 D1), falling back to the stored attach base_sha (audit).
 pub(crate) fn specs_diff_nonempty(root: &Path, binding: &ChangeGitBinding) -> Result<bool> {
-    let range = format!("{}...{}", binding.base_sha, binding.branch);
+    let range_base =
+        crate::sdd::change::lock_gate::effective_range_base(root, Some(&binding.base_sha))
+            .unwrap_or_else(|_| binding.base_sha.clone());
+    let range = format!("{}...{}", range_base, binding.branch);
     let out = run_git(
         root,
         &[

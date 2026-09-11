@@ -6,7 +6,7 @@
 llman sdd show <id> --json --type change
 ```
 
-解读字段：`stage`、`specsLanded`、`skipSpecsLanding`、`readyToImplement`。
+解读字段：`stage`、`specsLanded`、`skipSpecsLanding`、`readyToImplement`、`gateChecks`（逐项 `pass` + 未过时一行 `hint`）。
 
 | 条件 | 动作 |
 |------|------|

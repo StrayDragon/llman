@@ -11,9 +11,10 @@ use crate::sdd::shared::types::{ItemType, normalize_type};
 use crate::sdd::spec::backend::feature_backend;
 use crate::sdd::spec::backend::feature_backend::compute_rule_morphology;
 use crate::sdd::spec::parser::parse_change;
-use crate::sdd::spec::validation::determine_stage;
+use crate::sdd::spec::validation::{ValidationLevel, check_proposal_frontmatter, determine_stage};
 use anyhow::{Result, anyhow};
 use inquire::Select;
+use serde::Serialize;
 use std::fmt;
 use std::fs;
 use std::path::Path;
@@ -177,6 +178,144 @@ fn show_direct(
     }
 }
 
+/// One aggregate gate entry (design §4.1/§4.2): short kebab-case `name`,
+/// boolean `pass`, and a ≤1-line `hint` that is the empty string when
+/// `pass=true` (token-efficiency is a hard constraint — no passed-item detail).
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct GateCheck {
+    pub(crate) name: &'static str,
+    pub(crate) pass: bool,
+    pub(crate) hint: String,
+}
+
+/// Compact constructor: pass=true renders an empty hint, pass=false carries
+/// the one-line guidance. Collapses the `if pass { "" } else { hint }` dance
+/// at every call site.
+fn gate(name: &'static str, pass: bool, hint: impl Into<String>) -> GateCheck {
+    GateCheck {
+        name,
+        pass,
+        hint: if pass { String::new() } else { hint.into() },
+    }
+}
+
+/// Compute the seven aggregate gate checks (git-native-v2 G1); shared by the
+/// JSON `gateChecks` key and the compact text Gates trailer. `readyToImplement`
+/// is unified with the gates: all-pass at stage Full.
+fn compute_gate_checks(root: &Path, change_id: &str, change_dir: &Path) -> Vec<GateCheck> {
+    let mut checks = Vec::new();
+
+    // clean-tree (start gate): `git status --porcelain` empty.
+    let clean = crate::git_utils::working_tree_clean(root).unwrap_or(false);
+    checks.push(gate(
+        "clean-tree",
+        clean,
+        "commit/stash before change start",
+    ));
+
+    // on-bound-branch: HEAD == binding.branch on a non-default branch.
+    let binding = crate::sdd::change::git_native::read_binding(root, change_id)
+        .ok()
+        .flatten();
+    let current = crate::git_utils::current_branch(root).ok().flatten();
+    let on_bound = match (&binding, current.as_deref()) {
+        (Some(b), Some(cur)) => {
+            cur == b.branch
+                && crate::git_utils::is_default_branch(root, cur)
+                    .map(|d| !d)
+                    .unwrap_or(false)
+        }
+        _ => false,
+    };
+    let bound_hint = match (&binding, on_bound) {
+        (None, _) => "change is not attached; run `llman sdd change start <id>`".to_string(),
+        (Some(b), false) => format!("switch to `{}` on a non-default branch", b.branch),
+        (_, true) => String::new(),
+    };
+    checks.push(gate("on-bound-branch", on_bound, bound_hint));
+
+    // stage-complete: proposal + design + tasks all present (designed+).
+    let artifacts_done = ["proposal.md", "design.md", "tasks.md"]
+        .iter()
+        .all(|a| change_dir.join(a).exists());
+    checks.push(gate(
+        "stage-complete",
+        artifacts_done,
+        "planning artifacts incomplete: add design.md + tasks.md",
+    ));
+
+    // specs-landed: r1 landing via the live range (new anchor) or skip flag.
+    let landing = crate::sdd::change::specs_landing::evaluate_specs_landing(root, change_dir);
+    let specs_ok = landing.specs_landed || landing.skip_specs_landing;
+    checks.push(gate(
+        "specs-landed",
+        specs_ok,
+        "edit live specs on the bound branch and commit (or skip_specs_landing)",
+    ));
+
+    // lock-gate: locked @human scenarios untouched vs the effective range
+    // base unless `rules_touched` (or legacy `rules_edit_acked: true`) covers
+    // the edits. Unbound changes have no base → no gate applies (pass=true).
+    let (_, fm) = check_proposal_frontmatter(change_dir, &[], &[], false);
+    let lock_ok = if fm.base_sha.as_deref().is_some_and(|b| !b.trim().is_empty()) {
+        let ack = crate::sdd::change::lock_gate::LockedAck::from_frontmatter(&fm);
+        let base =
+            crate::sdd::change::lock_gate::effective_range_base(root, fm.base_sha.as_deref())
+                .unwrap_or_default();
+        crate::sdd::change::lock_gate::check(root, base.trim(), &ack)
+            .iter()
+            .all(|i| i.level != ValidationLevel::Error)
+    } else {
+        true
+    };
+    checks.push(gate(
+        "lock-gate",
+        lock_ok,
+        "add rules_touched: [<req-id>] or restore the locked rules",
+    ));
+
+    // tasks-done: tasks.md has no unchecked items.
+    let tasks = crate::sdd::shared::tasks::parse_tasks_file(&change_dir.join("tasks.md"))
+        .ok()
+        .flatten();
+    let tasks_done = tasks.as_ref().map(|r| r.pending == 0).unwrap_or(false);
+    checks.push(gate(
+        "tasks-done",
+        tasks_done,
+        tasks
+            .as_ref()
+            .filter(|r| r.pending > 0)
+            .map(|r| format!("{} unchecked tasks", r.pending))
+            .unwrap_or_else(|| "complete or check off remaining tasks".to_string()),
+    ));
+
+    // validate: strict change validation (fast, no BDD check) has no errors.
+    let validate_issues =
+        crate::sdd::commands::validate::collect_change_issues_fast(root, change_id);
+    let validate_ok = validate_issues
+        .iter()
+        .all(|i| i.level != ValidationLevel::Error);
+    checks.push(gate(
+        "validate",
+        validate_ok,
+        "fix issues reported by `llman sdd validate <id> --strict`",
+    ));
+
+    checks
+}
+
+/// Compact Gates trailer (design §4.2): `Gates: n/m pass` plus one line per
+/// failing check (`✗ name: hint`); passed items are NEVER detailed.
+fn render_gates_text(checks: &[GateCheck]) -> String {
+    let total = checks.len();
+    let passed = checks.iter().filter(|c| c.pass).count();
+    let mut out = format!("Gates: {passed}/{total} pass\n");
+    for c in checks.iter().filter(|c| !c.pass) {
+        out.push_str(&format!("✗ {}: {}\n", c.name, c.hint));
+    }
+    out
+}
+
 fn show_change(
     root: &Path,
     change_id: &str,
@@ -204,10 +343,13 @@ fn show_change(
         let stage = determine_stage(&change_dir);
         let artifacts = list_change_artifacts(&change_dir);
         let landing = crate::sdd::change::specs_landing::evaluate_specs_landing(root, &change_dir);
-        let ready_to_implement = landing.ready_to_implement;
         // Unified Git-native flow: always surface the attach binding (no longer
         // BDD-on only). stage=full comes from Git-native attach.
         let attached = crate::sdd::spec::validation::has_attach_binding(&change_dir);
+        // git-native-v2 G1: aggregated gate view; readyToImplement is unified
+        // with the gates (all-pass). Existing keys are unchanged (append-only).
+        let gate_checks = compute_gate_checks(root, change_id, &change_dir);
+        let ready_to_implement = gate_checks.iter().all(|g| g.pass);
         let output = serde_json::json!({
             "id": change_id,
             "path": rel_path,
@@ -220,6 +362,7 @@ fn show_change(
             "attached": attached,
             "deltaCount": deltas.len(),
             "deltas": deltas,
+            "gateChecks": gate_checks,
             // r112: surface whether the change id came from a prefix match.
             "matchedViaPrefix": matched_via_prefix
         });
@@ -232,6 +375,12 @@ fn show_change(
     println!("{}", t!("sdd.show.change_stage", stage = stage.as_str()));
     println!("path: {rel_path}");
     print!("{content}");
+    if !content.ends_with('\n') {
+        println!();
+    }
+    // git-native-v2 G2: compact Gates trailer (token-efficient).
+    let gate_checks = compute_gate_checks(root, change_id, &change_dir);
+    print!("{}", render_gates_text(&gate_checks));
     Ok(())
 }
 
@@ -453,6 +602,58 @@ fn non_interactive_hint_message() -> String {
             t!("sdd.show.non_interactive.line4").to_string(),
         ],
     )
+}
+
+#[cfg(test)]
+mod gate_checks_tests {
+    use super::*;
+
+    #[test]
+    fn gates_text_lists_only_failures_with_count_line() {
+        let checks = vec![
+            GateCheck {
+                name: "clean-tree",
+                pass: true,
+                hint: String::new(),
+            },
+            GateCheck {
+                name: "specs-landed",
+                pass: false,
+                hint: "edit live specs on the bound branch and commit (or skip_specs_landing)"
+                    .into(),
+            },
+            GateCheck {
+                name: "tasks-done",
+                pass: false,
+                hint: "2 unchecked tasks".into(),
+            },
+        ];
+        let out = render_gates_text(&checks);
+        assert!(out.starts_with("Gates: 1/3 pass\n"), "got: {out}");
+        assert!(
+            out.contains("✗ specs-landed: edit live specs on the bound branch and commit"),
+            "got: {out}"
+        );
+        assert!(
+            out.contains("✗ tasks-done: 2 unchecked tasks"),
+            "got: {out}"
+        );
+        assert!(
+            !out.contains("clean-tree"),
+            "passed items MUST NOT appear in the trailer: {out}"
+        );
+    }
+
+    #[test]
+    fn gates_text_all_pass_is_single_line() {
+        let checks = vec![GateCheck {
+            name: "lock-gate",
+            pass: true,
+            hint: String::new(),
+        }];
+        let out = render_gates_text(&checks);
+        assert_eq!(out, "Gates: 1/1 pass\n");
+    }
 }
 
 #[cfg(test)]

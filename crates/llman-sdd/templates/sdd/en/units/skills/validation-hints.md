@@ -19,6 +19,6 @@ Run `llman sdd project migrate --kind toon2features --yes`, review the diff, com
 
 Git-native guardrail:
 - **Branch binding** → **Specs landing**: first `change start` / `attach`, then edit live `.feature` files on the bound non-default branch and commit.
-- Locked rules: modifying/removing existing `@human` scenarios fails the gate unless the proposal frontmatter has `rules_edit_acked: true`.
+- Locked rules: modifying/removing existing `@human` scenarios fails the gate unless the proposal frontmatter `rules_touched` lists the edited req-ids (`rules_edit_acked: true` legacy blanket still read for compatibility).
 - Apply requires `readyToImplement=true` (or `skip_specs_landing`). Close-out prefers `change finalize`.
 - Do not use `change delta` / solidify / `*.feature.delta.toon`.

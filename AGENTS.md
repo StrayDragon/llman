@@ -113,7 +113,7 @@ verify→finalize, and before any archive.
 | **Specs landing** | 在绑定分支编辑 `llmanspec/specs/**/<capability>.feature` 并留相对 base_sha 的 diff | 不是在默认分支改 live specs |
 | **`skip_specs_landing`** | frontmatter 豁免：本次无 live 合约变更 | 不是跳过 Branch binding |
 | **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | 用 `show --json` 查 |
-| **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于 base_sha | 新增规则无需 ack；改/删须 `rules_edit_acked: true` |
+| **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于有效范围（现算 merge-base，见 spec-format r135） | 新增规则无需 ack；改/删须在 proposal frontmatter 的 `rules_touched: [<req-id>]` 列出被改规则（legacy `rules_edit_acked: true` 兼容读取） |
 
 线性流程：
 

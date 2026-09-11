@@ -77,9 +77,16 @@ pub(crate) struct ProposalFrontmatter {
     /// When true, apply-ready does not require a live `llmanspec/specs/**` diff
     /// on the bound branch (docs/governance changes with no contract edit).
     pub(crate) skip_specs_landing: bool,
-    /// Human acknowledgement (spec-format r135): allows the change to modify
-    /// locked `@human` rule scenarios under `llmanspec/specs/**/*.feature`.
+    /// Human acknowledgement (spec-format r135, git-native-v2 D2): allows the
+    /// change to modify locked `@human` rule scenarios under
+    /// `llmanspec/specs/**/*.feature`. Granular per-req-id list
+    /// (`rules_touched`); legacy `rules_edit_acked: true` ≈ blanket.
     pub(crate) rules_edit_acked: bool,
+    /// New granular locked-rule acknowledgement (D2): req-ids this change
+    /// declares it edits; only edits to these rules are exempted from the
+    /// lock gate. `rules_edit_acked: true` (legacy) is read as blanket
+    /// (≈ all ids) and takes precedence.
+    pub(crate) rules_touched: Vec<String>,
 }
 
 /// Cache of BDD full-mode results keyed by the expanded `run_command` string.
@@ -1809,6 +1816,7 @@ const PROPOSAL_FRONTMATTER_ALLOWED_FIELDS: &[&str] = &[
     "checkpointSha",
     "skip_specs_landing",
     "rules_edit_acked",
+    "rules_touched",
 ];
 
 pub(crate) fn check_proposal_frontmatter(
@@ -1861,6 +1869,7 @@ pub(crate) fn check_proposal_frontmatter(
         .or_else(|| parse_yaml_optional_string(&parsed, "checkpointSha"));
     let skip_specs_landing = parse_yaml_optional_bool(&parsed, "skip_specs_landing");
     let rules_edit_acked = parse_yaml_optional_bool(&parsed, "rules_edit_acked");
+    let rules_touched = parse_yaml_string_list(&parsed, "rules_touched", &mut issues);
 
     // r124: reject unknown frontmatter fields (e.g. `status`, `title`,
     // `priority`, `author`). The allowed set is exactly the keys this parser
@@ -1942,6 +1951,7 @@ pub(crate) fn check_proposal_frontmatter(
             checkpoint_sha,
             skip_specs_landing,
             rules_edit_acked,
+            rules_touched,
         },
     )
 }

@@ -161,6 +161,7 @@ fn collect_spec_signals(root: &Path, cap: &str, review: &mut Review) -> Result<(
 
 /// D-C: hint only — count locked-rule gate errors per bound active change and
 /// point at `llman sdd change diff`; never render the diff inside review.
+/// Range base follows git-native-v2 D1 (live merge-base, fallback stored).
 fn collect_locked_hints(root: &Path, review: &mut Review) {
     let mut bound = 0usize;
     let mut edits = 0usize;
@@ -181,10 +182,14 @@ fn collect_locked_hints(root: &Path, review: &mut Review) {
             continue;
         };
         bound += 1;
-        let acked = frontmatter_value(&text, "rules_edit_acked")
-            .map(|v| v == "true")
-            .unwrap_or(false);
-        let violations = lock_gate::check(root, &base_sha, acked);
+        let change_id = dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("<change>")
+            .to_string();
+        let ack = lock_gate::locked_ack_for(root, &change_id);
+        let base = lock_gate::effective_range_base(root, Some(&base_sha)).unwrap_or(base_sha);
+        let violations = lock_gate::check(root, &base, &ack);
         let errors = violations
             .iter()
             .filter(|i| i.level == ValidationLevel::Error)

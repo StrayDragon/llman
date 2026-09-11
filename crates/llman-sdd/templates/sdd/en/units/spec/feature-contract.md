@@ -23,7 +23,7 @@ It is the only spec artifact — there is no `spec.toon`.
 ```
 
 - Header comments (`# capability:` / `# purpose:` / `# scope:`) are REQUIRED; `scope` drives staleness.
-- `@human` scenarios are human-owned constraints; their description carries the normative statement verbatim. Modifying/removing them requires `rules_edit_acked: true` in the change proposal frontmatter.
+- `@human` scenarios are human-owned constraints; their description carries the normative statement verbatim. Modifying/removing them requires `rules_touched: [<req-id>]` (the edited req-ids) in the change proposal frontmatter; legacy `rules_edit_acked: true` (blanket) is still read for compatibility.
 - `@executable` scenarios are runner-bound acceptance; they link rules via `@req:<req_id>`.
 - Coverage tiers: enforced (has acceptance) / manual (`@manual`) / pending. `list --specs` reports all three.
 - Scenarios MUST stay top-level: `Rule:` blocks are rejected (the runner skips them silently).
