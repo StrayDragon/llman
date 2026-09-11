@@ -7,7 +7,7 @@
 
   @req:r1 @human
   场景: Specs landing 与 apply-ready 门禁
-    - Git-native 流水线 MUST 区分 Branch binding 与 Specs landing：live `llmanspec/specs/**` 的编辑与提交 MUST 仅发生在 change 已绑定的非默认 feature 分支上；默认分支 MUST NOT 因过 change start 干净树门禁而接收未实现合约。Specs landing MUST 判定为 `git diff --name-only <effective-range-base>...<binding.branch> -- llmanspec/specs` 非空（看 binding 分支 tip，非当前 HEAD；effective-range-base = 现算 `git merge-base <本地默认分支> HEAD`，见 r111 审计说明——MUST NOT 用存储 base_sha 计算范围）。`llman sdd show <id> --type change --json` MUST 暴露 `specsLanded`、`skipSpecsLanding`、`readyToImplement` 与聚合门禁数组 `gateChecks`。readyToImplement MUST 为 stage=Full 且 gateChecks 全部通过（其中 specs-landed 项通过 = specsLanded 或 proposal frontmatter `skip_specs_landing: true`），否则 false。`llman sdd validate` 对 Full 且未 ready MUST 报 WARNING，消息 MUST 含 skill 引导（如 llman-sdd-propose / llman-sdd-apply）并 MUST NOT 建议对已 attach 的 change 再跑 change start。默认分支上对 `llmanspec/specs` 的未提交脏改动 MUST 以 WARNING 提示改到绑定分支。丢失绑定分支上的 specs 改动时 MUST 走恢复（checkout/重建分支 + 必要时 attach --force），MUST NOT 与 start 概念混淆。
+    - Git-native 流水线 MUST 区分 Branch binding 与 Specs landing：live `llmanspec/specs/**` 的编辑与提交 MUST 仅发生在 change 已绑定的非默认 feature 分支上；默认分支 MUST NOT 因过 change start 干净树门禁而接收未实现合约。Specs landing MUST 判定为 `git diff --name-only <effective-range-base>...<binding.branch> -- llmanspec/specs` 触及 `llmanspec/specs/` 下任意文件（add/remove/update 任一；看 binding 分支 tip，非当前 HEAD；effective-range-base = 现算 `git merge-base <本地默认分支> HEAD`，见 r111 审计说明——MUST NOT 用存储 base_sha 计算范围）。proposal frontmatter 正向字段 `needs_specs_change`（缺省 true）控制该检查：true（缺省）→ diff 无 specs 改动 MUST 报错并给指引（改 specs / 声明 false / 走 quick 路径）；false → 跳过该项检查。`skip_specs_landing` MUST 被移除（无兼容读取，出现即未知字段 ERROR）。`llman sdd show <id> --type change --json` MUST 暴露 `specsLanded`、`needsSpecsChange`、`readyToImplement` 与聚合门禁数组 `gateChecks`。readyToImplement MUST 为 stage=Full 且 gateChecks 全部通过（其中 specs-landed 项通过 = needs_specs_change=false 或 diff 触及 specs），否则 false。`llman sdd validate` 对 Full 且未 ready MUST 报 WARNING，消息 MUST 含 skill 引导（如 llman-sdd-propose / llman-sdd-apply）并 MUST NOT 建议对已 attach 的 change 再跑 change start。默认分支上对 `llmanspec/specs` 的未提交脏改动 MUST 以 WARNING 提示改到绑定分支。丢失绑定分支上的 specs 改动时 MUST 走恢复（checkout/重建分支 + 必要时 attach --force），MUST NOT 与 start 概念混淆。
 
   @req:r39 @human
   场景: SDD list JSON 含 morphology
@@ -46,8 +46,8 @@
     - `llman sdd archive freeze --list` MUST 枚举冷备份归档 freezed_changes.7z.archived 内已冻结的 change 目录（顶层 YYYY-MM-DD-id 命名）。MUST 为只读：不执行任何冻结、删除或写入。当归档文件不存在时 MUST 打印明确提示并以退出码 0 结束。可执行行为见 archive-freeze-and-gates feature。
 
   @req:r93 @human
-  场景: 统一三态 stage（Draft/Designed/Full）
-    - determine_stage（及 show/list 同源）MUST 统一采用三态，不再区分 BDD-on/BDD-off，也不再有 Specified 态：- Draft：仅 proposal.md（或 frontmatter 无 branch/base_sha）。- Designed：proposal + design + tasks 齐全，但尚未进分支（未 attach binding）。- Full：proposal + design + tasks 齐全且 frontmatter 含非空 branch 与 base_sha（已 change start / attach）。readyToImplement MUST 遵循 r1（Full 且 specsLanded 或 skip_specs_landing），MUST NOT 仅因 stage=Full 即为 true。MUST NOT 再读取 changes/<id>/specs/ 作为规格信号（该目录已废除）。Skills apply/verify MUST 与此三态及 r1 语义一致。旧 Specified 态 MUST 作为已删除映射到 Designed 或 Draft（按 design/tasks 是否齐全）。
+  场景: 统一四档 stage（Draft/Designed/Planned/Full）
+    - determine_stage（及 show/list 同源）MUST 统一采用四档，每档名与完成物对齐：- Draft：仅 proposal.md（或 tasks 有而 design 无——另有 ERROR 禁令）。- Designed：proposal + design.md 存在即达（**不需要 tasks**）。- Planned：proposal + design + tasks 齐全，但尚未绑定。 - Full：Planned + frontmatter 含非空 branch 与 base_sha（已 change start / attach）。绑定不改变文件档位（attached 但缺 tasks 时仍为 Designed，attached 单独暴露）。archive 的只读旧数据不迁移。readyToImplement MUST 遵循 r1，MUST NOT 仅因 stage=Full 即为 true。MUST NOT 再读取 changes/<id>/specs/ 作为规格信号（该目录已废除）。Skills apply/verify MUST 与此四档及 r1 语义一致。「有 tasks 无 design」MUST 报 ERROR（依赖链 proposal ← design ← tasks）。show MUST 显示当前档位与距下一档缺什么。
 
   @req:r100 @human
   场景: explore grilling 深对齐分支
@@ -95,7 +95,7 @@
 
   @req:r111 @human
   场景: change start 自动进分支与干净门禁
-    - llman sdd change start <id> MUST 在单进程内完成 Designed → Full 的 Git-native 切换：先校验工作区 MUST 干净（git status --porcelain 为空），不干净时 MUST 以非零退出失败并输出简练的 token 友好错误（如 'dirty tree: N uncommitted files; commit/stash before change start'），MUST NOT 长篇堆栈或建议清单；校验通过后 MUST 要求当前在默认分支上（已在非默认分支时 MUST 提示改用 change attach，或先切回默认分支），然后自动创建 feature 分支（命名规则 sdd/<change-id> 或可配 sdd.branch_prefix）、写 attach binding（branch + base_sha，base_sha = 绑定时与默认分支的 merge-base，**仅作审计/溯源记录**；一切 diff 范围语义 MUST 使用现算 `git merge-base <本地默认分支> HEAD`，见 r1/r130 与 spec-format r135）到 proposal frontmatter，并打印新建分支名与 base SHA。change start MUST NOT 把默认分支写为 binding.branch。已 attach 且未带 --force 时 MUST 报错提示当前绑定分支。change attach（手动绑已有分支）MUST 作为 change start 的共存命令保留：当用户已手动 git switch -c 到分支、或需要绑定非 sdd/ 前缀分支时使用；两者写入同一 frontmatter binding 结构。start 仅完成 Branch binding，MUST NOT 表示 Specs landing 已完成或 readyToImplement 已为 true。
+    - llman sdd change start <id> MUST 在单进程内完成 planning 档（Draft/Designed/Planned 任一）→ Full 的 Git-native 切换：先校验工作区 MUST 干净（git status --porcelain 为空），不干净时 MUST 以非零退出失败并输出简练的 token 友好错误（如 'dirty tree: N uncommitted files; commit/stash before change start'），MUST NOT 长篇堆栈或建议清单；校验通过后 MUST 要求当前在默认分支上（已在非默认分支时 MUST 提示改用 change attach，或先切回默认分支），然后自动创建 feature 分支（命名规则 sdd/<change-id> 或可配 sdd.branch_prefix）、写 attach binding（branch + base_sha，base_sha = 绑定时与默认分支的 merge-base，**仅作审计/溯源记录**；一切 diff 范围语义 MUST 使用现算 `git merge-base <本地默认分支> HEAD`，见 r1/r130 与 spec-format r135）到 proposal frontmatter，并打印新建分支名与 base SHA。change start MUST NOT 把默认分支写为 binding.branch。已 attach 且未带 --force 时 MUST 报错提示当前绑定分支。change attach（手动绑已有分支）MUST 作为 change start 的共存命令保留：当用户已手动 git switch -c 到分支、或需要绑定非 sdd/ 前缀分支时使用；两者写入同一 frontmatter binding 结构。start 仅完成 Branch binding，MUST NOT 表示 Specs landing 已完成或 readyToImplement 已为 true。
 
   @req:r116 @human
   场景: change start worktree 并行与依赖守卫
@@ -115,7 +115,7 @@
 
   @req:r124 @human
   场景: proposal frontmatter schema 守卫
-    - llman sdd validate（单 change / --all / --specs 路径）MUST 对 active change 的 proposal.md frontmatter 进行未知字段检测：合法字段集为 depends_on、blocks、branch、base_sha（兼容 baseSha 别名）、checkpointed、checkpoint_sha（兼容 checkpointSha 别名）、skip_specs_landing、rules_edit_acked（兼容保留）、rules_touched（granular ack，见 spec-format r135）。当 frontmatter 含合法集外的键（如 status、title、priority、author）时 MUST 报 ERROR（非 WARNING），错误消息 MUST 列出该未知字段名并提示合法字段集。changes/archive/ 下的 proposal MUST 免检（历史归档保持只读，零迁移成本）。determine_stage 行为 MUST 不变：stage 继续从磁盘 artifacts 与 attach binding 推断（r93 三态），MUST NOT 引入任何 frontmatter 字段（含 status）影响 stage；skip_specs_landing 仅影响 r1 的 readyToImplement，不影响 stage。
+    - llman sdd validate（单 change / --all / --specs 路径）MUST 对 active change 的 proposal.md frontmatter 进行未知字段检测：合法字段集为 depends_on、blocks、branch、base_sha、needs_specs_change、rules_touched、agent_acked（后三者语义见 r1 / spec-format r135）。`baseSha`/`checkpointed`/`checkpoint_sha`/`checkpointSha`/`skip_specs_landing`/`rules_edit_acked` MUST 全部移除（无兼容读取，出现即 ERROR；旧项目由 migrations 升级工具一次性清理）。当 frontmatter 含合法集外的键（如 status、title、priority、author）时 MUST 报 ERROR（非 WARNING），错误消息 MUST 列出该未知字段名并提示合法字段集。changes/archive/ 下的 proposal MUST 免检（历史归档保持只读，零迁移成本）。determine_stage 行为 MUST 不变：stage 继续从磁盘 artifacts 与 attach binding 推断（r93 三态），MUST NOT 引入任何 frontmatter 字段（含 status）影响 stage；skip_specs_landing 仅影响 r1 的 readyToImplement，不影响 stage。
 
   @req:r127 @human
   场景: 嵌套 change 递归发现与叶子 id 唯一
@@ -131,7 +131,7 @@
 
   @req:r130 @human
   场景: specs landing 单轨口径与锁定门禁
-    - Specs landing 的 live specs 路径口径 MUST 收窄为 llmanspec/specs/**/*.feature（spec.toon 不再是合约载体）。change finalize/checkpoint/diff 与 validate --strict MUST 执行 @human 场景锁定哈希对比（范围 = 现算 `git merge-base <本地默认分支> HEAD`...HEAD，规则见 spec-format r135）；未带 rules_touched（或兼容的 rules_edit_acked: true）的 proposal MUST NOT 能改动已锁定场景。
+    - Specs landing 的 live specs 路径口径 MUST 收窄为 llmanspec/specs/**/*.feature（spec.toon 不再是合约载体）。change finalize/diff 与 validate --strict MUST 执行 @human 场景锁定哈希对比（范围 = 现算 `git merge-base <本地默认分支> HEAD`...HEAD，规则见 spec-format r135）；未带 rules_touched 的 proposal MUST NOT 能改动已锁定场景（`rules_edit_acked` 已移除、无兼容；`--yes` 仅对 @agent 规则生效，见 spec-format r135）。
 
   @req:r2 @human
   场景: bdd.bindings 可声明绑定源
@@ -211,10 +211,32 @@
 
   @executable
   @req:r93
-  场景: unattached-designed-stays-not-full
+  场景: unattached-three-artifacts-is-planned
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
     而且 变更 r93-bare 含 proposal design tasks 且 attach 状态为 "no"
     当 在非交互终端运行 llman sdd show r93-bare --type change --output json
+    那么 退出码为零
+    而且 stdout 为合法 JSON
+    而且 stdout 的 JSON 键 stage 为 "planned"
+    而且 stdout 的 JSON 键 readyToImplement 为 "false"
+
+  @executable
+  @req:r93
+  场景: draft-stage-proposal-only
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 变更 r93-only 仅含 proposal
+    当 在非交互终端运行 llman sdd show r93-only --type change --output json
+    那么 退出码为零
+    而且 stdout 为合法 JSON
+    而且 stdout 的 JSON 键 stage 为 "draft"
+    而且 stdout 的 JSON 键 readyToImplement 为 "false"
+
+  @executable
+  @req:r93
+  场景: designed-stage-design-without-tasks
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 变更 r93-design 含 proposal 与 design 不含 tasks
+    当 在非交互终端运行 llman sdd show r93-design --type change --output json
     那么 退出码为零
     而且 stdout 为合法 JSON
     而且 stdout 的 JSON 键 stage 为 "designed"
@@ -240,24 +262,43 @@
 
   @req:r137 @human
   场景: change diff 报告 commitCount 与多 commit 提示
-    - llman sdd change diff <id> MUST 报告自现算 merge-base（本地默认分支, HEAD；存储 base_sha 仅作审计、MUST NOT 参与范围计算）至 HEAD 的 commit 数量：人读输出 MUST 含计数行，--json MUST 输出合法 JSON 且含数值键 commitCount。llman sdd change finalize 与 llman sdd change checkpoint MUST 展示该计数，且当计数大于 1 时 MUST 打印不阻断执行的语义收敛建议提示。该行为 MUST NOT 引入任何新 config 字段。
+    - llman sdd change diff <id> MUST 报告自现算 merge-base（本地默认分支, HEAD；存储 base_sha 仅作审计、MUST NOT 参与范围计算）至 HEAD 的 commit 数量：人读输出 MUST 含计数行，--json MUST 输出合法 JSON 且含数值键 commitCount。llman sdd change finalize MUST 展示该计数，且当计数大于 1 时 MUST 打印不阻断执行的语义收敛建议提示。该行为 MUST NOT 引入任何新 config 字段。
 
   @req:r138 @human
   场景: list 停留时长可见性
     - llman sdd list --json 的每个 change 对象 MUST 含 idleDays 数值键（自 change 目录最近活动时间起算的整数天，与 lastModified 同源）；文本人读输出 MUST 对 stage 为 draft 或 designed 的 change 追加停留天数标注。stage 为 full 及之后的 change MUST NOT 被追加该标注。
 
+  @req:r25 @human
+  场景: checkpoint 退役与 finalize 自动收口
+    - `llman sdd change checkpoint` MUST 被移除：任何调用 MUST 以非零退出失败并输出单行提示 `change checkpoint is removed; use change finalize`（对齐 r115 change delta 先例，无兼容别名）。`checkpointed`/`checkpoint_sha`/`checkpointSha` 字段 MUST 一并移除（见 r124）。`llman sdd change finalize` MUST 在收尾自动执行一次 git commit（未提交的实现 diff + frontmatter + archive rename 一次提交），提交说明 MUST 为固定式 `archive(sdd): <change-id>`；finalize MUST 提供不自动提交的 CLI 选项（--no-commit），此时跳过自动提交并输出手动 commit 指引，供 CI/脚本/pre-commit hook 冲突场景使用。自动提交失败 MUST 非零退出、保留 merge/rename 现场并提示 --no-commit 或手动 commit。finalize 幂等判定 MUST 基于「change 目录已在 changes/archive/」而非任何 frontmatter 存档字段。finalize MUST 接受并忽略 --no-interactive。change 分支上提交自由（分段 commit 或 finalize 单次收尾均可），skills/文档 MUST 如此说明。
+
+  @req:r28 @human
+  场景: 破坏性变更升级流程（migrations SOP）
+    - 破坏性合约变更（移除/重命名 frontmatter 字段、命令、tag 或 stage 值域等）MUST 在同仓库提供 `migrations/v<from>-v<to>/` 升级目录，内含：README（升级 prompt：dry-run 报告 → --apply → 人工处理项 → `llman sdd validate --all --strict` 验证）与一次性升级脚本。脚本 MUST 默认 dry-run（`--apply` 才写）、MUST 跳过 `changes/archive/`（历史只读）、MUST 幂等；无法自动处理的项（如 `rules_edit_acked` 的真值语义）MUST 打印人工处理清单，MUST NOT 猜测。发布说明 MUST 指向对应版本区间的 migrations 目录。
+
   @executable
   @req:r1
-  场景: attached-with-skip-specs-landing-is-ready
+  场景: attached-with-needs-specs-change-false-is-ready
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
     而且 变更 r1-skip 含 proposal design tasks 且 attach 状态为 "skip"
     当 在非交互终端运行 llman sdd show r1-skip --type change --output json
     那么 退出码为零
     而且 stdout 为合法 JSON
     而且 stdout 的 JSON 键 stage 为 "full"
-    而且 stdout 的 JSON 键 skipSpecsLanding 为 "true"
+    而且 stdout 的 JSON 键 needsSpecsChange 为 "false"
     而且 stdout 的 JSON 键 readyToImplement 为 "true"
     而且 stdout 的 JSON 键 specsLanded 为 "false"
+
+  @executable
+  @req:r1
+  场景: needs-specs-change-true-passes-with-specs-diff
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 变更 r1-landed 绑定于已提交 specs 改动的分支
+    当 在非交互终端运行 llman sdd show r1-landed --type change --output json
+    那么 退出码为零
+    而且 stdout 为合法 JSON
+    而且 stdout 的 JSON 键 specsLanded 为 "true"
+    而且 stdout 的 JSON 键 needsSpecsChange 为 "true"
 
   @executable
   @req:r42
@@ -305,3 +346,22 @@
     那么 stdout 包含 Gates:
     那么 stdout 包含 ✗
     那么 stdout 不含 ✓
+
+  @executable
+  @req:r25
+  场景: finalize-auto-commits-archive
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 存在可收尾的完整 change fin-auto
+    当 在非交互终端运行 llman sdd change finalize fin-auto --no-check
+    那么 退出码为零
+    那么 最近提交说明包含 archive(sdd): fin-auto
+
+  @executable
+  @req:r25
+  场景: finalize-no-commit-leaves-dirty
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    而且 存在可收尾的完整 change fin-nocommit
+    当 在非交互终端运行 llman sdd change finalize fin-nocommit --no-check --no-commit
+    那么 退出码为零
+    那么 最近提交说明不含 archive(sdd): fin-nocommit
+    那么 工作区存在未提交改动

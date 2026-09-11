@@ -11,7 +11,7 @@
 
   @req:r57 @human
   场景: Git-native change binding（统一流程）
-    - change MUST 绑定非默认 Git 分支与 immutable base SHA（统一流程，不再按 bdd 段分叉）：`llman sdd change start <id>` 为推荐入口（自动建分支 + clean-tree 门禁 + 绑定，见 sdd-workflow r111）；`llman sdd change attach <id>` 为共存命令（手动绑已有分支，含 --force 重绑）。`checkpoint` MUST 要求干净工作树并跑门禁；`diff` MUST 只读展示/导出 base...HEAD。`llman sdd change new` MUST 能创建 proposal 草稿。`llman sdd change delta` MUST 在任何模式下失败并提示已移除（统一 Git-native，见 sdd-workflow r115）。默认分支上 start/attach/checkpoint/archive MUST 失败。MUST NOT 再提供 `sdd solidify` 子命令。`change checkpoint` 与 `change start` MUST 接受并忽略 `--no-interactive` flag（对齐 change 子命令 flag 矩阵，便于 skill 统一传参）。
+    - change MUST 绑定非默认 Git 分支与 immutable base SHA（统一流程，不再按 bdd 段分叉）：`llman sdd change start <id>` 为推荐入口（自动建分支 + clean-tree 门禁 + 绑定，见 sdd-workflow r111）；`llman sdd change attach <id>` 为共存命令（手动绑已有分支，含 --force 重绑）。`diff` MUST 只读展示/导出 base...HEAD。`llman sdd change new` MUST 能创建 proposal 草稿。`llman sdd change delta` MUST 在任何模式下失败并提示已移除（统一 Git-native，见 sdd-workflow r115）；`llman sdd change checkpoint` MUST 同样失败并提示改用 finalize（见 sdd-workflow r25）。默认分支上 start/attach/archive MUST 失败。MUST NOT 再提供 `sdd solidify` 子命令。`change start` MUST 接受并忽略 `--no-interactive` flag（对齐 change 子命令 flag 矩阵，便于 skill 统一传参）。
 
   @req:r78 @human
   场景: index rebuild 的 feature embed
@@ -39,7 +39,7 @@
 
   @req:r94 @human
   场景: finalize 单 commit 收尾（统一流程）
-    - `llman sdd change finalize <id>` MUST 在单进程内执行（统一流程，不再仅限 BDD-on）：门禁（已 start/attach、当前分支 == binding.branch、非默认分支、无遗留 *.feature.delta.toon）→ validate 门禁（live strict + change stage，除非 --no-check）→ 写 frontmatter（checkpointed=true、checkpoint_sha=base_sha）→ 自动 ff-merge → docs-only archive rename（详见 sdd-workflow r113）。finalize MUST NOT 检查工作区 clean tree（使实现 diff + frontmatter + ff-merge + archive rename 可由调用方一次 git commit 收尾；ff-merge 失败时降级为提示且不回滚后续 rename）。finalize 写入的 checkpoint_sha MUST 等于 start/attach 时的 base_sha。finalize MUST 在任何写入前退出非零且不改 frontmatter / 不移动文件（gate 失败或 validate 失败时）。finalize MUST 幂等：重试时若 frontmatter 已含 checkpointed=true 且 checkpoint_sha 非空，MUST 跳过写入直接尝试 ff-merge + archive rename。finalize MUST 接受并忽略 --no-interactive。旧路径 checkpoint + archive（含双重 clean-tree 门禁与严格 sha 语义）MUST 保持不变作 fallback。
+    - `llman sdd change finalize <id>` MUST 在单进程内执行（统一流程，不再仅限 BDD-on）：门禁（已 start/attach、当前分支 == binding.branch、非默认分支、无遗留 *.feature.delta.toon）→ validate 门禁（live strict + change stage，除非 --no-check）→ 锁定规则收尾确认（spec-format r135）→ 自动 ff-merge（失败降级为提示且不回滚后续 rename）→ docs-only archive rename（详见 sdd-workflow r113）→ **自动一次 git commit 收尾**（`archive(sdd): <change-id>`：未提交实现 diff + frontmatter + rename 一次提交；`--no-commit` 跳过并输出手动指引；提交失败保留现场并提示，见 sdd-workflow r25）。finalize MUST NOT 检查工作区 clean tree（实现 diff 可保持未提交，随自动提交一次收尾）。finalize MUST 在任何写入前退出非零且不改 frontmatter / 不移动文件（gate 失败或 validate 失败时）。finalize 幂等 MUST 基于「change 目录已在 changes/archive/」判定（不得依赖任何 frontmatter 存档字段；字段已移除）。finalize MUST 接受并忽略 --no-interactive。旧路径 checkpoint 已移除；archive 命令保留（不再要求任何存档字段）。
   @executable
   @req:r57
   场景: 默认分支上 change attach 拒绝
@@ -95,10 +95,11 @@
 
   @executable
   @req:r57
-  场景: change checkpoint 接受 --no-interactive flag
+  场景: change-checkpoint-removed
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
-    当 在非交互终端运行 llman sdd change checkpoint add-scen --no-interactive
-    那么 stderr 不含 unexpected argument
+    当 在非交互终端运行 llman sdd change checkpoint add-scen
+    那么 退出码非零
+    那么 stderr 包含 change checkpoint is removed
 
 
   @executable
