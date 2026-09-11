@@ -2,8 +2,9 @@
 depends_on: []
 branch: sdd/specs-flatten-repo-run
 base_sha: 0189a539a6da68dc280029bdf85862a320b63e6e
-checkpointed: false
+checkpointed: true
 rules_edit_acked: true
+checkpoint_sha: 0189a539a6da68dc280029bdf85862a320b63e6e
 ---
 
 # 本仓库执行 specs-flatten 全库平铺（specs-flat-layout 后续）
