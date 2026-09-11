@@ -54,17 +54,19 @@ pub(crate) fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
     validate_sdd_id(&args.capability, "spec")?;
     let _ = load_required_config(&root.join(LLMANSPEC_DIR_NAME))?;
 
-    let spec_dir = root
-        .join(LLMANSPEC_DIR_NAME)
-        .join("specs")
-        .join(&args.capability);
-    if spec_dir.exists() && !args.force {
+    let specs_root = root.join(LLMANSPEC_DIR_NAME).join("specs");
+    // Flat layout is the r131 default: write `specs/<cap>.feature`, no
+    // directory. Refuse when either flat target or a same-id directory
+    // already exists — writing would create a dual-layout collision.
+    let flat_path = specs_root.join(format!("{}.feature", args.capability));
+    let dir_path = specs_root.join(&args.capability);
+    if (flat_path.exists() || dir_path.exists()) && !args.force {
         return Err(anyhow!(
             "spec skeleton target `{}` already exists (pass --force to overwrite)",
-            spec_dir.display()
+            flat_path.display()
         ));
     }
-    fs::create_dir_all(&spec_dir)?;
+    fs::create_dir_all(&specs_root)?;
 
     // Allocate first req_id; printed as a hint for the next `add-requirement`.
     let first_req_id =
@@ -89,7 +91,7 @@ pub(crate) fn run_skeleton(root: &Path, args: SpecSkeletonArgs) -> Result<()> {
         scenario = kw.scenario,
         req = first_req_id,
     );
-    let spec_path = spec_dir.join(format!("{}.feature", args.capability));
+    let spec_path = flat_path;
     atomic_write_with_mode(&spec_path, body.as_bytes(), None)?;
     // r42 + r114: strict validate fails on missing valid_scope paths, and
     // skeleton output must pass strict validate — scaffold the declared dirs.

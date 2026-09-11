@@ -505,6 +505,131 @@ fn given_sdd_project_toon_with_existing_features(mode: String) {
     .expect("write sample3 legacy .feature");
 }
 
+/// Flat-layout fixtures (spec-format r131 dual layout + r141 specs-flatten).
+/// All flat/dir spec bodies scope to `llmanspec` (always exists in the
+/// fixture) so `validate --strict`'s scope-existence gate passes.
+
+fn write_flat_spec(dir: &std::path::Path, name: &str, req_id: &str) {
+    let body = format!(
+        concat!(
+            "# language: en\n",
+            "# capability: {name}\n",
+            "# purpose: {name}\n",
+            "# scope: llmanspec\n",
+            "\n",
+            "Feature: {name}\n",
+            "\n",
+            "  @req:{req} @human\n",
+            "  Scenario: {req}\n",
+            "    System MUST cover {name}.\n",
+        ),
+        name = name,
+        req = req_id,
+    );
+    std::fs::write(dir.join(format!("llmanspec/specs/{name}.feature")), body)
+        .expect("write flat feature");
+}
+
+fn write_dir_spec_file(
+    dir: &std::path::Path,
+    cap: &str,
+    file_name: &str,
+    req_id: Option<&str>,
+    scope: &str,
+) {
+    let spec_dir = dir.join(format!("llmanspec/specs/{cap}"));
+    std::fs::create_dir_all(&spec_dir).expect("mkdir spec dir");
+    let mut body = format!(
+        "# language: en\n# capability: {cap}\n# purpose: {cap}\n# scope: {scope}\n\nFeature: {cap}\n"
+    );
+    if let Some(req) = req_id {
+        body.push_str(&format!(
+            "\n  @req:{req} @human\n  Scenario: {req}\n    System MUST cover {cap}.\n"
+        ));
+    }
+    std::fs::write(spec_dir.join(file_name), body).expect("write dir feature");
+}
+
+/// Fixture: one flat capability `specs/flatcap.feature` — r131 flat layout is
+/// recognized by list/show/validate.
+#[given("已初始化含扁平 capability 的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_flat_capability(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    write_flat_spec(&dir, "flatcap", "r3");
+}
+
+/// Fixture: flat `specs/foo.feature` AND directory `specs/foo/foo.feature` —
+/// same-id dual-source conflict must ERROR (spec-format r131).
+#[given("已初始化含同 id 扁平与目录冲突的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_flat_dir_conflict(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    write_flat_spec(&dir, "foo", "r3");
+    write_dir_spec_file(&dir, "foo", "foo.feature", Some("r4"), "llmanspec");
+}
+
+/// Fixture: directory `specs/multi/` with the same-named main file plus a
+/// second draft `.feature` — validate stays green with a WARNING (r131, D4).
+#[given("已初始化含多 .feature 目录 capability 的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_multi_feature_dir(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    write_dir_spec_file(&dir, "multi", "multi.feature", Some("r3"), "llmanspec");
+    write_dir_spec_file(&dir, "multi", "draft.feature", None, "llmanspec");
+}
+
+/// Fixture: directory `specs/solocap/` whose single `.feature` has a foreign
+/// name — the resolver backfills it as the main file (spec-format r131).
+#[given("已初始化含异名单文件目录 capability 的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_single_foreign_named_dir(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    write_dir_spec_file(&dir, "solocap", "inner.feature", Some("r4"), "llmanspec");
+}
+
+/// Fixture: pure single-file directory `specs/scoped/scoped.feature` with a
+/// self-referential `# scope:` — the specs-flatten target (spec-format r141).
+#[given("已初始化含自引用 scope 单文件目录的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_self_scope_single_dir(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    write_dir_spec_file(
+        &dir,
+        "scoped",
+        "scoped.feature",
+        Some("r5"),
+        "llmanspec/specs/scoped",
+    );
+}
+
+/// Fixture: one directory per non-flattenable class — conflict (flat target
+/// exists), legacy (spec.toon), multi (two .feature), aux (notes.md),
+/// misnamed (single foreign-named .feature). specs-flatten skips all five.
+#[given("已初始化含五类不可扁平目录的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_five_skip_classes(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    // conflict: flat target exists alongside the same-id directory.
+    write_flat_spec(&dir, "foo", "r3");
+    write_dir_spec_file(&dir, "foo", "foo.feature", Some("r4"), "llmanspec");
+    // legacy: spec.toon in the directory.
+    write_dir_spec_file(&dir, "legacy", "keep.feature", Some("r6"), "llmanspec");
+    std::fs::write(
+        dir.join("llmanspec/specs/legacy/spec.toon"),
+        "kind: llman.sdd.spec\nname: \"legacy\"\n",
+    )
+    .expect("write legacy toon");
+    // multi: two .feature files, no same-named main.
+    write_dir_spec_file(&dir, "multiskip", "a.feature", Some("r7"), "llmanspec");
+    write_dir_spec_file(&dir, "multiskip", "b.feature", None, "llmanspec");
+    // aux: .feature plus an auxiliary file.
+    write_dir_spec_file(&dir, "auxdir", "aux.feature", Some("r8"), "llmanspec");
+    std::fs::write(dir.join("llmanspec/specs/auxdir/notes.md"), "notes\n").expect("write aux file");
+    // misnamed: single .feature whose name differs from the directory.
+    write_dir_spec_file(&dir, "bar", "other.feature", Some("r9"), "llmanspec");
+}
+
 /// BDD-on fixture whose acceptance `@req` points at a missing rule id.
 #[given("已初始化含无效 @req 的 sdd 项目且 bdd 配置为 {mode}")]
 fn given_sdd_project_bad_req(mode: String) {

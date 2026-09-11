@@ -681,16 +681,18 @@ fn validate_by_type(
         ItemType::Spec => {
             validate_sdd_id(id, "spec")?;
             let specs_root = root.join(LLMANSPEC_DIR_NAME).join("specs");
-            match crate::sdd::spec::validation::resolve_spec_file(&specs_root, id)
-                .and_then(|p| fs::read_to_string(&p).map_err(|e| anyhow!(e)))
-            {
-                Ok(content) => {
+            match crate::sdd::spec::validation::resolve_spec_file_detailed(&specs_root, id)
+                .and_then(|r| {
+                    fs::read_to_string(&r.path)
+                        .map(|c| (r, c))
+                        .map_err(|e| anyhow!(e))
+                }) {
+                Ok((resolution, content)) => {
                     // `content` is the capability's single-track `.feature` text;
                     // staleness scope comes from the `# scope:` header via the
                     // parsed doc's valid_scope (r133).
-                    let spec_path = specs_root.join(id);
                     let validation = validate_spec_content(
-                        &spec_path.join("spec.feature"),
+                        &resolution.path,
                         &content,
                         strict,
                         crate::sdd::spec::validation::SpecValidateCtx {
@@ -699,14 +701,22 @@ fn validate_by_type(
                             locale: Some(locale),
                             check_mode,
                             full_mode_cache: None,
+                            spec_id: Some(id),
                         },
                     );
+                    // Non-main `.feature` files in a directory capability are
+                    // drafts/harness assets: warn, never fail (spec-format r131).
+                    let mut issues = validation.report.issues.clone();
+                    issues.extend(non_main_feature_warnings(id, &resolution.extra_features));
                     // Staleness scope: the capability .feature header's
                     // `# scope:` is the single source of truth (r133).
                     let staleness_frontmatter = validation.frontmatter.clone();
-                    let staleness =
-                        evaluate_staleness(root, id, &spec_path, staleness_frontmatter.as_ref());
-                    let mut issues = validation.report.issues.clone();
+                    let staleness = evaluate_staleness(
+                        root,
+                        id,
+                        &resolution.path,
+                        staleness_frontmatter.as_ref(),
+                    );
                     issues.extend(crate::sdd::spec::req_registry::global_req_id_uniqueness_issues_for_capability(
                         root, id,
                     ));
@@ -1013,16 +1023,16 @@ fn run_bulk_validation(
         let start = Instant::now();
         validate_sdd_id(&id, "spec")?;
         let specs_root = root.join(LLMANSPEC_DIR_NAME).join("specs");
-        let loaded =
-            crate::sdd::spec::validation::resolve_spec_file(&specs_root, &id).and_then(|p| {
-                fs::read_to_string(&p)
-                    .map(|c| (p, c))
+        let loaded = crate::sdd::spec::validation::resolve_spec_file_detailed(&specs_root, &id)
+            .and_then(|r| {
+                fs::read_to_string(&r.path)
+                    .map(|c| (r, c))
                     .map_err(|e| anyhow!(e))
             });
         match loaded {
-            Ok((spec_path, content)) => {
+            Ok((resolution, content)) => {
                 let validation = validate_spec_content(
-                    &spec_path,
+                    &resolution.path,
                     &content,
                     strict,
                     crate::sdd::spec::validation::SpecValidateCtx {
@@ -1035,16 +1045,18 @@ fn run_bulk_validation(
                         } else {
                             None
                         },
+                        spec_id: Some(&id),
                     },
                 );
                 let staleness_frontmatter = validation.frontmatter.clone();
                 let staleness = staleness_evaluator.evaluate(
                     &id,
-                    spec_path.parent().unwrap_or(&spec_path),
+                    &resolution.path,
                     staleness_frontmatter.as_ref(),
                     None,
                 );
                 let mut issues = validation.report.issues;
+                issues.extend(non_main_feature_warnings(&id, &resolution.extra_features));
                 issues.extend(
                     global_req_issues
                         .iter()
@@ -1188,6 +1200,29 @@ fn unknown_item_message(item: &str, suggestions: &[String]) -> String {
         ));
     }
     msg
+}
+
+/// Warning issues for non-main `.feature` files found in a directory
+/// capability (spec-format r131: drafts/harness assets warn, never fail).
+fn non_main_feature_warnings(id: &str, extras: &[std::path::PathBuf]) -> Vec<ValidationIssue> {
+    if extras.is_empty() {
+        return Vec::new();
+    }
+    let listed = extras
+        .iter()
+        .map(|p| p.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    vec![ValidationIssue {
+        level: ValidationLevel::Warning,
+        path: id.to_string(),
+        message: format!(
+            "capability directory contains {} non-main `.feature` file(s): {listed} \
+             (draft or harness asset? merge, move, or flatten via \
+             `llman sdd project migrate --kind specs-flatten`)",
+            extras.len()
+        ),
+    }]
 }
 
 fn apply_strict(mut issues: Vec<ValidationIssue>, strict: bool) -> Vec<ValidationIssue> {

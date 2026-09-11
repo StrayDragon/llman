@@ -247,35 +247,120 @@ pub(crate) fn list_archived_changes(root: &Path) -> Result<Vec<String>> {
 }
 
 pub(crate) fn list_specs(root: &Path) -> Result<Vec<String>> {
+    Ok(list_spec_locs(root)?.into_iter().map(|s| s.id).collect())
+}
+
+/// One capability spec located under `llmanspec/specs/` (r131 dual layout).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SpecLoc {
+    /// Capability id: file stem for flat files, directory name for dirs.
+    pub(crate) id: String,
+    /// Path relative to `llmanspec/specs/` — either `<id>.feature` (flat) or
+    /// `<id>/` (directory). All command output/error paths must carry this
+    /// value instead of re-joining `specs/<id>/`.
+    pub(crate) path: String,
+}
+
+/// Discover capability specs (r131 dual layout, SpecLoc single source).
+///
+/// Both layouts count as capabilities:
+/// - flat file `specs/<id>.feature` → id = file stem;
+/// - directory `specs/<id>/` → id = directory name, counted when it contains
+///   at least one `.feature` or a legacy `spec.toon` (so the resolver can
+///   point at `toon2features` instead of reporting "no such spec").
+///
+/// The same id from both layouts is a conflict ERROR (machine determinism,
+/// spec-format r131): resolution would be ambiguous.
+pub(crate) fn list_spec_locs(root: &Path) -> Result<Vec<SpecLoc>> {
     let specs_dir = root.join(LLMANSPEC_DIR_NAME).join("specs");
     let mut result = Vec::new();
-    let entries = match fs::read_dir(specs_dir) {
+    let entries = match fs::read_dir(&specs_dir) {
         Ok(entries) => entries,
         Err(_) => return Ok(result),
     };
 
     for entry in entries.flatten() {
-        let file_type = match entry.file_type() {
-            Ok(ft) => ft,
-            Err(_) => continue,
-        };
-        if !file_type.is_dir() {
-            continue;
-        }
         let name = entry.file_name().to_string_lossy().to_string();
         if name.starts_with('.') {
             continue;
         }
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if file_type.is_file() {
+            let path = entry.path();
+            if path.extension().is_some_and(|ext| ext == "feature") {
+                let id = path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                if !id.is_empty() {
+                    result.push(SpecLoc { id, path: name });
+                }
+            }
+            continue;
+        }
+        if !file_type.is_dir() {
+            continue;
+        }
         let dir = entry.path();
-        // Single-track (r131): a capability is a directory with exactly one
-        // `.feature`. Legacy `spec.toon` still counts so the resolver can
-        // point at `toon2features` instead of reporting "no such spec".
         if dir.join(SPEC_FILE).exists() || !discover_features(&dir).is_empty() {
-            result.push(name);
+            result.push(SpecLoc {
+                id: name.clone(),
+                path: name,
+            });
         }
     }
 
-    result.sort();
+    // Same-id dual-source conflict (flat file + directory with .feature).
+    let mut by_id: HashMap<String, Vec<SpecLoc>> = HashMap::new();
+    for loc in result.iter().cloned() {
+        by_id.entry(loc.id.clone()).or_default().push(loc);
+    }
+    let mut conflicts: Vec<(String, Vec<SpecLoc>)> = by_id
+        .into_iter()
+        .filter(|(_, locs)| locs.len() > 1)
+        .collect();
+    if !conflicts.is_empty() {
+        conflicts.sort_by(|a, b| a.0.cmp(&b.0));
+        let detail = conflicts
+            .iter()
+            .map(|(id, locs)| {
+                // Report the two concrete colliding sources: the flat file
+                // and the directory's main `.feature` (the resolve-ambiguous
+                // files), falling back to the directory path itself.
+                let listed = locs
+                    .iter()
+                    .map(|loc| {
+                        let abs = specs_dir.join(&loc.path);
+                        if abs.is_dir() {
+                            let main = abs.join(format!("{id}.feature"));
+                            if main.is_file() {
+                                main.display().to_string()
+                            } else {
+                                discover_features(&abs)
+                                    .first()
+                                    .map(|p| p.display().to_string())
+                                    .unwrap_or_else(|| format!("llmanspec/specs/{}/", loc.path))
+                            }
+                        } else {
+                            format!("llmanspec/specs/{}", loc.path)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("  - {id}: {listed}")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        bail!(
+            "duplicate spec id(s) under llmanspec/specs/ — flat file and directory layouts \
+             cannot coexist for the same capability id (spec-format r131):\n{detail}"
+        );
+    }
+
+    result.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(result)
 }
 

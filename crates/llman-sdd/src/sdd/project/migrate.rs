@@ -36,14 +36,20 @@ use crate::sdd::spec::ir::MainSpecDoc;
 use anyhow::{Context, Result, anyhow};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[derive(Debug, Clone)]
 pub(crate) struct MigrateArgs {
+    /// Migration kind: `toon2features` (r136) or `specs-flatten` (spec-format
+    /// r141). clap restricts the value set; the parser rejects others.
+    pub(crate) kind: String,
     pub(crate) dry_run: bool,
     #[allow(dead_code)]
     pub(crate) force: bool,
     /// Skip the confirmation prompt and apply (for agents/scripts).
     pub(crate) yes: bool,
+    /// Print the built-in collaboration notes and exit without migrating.
+    pub(crate) prompt: bool,
     /// Treat the terminal as non-interactive even when stdin is a TTY.
     pub(crate) no_interactive: bool,
 }
@@ -96,6 +102,422 @@ pub(crate) fn run(args: MigrateArgs) -> Result<()> {
 }
 
 pub(crate) fn run_at(root: &Path, args: MigrateArgs) -> Result<()> {
+    if args.prompt {
+        // `--prompt` only prints the built-in collaboration notes and returns
+        // successfully — no scanning, no migration (spec-format r141).
+        let locale = fs::read_to_string(root.join(LLMANSPEC_DIR_NAME).join("config.yaml"))
+            .ok()
+            .and_then(|text| {
+                text.lines().find_map(|l| {
+                    let l = l.trim();
+                    l.strip_prefix("locale:")
+                        .map(|v| v.trim().trim_matches('"').to_string())
+                })
+            })
+            .unwrap_or_else(|| "en".to_string());
+        let template = migrate_prompt_template(&locale);
+        print!("{template}");
+        return Ok(());
+    }
+    match args.kind.as_str() {
+        "specs-flatten" => run_specs_flatten_at(root, &args),
+        _ => run_toon2features_at(root, args),
+    }
+}
+
+/// Locale-resolved collaboration notes for `project migrate --prompt`
+/// (spec-format r141). Templates are compile-time embedded and gated for
+/// locale parity by `scripts/check-sdd-templates.py`.
+fn migrate_prompt_template(locale: &str) -> &'static str {
+    if locale.trim().to_lowercase().starts_with("zh") {
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/zh-Hans/units/migrate-prompt.md"
+        ))
+    } else {
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/sdd/en/units/migrate-prompt.md"
+        ))
+    }
+}
+
+/// `--kind specs-flatten` (spec-format r141): flatten pure single-file
+/// directories `specs/<cap>/<cap>.feature` into flat `specs/<cap>.feature`
+/// via git mv, rewriting self-referential `# scope:` entries. Every other
+/// directory shape is reported and skipped — migration is never forced.
+pub(crate) fn run_specs_flatten_at(root: &Path, args: &MigrateArgs) -> Result<()> {
+    let specs_root = root.join(LLMANSPEC_DIR_NAME).join("specs");
+    if !specs_root.is_dir() {
+        println!("No specs directory found; nothing to flatten.");
+        return Ok(());
+    }
+
+    // Phase 1: classify every capability directory (report-only prechecks).
+    let mut candidates: Vec<FlattenCandidate> = Vec::new();
+    let mut skips: Vec<FlattenSkip> = Vec::new();
+    for dir in collect_capability_dirs(&specs_root)? {
+        let cap = dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default()
+            .to_string();
+        let target = specs_root.join(format!("{cap}.feature"));
+        if target.exists() {
+            skips.push(FlattenSkip::new(
+                SkipClass::Conflict,
+                &dir,
+                format!("target {} exists; both files kept", target.display()),
+            ));
+            continue;
+        }
+        let entries = match fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(err) => return Err(anyhow!("read {}: {err}", dir.display())),
+        };
+        let mut features: Vec<PathBuf> = Vec::new();
+        let mut aux: Vec<String> = Vec::new();
+        let mut legacy = false;
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                aux.push(format!("{name}/"));
+                continue;
+            }
+            if name == SPEC_FILE {
+                legacy = true;
+            } else if name.ends_with(".feature") {
+                features.push(entry.path());
+            } else {
+                aux.push(name);
+            }
+        }
+        features.sort();
+        aux.sort();
+        if legacy {
+            skips.push(FlattenSkip::new(
+                SkipClass::Legacy,
+                &dir,
+                "spec.toon present; run `--kind toon2features` first".to_string(),
+            ));
+            continue;
+        }
+        if features.len() > 1 {
+            skips.push(FlattenSkip::new(
+                SkipClass::Multi,
+                &dir,
+                format!("{} .feature files; triage drafts first", features.len()),
+            ));
+            continue;
+        }
+        if !aux.is_empty() {
+            skips.push(FlattenSkip::new(
+                SkipClass::Aux,
+                &dir,
+                format!("non-.feature entries: {}", aux.join(", ")),
+            ));
+            continue;
+        }
+        let Some(file) = features.into_iter().next() else {
+            // No .feature at all (e.g. empty dir): nothing to flatten.
+            continue;
+        };
+        let expected = format!("{cap}.feature");
+        let file_name = file
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
+        if file_name != expected {
+            skips.push(FlattenSkip::new(
+                SkipClass::Misnamed,
+                &dir,
+                format!("{file_name}; CLI won't rename",),
+            ));
+            continue;
+        }
+        candidates.push(FlattenCandidate {
+            dir,
+            cap,
+            file,
+            target,
+        });
+    }
+
+    if candidates.is_empty() && skips.is_empty() {
+        println!(
+            "Nothing to flatten; no capability directories under {}.",
+            specs_root.display()
+        );
+        return Ok(());
+    }
+
+    // Phase 2: report (dry-run shares the exact same classification).
+    println!(
+        "specs-flatten: {} candidate(s), {} skipped",
+        candidates.len(),
+        skips.len()
+    );
+    for skip in &skips {
+        println!("  - {skip}");
+    }
+    if args.dry_run {
+        for c in &candidates {
+            println!(
+                "  would flatten {} → {}",
+                c.file.display(),
+                c.target.display()
+            );
+        }
+        println!("\n(dry-run: no files moved; re-run without --dry-run to apply)");
+        return Ok(());
+    }
+    if !skips.is_empty() {
+        println!(
+            "\nSkipped entries are reported only (spec-format r141: migration is never forced); \
+             resolve them manually if desired."
+        );
+    }
+
+    // Phase 3: apply — scope rewrite before the move, then git mv, then the
+    // emptied directory is removed. Single-directory atomicity: a failure on
+    // one capability is reported and does not abort the rest.
+    let mut flattened: Vec<String> = Vec::new();
+    let mut rewritten: Vec<String> = Vec::new();
+    let mut failures: Vec<String> = Vec::new();
+    for c in &candidates {
+        match flatten_capability(root, c) {
+            Ok((file_rel, scope_note)) => {
+                flattened.push(file_rel);
+                if let Some(note) = scope_note {
+                    rewritten.push(note);
+                }
+            }
+            Err(err) => failures.push(format!("{}: {err:#}", c.cap)),
+        }
+    }
+
+    if !failures.is_empty() {
+        eprintln!("Failures ({}):", failures.len());
+        for f in &failures {
+            eprintln!("  - {f}");
+        }
+        return Err(anyhow!(
+            "specs-flatten completed with {} failure(s): {}",
+            failures.len(),
+            failures.join("; ")
+        ));
+    }
+
+    println!("\nflattened {}", flattened.len());
+    for rel in &flattened {
+        println!("  {rel}");
+    }
+    println!("\nscope_rewritten {}", rewritten.len());
+    for note in &rewritten {
+        println!("  {note}");
+    }
+    if skipped_count(&skips) > 0 {
+        println!(
+            "\nskipped {} (see classed list above)",
+            skipped_count(&skips)
+        );
+    }
+
+    // Collaboration hint appended to every real run (spec-format r141 §6.2):
+    // scope carries staleness semantics; self-references are useless.
+    println!("\n— scope 检查 —");
+    println!(
+        "`# scope:` declares each capability's staleness scan range (validate/review compare \
+         git changes to flag stale specs)."
+    );
+    println!(
+        "Recommendation: point `# scope:` at the real source/config directory the spec governs \
+         (e.g. src/sdd/…), not at the spec file itself."
+    );
+    println!(
+        "Rewritten entries were auto-synced to specs/<cap>.feature; afterwards run \
+         `llman sdd validate --specs` to confirm no stale WARNING remains."
+    );
+    Ok(())
+}
+
+/// One flattenable capability directory: `specs/<cap>/<cap>.feature` and
+/// nothing else.
+struct FlattenCandidate {
+    dir: PathBuf,
+    cap: String,
+    file: PathBuf,
+    target: PathBuf,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SkipClass {
+    Conflict,
+    Legacy,
+    Multi,
+    Aux,
+    Misnamed,
+}
+
+impl SkipClass {
+    fn label(self) -> &'static str {
+        match self {
+            SkipClass::Conflict => "conflict",
+            SkipClass::Legacy => "legacy",
+            SkipClass::Multi => "multi",
+            SkipClass::Aux => "aux",
+            SkipClass::Misnamed => "misnamed",
+        }
+    }
+}
+
+struct FlattenSkip {
+    class: SkipClass,
+    dir: String,
+    reason: String,
+}
+
+impl FlattenSkip {
+    fn new(class: SkipClass, dir: &Path, reason: String) -> Self {
+        FlattenSkip {
+            class,
+            dir: dir.display().to_string(),
+            reason,
+        }
+    }
+}
+
+impl std::fmt::Display for FlattenSkip {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:<9} {:<30} ({})",
+            self.class.label(),
+            self.dir,
+            self.reason
+        )
+    }
+}
+
+fn skipped_count(skips: &[FlattenSkip]) -> usize {
+    skips.len()
+}
+
+/// Flatten one candidate: rewrite self-referential `# scope:` entries, move
+/// the file (git mv when tracked so history follows; fs::rename otherwise),
+/// then remove the emptied directory. Returns the flattened file's display
+/// path and, when applicable, the scope rewrite note.
+fn flatten_capability(
+    root: &Path,
+    candidate: &FlattenCandidate,
+) -> Result<(String, Option<String>)> {
+    let scope_note = rewrite_self_scope(&candidate.file, &candidate.cap)?;
+    move_with_git_or_fs(root, &candidate.file, &candidate.target)?;
+    if let Err(err) = fs::remove_dir(&candidate.dir) {
+        eprintln!(
+            "  warning: could not remove emptied directory {}: {err}",
+            candidate.dir.display()
+        );
+    }
+    let rel = candidate
+        .target
+        .strip_prefix(root)
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| candidate.target.display().to_string());
+    Ok((rel, scope_note))
+}
+
+/// Move `from` to `to` preserving git history when the source is tracked.
+/// Untracked files (and non-git workspaces) fall back to `fs::rename`.
+fn move_with_git_or_fs(root: &Path, from: &Path, to: &Path) -> Result<()> {
+    let tracked = Command::new("git")
+        .args(["ls-files", "--error-unmatch", &from.display().to_string()])
+        .current_dir(root)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if tracked {
+        let out = Command::new("git")
+            .args([
+                "mv",
+                "--",
+                &from.display().to_string(),
+                &to.display().to_string(),
+            ])
+            .current_dir(root)
+            .output()
+            .context("run git mv")?;
+        if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            return Err(anyhow!("git mv failed: {stderr}"));
+        }
+        return Ok(());
+    }
+    eprintln!(
+        "  note: {} is not git-tracked; renamed without history preservation",
+        from.display()
+    );
+    fs::rename(from, to).with_context(|| format!("rename {} → {}", from.display(), to.display()))
+}
+
+/// Rewrite self-referential `# scope:` entries (spec-format r141, D7): any
+/// comma-separated scope item that normalizes to `llmanspec/specs/<cap>` is
+/// replaced with `llmanspec/specs/<cap>.feature`. Other items are untouched.
+/// Returns a report note when a rewrite happened.
+fn rewrite_self_scope(file: &Path, cap: &str) -> Result<Option<String>> {
+    let self_dir = format!("llmanspec/specs/{cap}");
+    let self_flat = format!("{self_dir}.feature");
+    let content = fs::read_to_string(file).with_context(|| format!("read {}", file.display()))?;
+    let mut changed = false;
+    let mut updated = String::with_capacity(content.len());
+    for line in content.split_inclusive('\n') {
+        let trimmed = line.trim_end_matches(['\n', '\r']);
+        if let Some(value) = trimmed.strip_prefix("# scope:") {
+            let lead: String = value.chars().take_while(|c| c.is_whitespace()).collect();
+            let mut items: Vec<String> = Vec::new();
+            let mut hit = false;
+            for item in value.split(',') {
+                let normalized = normalize_scope_item(item);
+                if normalized == self_dir {
+                    items.push(format!("{lead}{self_flat}"));
+                    hit = true;
+                } else {
+                    items.push(item.to_string());
+                }
+            }
+            if hit {
+                changed = true;
+                let joined = items.join(",");
+                updated.push_str(&format!("# scope:{joined}"));
+                if line.contains('\n') {
+                    updated.push('\n');
+                }
+                continue;
+            }
+        }
+        updated.push_str(line);
+    }
+    if !changed {
+        return Ok(None);
+    }
+    atomic_write_with_mode(file, updated.as_bytes(), None)?;
+    Ok(Some(format!(
+        "{}: # scope: {self_dir} → {self_flat}",
+        file.display()
+    )))
+}
+
+/// Scope item normalization matching `staleness::normalize_path` semantics
+/// (trim, drop `./` and leading `/`, drop trailing `/`).
+fn normalize_scope_item(item: &str) -> String {
+    item.trim()
+        .trim_start_matches("./")
+        .trim_start_matches('/')
+        .trim_end_matches('/')
+        .to_string()
+}
+
+fn run_toon2features_at(root: &Path, args: MigrateArgs) -> Result<()> {
     let specs_root = root.join(LLMANSPEC_DIR_NAME).join("specs");
     if !specs_root.is_dir() {
         println!("No specs directory found; nothing to migrate.");
@@ -775,9 +1197,11 @@ mod tests {
 
     fn args() -> MigrateArgs {
         MigrateArgs {
+            kind: "toon2features".to_string(),
             dry_run: false,
             force: false,
             yes: true,
+            prompt: false,
             no_interactive: true,
         }
     }
