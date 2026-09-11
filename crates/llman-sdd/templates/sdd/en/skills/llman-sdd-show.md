@@ -14,7 +14,7 @@ Use this skill to inspect changes, specs, and JSON output.
 2. If the id is unknown or ambiguous, show the list and ask the user to pick.
 3. Show details: `llman sdd show <id>`.
 4. Disambiguate with `--type change|spec` when needed.
-5. For changes, use `--json`: status SSOT fields are `stage` / `specsLanded` / `skipSpecsLanding` / `readyToImplement` (never decide apply-readiness from vague "complete artifacts" wording).
+5. For changes, use `--json`: status SSOT fields are `stage` / `specsLanded` / `needsSpecsChange` / `readyToImplement` (never decide apply-readiness from vague "complete artifacts" wording).
 
 > For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
 

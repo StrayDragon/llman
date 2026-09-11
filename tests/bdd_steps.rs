@@ -754,6 +754,181 @@ fn given_sdd_project_missing_scope_path(mode: String) {
 /// `{change}` is the change id (used as the branch name when attached). The
 /// fixture must be combined with `已初始化 sdd 项目且 bdd 配置为 {mode}` first to
 /// establish config + git base ref.
+/// r93 four-tier fixtures: proposal only (draft).
+#[given("变更 {change} 仅含 proposal")]
+fn given_change_proposal_only(change: String) {
+    let dir = fixture_cwd();
+    let change_dir = dir
+        .join("llmanspec/changes")
+        .join(change.trim().trim_matches('"'));
+    std::fs::create_dir_all(&change_dir).expect("mkdir draft fixture change");
+    std::fs::write(
+        change_dir.join("proposal.md"),
+        "---\ndepends_on: []\n---\n\n## Why\nr93 draft fixture.\n\n## What Changes\n- Probe determine_stage.\n",
+    )
+    .expect("write fixture proposal");
+}
+
+/// r93 four-tier fixtures: proposal + design, no tasks (designed).
+#[given("变更 {change} 含 proposal 与 design 不含 tasks")]
+fn given_change_proposal_and_design(change: String) {
+    let dir = fixture_cwd();
+    let change_dir = dir
+        .join("llmanspec/changes")
+        .join(change.trim().trim_matches('"'));
+    std::fs::create_dir_all(&change_dir).expect("mkdir designed fixture change");
+    std::fs::write(
+        change_dir.join("proposal.md"),
+        "---\ndepends_on: []\n---\n\n## Why\nr93 designed fixture.\n\n## What Changes\n- Probe determine_stage.\n",
+    )
+    .expect("write fixture proposal");
+    std::fs::write(change_dir.join("design.md"), "# Design\nfixture.\n").expect("write design");
+}
+
+/// r1: lands a NEW locked rule on the bound branch (additions need no ack).
+#[given("变更 {change} 绑定于已提交 specs 改动的分支")]
+fn given_change_bound_with_landed_specs(change: String) {
+    let dir = fixture_cwd();
+    let change_dir = dir
+        .join("llmanspec/changes")
+        .join(change.trim().trim_matches('"'));
+    std::fs::create_dir_all(&change_dir).expect("mkdir landed fixture change");
+    let change_id = change.trim().trim_matches('"');
+    std::fs::write(
+        change_dir.join("proposal.md"),
+        format!("---\ndepends_on: []\nbranch: feat/{change_id}\nbase_sha: 0000000000000000000000000000000000000000\n---\n\n## Why\nr1 landed fixture.\n\n## What Changes\n- Add a rule.\n"),
+    )
+    .expect("write fixture proposal");
+    std::fs::write(change_dir.join("design.md"), "# Design\nfixture.\n").expect("write design");
+    std::fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
+    run_fixture_git(
+        &dir,
+        &["checkout", "-q", "-b", &format!("feat/{change_id}")],
+    );
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(
+        &dir,
+        &["commit", "-qm", &format!("fixture change {change_id}")],
+    );
+    let head = current_fixture_head(&dir);
+    let proposal_path = change_dir.join("proposal.md");
+    let proposal_body = std::fs::read_to_string(&proposal_path).expect("read fixture proposal");
+    std::fs::write(
+        &proposal_path,
+        proposal_body.replace("0000000000000000000000000000000000000000", &head),
+    )
+    .expect("rewrite fixture base_sha");
+    // Specs landing: add a brand-new @human rule (additions are ack-free).
+    let feature_path = dir.join("llmanspec/specs/sample/sample.feature");
+    let mut body = std::fs::read_to_string(&feature_path).expect("read seeded feature");
+    body.push_str("\n  @req:r99 @human\n  Scenario: R99\n    System MUST cover R99.\n");
+    std::fs::write(&feature_path, body).expect("append new locked rule");
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(&dir, &["commit", "-qm", "specs landing"]);
+}
+
+/// r25: full finalize fixture — bound, tasks done, specs landed, clean tree.
+#[given("存在可收尾的完整 change {change}")]
+fn given_finalizable_change(change: String) {
+    let dir = fixture_cwd();
+    let change_dir = dir
+        .join("llmanspec/changes")
+        .join(change.trim().trim_matches('"'));
+    std::fs::create_dir_all(&change_dir).expect("mkdir finalize fixture change");
+    let change_id = change.trim().trim_matches('"');
+    std::fs::write(
+        change_dir.join("proposal.md"),
+        format!("---\ndepends_on: []\nbranch: feat/{change_id}\nbase_sha: 0000000000000000000000000000000000000000\n---\n\n## Why\nr25 finalize fixture.\n\n## What Changes\n- Probe auto commit.\n"),
+    )
+    .expect("write fixture proposal");
+    std::fs::write(change_dir.join("design.md"), "# Design\nfixture.\n").expect("write design");
+    std::fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
+    run_fixture_git(
+        &dir,
+        &["checkout", "-q", "-b", &format!("feat/{change_id}")],
+    );
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(
+        &dir,
+        &["commit", "-qm", &format!("fixture change {change_id}")],
+    );
+    let head = current_fixture_head(&dir);
+    let proposal_path = change_dir.join("proposal.md");
+    let proposal_body = std::fs::read_to_string(&proposal_path).expect("read fixture proposal");
+    std::fs::write(
+        &proposal_path,
+        proposal_body.replace("0000000000000000000000000000000000000000", &head),
+    )
+    .expect("rewrite fixture base_sha");
+    // Specs landing (new rule, ack-free).
+    let feature_path = dir.join("llmanspec/specs/sample/sample.feature");
+    let mut body = std::fs::read_to_string(&feature_path).expect("read seeded feature");
+    body.push_str("\n  @req:r98 @human\n  Scenario: R98\n    System MUST cover R98.\n");
+    std::fs::write(&feature_path, body).expect("append new locked rule");
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(&dir, &["commit", "-qm", "specs landing"]);
+}
+
+/// r132: a lone @agent scenario (no @human) must fail validation.
+#[given("已初始化含单独 @agent 场景的 sdd 项目且 bdd 配置为 {mode}")]
+fn given_sdd_project_lone_agent(mode: String) {
+    seed_bdd_project(&mode);
+    let dir = fixture_cwd();
+    let feature_path = dir.join("llmanspec/specs/sample/sample.feature");
+    let mut body = std::fs::read_to_string(&feature_path).expect("read seeded feature");
+    body.push_str("\n  @req:r97 @agent\n  Scenario: AgentAlone\n    System MUST do A.\n");
+    std::fs::write(&feature_path, body).expect("append lone @agent scenario");
+}
+
+/// r135: bound change that edits a locked rule. `kind` = "@agent" (the rule
+/// carries @agent) or "普通" (plain @human). No rules_touched declared.
+#[given("变更 {change} 绑定且编辑了规则 {kind}")]
+fn given_change_bound_editing_locked_rule(change: String, kind: String) {
+    let dir = fixture_cwd();
+    let change_dir = dir
+        .join("llmanspec/changes")
+        .join(change.trim().trim_matches('"'));
+    std::fs::create_dir_all(&change_dir).expect("mkdir rule-edit fixture change");
+    let change_id = change.trim().trim_matches('"');
+    std::fs::write(
+        change_dir.join("proposal.md"),
+        format!("---\ndepends_on: []\nbranch: feat/{change_id}\nbase_sha: 0000000000000000000000000000000000000000\n---\n\n## Why\nr135 fixture.\n\n## What Changes\n- Edit a locked rule.\n"),
+    )
+    .expect("write fixture proposal");
+    std::fs::write(change_dir.join("design.md"), "# Design\nfixture.\n").expect("write design");
+    std::fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
+    run_fixture_git(
+        &dir,
+        &["checkout", "-q", "-b", &format!("feat/{change_id}")],
+    );
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(
+        &dir,
+        &["commit", "-qm", &format!("fixture change {change_id}")],
+    );
+    let head = current_fixture_head(&dir);
+    let proposal_path = change_dir.join("proposal.md");
+    let proposal_body = std::fs::read_to_string(&proposal_path).expect("read fixture proposal");
+    std::fs::write(
+        &proposal_path,
+        proposal_body.replace("0000000000000000000000000000000000000000", &head),
+    )
+    .expect("rewrite fixture base_sha");
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(&dir, &["commit", "-qm", "binding"]);
+    // Edit the locked r1 rule; optionally mark it @agent first.
+    let feature_path = dir.join("llmanspec/specs/sample/sample.feature");
+    let mut body = std::fs::read_to_string(&feature_path).expect("read seeded feature");
+    if kind.trim().trim_matches('"') == "@agent" {
+        body = body.replace("@req:r1 @human", "@req:r1 @human @agent");
+    }
+    std::fs::write(&feature_path, body).expect("mark agent");
+    fixture_edit_r1(&dir, "(edited by r135 fixture)");
+    // Landing counts committed diffs; commit the rule edit.
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(&dir, &["commit", "-qm", "edit locked rule"]);
+}
+
 #[given("变更 {change} 含 proposal design tasks 且 attach 状态为 {attached}")]
 fn given_change_with_artifacts_and_attach(change: String, attached: String) {
     let dir = fixture_cwd();
@@ -770,7 +945,7 @@ fn given_change_with_artifacts_and_attach(change: String, attached: String) {
         }
         "skip" => {
             format!(
-                "---\ndepends_on: []\nbranch: feat/{change}\nbase_sha: {base_sha_placeholder}\nskip_specs_landing: true\n---\n"
+                "---\ndepends_on: []\nbranch: feat/{change}\nbase_sha: {base_sha_placeholder}\nneeds_specs_change: false\n---\n"
             )
         }
         _ => "---\ndepends_on: []\n---\n".to_string(),
@@ -876,7 +1051,7 @@ fn given_change_bound_after_prior_rule_merge(change: String) {
     std::fs::write(
         change_dir.join("proposal.md"),
         format!(
-            "---\ndepends_on: []\nbranch: feat/{change_id}\nbase_sha: {base}\nskip_specs_landing: true\n---\n\n## Why\naccumulation-immunity fixture.\n\n## What Changes\n- No rule edits (prior edits already merged).\n"
+            "---\ndepends_on: []\nbranch: feat/{change_id}\nbase_sha: {base}\nneeds_specs_change: false\n---\n\n## Why\naccumulation-immunity fixture.\n\n## What Changes\n- No rule edits (prior edits already merged).\n"
         ),
     )
     .expect("write fixture proposal");
@@ -1233,3 +1408,56 @@ fn record_output(output: std::process::Output) {
 // ---------------------------------------------------------------------------
 
 scenarios!("llmanspec/specs", tags = "@executable");
+
+/// r25: last commit subject assertion (used by finalize auto-commit scenarios).
+#[then("最近提交说明包含 {text}")]
+fn then_last_commit_subject_contains(text: String) {
+    let dir = fixture_cwd();
+    let out = Command::new("git")
+        .args(["log", "-1", "--format=%s"])
+        .current_dir(&dir)
+        .output()
+        .expect("git log -1");
+    assert!(out.status.success(), "git log failed");
+    let subject = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        subject.contains(&text),
+        "expected commit subject to contain {:?}, got {:?}",
+        text,
+        subject.trim()
+    );
+}
+
+#[then("最近提交说明不含 {text}")]
+fn then_last_commit_subject_not_contains(text: String) {
+    let dir = fixture_cwd();
+    let out = Command::new("git")
+        .args(["log", "-1", "--format=%s"])
+        .current_dir(&dir)
+        .output()
+        .expect("git log -1");
+    assert!(out.status.success(), "git log failed");
+    let subject = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        !subject.contains(&text),
+        "expected commit subject to NOT contain {:?}, got {:?}",
+        text,
+        subject.trim()
+    );
+}
+
+#[then("工作区存在未提交改动")]
+fn then_working_tree_dirty() {
+    let dir = fixture_cwd();
+    let out = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&dir)
+        .output()
+        .expect("git status");
+    assert!(out.status.success(), "git status failed");
+    let status = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        !status.trim().is_empty(),
+        "expected dirty working tree, got clean"
+    );
+}

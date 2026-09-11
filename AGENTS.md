@@ -95,7 +95,7 @@ verify→finalize, and before any archive.
 - Treat `pending`/`unbound` as planning debt to schedule, `stale` as spec-vs-code drift
   to resolve.
 - `locked` hints are prompts to inspect `llman sdd change diff <id>` — never re-edit
-  locked rules without `rules_edit_acked`.
+  locked rules without `rules_touched`（`rules_edit_acked` 已移除；`@agent` 规则可用 `--yes` 确认）。
 - Nonzero exit = CRITICAL findings: stop and fix before proceeding.
 - Contract disputes discovered during review go back through explore/propose, never
   edited ad-hoc.
@@ -107,22 +107,25 @@ verify→finalize, and before any archive.
 | 标准说法 | 是什么 | 不是什么 |
 |----------|--------|---------|
 | **Skill 导航** | explore → propose → apply → verify → archive 的 agent 技能顺序 | **不是** Git-native 生命周期 |
-| **Git-native 生命周期** | Draft → Designed → Branch binding → Specs landing → apply → verify → finalize/archive | Specs landing 不是 skill |
-| **CLI 三态 `stage`** | `draft` / `designed` / `full` | full 仍可能 `readyToImplement=false` |
+| **Git-native 生命周期** | Draft → Designed → Planned → Branch binding → Specs landing → apply → verify → finalize/archive | Specs landing 不是 skill |
+| **CLI 四档 `stage`** | `draft`（仅 proposal）/ `designed`（+design）/ `planned`（+tasks）/ `full`（+绑定） | full 仍可能 `readyToImplement=false` |
 | **Branch binding** | `change start`/`attach` 绑定非默认 `sdd/<id>` 分支 + `base_sha` | 不等于 Specs landing，不等于可 apply |
-| **Specs landing** | 在绑定分支编辑 `llmanspec/specs/**/<capability>.feature` 并留相对 base_sha 的 diff | 不是在默认分支改 live specs |
-| **`skip_specs_landing`** | frontmatter 豁免：本次无 live 合约变更 | 不是跳过 Branch binding |
-| **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ skip_specs_landing)` | 用 `show --json` 查 |
-| **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于有效范围（现算 merge-base，见 spec-format r135） | 新增规则无需 ack；改/删须在 proposal frontmatter 的 `rules_touched: [<req-id>]` 列出被改规则（legacy `rules_edit_acked: true` 兼容读取） |
+| **Specs landing** | 在绑定分支编辑 `llmanspec/specs/**`（目录级 add/remove/update 任一）并留相对 merge-base 的 diff；frontmatter `needs_specs_change`（缺省 true）声明是否检查 | 不是在默认分支改 live specs |
+| **`needs_specs_change`** | 正向 frontmatter 字段（缺省 true）：true → 绑定分支必须留 specs 目录改动；false → 跳过检查 | `skip_specs_landing` 已移除（出现即 ERROR），不是跳过 Branch binding |
+| **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ needs_specs_change=false)` | 用 `show --json` 查 |
+| **`change checkpoint`** | 已移除（r25）：任何调用报错指向 `change finalize` | 不是 auto-WIP；finalize 负责收口 |
+| **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于有效范围（现算 merge-base，见 spec-format r135） | 新增规则无需 ack；改/删须在 proposal frontmatter 的 `rules_touched: [<req-id>]` 列出被改规则；`--yes` 仅对带 `@agent` 标记的规则生效（审计写入 `agent_acked`） |
+| **分支提交自由** | change 分支上提交自由：分段 commit 或 finalize 单次收尾均可；finalize 自动提交 `archive(sdd): <id>`（`--no-commit` 可跳过） | 不是必须 checkpoint；`--amend` 由用户自行处理 |
 
 线性流程：
 
 ```
 draft [proposal.md]
-  → designed [+design+tasks]
+  → designed [+design.md]
+  → planned [+tasks.md]
   → bound [change start|attach]
   → specs-landed [绑定分支编辑 <capability>.feature 并 commit]
-  → apply → verify → finalize/archive
+  → apply → verify → finalize/archive（自动提交收尾）
 ```
 
 ### 单轨格式（spec-format r131-r136, r141）

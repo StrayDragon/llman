@@ -17,13 +17,12 @@ rules, context, or conventions that AI agents should follow.
 | `depends_on` | 是（CLI 骨架默认 `[]`） | agent | 依赖的其他 change id 列表 |
 | `blocks` | 否 | agent | 反向依赖（阻塞哪些 change） |
 | `branch` | 否 | **CLI**（`change start`/`attach`） | attach binding 的 feature 分支 |
-| `base_sha`（或 `baseSha`） | 否 | **CLI** | attach binding 的 base SHA |
-| `checkpointed` | 否 | **CLI**（`checkpoint`） | 是否已 checkpoint |
-| `checkpoint_sha`（或 `checkpointSha`） | 否 | **CLI** | checkpoint 的 SHA |
-| `skip_specs_landing` | 否 | agent | `true` 时无 live `llmanspec/specs/**` 变更也可 `readyToImplement` |
-| `rules_edit_acked` | 否 | 人工确认后由 agent 写入 | `true` 时允许本 change 修改/删除锁定的 `@human` 规则场景（spec-format r135） |
+| `base_sha` | 否 | **CLI** | attach binding 的 base SHA（`baseSha` 别名已移除，出现即 ERROR） |
+| `needs_specs_change` | 否（缺省 `true`） | agent | `false` 时跳过「绑定分支是否改动 `llmanspec/specs/`」检查（r1） |
+| `rules_touched` | 否 | agent / **CLI**（收尾确认、`finalize --yes`） | 本 change 声明会改动的锁定 `@human` 规则 req-id 列表（r135） |
+| `agent_acked` | 否 | **CLI**（`--yes`） | 审计：经 agent 确认的锁定规则 req-id（review/diff 浮现） |
 
-> **生命周期阶段不是 frontmatter 字段**：它由 `determine_stage`（r93）实时从磁盘 artifacts 推断（Draft/Designed/Full），用 `llman sdd show` / `llman sdd list` 查看。`status` 字段已废弃——不要再写进 frontmatter，CLI 会拒绝。
+> **生命周期阶段不是 frontmatter 字段**：它由 `determine_stage`（r93）实时从磁盘 artifacts 推断四档（Draft/Designed/Planned/Full），用 `llman sdd show` / `llman sdd list` 查看。`status` 字段已废弃——不要再写进 frontmatter，CLI 会拒绝。`checkpointed`/`checkpoint_sha`/`skip_specs_landing`/`rules_edit_acked` 已移除（出现即 ERROR）。
 
 ### 正文写作约束
 

@@ -27,7 +27,7 @@ flowchart LR
     style apply fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are at Git-native **H (apply)** in the full lifecycle diagram: Specs-landed (or `skip_specs_landing`) and `readyToImplement=true` required first → next: `llman-sdd-verify`
+> 📍 You are at Git-native **H (apply)** in the full lifecycle diagram: Specs-landed (or `needs_specs_change: false`) and `readyToImplement=true` required first → next: `llman-sdd-verify`
 
 ## Hard Constraints
 

@@ -21,13 +21,13 @@ metadata:
    2) `design.md`（仅当涉及设计权衡时）
    3) `tasks.md`
    4) `llman sdd change start <id>`（或分支已存在时用 `change attach <id>`）——Branch binding
-   5) 在**绑定分支**上编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录主文件）并 commit——Specs landing（无合约变更可设 `skip_specs_landing: true`）
+   5) 在**绑定分支**上编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录主文件）并 commit——Specs landing（无合约变更可设 `needs_specs_change: false``）
 4. 只创建**一个**缺失 artifact（或在绑定分支上做一次 live spec/feature 编辑）。
    - continue 模式**不要**实现应用代码。
    - **不要**创建 `*.feature.delta.toon` 或 `changes/<id>/specs/` 下的文件。
    - **不要**在未 start/attach 前改公共 `llmanspec/specs/**`。
 5. 若所有 artifact 已齐全，按 `llman sdd show <id> --json` 建议下一步：
-   - `readyToImplement=false` → 先完成 Specs landing（或 `skip_specs_landing`）；**不要**建议 apply
+   - `readyToImplement=false` → 先完成 Specs landing（或 `needs_specs_change: false`）；**不要**建议 apply
    - `readyToImplement=true` → 实施：`llman-sdd-apply`
    - verify 之后 → 归档：`llman-sdd-archive`
    - 校验：`llman sdd validate <id> --strict --no-interactive`
