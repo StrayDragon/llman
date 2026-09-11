@@ -265,14 +265,32 @@ pub(crate) fn agent_marked_ids(root: &Path, candidates: &[String]) -> Vec<String
     out
 }
 
-/// `--yes` path (r135): write `rules_touched` + `agent_acked` for the
-/// `@agent`-marked subset of the undeclared ids. Plain `@human` rules are
-/// left alone — they still require human declaration.
-pub(crate) fn ack_agent_marked(root: &Path, change_id: &str, undeclared: &[String]) -> Result<()> {
-    let agent_ids = agent_marked_ids(root, undeclared);
-    if agent_ids.is_empty() {
+/// Interactive-confirmation path (r135): write ALL undeclared req-ids into
+/// `rules_touched` (human confirmed; no agent_acked audit).
+pub(crate) fn ack_all_undeclared(
+    root: &Path,
+    change_id: &str,
+    undeclared: &[String],
+) -> Result<()> {
+    if undeclared.is_empty() {
         return Ok(());
     }
+    upsert_frontmatter_id_list(root, change_id, "rules_touched", undeclared)?;
+    println!(
+        "acknowledged locked-rule edits (interactive): {}",
+        undeclared.join(", ")
+    );
+    Ok(())
+}
+
+/// Append ids to a frontmatter list field (deduplicated), rebuilding the
+/// proposal frontmatter. Shared by the interactive and `--yes` ack paths.
+fn upsert_frontmatter_id_list(
+    root: &Path,
+    change_id: &str,
+    key: &str,
+    ids: &[String],
+) -> Result<()> {
     let proposal = root
         .join(LLMANSPEC_DIR_NAME)
         .join("changes")
@@ -286,34 +304,29 @@ pub(crate) fn ack_agent_marked(root: &Path, change_id: &str, undeclared: &[Strin
     } else {
         serde_json::Map::new()
     };
-    let merge =
-        |map: &mut serde_json::Map<String, serde_json::Value>, key: &str, ids: &[String]| {
-            let mut existing: Vec<String> = map
-                .get(key)
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|i| i.as_str().map(str::to_string))
-                        .collect()
-                })
-                .unwrap_or_default();
-            for id in ids {
-                if !existing.iter().any(|x| x == id) {
-                    existing.push(id.clone());
-                }
-            }
-            map.insert(
-                key.to_string(),
-                serde_json::Value::Array(
-                    existing
-                        .into_iter()
-                        .map(serde_json::Value::String)
-                        .collect(),
-                ),
-            );
-        };
-    merge(&mut map, "rules_touched", &agent_ids);
-    merge(&mut map, "agent_acked", &agent_ids);
+    let mut existing: Vec<String> = map
+        .get(key)
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|i| i.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    for id in ids {
+        if !existing.iter().any(|x| x == id) {
+            existing.push(id.clone());
+        }
+    }
+    map.insert(
+        key.to_string(),
+        serde_json::Value::Array(
+            existing
+                .into_iter()
+                .map(serde_json::Value::String)
+                .collect(),
+        ),
+    );
     let yaml_out = serde_saphyr::to_string(&serde_json::Value::Object(map))?;
     let rebuilt = format!(
         "---\n{}\n---\n\n{}",
@@ -321,6 +334,19 @@ pub(crate) fn ack_agent_marked(root: &Path, change_id: &str, undeclared: &[Strin
         body.trim_start_matches('\n')
     );
     crate::fs_utils::atomic_write_with_mode(&proposal, rebuilt.as_bytes(), None)?;
+    Ok(())
+}
+
+/// `--yes` path (r135): write `rules_touched` + `agent_acked` for the
+/// `@agent`-marked subset of the undeclared ids. Plain `@human` rules are
+/// left alone — they still require human declaration.
+pub(crate) fn ack_agent_marked(root: &Path, change_id: &str, undeclared: &[String]) -> Result<()> {
+    let agent_ids = agent_marked_ids(root, undeclared);
+    if agent_ids.is_empty() {
+        return Ok(());
+    }
+    upsert_frontmatter_id_list(root, change_id, "rules_touched", &agent_ids)?;
+    upsert_frontmatter_id_list(root, change_id, "agent_acked", &agent_ids)?;
     println!(
         "--yes: acknowledged @agent-marked rules: {}",
         agent_ids.join(", ")
@@ -665,6 +691,31 @@ mod tests {
         assert_eq!(
             locked_ack_for(root, "c-touched"),
             LockedAck::Some(vec!["r131".into(), "r135".into()])
+        );
+    }
+
+    #[test]
+    fn ack_all_undeclared_writes_rules_touched() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let change_dir = root
+            .join(LLMANSPEC_DIR_NAME)
+            .join("changes")
+            .join("c-inter");
+        std::fs::create_dir_all(&change_dir).unwrap();
+        std::fs::write(
+            change_dir.join("proposal.md"),
+            "---\ndepends_on: []\nrules_touched: [r1]\n---\n## Why\nx\n",
+        )
+        .unwrap();
+        ack_all_undeclared(root, "c-inter", &["r5".into(), "r7".into()]).unwrap();
+        let content = std::fs::read_to_string(change_dir.join("proposal.md")).unwrap();
+        assert!(content.contains("rules_touched"));
+        assert!(content.contains("r5"));
+        assert!(content.contains("r7"));
+        assert!(
+            content.contains("r1"),
+            "existing ids must be preserved: {content}"
         );
     }
 

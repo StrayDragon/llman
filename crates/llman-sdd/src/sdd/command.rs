@@ -726,7 +726,7 @@ fn run_command(args: &SddArgs) -> Result<()> {
                 no_check,
                 no_commit,
                 yes,
-                no_interactive: _,
+                no_interactive,
             } => crate::sdd::change::finalize::run_finalize(
                 std::path::Path::new("."),
                 crate::sdd::change::finalize::FinalizeArgs {
@@ -734,6 +734,7 @@ fn run_command(args: &SddArgs) -> Result<()> {
                     no_check: *no_check,
                     no_commit: *no_commit,
                     yes: *yes,
+                    no_interactive: *no_interactive,
                 },
             ),
             SddChangeCommands::Diff {
