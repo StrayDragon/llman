@@ -1,5 +1,4 @@
 use crate::env_safety::validate_user_git_ref;
-use crate::git_utils::git_ref_exists;
 use crate::sdd::spec::validation::{SpecFrontmatter, ValidationIssue, ValidationLevel};
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -315,19 +314,15 @@ fn resolve_base_ref(root: &Path) -> Result<Option<String>, String> {
         })?;
         return Ok(Some(env_ref));
     }
-    if git_ref_exists(root, "origin/main") {
-        return Ok(Some("origin/main".to_string()));
+    // git-native-v2 D1: default = live merge-base of the local default branch
+    // with HEAD (work merged into main is blessed, no longer stale). The
+    // returned value is the merge-base SHA itself; `resolve_merge_base` on a
+    // commit that is an ancestor of HEAD is a no-op, and the diff base stays
+    // the fork point.
+    match crate::git_utils::effective_range_base(root) {
+        Ok(base) => Ok(Some(base)),
+        Err(_) => Ok(None),
     }
-    if git_ref_exists(root, "origin/master") {
-        return Ok(Some("origin/master".to_string()));
-    }
-    if git_ref_exists(root, "main") {
-        return Ok(Some("main".to_string()));
-    }
-    if git_ref_exists(root, "master") {
-        return Ok(Some("master".to_string()));
-    }
-    Ok(None)
 }
 
 fn resolve_merge_base(root: &Path, reference: &str) -> Result<String, String> {
@@ -447,9 +442,11 @@ mod tests {
     /// Regression for 5909cfc: `git_ref_exists` must NOT pass `--` before the
     /// ref, otherwise git treats the ref as a PATH and resolution always fails
     /// even when `origin/main` clearly exists. Build a real temp git repo with
-    /// an `origin/main` ref and assert it is resolved.
+    /// an `origin/main` ref and assert the git-native-v2 D1 local-first rule:
+    /// the local `main` merge-base wins over `origin/main` (range stays on the
+    /// local default branch; unpushed accumulation no longer drifts the base).
     #[test]
-    fn base_ref_resolves_when_origin_main_exists() {
+    fn base_ref_resolves_local_first_when_origin_main_exists() {
         let mut proc = crate::test_utils::TestProcess::new();
         proc.remove_var("LLMANSPEC_BASE_REF");
         let tmp = tempfile::TempDir::new().unwrap();
@@ -462,9 +459,41 @@ mod tests {
         // create origin/main as a remote-tracking ref pointing at the same commit
         run_test_git(root, &["remote", "add", "origin", root.to_str().unwrap()]);
         run_test_git(root, &["fetch", "-q", "origin"]);
-        // resolve and assert
+        // local main leads origin/main by one commit
+        run_test_git(
+            root,
+            &[
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@x",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "local-only",
+            ],
+        );
+        // resolve and assert: base = local main's merge-base (== local HEAD),
+        // NOT origin/main's.
         let evaluator = StalenessEvaluator::new(root);
-        assert_eq!(evaluator.base_ref.as_deref(), Some("origin/main"));
+        let base = evaluator.base_ref.clone().expect("base ref resolves");
+        assert_ne!(base, "origin/main");
+        let local_main = String::from_utf8(
+            std::process::Command::new("git")
+                .args(["rev-parse", "main"])
+                .current_dir(root)
+                .output()
+                .expect("git rev-parse main")
+                .stdout,
+        )
+        .unwrap()
+        .trim()
+        .to_string();
+        assert_eq!(
+            local_main, base,
+            "local-first: base must be the local main merge-base"
+        );
         assert!(
             evaluator.base_ref_invalid.is_none(),
             "expected no base-ref error, got {:?}",

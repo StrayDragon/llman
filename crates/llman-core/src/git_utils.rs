@@ -45,7 +45,17 @@ pub fn current_head_sha(root: &Path) -> Result<String> {
     run_git(root, &["rev-parse", "HEAD"])
 }
 
+/// Resolve the default branch ref, **local-first** (git-native-v2 D1): local
+/// `main` → local `master` → `origin/HEAD` target → `origin/main` →
+/// `origin/master`. The local ref is the anchor for all range semantics so
+/// long-lived local work without push never drifts the base (the previous
+/// origin-first order left every change's base at the last push position).
 pub fn resolve_default_branch_ref(root: &Path) -> Result<String> {
+    for candidate in ["main", "master"] {
+        if git_ref_exists(root, candidate) {
+            return Ok(candidate.to_string());
+        }
+    }
     if let Ok(sym) = run_git(root, &["symbolic-ref", "refs/remotes/origin/HEAD"])
         && let Some(name) = sym.strip_prefix("refs/remotes/origin/")
     {
@@ -57,12 +67,74 @@ pub fn resolve_default_branch_ref(root: &Path) -> Result<String> {
             return Ok(name.to_string());
         }
     }
-    for candidate in ["origin/main", "origin/master", "main", "master"] {
+    for candidate in ["origin/main", "origin/master"] {
         if git_ref_exists(root, candidate) {
             return Ok(candidate.to_string());
         }
     }
-    bail!("unable to resolve default branch (tried origin/main, origin/master, main, master)");
+    bail!("unable to resolve default branch (tried main, master, origin/main, origin/master)");
+}
+
+/// Local/remote divergence INFO hint (deduplicated per process): printed once
+/// when the resolved local default ref leads its `origin/*` counterpart, so
+/// users know the effective range base is ahead of the remote. `pub(crate)`
+/// only in core — callers outside the crate use [`effective_range_base`].
+fn hint_local_ahead_of_remote(root: &Path, default_ref: &str) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static HINT_SHOWN: AtomicBool = AtomicBool::new(false);
+    if HINT_SHOWN.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let Some(remote) = default_ref
+        .strip_prefix("main")
+        .map(|_| "origin/main")
+        .or_else(|| default_ref.strip_prefix("master").map(|_| "origin/master"))
+    else {
+        return;
+    };
+    if !git_ref_exists(root, remote) {
+        return;
+    }
+    let local_ahead = run_git(
+        root,
+        &["rev-list", "--count", &format!("{remote}..{default_ref}")],
+    )
+    .map(|s| s.trim().parse::<i64>().unwrap_or(0))
+    .unwrap_or(0);
+    if local_ahead <= 0 {
+        return;
+    }
+    let remote_ahead = run_git(
+        root,
+        &["rev-list", "--count", &format!("{default_ref}..{remote}")],
+    )
+    .map(|s| s.trim().parse::<i64>().unwrap_or(0))
+    .unwrap_or(0);
+    if remote_ahead > 0 {
+        eprintln!(
+            "INFO: local `{default_ref}` diverged from `{remote}` (local +{local_ahead}/remote +{remote_ahead}); range anchors use the local ref"
+        );
+    } else {
+        eprintln!(
+            "INFO: local `{default_ref}` is ahead of `{remote}` (+{local_ahead}); range anchors use the local ref"
+        );
+    }
+}
+
+/// Effective diff-range base (git-native-v2 D1): the **live** merge-base of
+/// the local default branch with HEAD, the single entry point for all range
+/// semantics (locked-rule gate, specs landing, change diff/commit count,
+/// staleness). Computing it on demand means the range always covers exactly
+/// the branch's own work and shrinks automatically after merge/rebase — no
+/// stored state, immune to unpushed accumulation. Fails when git is
+/// unavailable or no default ref exists; callers fall back to the stored
+/// base_sha (fail-open, same as the pre-v2 behavior).
+pub fn effective_range_base(root: &Path) -> Result<String> {
+    let default_ref = resolve_default_branch_ref(root)?;
+    if default_ref.starts_with("main") || default_ref.starts_with("master") {
+        hint_local_ahead_of_remote(root, &default_ref);
+    }
+    merge_base_sha(root, &default_ref)
 }
 
 // NOTE: do NOT insert `--` before `reference` here. `rev-parse --verify`
@@ -271,6 +343,99 @@ mod tests {
         assert!(
             branch.is_none(),
             "detached HEAD must map to None, got {branch:?}"
+        );
+    }
+
+    /// git-native-v2 D1: the default ref resolves LOCAL-first, and
+    /// `effective_range_base` = merge-base(local default, HEAD) — unpushed
+    /// local accumulation must NOT drift the range anchor to origin.
+    #[test]
+    fn effective_range_base_is_local_first_and_live() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path().join("repo");
+        init_repo_with_commit(&root);
+        // origin/main exists at the same commit; local main then moves ahead
+        // (long-lived local work, never pushed).
+        git(&root, &["remote", "add", "origin", root.to_str().unwrap()]);
+        git(&root, &["fetch", "-q", "origin"]);
+        git(
+            &root,
+            &[
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "--allow-empty",
+                "-qm",
+                "local-only",
+            ],
+        );
+        let local_main = run_git(&root, &["rev-parse", "main"]).unwrap();
+        assert_eq!(
+            resolve_default_branch_ref(&root).unwrap(),
+            "main",
+            "local main must win over origin/main"
+        );
+        assert_eq!(
+            effective_range_base(&root).unwrap(),
+            local_main,
+            "effective base must be the LOCAL main merge-base (== HEAD here)"
+        );
+        // On a feature branch fork point, the base is the live fork point.
+        git(&root, &["checkout", "-q", "-b", "sdd/c1"]);
+        git(
+            &root,
+            &[
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "--allow-empty",
+                "-qm",
+                "branch work",
+            ],
+        );
+        assert_eq!(
+            effective_range_base(&root).unwrap(),
+            local_main,
+            "fork point stays the live merge-base after branch commits"
+        );
+        // Merge main in: the base advances to the new main tip (range shrinks).
+        git(&root, &["checkout", "-q", "main"]);
+        git(
+            &root,
+            &[
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "--allow-empty",
+                "-qm",
+                "main moves again",
+            ],
+        );
+        let new_main = run_git(&root, &["rev-parse", "main"]).unwrap();
+        git(&root, &["checkout", "-q", "sdd/c1"]);
+        git(
+            &root,
+            &[
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "merge",
+                "-q",
+                "--no-edit",
+                "main",
+            ],
+        );
+        assert_eq!(
+            effective_range_base(&root).unwrap(),
+            new_main,
+            "after merge, base must shrink to the new main tip (merge-base)"
         );
     }
 }

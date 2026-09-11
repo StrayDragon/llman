@@ -426,6 +426,43 @@ fn compute_dag_issues_for_single(
     all_dag_issues.get(change_id).cloned().unwrap_or_default()
 }
 
+/// Strict change-validation issues for `show` gateChecks (design §4.2 fast
+/// path): no printing, no BDD check, no skill-hygiene sweep. Mirrors
+/// `validate <change> --strict --no-check` for the change itself.
+pub(crate) fn collect_change_issues_fast(root: &Path, change_id: &str) -> Vec<ValidationIssue> {
+    let all_change_ids = list_changes(root).unwrap_or_default();
+    let archived_change_ids = list_archived_changes(root).unwrap_or_default();
+    let has_frozen = has_frozen_archive(root);
+    let Ok(change_dir) = resolve_change_dir(root, change_id) else {
+        return Vec::new();
+    };
+    let dag_issues = compute_dag_issues_for_single(
+        root,
+        change_id,
+        &all_change_ids,
+        &archived_change_ids,
+        has_frozen,
+    );
+    let config = load_required_config(&root.join(LLMANSPEC_DIR_NAME)).ok();
+    let archive_config = config
+        .as_ref()
+        .map(|c| c.archive_config())
+        .unwrap_or_default();
+    let bdd_on = config.as_ref().map(|c| c.bdd.is_some()).unwrap_or(false);
+    validate_change_full(
+        &change_dir,
+        &all_change_ids,
+        &archived_change_ids,
+        has_frozen,
+        true, // strict
+        None, // no stage override
+        &dag_issues,
+        &archive_config,
+        bdd_on,
+    )
+    .issues
+}
+
 #[allow(clippy::too_many_arguments)]
 fn validate_change_full(
     change_dir: &Path,
@@ -493,16 +530,22 @@ fn validate_change_full(
     }
 
     // Locked-rule integrity on the strict change path (spec-format r135):
-    // only when bound to a non-default branch.
+    // only when bound to a non-default branch. Range base = live
+    // merge-base against the local default branch (git-native-v2 D1),
+    // falling back to the stored attach base_sha (fail-open).
     if let Some(root) = crate::sdd::change::specs_landing::repo_root_from_change_dir(change_dir)
         && frontmatter
             .base_sha
             .as_deref()
             .is_some_and(|b| !b.trim().is_empty())
     {
-        let acked = frontmatter.rules_edit_acked;
-        let base = frontmatter.base_sha.clone().unwrap_or_default();
-        for issue in crate::sdd::change::lock_gate::check(root, base.trim(), acked) {
+        let ack = crate::sdd::change::lock_gate::LockedAck::from_frontmatter(&frontmatter);
+        let base = crate::sdd::change::lock_gate::effective_range_base(
+            root,
+            frontmatter.base_sha.as_deref(),
+        )
+        .unwrap_or_default();
+        for issue in crate::sdd::change::lock_gate::check(root, base.trim(), &ack) {
             issues.push(issue);
         }
     }

@@ -50,9 +50,13 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         crate::sdd::change::git_native::enforce_bdd_archive_gates_relaxed(root, &change_name)?;
 
     // Locked-rule integrity (spec-format r135): @human scenarios under
-    // llmanspec/specs/** must be untouched vs base_sha unless acked.
-    let acked = crate::sdd::change::lock_gate::rules_edit_acked_for(root, &change_name);
-    let lock_issues = crate::sdd::change::lock_gate::check(root, &binding.base_sha, acked);
+    // llmanspec/specs/** must be untouched vs the effective range base
+    // (git-native-v2 D1: live merge-base, fallback stored base_sha) unless
+    // acked via rules_touched / legacy rules_edit_acked.
+    let ack = crate::sdd::change::lock_gate::locked_ack_for(root, &change_name);
+    let base = crate::sdd::change::lock_gate::effective_range_base(root, Some(&binding.base_sha))
+        .unwrap_or_else(|_| binding.base_sha.clone());
+    let lock_issues = crate::sdd::change::lock_gate::check(root, &base, &ack);
     for issue in &lock_issues {
         match issue.level {
             crate::sdd::spec::validation::ValidationLevel::Error => {
@@ -118,7 +122,11 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
 
     // r137: show commits since base; non-blocking hint when > 1 (printed
     // before the merge so the operator sees it ahead of the archive rename).
-    crate::sdd::change::git_native::print_commit_count(root, &binding.base_sha)?;
+    crate::sdd::change::git_native::print_commit_count(
+        root,
+        &crate::sdd::change::lock_gate::effective_range_base(root, Some(&binding.base_sha))
+            .unwrap_or_else(|_| binding.base_sha.clone()),
+    )?;
 
     // Docs-only archive rename + auto ff-merge (r94 / r113).
     //

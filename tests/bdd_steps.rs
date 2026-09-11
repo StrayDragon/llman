@@ -781,7 +781,14 @@ fn given_change_with_artifacts_and_attach(change: String, attached: String) {
     );
     std::fs::write(change_dir.join("proposal.md"), proposal).expect("write fixture proposal");
     std::fs::write(change_dir.join("design.md"), "# Design\nr93 fixture.\n").expect("write design");
-    std::fs::write(change_dir.join("tasks.md"), "- [ ] t1\n").expect("write tasks");
+    // git-native-v2 gateChecks: the skip variant must pass EVERY gate (incl.
+    // tasks-done) so `readyToImplement=true` keeps holding — mark tasks done.
+    let tasks = if attach_flag == "skip" {
+        "- [x] t1\n"
+    } else {
+        "- [ ] t1\n"
+    };
+    std::fs::write(change_dir.join("tasks.md"), tasks).expect("write tasks");
 
     if bound {
         // Attached changes live on their binding branch: create it and commit
@@ -789,7 +796,8 @@ fn given_change_with_artifacts_and_attach(change: String, attached: String) {
         // empty (specsLanded=false for r93 show scenarios) while diff plumbing
         // (r137 commitCount) has real refs to work with. The final base_sha
         // rewrite stays dirty in the working tree and is invisible to
-        // committed-diff based signals.
+        // committed-diff based signals — EXCEPT the skip variant, which must
+        // be clean (and committed) to pass the clean-tree gate (git-native-v2).
         run_fixture_git(&dir, &["checkout", "-q", "-b", &format!("feat/{change}")]);
         run_fixture_git(&dir, &["add", "-A"]);
         run_fixture_git(
@@ -804,6 +812,10 @@ fn given_change_with_artifacts_and_attach(change: String, attached: String) {
             proposal_body.replace(base_sha_placeholder, &head),
         )
         .expect("rewrite fixture base_sha");
+        if attach_flag == "skip" {
+            run_fixture_git(&dir, &["add", "-A"]);
+            run_fixture_git(&dir, &["commit", "-qm", "fixture skip binding"]);
+        }
     }
 }
 
@@ -818,6 +830,84 @@ fn current_fixture_head(dir: &std::path::Path) -> String {
     )
     .trim()
     .to_string()
+}
+
+/// Git-native v2 D1 fixture: emulates the accumulation-immune lock-gate
+/// regression on a real git history — a previous change's locked-rule edit is
+/// ff-merged into the local default branch, then THIS change binds (stored
+/// base_sha = pre-merge merge-base), the default branch moves again with a
+/// second rule edit, and this change merges it back. Zero push anywhere; the
+/// change itself edits no rules and declares no ack. Under the new live
+/// merge-base anchor the gate must stay green; the stored base_sha range
+/// would have flagged the merged edits (blanket-ack era).
+#[given("变更 {change} 绑定于先前规则编辑已合入默认分支零推送的历史")]
+fn given_change_bound_after_prior_rule_merge(change: String) {
+    let dir = fixture_cwd();
+    let default = String::from_utf8_lossy(
+        &Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(&dir)
+            .output()
+            .expect("git branch name fixture")
+            .stdout,
+    )
+    .trim()
+    .to_string();
+
+    // 1) Previous change's locked-rule edit on a side branch, ff-merged into
+    //    the default branch (simulates an archived change's specs landing).
+    run_fixture_git(&dir, &["checkout", "-q", "-b", "feat/prev"]);
+    fixture_edit_r1(&dir, "(v2 by previous change)");
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(&dir, &["commit", "-qm", "prev-rule-edit"]);
+    run_fixture_git(&dir, &["checkout", "-q", &default]);
+    run_fixture_git(&dir, &["merge", "-q", "--ff-only", "feat/prev"]);
+
+    // 2) This change binds at the current merge-base (stored base_sha must
+    //    stay the PRE-merge anchor to prove accumulation immunity).
+    let base = current_fixture_head(&dir);
+    let change_id = change.trim().trim_matches('"');
+    run_fixture_git(
+        &dir,
+        &["checkout", "-q", "-b", &format!("feat/{change_id}")],
+    );
+    let change_dir = dir.join("llmanspec/changes").join(change_id);
+    std::fs::create_dir_all(&change_dir).expect("mkdir acc fixture change");
+    std::fs::write(
+        change_dir.join("proposal.md"),
+        format!(
+            "---\ndepends_on: []\nbranch: feat/{change_id}\nbase_sha: {base}\nskip_specs_landing: true\n---\n\n## Why\naccumulation-immunity fixture.\n\n## What Changes\n- No rule edits (prior edits already merged).\n"
+        ),
+    )
+    .expect("write fixture proposal");
+    std::fs::write(change_dir.join("design.md"), "# Design\nfixture.\n").expect("write design");
+    std::fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(&dir, &["commit", "-qm", "acc-next docs"]);
+
+    // 3) Default branch moves again with ANOTHER rule edit; this change merges
+    //    it back — merge-base advances, the stored anchor would now flag the
+    //    merged edit as this change's own violation.
+    run_fixture_git(&dir, &["checkout", "-q", &default]);
+    fixture_edit_r1(&dir, "(v3 on default)");
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(&dir, &["commit", "-qm", "later-rule-edit"]);
+    run_fixture_git(&dir, &["checkout", "-q", &format!("feat/{change_id}")]);
+    run_fixture_git(&dir, &["merge", "-q", "--no-edit", &default]);
+}
+
+/// Rewrite the seeded `sample` capability's locked rule statement (changes the
+/// normalized lock hash without touching the tag grammar). Idempotent across
+/// repeated edits: each pass appends its own marker to the base sentence, so
+/// the hash moves every time regardless of prior markers.
+fn fixture_edit_r1(dir: &std::path::Path, suffix: &str) {
+    let feature_path = dir.join("llmanspec/specs/sample/sample.feature");
+    let mut body = std::fs::read_to_string(&feature_path).expect("read seeded feature");
+    body = body.replace(
+        "System MUST cover R1",
+        &format!("System MUST cover R1 {suffix}"),
+    );
+    std::fs::write(&feature_path, body).expect("rewrite locked rule");
 }
 
 fn run_fixture_git(dir: &std::path::Path, args: &[&str]) {

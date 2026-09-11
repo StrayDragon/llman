@@ -23,7 +23,7 @@
 ```
 
 - 头注释（`# capability:` / `# purpose:` / `# scope:`）必填；`scope` 驱动 staleness 检查。
-- `@human` 场景是人拥有的约束场景；规则 statement 全文放在场景描述里。修改/删除须在 change 提案 frontmatter 中带 `rules_edit_acked: true`。
+- `@human` 场景是人拥有的约束场景；规则 statement 全文放在场景描述里。修改/删除须在 change 提案 frontmatter 中带 `rules_touched: [<req-id>]`（列出被改动的 req-id）；legacy `rules_edit_acked: true`（全量豁免）仍兼容读取。
 - `@executable` 场景是 runner 绑定的验收场景；用 `@req:<req_id>` 挂回规则。
 - 覆盖三态分级：enforced（有验收）/ manual（`@manual`）/ pending——`list --specs` 逐项输出。
 - 场景 MUST 保持顶层：`Rule:` 块会被拒绝（runner 会静默跳过其中场景）。

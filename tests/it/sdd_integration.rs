@@ -1302,8 +1302,10 @@ fn test_sdd_list_shows_stage_column() {
     assert_eq!(stage, "draft", "JSON output should contain stage field");
 }
 
-/// A full change with attach binding MUST report `stage: full`. Without a live
-/// specs diff (or `skip_specs_landing`), `readyToImplement` stays false.
+/// A full change with attach binding MUST report `stage: full`. Under the
+/// git-native-v2 gateChecks semantics `readyToImplement` is true only when
+/// EVERY gate passes — clean tree, on the bound branch, tasks done, plus a
+/// `skip_specs_landing` exemption for the missing live specs diff.
 #[test]
 fn test_sdd_show_change_full_stage_ready_to_implement() {
     let env = TestEnvironment::new();
@@ -1316,16 +1318,36 @@ fn test_sdd_show_change_full_stage_ready_to_implement() {
     );
     assert_success(&init_output);
 
+    // Real git repo with a seeded commit so gate plumbing has refs to work with.
+    let git_repo = Command::new("git")
+        .args(["init", "-q", "-b", "main"])
+        .current_dir(work_dir)
+        .output()
+        .expect("git init");
+    assert_success(&git_repo);
+    git_commit_all(work_dir, "seed");
+    // Bound branch for the change.
+    let branch_out = Command::new("git")
+        .args(["checkout", "-q", "-b", "feat/x"])
+        .current_dir(work_dir)
+        .output()
+        .expect("git checkout branch");
+    assert_success(&branch_out);
+
     let llmanspec_dir = work_dir.join("llmanspec");
     let change_dir = llmanspec_dir.join("changes").join("full-change");
     fs::create_dir_all(&change_dir).expect("create change dir");
+    let head = git_head(work_dir).expect("branch tip");
     fs::write(
         change_dir.join("proposal.md"),
-        "---\nbranch: feat/x\nbase_sha: abc123\nskip_specs_landing: true\n---\n# Proposal\n\n## Why\nFull change.\n\n## What Changes\n- Add behavior.\n",
+        format!(
+            "---\nbranch: feat/x\nbase_sha: {head}\nskip_specs_landing: true\n---\n# Proposal\n\n## Why\nFull change.\n\n## What Changes\n- Add behavior.\n"
+        ),
     )
     .expect("write proposal");
     fs::write(change_dir.join("design.md"), "# Design\nTrivial.\n").expect("write design");
-    fs::write(change_dir.join("tasks.md"), "- [ ] implement\n").expect("write tasks");
+    fs::write(change_dir.join("tasks.md"), "- [x] implement\n").expect("write tasks");
+    git_commit_all(work_dir, "change docs");
 
     let show_output = run_llman(
         &[
@@ -1346,6 +1368,26 @@ fn test_sdd_show_change_full_stage_ready_to_implement() {
     assert_eq!(show_json["skipSpecsLanding"], true);
     assert_eq!(show_json["readyToImplement"], true);
     assert_eq!(show_json["specsLanded"], false);
+    // gateChecks present; hint is empty exactly when pass=true.
+    let gates = show_json["gateChecks"]
+        .as_array()
+        .expect("gateChecks array");
+    assert_eq!(gates.len(), 7);
+    for gate in gates {
+        assert!(gate["name"].is_string());
+        assert!(gate["pass"].is_boolean());
+        assert_eq!(
+            gate["pass"] == serde_json::Value::Bool(true),
+            gate["hint"].as_str().map(|h| h.is_empty()).unwrap_or(false),
+            "hint must be empty iff pass: {gate}"
+        );
+    }
+    assert!(
+        gates
+            .iter()
+            .all(|g| g["pass"] == serde_json::Value::Bool(true)),
+        "all gates must pass: {gates:?}"
+    );
 }
 
 /// A draft change (proposal-only) under non-strict validate MUST surface the
