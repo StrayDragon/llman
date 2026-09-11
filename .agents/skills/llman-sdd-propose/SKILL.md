@@ -47,7 +47,7 @@ flowchart TB
 
 硬规则：
 1. **先** `change start` / `attach`（Branch binding / 分支绑定）进入 Full；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（Specs landing / 合约落地）。
-2. 无 live 合约变更时可设 frontmatter `skip_specs_landing: true`。进入 apply 前 `llman sdd show <id> --json` 的 `readyToImplement` 须为 true（`Full ∧ gateChecks 全过`；specs-landed 项 = `specsLanded ∨ skip`；一切范围 = 现算 merge-base，存储 `base_sha` 仅审计）。
+2. 无 live 合约变更时可设 frontmatter `needs_specs_change: false``。进入 apply 前 `llman sdd show <id> --json` 的 `readyToImplement` 须为 true（`Full ∧ gateChecks 全过`；specs-landed 项 = `specsLanded ∨ skip`；一切范围 = 现算 merge-base，存储 `base_sha` 仅审计）。
 3. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
 # 人读摘要（强制）
 
@@ -84,7 +84,7 @@ flowchart LR
 
 - **change 已存在**：STOP。若 `readyToImplement=true`，建议 `llman-sdd-apply`；否则补完规划壳 / Branch binding / Specs landing（编辑 `llmanspec/changes/<id>/`，或在配置启用 `extra_skills: [llman-sdd-continue]`）。
 
-- **frontmatter 有固定 schema**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段（含 `depends_on`、`blocks`、`branch`、`base_sha`/`baseSha`、`checkpointed`、`checkpoint_sha`/`checkpointSha`、`skip_specs_landing`）。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（用 `llman sdd show`/`list` 查询），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 是人类可读标题，不是 change id 的复读。
+- **frontmatter 有固定 schema**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段（含 `depends_on`、`blocks`、`branch`、`base_sha`/`baseSha`、`checkpointed`、`checkpoint_sha`/`checkpointSha`、`needs_specs_change: false`）。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（用 `llman sdd show`/`list` 查询），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 是人类可读标题，不是 change id 的复读。
 
 ## 快速记录分流
 
@@ -124,7 +124,7 @@ flowchart LR
    - `tasks.md`：按**垂直切片**拆分（每个 task 打穿 schema→API→UI→tests 一条窄而完整的路径，可独立验证），并带 `[blocked-by: <task-id>]` 依赖标记。**大范围重构例外**（一个机械改动扫全库、单点编辑牵动大量调用处）：按 expand-contract 排序（旧的旁边加新的 → 分批迁移调用处 → 删掉旧的），不强拆垂直切片。
    - **先** `llman sdd change start <change-id>`（推荐；默认分支上工作树干净时）或手动建分支后 `change attach <change-id>` 到达 Full（bound）。
    - **然后**在绑定的非默认分支上编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件）并 commit（Specs landing）。**不要**在 start 之前改 live specs；**不要**为过干净树门禁把 live specs commit 到默认分支。已 attach 时勿重复 `start`（丢失 specs 时用 checkout/重建 + `attach --force` 恢复）。
-   - 无 live 合约编辑的 change，设置 frontmatter `skip_specs_landing: true`。仅当 `llman sdd show <id> --json` 给出 `readyToImplement=true` 才进入 apply。
+   - 无 live 合约编辑的 change，设置 frontmatter `needs_specs_change: false``。仅当 `llman sdd show <id> --json` 给出 `readyToImplement=true` 才进入 apply。
 
 ### 4) 校验：
    ```bash
@@ -175,7 +175,7 @@ flowchart LR
 Git-native 护栏：
 - **Branch binding** → **Specs landing**：先 `change start` / `attach`，再在绑定的非默认分支编辑 live `.feature` 并 commit。
 - 锁定规则：修改/删除既有 `@human` 场景会触发门禁，除非 proposal frontmatter 的 `rules_touched` 列出被改动的 req-id（legacy `rules_edit_acked: true` 全量豁免仍兼容读取）。
-- apply 前须 `readyToImplement=true`（或 `skip_specs_landing`）。收尾优先 `change finalize`。
+- apply 前须 `readyToImplement=true`（或 `needs_specs_change: false`）。收尾优先 `change finalize`。
 - 勿使用 `change delta` / solidify / `*.feature.delta.toon`。
 
 ## Context

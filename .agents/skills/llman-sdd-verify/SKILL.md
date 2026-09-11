@@ -37,13 +37,14 @@ flowchart LR
 llman sdd show <id> --json --type change
 ```
 
-解读字段：`stage`、`specsLanded`、`skipSpecsLanding`、`readyToImplement`、`gateChecks`（逐项 `pass` + 未过时一行 `hint`）。
+解读字段：`stage`、`specsLanded`、`needsSpecsChange`、`readyToImplement`、`gateChecks`（逐项 `pass` + 未过时一行 `hint`）。
 
 | 条件 | 动作 |
 |------|------|
-| `stage=draft`（仅 proposal.md） | STOP。长大到 Designed（proposal + tasks；design 按需）→ Branch binding → Specs landing。draft 不能直接 apply/verify。若已有 proposal+design+tasks 仍是 `draft`：未 start/attach —— 在默认分支干净树跑 `change start`，或手动建分支后 `change attach`。**不要**建 `changes/<id>/specs/`，**不要**先在默认分支改 live specs。 |
-| `stage=designed` | STOP。先 `change start` / `attach`（Branch binding）。 |
-| `stage=full` 且 `readyToImplement=false` | STOP。在**绑定分支**完成 Specs landing（编辑 `llmanspec/specs/**` 并 commit），或设 `skip_specs_landing`。**不要**再跑 `change start`。丢失绑定分支 specs → checkout/重建 + 必要时 `attach --force`。 |
+| `stage=draft`（仅 proposal.md） | STOP。长大到 Designed（补 design.md）→ Planned（补 tasks.md）→ Branch binding → Specs landing。draft 不能直接 apply/verify。若已有 proposal+design+tasks 仍是 `draft`：tasks 无 design 需先补 design.md。**不要**建 `changes/<id>/specs/`，**不要**先在默认分支改 live specs。 |
+| `stage=designed`（proposal + design） | 下一步：补 tasks.md → `planned`。规划工件齐全后再 `change start` / `attach`（Branch binding）。 |
+| `stage=planned`（proposal + design + tasks） | STOP 直到绑定：跑 `change start` / `attach`（Branch binding）→ `full`。 |
+| `stage=full` 且 `readyToImplement=false` | STOP。在**绑定分支**完成 Specs landing（编辑 `llmanspec/specs/**` 并 commit），或设 `needs_specs_change: false`。**不要**再跑 `change start`。丢失绑定分支 specs → checkout/重建 + 必要时 `attach --force`。 |
 | `readyToImplement=true` | 可通过 apply/verify 前置检查。`changes/<id>/specs/` 预期**不存在**，勿当缺失。 |
 ## 步骤
 1. 确定 change id（不明确时让用户从 `llman sdd list --json` 选择）。
@@ -87,7 +88,7 @@ llman sdd show <id> --json --type change
 
 硬规则：
 1. **先** Branch binding（`change start` / `attach`）→ Full；**再** Specs landing（绑定分支编辑并 commit `llmanspec/specs/**`）。
-2. 无 live 合约变更 → `skip_specs_landing: true`。apply 前须 `readyToImplement=true`。
+2. 无 live 合约变更 → `needs_specs_change: false``。apply 前须 `readyToImplement=true`。
 3. **禁止**在默认分支 commit live specs；已 attach 勿重复 `start`。
 # 人读摘要（强制）
 
@@ -123,7 +124,7 @@ llman sdd show <id> --json --type change
 Git-native 护栏：
 - **Branch binding** → **Specs landing**：先 `change start` / `attach`，再在绑定的非默认分支编辑 live `.feature` 并 commit。
 - 锁定规则：修改/删除既有 `@human` 场景会触发门禁，除非 proposal frontmatter 的 `rules_touched` 列出被改动的 req-id（legacy `rules_edit_acked: true` 全量豁免仍兼容读取）。
-- apply 前须 `readyToImplement=true`（或 `skip_specs_landing`）。收尾优先 `change finalize`。
+- apply 前须 `readyToImplement=true`（或 `needs_specs_change: false`）。收尾优先 `change finalize`。
 - 勿使用 `change delta` / solidify / `*.feature.delta.toon`。
 
 ## Context

@@ -239,7 +239,7 @@
   @req:r135
   场景: yes-acks-agent-marked-rule-edit
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
-    而且 变更 yes-agent 绑定且编辑了 @agent 的锁定规则
+    而且 变更 yes-agent 绑定且编辑了规则 @agent
     当 在非交互终端运行 llman sdd validate yes-agent --strict --no-check --yes
     那么 退出码为零
 
@@ -248,7 +248,7 @@
   @req:r135
   场景: yes-rejects-plain-rule-edit
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
-    而且 变更 yes-plain 绑定且编辑了普通锁定规则
+    而且 变更 yes-plain 绑定且编辑了规则 普通
     当 在非交互终端运行 llman sdd validate yes-plain --strict --no-check --yes
     那么 退出码非零
     那么 stderr 包含 r1

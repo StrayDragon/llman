@@ -7,7 +7,7 @@ metadata:
 
 # LLMAN SDD 归档
 
-使用此 skill 归档已完成的变更。前置：verify 全绿，且变更已 Branch binding、Specs landing 完成（或 `skip_specs_landing`；归档时 live specs 已在绑定分支上）。archive/finalize **自动 ff-merge** 到默认分支，**再将** change 文档改名到 `changes/archive/`（脏改名留一次 `git commit`）。`git push` / Hosting PR 仅为可选。
+使用此 skill 归档已完成的变更。前置：verify 全绿，且变更已 Branch binding、Specs landing 完成（或 `needs_specs_change: false`；归档时 live specs 已在绑定分支上）。archive/finalize **自动 ff-merge** 到默认分支，**再将** change 文档改名到 `changes/archive/`（脏改名留一次 `git commit`）。`git push` / Hosting PR 仅为可选。
 
 ## Pipeline 位置
 
@@ -64,7 +64,7 @@ flowchart LR
   - **Fallback：多 commit 时序（`checkpoint` + `archive`）**——需要严格 `checkpoint_sha`、或想中途 review 实现快照时使用：
     ```text
     1. git commit   # 提交 live specs + 代码（让工作区干净，checkpoint 才能跑）
-    2. llman sdd change checkpoint <id>   # 写入 checkpointed / checkpoint_sha（指向实现 commit HEAD）
+    2. llman sdd change finalize <id>    # 自动提交 `archive(sdd): <id>`（r25）
     3. git commit   # 提交 proposal.md 的 checkpoint 元数据
     4. llman sdd change archive <id>      # ff-merge + 文档改名
     5. git commit   # 提交 archive 改名
@@ -113,7 +113,7 @@ flowchart LR
 Git-native 护栏：
 - **Branch binding** → **Specs landing**：先 `change start` / `attach`，再在绑定的非默认分支编辑 live `.feature` 并 commit。
 - 锁定规则：修改/删除既有 `@human` 场景会触发门禁，除非 proposal frontmatter 的 `rules_touched` 列出被改动的 req-id（legacy `rules_edit_acked: true` 全量豁免仍兼容读取）。
-- apply 前须 `readyToImplement=true`（或 `skip_specs_landing`）。收尾优先 `change finalize`。
+- apply 前须 `readyToImplement=true`（或 `needs_specs_change: false`）。收尾优先 `change finalize`。
 - 勿使用 `change delta` / solidify / `*.feature.delta.toon`。
 
 ## Context
