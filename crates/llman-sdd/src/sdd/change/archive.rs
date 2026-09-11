@@ -434,8 +434,6 @@ mod tests {
         let binding = crate::sdd::change::git_native::ChangeGitBinding {
             branch: "feat/x".to_string(),
             base_sha: "abc".to_string(),
-            checkpointed: true,
-            checkpoint_sha: Some("abc".into()),
         };
         crate::sdd::change::git_native::write_binding(root, "test-change", &binding).unwrap();
         git(root, &["add", "."]);
@@ -536,8 +534,6 @@ mod tests {
         let binding = crate::sdd::change::git_native::ChangeGitBinding {
             branch: "feat/x".to_string(),
             base_sha: "abc123".to_string(),
-            checkpointed: true,
-            checkpoint_sha: Some("abc123".into()),
         };
         crate::sdd::change::git_native::write_binding(root, "test-change", &binding).unwrap();
         git(root, &["add", "."]);
@@ -598,8 +594,6 @@ mod tests {
         let binding = crate::sdd::change::git_native::ChangeGitBinding {
             branch: "feat/y".to_string(),
             base_sha: "abc123".to_string(),
-            checkpointed: true,
-            checkpoint_sha: Some("abc123".into()),
         };
         crate::sdd::change::git_native::write_binding(root, "test-change", &binding).unwrap();
         git(root, &["add", "."]);

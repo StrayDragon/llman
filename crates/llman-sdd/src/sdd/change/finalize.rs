@@ -1,21 +1,17 @@
-//! `llman sdd change finalize` — unified single-commit close-out.
+//! `llman sdd change finalize` — unified single-commit close-out (r25).
 //!
-//! Combines checkpoint (relaxed gates) + docs-only archive + ff-merge in one
-//! process, leaving a single dirty tree for one `git commit`. Differs from the
-//! `checkpoint` + `archive` pair in two ways (see [`run_finalize`] and the
-//! `Finalize` variant in `src/sdd/command.rs`):
-//!
-//! 1. Does NOT require a clean working tree — the implementation diff stays
-//!    dirty so it can be committed together with the finalize metadata.
-//! 2. Writes `checkpoint_sha = base_sha` (attach-time merge-base), NOT the
-//!    HEAD commit carrying the implementation. For the strict sha semantics,
-//!    use `change checkpoint` then `change archive`.
+//! Combines relaxed gates + locked-rule confirmation + ff-merge + docs-only
+//! archive rename in one process, then **auto-commits** the whole thing as
+//! `archive(sdd): <change-id>` (one commit bundling the implementation diff,
+//! frontmatter and rename). `--no-commit` skips the auto commit for
+//! CI / pre-commit-hook scenarios.
 
 use crate::sdd::change::archive::{archive_name_for, do_archive_rename, do_ff_merge};
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
-use anyhow::Result;
+use crate::sdd::spec::validation::ValidationIssue;
+use anyhow::{Result, bail};
 use std::path::Path;
 
 #[cfg(test)]
@@ -25,57 +21,156 @@ use std::process::Command;
 pub(crate) struct FinalizeArgs {
     pub(crate) change: String,
     pub(crate) no_check: bool,
+    pub(crate) no_commit: bool,
+    pub(crate) yes: bool,
+}
+
+/// Auto-commit the finalized tree as `archive(sdd): <change-id>`. Returns the
+/// commit sha when a commit was created, `None` when there was nothing staged.
+/// Failure (e.g. a pre-commit hook rejection) is surfaced as an error with
+/// recovery guidance — the merge/rename are NOT rolled back.
+fn auto_commit(root: &Path, change_id: &str) -> Result<Option<String>> {
+    crate::git_utils::run_git(root, &["add", "-A"])?;
+    let staged = crate::git_utils::run_git(root, &["diff", "--cached", "--name-only"])?;
+    if staged.trim().is_empty() {
+        return Ok(None);
+    }
+    let msg = format!("archive(sdd): {change_id}");
+    let out = crate::git_utils::run_git(root, &["commit", "-m", &msg]).map_err(|err| {
+        anyhow::anyhow!(
+            "auto-commit failed (pre-commit hook or identity?): {err}. \
+The archive rename is already done and NOT rolled back. \
+Finish manually: `git add -A && git commit -m \"{msg}\"`, \
+or re-run `llman sdd change finalize {change_id} --no-commit`."
+        )
+    })?;
+    // Last line of `git commit` is the short sha when not suppressed.
+    let sha = out
+        .lines()
+        .rev()
+        .find(|l| l.contains("["))
+        .map(|l| l.trim().to_string())
+        .unwrap_or_default();
+    Ok(Some(sha))
+}
+
+/// Locked-rule confirmation path (spec-format r135, see lock_gate.rs):
+/// - interactive: one y/n over the undeclared edits (writes rules_touched);
+/// - `--yes`: auto-writes only `@agent`-marked rules (agent_acked audit too);
+/// - otherwise non-interactive error listing the req-ids + copy-paste fix.
+fn confirm_locked_rules(root: &Path, change_id: &str, yes: bool) -> Result<()> {
+    let (issues, fm) = crate::sdd::spec::validation::check_proposal_frontmatter(
+        crate::sdd::shared::discovery::resolve_change_dir(root, change_id)?.as_path(),
+        &[],
+        &[],
+        false,
+    );
+    let _ = issues;
+    let Some(base_sha) = fm.base_sha.as_deref().filter(|b| !b.trim().is_empty()) else {
+        return Ok(());
+    };
+    let ack = crate::sdd::change::lock_gate::LockedAck::from_frontmatter(&fm);
+    let base = crate::sdd::change::lock_gate::effective_range_base(root, Some(base_sha))
+        .unwrap_or_else(|_| base_sha.to_string());
+    let lock_issues = crate::sdd::change::lock_gate::check(root, base.trim(), &ack);
+    if lock_issues
+        .iter()
+        .all(|i| i.level != crate::sdd::spec::validation::ValidationLevel::Error)
+    {
+        return Ok(());
+    }
+
+    let undeclared = crate::sdd::change::lock_gate::undeclared_ids(root, base.trim(), &ack);
+    if yes {
+        // --yes: acknowledge @agent-marked rules only; plain @human edits still error.
+        crate::sdd::change::lock_gate::ack_agent_marked(root, change_id, &undeclared)?;
+    }
+    // Re-check after any --yes write; remaining errors are plain @human edits.
+    let ack_after = crate::sdd::change::lock_gate::locked_ack_for(root, change_id);
+    let remaining: Vec<ValidationIssue> =
+        crate::sdd::change::lock_gate::check(root, base.trim(), &ack_after)
+            .into_iter()
+            .filter(|i| i.level == crate::sdd::spec::validation::ValidationLevel::Error)
+            .collect();
+    if !remaining.is_empty() {
+        eprintln!(
+            "locked @human scenarios were modified without human acknowledgement (spec-format r135):"
+        );
+        for issue in &remaining {
+            eprintln!("  {}", issue.message);
+        }
+        bail!(
+            "locked-rule gate failed: add `rules_touched: [<req-id>,...]` to proposal frontmatter, \
+or pass `--yes` to acknowledge @agent-marked rules"
+        );
+    }
+    Ok(())
 }
 
 /// Run `finalize` against a repo rooted at `root`.
 ///
-/// Order (see proposal §3 failure semantics):
-/// 1. Read binding; reject if not attached.
-/// 2. Relaxed gates (branch match, non-default, no legacy feature_delta).
-///    **No clean-tree check, no checkpointed check** — finalize owns those.
-/// 3. Idempotent check: if `checkpointed && checkpoint_sha.is_some()`, skip
-///    validate + write_binding and go straight to archive rename.
-/// 4. Otherwise: run validate (live strict + change stage; `--no-check` skips
-///    the BDD runner), then write `checkpointed=true` + `checkpoint_sha=base_sha`.
-/// 5. Docs-only archive rename.
+/// Order (design §5):
+/// 1. Idempotency: change already renamed into `changes/archive/` → finish a
+///    possibly-failed auto commit (unless `--no-commit`) and stop.
+/// 2. Relaxed gates (attach/branch/default/feature_delta). No clean-tree check.
+/// 3. Locked-rule confirmation (r135; `--yes` narrowing).
+/// 4. Validate (live strict + change stage; `--no-check` skips the BDD runner).
+/// 5. r137 commit count.
+/// 6. ff-merge to default branch + docs-only archive rename.
+/// 7. Auto `git commit -m "archive(sdd): <change-id>"` (skip with `--no-commit`).
 pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
-    let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
+    // Idempotency probes must survive an already-archived change: resolution
+    // against the active tree fails after the rename, so fall back to an exact
+    // match under `changes/archive/` before giving up.
+    let change_name =
+        match crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change) {
+            Ok(name) => name,
+            Err(err) => {
+                let archived = root
+                    .join(LLMANSPEC_DIR_NAME)
+                    .join("changes")
+                    .join("archive")
+                    .join(archive_name_for(&args.change));
+                if archived.exists() {
+                    args.change.clone()
+                } else {
+                    return Err(err);
+                }
+            }
+        };
     validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
     let _config = load_required_config(&llmanspec)?;
 
-    // Relaxed gates enforce attach/branch/default/feature_delta but skip
-    // clean-tree and `checkpointed` (finalize itself writes the latter).
-    let mut binding =
-        crate::sdd::change::git_native::enforce_bdd_archive_gates_relaxed(root, &change_name)?;
-
-    // Locked-rule integrity (spec-format r135): @human scenarios under
-    // llmanspec/specs/** must be untouched vs the effective range base
-    // (git-native-v2 D1: live merge-base, fallback stored base_sha) unless
-    // acked via rules_touched / legacy rules_edit_acked.
-    let ack = crate::sdd::change::lock_gate::locked_ack_for(root, &change_name);
-    let base = crate::sdd::change::lock_gate::effective_range_base(root, Some(&binding.base_sha))
-        .unwrap_or_else(|_| binding.base_sha.clone());
-    let lock_issues = crate::sdd::change::lock_gate::check(root, &base, &ack);
-    for issue in &lock_issues {
-        match issue.level {
-            crate::sdd::spec::validation::ValidationLevel::Error => {
-                eprintln!("{}", issue.message);
-                anyhow::bail!("locked-rule gate failed");
-            }
-            _ => eprintln!("{}", issue.message),
+    // 1. Idempotency: rename already done (previous run failed at the commit).
+    let changes_dir = llmanspec.join("changes");
+    let archive_dir = changes_dir.join("archive");
+    let archive_name = archive_name_for(&change_name);
+    // Idempotent probe BEFORE resolution: after the rename the active dir is
+    // gone and `resolve_change_dir` would error.
+    let change_dir = match crate::sdd::shared::discovery::resolve_change_dir(root, &change_name) {
+        Ok(dir) => dir,
+        Err(_) => changes_dir.join(&change_name),
+    };
+    if !change_dir.exists() && archive_dir.join(&archive_name).exists() {
+        eprintln!(
+            "change `{change_name}` was already finalized (archive `{archive_name}`); finishing the auto commit if needed"
+        );
+        if !args.no_commit {
+            auto_commit(root, &change_name)?;
         }
+        return Ok(());
     }
 
-    let already_checkpointed = binding.checkpointed && binding.checkpoint_sha.is_some();
-    if already_checkpointed {
-        eprintln!(
-            "change `{}` already checkpointed (checkpoint_sha={}); proceeding to archive rename",
-            change_name,
-            binding.checkpoint_sha.as_deref().unwrap_or(""),
-        );
-    } else {
-        // Fast + optional full validation of the live branch tree.
+    // 2. Relaxed gates.
+    let binding =
+        crate::sdd::change::git_native::enforce_bdd_archive_gates_relaxed(root, &change_name)?;
+
+    // 3. Locked-rule confirmation / acknowledgement.
+    confirm_locked_rules(root, &change_name, args.yes)?;
+
+    // 4. Validate (unless --no-check): live specs strict + change docs.
+    if !args.no_check {
         crate::sdd::commands::validate::run(
             root,
             crate::sdd::commands::validate::ValidateArgs {
@@ -89,12 +184,11 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
                 compact_json: false,
                 stage: None,
                 no_interactive: true,
-                check: !args.no_check,
-                no_check: args.no_check,
+                check: true,
+                no_check: false,
+                yes: false,
             },
         )?;
-
-        // Also validate the change documentation itself (proposal/tasks stage).
         crate::sdd::commands::validate::run(
             root,
             crate::sdd::commands::validate::ValidateArgs {
@@ -110,52 +204,49 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
                 no_interactive: true,
                 check: false,
                 no_check: true,
+                yes: false,
             },
         )?;
-
-        // Write frontmatter. checkpoint_sha = base_sha (single-commit semantics;
-        // the implementation commit has not happened yet so HEAD would be stale).
-        binding.checkpointed = true;
-        binding.checkpoint_sha = Some(binding.base_sha.clone());
-        crate::sdd::change::git_native::write_binding(root, &change_name, &binding)?;
     }
 
-    // r137: show commits since base; non-blocking hint when > 1 (printed
-    // before the merge so the operator sees it ahead of the archive rename).
+    // 5. r137: show commits since the effective base; non-blocking hint.
     crate::sdd::change::git_native::print_commit_count(
         root,
         &crate::sdd::change::lock_gate::effective_range_base(root, Some(&binding.base_sha))
             .unwrap_or_else(|_| binding.base_sha.clone()),
     )?;
 
-    // Docs-only archive rename + auto ff-merge (r94 / r113).
-    //
-    // Order is ff-merge THEN rename: merging after a dirty rename restores
-    // `changes/<id>/` from the feature tip. Merge first (dirty frontmatter /
-    // impl carry across), then rename on the default branch so one follow-up
-    // commit lands the archive move. On merge failure, still rename (no
-    // rollback) — `do_ff_merge` restores the feature branch best-effort.
-    let changes_dir = root.join(LLMANSPEC_DIR_NAME).join("changes");
-    let change_dir = crate::sdd::shared::discovery::resolve_change_dir(root, &change_name)?;
-    let archive_dir = changes_dir.join("archive");
-    let archive_name = archive_name_for(&change_name);
+    // 6. ff-merge THEN rename (merge first so the dirty impl/frontmatter carry
+    //    across; rename lands on the default branch). Merge failure still
+    //    renames (no rollback); `do_ff_merge` restores the feature branch
+    //    best-effort.
     let feature_branch = binding.branch.clone();
-
     do_ff_merge(root, &feature_branch, &change_name);
     do_archive_rename(&change_dir, &archive_dir, &archive_name)?;
 
-    println!(
-        "finalized change `{}` → archive `{archive_name}` on branch `{}` (checkpoint_sha=base_sha=`{}`)",
-        change_name, feature_branch, binding.base_sha,
-    );
-
-    let default_branch = crate::git_utils::resolve_default_branch_ref(root)
-        .map(|r| r.strip_prefix("origin/").unwrap_or(r.as_str()).to_string())
-        .unwrap_or_else(|_| "<default>".to_string());
-    println!(
-        "{}",
-        t!("sdd.archive.finalize_next_step", default = default_branch)
-    );
+    // 7. Auto commit (unless --no-commit).
+    if args.no_commit {
+        println!(
+            "finalized change `{change_name}` → archive `{archive_name}` on branch `{feature_branch}`"
+        );
+        let default_branch = crate::git_utils::resolve_default_branch_ref(root)
+            .map(|r| r.strip_prefix("origin/").unwrap_or(r.as_str()).to_string())
+            .unwrap_or_else(|_| "<default>".to_string());
+        eprintln!(
+            "auto-commit skipped (--no-commit): the tree is dirty on `{default_branch}`. \
+Run `git add -A && git commit -m \"archive(sdd): {change_name}\"` manually."
+        );
+        return Ok(());
+    }
+    let sha = auto_commit(root, &change_name)?;
+    match sha {
+        Some(sha) => {
+            println!("finalized change `{change_name}` → archive `{archive_name}` (commit `{sha}`)")
+        }
+        None => println!(
+            "finalized change `{change_name}` → archive `{archive_name}` (nothing to commit)"
+        ),
+    }
     Ok(())
 }
 
@@ -183,24 +274,18 @@ mod tests {
             "schema: spec-driven\nlocale: en\nbdd:\n  run_command: \"cargo test --features bdd\"\n",
         )
         .unwrap();
-        // r124: proposal.md frontmatter must not carry lifecycle fields (id,
-        // stage) — stage is inferred from on-disk artifacts. Mirror the format
-        // produced by `change new` (depends_on only) so the schema guard passes.
         fs::write(
             changes.join("proposal.md"),
             "---\ndepends_on: []\n---\n\n# Proposal\n\n## Why\n\nx\n\n## What Changes\n\nx\n",
         )
         .unwrap();
-        // tasks.md all-checked so archive tasks-gate does not interfere.
         fs::write(changes.join("tasks.md"), "# Tasks\n\n- [x] done\n").unwrap();
-        // validate requires design.md when tasks.md is present.
         fs::write(
             changes.join("design.md"),
             "# Design\n\nTest fixture design.\n",
         )
         .unwrap();
 
-        // git init, default branch rename, commit, branch off.
         let git = |args: &[&str]| {
             let out = std::process::Command::new("git")
                 .args(args)
@@ -216,15 +301,11 @@ mod tests {
             }
             out
         };
-        // Set default branch name explicitly so is_default_branch sees a stable
-        // value on hosts that default to something other than main/master.
         git(&["init", "--initial-branch=main"]);
-        // Bypass any commit identity requirement in CI sandboxes.
         git(&["config", "user.email", "t@t"]);
         git(&["config", "user.name", "t"]);
         git(&["add", "."]);
         git(&["commit", "-m", "init"]);
-        // Record base_sha on main HEAD, then switch to a feature branch.
         let base_out = std::process::Command::new("git")
             .args(["rev-parse", "HEAD"])
             .current_dir(root)
@@ -236,46 +317,23 @@ mod tests {
             .to_string();
         git(&["checkout", "-b", "feat/x"]);
 
-        // Write attach binding manually (mirrors run_attach output) so we don't
-        // need a network/merge-base available; base_sha points at main HEAD.
         let binding = ChangeGitBinding {
             branch: "feat/x".to_string(),
             base_sha: base_sha.clone(),
-            checkpointed: false,
-            checkpoint_sha: None,
         };
         crate::sdd::change::git_native::write_binding(root, change_id, &binding).unwrap();
 
         (tmp, change_id.to_string(), base_sha)
     }
 
-    #[test]
-    fn finalize_writes_checkpointed_and_base_sha_then_archives() {
-        // Full happy path: dirty tree → finalize → archive rename, with the
-        // internal validate::run exercised against the TempDir root (no chdir).
-        // This is the coverage gap flagged in the parent change's verify report
-        // (W1); it became possible once validate::run accepted a root parameter.
-
-        // validate's staleness check reads the process-wide LLMANSPEC_BASE_REF
-        // env. Another unit test (staleness::invalid_llmanspec_base_ref...)
-        // temporarily sets it under ENV_MUTEX; hold the same lock for the whole
-        // test so this test's validate can't observe the leaked value. Under
-        // `cargo test` (threaded, the CI path) this race otherwise fails ~1/3.
-        let _env_lock = crate::test_utils::lock_env();
-        // Safety: env mutation only during tests, never in shipped binaries.
-        unsafe { std::env::remove_var("LLMANSPEC_BASE_REF") };
-
-        let (tmp, id, base_sha) = setup_repo_with_attached_change("finalize-happy");
-        let root = tmp.path();
-
-        // Seed a minimal single-track spec so `validate --specs` has something
-        // to pass on. r1 as a @human rule; no runner is invoked (--no-check).
+    /// Seed a minimal locked (@human) sample spec committed to the bound branch.
+    fn seed_sample_spec(root: &std::path::Path) {
         let sample_dir = root.join("llmanspec/specs/sample");
         fs::create_dir_all(&sample_dir).unwrap();
         fs::write(
             sample_dir.join("sample.feature"),
             "# capability: sample\n\
-             # purpose: sample for finalize happy-path test\n\
+             # purpose: sample for finalize tests\n\
              # scope: llmanspec/specs/sample\n\n\
              Feature: sample\n\n\
              \x20 @req:r1 @human\n\
@@ -283,8 +341,6 @@ mod tests {
              \x20   System MUST do X.\n",
         )
         .unwrap();
-        // Commit the spec so the tree isn't carrying untracked files that would
-        // trip staleness warnings (warnings, not errors — but keep it clean).
         std::process::Command::new("git")
             .args(["add", "-A"])
             .current_dir(root)
@@ -295,9 +351,28 @@ mod tests {
             .current_dir(root)
             .output()
             .unwrap();
+    }
 
-        // Make the tree dirty (simulating uncommitted implementation) to prove
-        // finalize does not require a clean tree.
+    fn last_commit_subject(root: &std::path::Path) -> String {
+        let out = std::process::Command::new("git")
+            .args(["log", "-1", "--format=%s"])
+            .current_dir(root)
+            .output()
+            .expect("git log");
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    #[test]
+    fn finalize_auto_commits_archive_message() {
+        let _env_lock = crate::test_utils::lock_env();
+        // Safety: env mutation only during tests, never in shipped binaries.
+        unsafe { std::env::remove_var("LLMANSPEC_BASE_REF") };
+
+        let (tmp, id, _base_sha) = setup_repo_with_attached_change("finalize-happy");
+        let root = tmp.path();
+        seed_sample_spec(root);
+
+        // Dirty implementation diff must ride along into the auto commit.
         fs::write(
             root.join("llmanspec/specs/sample/impl.txt"),
             "dirty implementation",
@@ -309,11 +384,13 @@ mod tests {
             FinalizeArgs {
                 change: id.clone(),
                 no_check: true,
+                no_commit: false,
+                yes: false,
             },
         )
         .expect("finalize succeeds");
 
-        // Active change dir is gone; archive entry exists.
+        // Active change dir gone; archive entry exists.
         assert!(
             !root.join("llmanspec/changes").join(&id).exists(),
             "active change dir should be gone"
@@ -328,18 +405,18 @@ mod tests {
             .cloned()
             .unwrap_or_else(|| panic!("archive entry not found: {entries:?}"));
 
-        // Archived proposal.md carries the finalize semantics: checkpointed=true
-        // and checkpoint_sha == base_sha (Route C).
-        let proposal = fs::read_to_string(
+        // r25: one auto commit with the fixed subject; tree clean afterwards.
+        assert_eq!(last_commit_subject(root), format!("archive(sdd): {id}"));
+        let dirty = crate::git_utils::run_git(root, &["status", "--porcelain"]).unwrap();
+        assert!(
+            dirty.trim().is_empty(),
+            "tree must be clean after auto commit"
+        );
+        // The dirty implementation ride-along is inside the archive commit.
+        assert!(
             root.join("llmanspec/changes/archive")
                 .join(&archived_name)
-                .join("proposal.md"),
-        )
-        .unwrap();
-        assert!(proposal.contains("checkpointed: true"));
-        assert!(
-            proposal.contains(&format!("checkpoint_sha: {base_sha}")),
-            "expected checkpoint_sha == base_sha in:\n{proposal}"
+                .exists()
         );
 
         // r94: auto ff-merge leaves us on the default branch.
@@ -348,19 +425,48 @@ mod tests {
     }
 
     #[test]
+    fn finalize_no_commit_leaves_dirty_tree() {
+        let _env_lock = crate::test_utils::lock_env();
+        // Safety: env mutation only during tests, never in shipped binaries.
+        unsafe { std::env::remove_var("LLMANSPEC_BASE_REF") };
+
+        let (tmp, id, _base_sha) = setup_repo_with_attached_change("finalize-nocommit");
+        let root = tmp.path();
+        seed_sample_spec(root);
+
+        run_finalize(
+            root,
+            FinalizeArgs {
+                change: id.clone(),
+                no_check: true,
+                no_commit: true,
+                yes: false,
+            },
+        )
+        .expect("finalize --no-commit succeeds");
+
+        // Rename happened but no commit: tree is dirty (rename uncommitted).
+        assert_eq!(
+            last_commit_subject(root),
+            "add sample spec",
+            "no auto commit must be created"
+        );
+        let dirty = crate::git_utils::run_git(root, &["status", "--porcelain"]).unwrap();
+        assert!(
+            !dirty.trim().is_empty(),
+            "tree must stay dirty after --no-commit finalize"
+        );
+    }
+
+    #[test]
     fn finalize_rejects_when_not_attached() {
-        // Build repo, then wipe the binding to simulate unattached.
         let (tmp, id, _base) = setup_repo_with_attached_change("finalize-noattach");
         let root = tmp.path();
 
-        // Strip binding fields from proposal.md frontmatter. Keep the r124-legal
-        // shape (no id/stage lifecycle fields) so the schema guard stays happy.
         let proposal_path = root.join("llmanspec/changes").join(&id).join("proposal.md");
         let stripped =
             "---\ndepends_on: []\n---\n\n# Proposal\n\n## Why\n\nx\n\n## What Changes\n\nx\n";
         fs::write(&proposal_path, stripped).unwrap();
-
-        // Commit so the tree is clean-ish (doesn't matter; finalize doesn't check).
         std::process::Command::new("git")
             .args(["add", "-A"])
             .current_dir(root)
@@ -377,6 +483,8 @@ mod tests {
             FinalizeArgs {
                 change: id,
                 no_check: true,
+                no_commit: false,
+                yes: false,
             },
         )
         .unwrap_err();
@@ -389,65 +497,40 @@ mod tests {
 
     #[test]
     fn finalize_idempotent_after_partial_failure() {
-        // Simulate the "binding already written, archive rename pending" state
-        // by pre-writing checkpointed=true + checkpoint_sha, then calling finalize.
+        // Simulate "rename done, auto-commit failed": pre-create the archive
+        // entry, wipe the active dir, then finalize again → finishes the commit.
         let (tmp, id, base_sha) = setup_repo_with_attached_change("finalize-idem");
         let root = tmp.path();
-
-        let binding = ChangeGitBinding {
-            branch: "feat/x".to_string(),
-            base_sha: base_sha.clone(),
-            checkpointed: true,
-            checkpoint_sha: Some(base_sha.clone()),
-        };
-        crate::sdd::change::git_native::write_binding(root, &id, &binding).unwrap();
+        let changes_dir = root.join("llmanspec/changes");
+        let archived = changes_dir.join("archive").join(archive_name_for(&id));
+        fs::create_dir_all(&archived).unwrap();
+        fs::write(archived.join("proposal.md"), "archived").unwrap();
+        fs::remove_dir_all(changes_dir.join(&id)).unwrap();
 
         run_finalize(
             root,
             FinalizeArgs {
                 change: id.clone(),
-                no_check: false, // should be ignored because already checkpointed
+                no_check: false, // skipped: idempotent path returns early
+                no_commit: false,
+                yes: false,
             },
         )
         .expect("finalize succeeds (idempotent)");
 
-        // active change gone
-        assert!(!root.join("llmanspec/changes").join(&id).exists());
+        assert_eq!(last_commit_subject(root), format!("archive(sdd): {id}"));
     }
 
     #[test]
     fn finalize_works_unified_regardless_of_bdd_config() {
-        // Unified flow: finalize works with or without bdd: block (r94).
-
-        // Same LLMANSPEC_BASE_REF env-race guard as the happy-path test above:
-        // hold ENV_MUTEX so validate's staleness check can't read a value leaked
-        // by a concurrent staleness unit test under `cargo test` (CI path).
         let _env_lock = crate::test_utils::lock_env();
         // Safety: env mutation only during tests, never in shipped binaries.
         unsafe { std::env::remove_var("LLMANSPEC_BASE_REF") };
 
         let (tmp, id, _base) = setup_repo_with_attached_change("finalize-unified");
         let root = tmp.path();
+        seed_sample_spec(root);
 
-        // Seed a minimal spec so validate --specs passes.
-        let sample_dir = root.join("llmanspec/specs/sample");
-        fs::create_dir_all(&sample_dir).unwrap();
-        fs::write(
-            sample_dir.join("sample.feature"),
-            "# capability: sample\n# purpose: sample\n# scope: llmanspec/specs/sample\n\nFeature: sample\n\n  @req:r1 @human\n  Scenario: R1\n    System MUST do X.\n",
-        ).unwrap();
-        Command::new("git")
-            .args(["add", "-A"])
-            .current_dir(root)
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["commit", "-m", "add sample spec"])
-            .current_dir(root)
-            .output()
-            .unwrap();
-
-        // Flip config to no bdd block (unified — finalize still works).
         fs::write(
             root.join("llmanspec/config.yaml"),
             "schema: spec-driven\nlocale: en\n",
@@ -459,23 +542,21 @@ mod tests {
             FinalizeArgs {
                 change: id.clone(),
                 no_check: true,
+                no_commit: false,
+                yes: false,
             },
         )
         .expect("unified finalize should succeed without bdd: block");
 
-        // Active change dir is gone; archive entry exists.
         assert!(!root.join("llmanspec/changes").join(&id).exists());
     }
 
-    // Keep this as a compile-time anchor for the helper struct shape so future
-    // renames in git_native.rs surface here rather than silently drift.
+    // Compile-time anchor for the binding struct shape (r25: no checkpoint fields).
     #[test]
     fn _binding_shape_anchor() {
         let _ = ChangeGitBinding {
             branch: String::new(),
             base_sha: String::new(),
-            checkpointed: false,
-            checkpoint_sha: None,
         };
     }
 }

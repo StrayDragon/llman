@@ -6,7 +6,7 @@
 
 use crate::fs_utils::atomic_write_with_mode;
 use crate::git_utils::{
-    branch_diff, branch_has_upstream, current_head_sha, is_default_branch, merge_base_sha,
+    branch_diff, branch_has_upstream, is_default_branch, merge_base_sha,
     resolve_default_branch_ref, run_git, working_tree_clean,
 };
 use crate::sdd::project::config::load_required_config;
@@ -25,8 +25,6 @@ use std::path::{Path, PathBuf};
 pub(crate) struct ChangeGitBinding {
     pub(crate) branch: String,
     pub(crate) base_sha: String,
-    pub(crate) checkpointed: bool,
-    pub(crate) checkpoint_sha: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -34,12 +32,6 @@ pub(crate) struct AttachArgs {
     pub(crate) change: String,
     /// Re-bind even if already attached (updates branch/base to current HEAD state).
     pub(crate) force: bool,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct CheckpointArgs {
-    pub(crate) change: String,
-    pub(crate) no_check: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -98,14 +90,6 @@ fn parse_yaml_string(doc: &serde_json::Value, key: &str) -> Option<String> {
     })
 }
 
-fn parse_yaml_bool(doc: &serde_json::Value, key: &str) -> bool {
-    match doc.get(key) {
-        Some(serde_json::Value::Bool(b)) => *b,
-        Some(serde_json::Value::String(s)) => matches!(s.trim(), "true" | "yes" | "1"),
-        _ => false,
-    }
-}
-
 /// Read Git binding fields from proposal frontmatter (best-effort).
 pub(crate) fn read_binding(root: &Path, change_id: &str) -> Result<Option<ChangeGitBinding>> {
     let path = resolve_change_dir(root, change_id)?.join("proposal.md");
@@ -120,16 +104,9 @@ pub(crate) fn read_binding(root: &Path, change_id: &str) -> Result<Option<Change
     let parsed: serde_json::Value = serde_saphyr::from_str(&yaml_str)
         .map_err(|err| anyhow!("proposal frontmatter YAML invalid: {err}"))?;
     let branch = parse_yaml_string(&parsed, "branch");
-    let base_sha =
-        parse_yaml_string(&parsed, "base_sha").or_else(|| parse_yaml_string(&parsed, "baseSha"));
+    let base_sha = parse_yaml_string(&parsed, "base_sha");
     match (branch, base_sha) {
-        (Some(branch), Some(base_sha)) => Ok(Some(ChangeGitBinding {
-            branch,
-            base_sha,
-            checkpointed: parse_yaml_bool(&parsed, "checkpointed"),
-            checkpoint_sha: parse_yaml_string(&parsed, "checkpoint_sha")
-                .or_else(|| parse_yaml_string(&parsed, "checkpointSha")),
-        })),
+        (Some(branch), Some(base_sha)) => Ok(Some(ChangeGitBinding { branch, base_sha })),
         _ => Ok(None),
     }
 }
@@ -150,12 +127,6 @@ fn upsert_frontmatter_fields(content: &str, updates: &[(&str, String)]) -> Resul
         map.insert((*key).to_string(), serde_json::Value::String(value.clone()));
     }
 
-    // Represent checkpointed as bool when possible.
-    if let Some((_, v)) = updates.iter().find(|(k, _)| *k == "checkpointed") {
-        let b = matches!(v.as_str(), "true" | "yes" | "1");
-        map.insert("checkpointed".to_string(), serde_json::Value::Bool(b));
-    }
-
     let yaml = serde_saphyr::to_string(&serde_json::Value::Object(map))?;
     // serde-saphyr adds a trailing newline; wrap as frontmatter.
     let yaml = yaml.trim_end();
@@ -170,21 +141,10 @@ pub(crate) fn write_binding(
 ) -> Result<()> {
     let path = resolve_change_dir(root, change_id)?.join("proposal.md");
     let content = fs::read_to_string(&path)?;
-    let mut updates = vec![
+    let updates = vec![
         ("branch", binding.branch.clone()),
         ("base_sha", binding.base_sha.clone()),
-        (
-            "checkpointed",
-            if binding.checkpointed {
-                "true".into()
-            } else {
-                "false".into()
-            },
-        ),
     ];
-    if let Some(sha) = &binding.checkpoint_sha {
-        updates.push(("checkpoint_sha", sha.clone()));
-    }
     let rebuilt = upsert_frontmatter_fields(&content, &updates)?;
     atomic_write_with_mode(&path, rebuilt.as_bytes(), None)?;
     Ok(())
@@ -234,8 +194,6 @@ pub(crate) fn run_attach(root: &Path, args: AttachArgs) -> Result<()> {
     let binding = ChangeGitBinding {
         branch: branch.clone(),
         base_sha: base_sha.clone(),
-        checkpointed: false,
-        checkpoint_sha: None,
     };
     write_binding(root, &change_name, &binding)?;
     println!(
@@ -311,8 +269,6 @@ pub(crate) fn run_start(root: &Path, args: StartArgs) -> Result<()> {
     let binding = ChangeGitBinding {
         branch: branch.clone(),
         base_sha: base_sha.clone(),
-        checkpointed: false,
-        checkpoint_sha: None,
     };
     if args.worktree {
         let wt_path = crate::sdd::change::start::run_start_worktree(
@@ -334,107 +290,10 @@ pub(crate) fn run_start(root: &Path, args: StartArgs) -> Result<()> {
     Ok(())
 }
 
-/// Require a clean tree, matching branch binding, and (optionally) full BDD check.
-pub(crate) fn run_checkpoint(root: &Path, args: CheckpointArgs) -> Result<()> {
-    let change_name = crate::sdd::shared::discovery::resolve_change_id_human(root, &args.change)?;
-    validate_sdd_id(&change_name, "change")?;
-    let _llmanspec = root.join(LLMANSPEC_DIR_NAME);
-    let Some(mut binding) = read_binding(root, &change_name)? else {
-        bail!(
-            "change `{}` has no Git binding; run `llman sdd change attach {}` first",
-            change_name,
-            change_name
-        );
-    };
-
-    let branch = current_branch_bound(root)?;
-    if branch != binding.branch {
-        bail!(
-            "current branch `{branch}` does not match attached branch `{}`",
-            binding.branch
-        );
-    }
-    if is_default_branch(root, &branch)? {
-        bail!("cannot checkpoint on the default branch");
-    }
-    // r137: surface commits since the effective range base; non-blocking
-    // hint when > 1. Range base = live merge-base (D1), fallback stored
-    // base_sha (audit).
-    let range_base =
-        crate::sdd::change::lock_gate::effective_range_base(root, Some(&binding.base_sha))
-            .unwrap_or_else(|_| binding.base_sha.clone());
-    print_commit_count(root, &range_base)?;
-    // Locked-rule integrity (spec-format r135).
-    {
-        let ack = crate::sdd::change::lock_gate::locked_ack_for(root, &change_name);
-        let lock_issues = crate::sdd::change::lock_gate::check(root, &range_base, &ack);
-        for issue in &lock_issues {
-            match issue.level {
-                crate::sdd::spec::validation::ValidationLevel::Error => {
-                    eprintln!("{}", issue.message);
-                    anyhow::bail!("locked-rule gate failed");
-                }
-                _ => eprintln!("{}", issue.message),
-            }
-        }
-    }
-    if !working_tree_clean(root)? {
-        bail!("working tree is dirty; commit all changes before checkpoint");
-    }
-
-    if shared_mode_required() && !branch_has_upstream(root)? {
-        bail!(
-            "shared mode requires an upstream (set LLMAN_SDD_REQUIRE_UPSTREAM=0 to skip, or `git push -u`)"
-        );
-    }
-
-    // Fast + optional full validation of the live branch tree.
-    crate::sdd::commands::validate::run(
-        root,
-        crate::sdd::commands::validate::ValidateArgs {
-            item: None,
-            all: false,
-            changes: false,
-            specs: true,
-            item_type: None,
-            strict: true,
-            json: false,
-            compact_json: false,
-            stage: None,
-            no_interactive: true,
-            check: !args.no_check,
-            no_check: args.no_check,
-        },
-    )?;
-
-    // Also validate the change documentation itself (proposal/tasks stage).
-    crate::sdd::commands::validate::run(
-        root,
-        crate::sdd::commands::validate::ValidateArgs {
-            item: Some(change_name.clone()),
-            all: false,
-            changes: false,
-            specs: false,
-            item_type: Some("change".into()),
-            strict: true,
-            json: false,
-            compact_json: false,
-            stage: None,
-            no_interactive: true,
-            check: false,
-            no_check: true,
-        },
-    )?;
-
-    let head = current_head_sha(root)?;
-    binding.checkpointed = true;
-    binding.checkpoint_sha = Some(head.clone());
-    write_binding(root, &change_name, &binding)?;
-    println!(
-        "checkpointed change `{}` at `{head}` on branch `{}`",
-        change_name, binding.branch
-    );
-    Ok(())
+/// `change checkpoint` is removed (r25): any call fails with a single-line
+/// pointer to `change finalize`, mirroring the r115 `change delta` precedent.
+pub(crate) fn run_checkpoint_removed() -> Result<()> {
+    anyhow::bail!("change checkpoint is removed; use change finalize")
 }
 
 /// Number of commits on the current branch since the attach base (r137).
@@ -512,53 +371,39 @@ pub(crate) fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
             println!();
         }
     }
+    // r135 audit: surface agent-acked locked rules (--yes / finalize wrote
+    // `agent_acked`) so humans know which edits to re-review.
+    let agent_acked = crate::sdd::change::lock_gate::agent_acked_for(root, &change_name);
+    if !agent_acked.is_empty() {
+        println!("agent-acked rules: {}", agent_acked.join(", "));
+    }
     Ok(())
 }
 
-/// Enforce archive preconditions: attached, checkpointed, clean, on branch (strict variant for `change archive`).
+/// Enforce archive preconditions: attached, on branch (strict variant for `change archive`).
 ///
 /// This is the strict variant used by `change archive` — it requires a clean
-/// working tree (because archive itself does not write the checkpoint frontmatter,
-/// so a clean tree guarantees `checkpoint_sha` still points to a real commit).
-/// For the `finalize` path (which writes the frontmatter itself and intentionally
-/// leaves the tree dirty for a single commit), use
-/// [`enforce_bdd_archive_gates_relaxed`] instead.
+/// working tree (archive itself does not commit anything, so a dirty tree
+/// would get lost across the ff-merge). The `checkpointed` requirement is
+/// removed (r25): `change checkpoint` no longer exists; archive seals whatever
+/// the branch tip carries.
+/// For the `finalize` path (which itself handles the dirty tree via the auto
+/// commit), use [`enforce_bdd_archive_gates_relaxed`] instead.
 pub(crate) fn enforce_bdd_archive_gates(root: &Path, change_id: &str) -> Result<ChangeGitBinding> {
     enforce_bdd_archive_gates_inner(root, change_id, /* require_clean_tree */ true)
 }
 
 /// Relaxed variant of [`enforce_bdd_archive_gates`] that skips the clean-tree
-/// AND `checkpointed` checks. Used by `change finalize` so:
-/// (1) the implementation diff can stay dirty and be committed together with
-///     the finalize metadata in a single commit; and
-/// (2) finalize itself is responsible for writing the `checkpointed` field
-///     (and `checkpoint_sha`), so we must not reject a pre-checkpoint binding.
+/// check. Used by `change finalize` so the implementation diff can stay dirty
+/// and be committed together with the archive rename by the auto commit.
 ///
-/// Caller is responsible for persisting `checkpointed: true` (and
-/// `checkpoint_sha`) on the change binding after this returns.
+/// Caller is responsible for the auto commit (`archive(sdd): <change-id>`,
+/// r25) after this returns.
 pub(crate) fn enforce_bdd_archive_gates_relaxed(
     root: &Path,
     change_id: &str,
 ) -> Result<ChangeGitBinding> {
-    let Some(binding) = read_binding(root, change_id)? else {
-        bail!(
-            "archive requires Git binding; run `llman sdd change attach {change_id}` then checkpoint"
-        );
-    };
-    let branch = current_branch_bound(root)?;
-    if branch != binding.branch {
-        bail!(
-            "archive must run on attached branch `{}` (current: `{branch}`)",
-            binding.branch
-        );
-    }
-    if is_default_branch(root, &branch)? {
-        bail!("archive must not run on the default branch");
-    }
-    if shared_mode_required() && !branch_has_upstream(root)? {
-        bail!("shared mode requires an upstream before archive");
-    }
-    Ok(binding)
+    enforce_bdd_archive_gates_inner(root, change_id, /* require_clean_tree */ false)
 }
 
 fn enforce_bdd_archive_gates_inner(
@@ -568,7 +413,7 @@ fn enforce_bdd_archive_gates_inner(
 ) -> Result<ChangeGitBinding> {
     let Some(binding) = read_binding(root, change_id)? else {
         bail!(
-            "archive requires Git binding; run `llman sdd change attach {change_id}` then checkpoint"
+            "archive requires Git binding; run `llman sdd change attach {change_id}` (or `change start`) first"
         );
     };
     let branch = current_branch_bound(root)?;
@@ -583,11 +428,6 @@ fn enforce_bdd_archive_gates_inner(
     }
     if require_clean_tree && !working_tree_clean(root)? {
         bail!("working tree must be clean before archive");
-    }
-    if !binding.checkpointed {
-        bail!(
-            "change `{change_id}` is not checkpointed; run `llman sdd change checkpoint {change_id}`"
-        );
     }
     if shared_mode_required() && !branch_has_upstream(root)? {
         bail!("shared mode requires an upstream before archive");
@@ -840,7 +680,6 @@ mod tests {
         let binding = read_binding(root, "c1").unwrap().unwrap();
         assert_eq!(binding.branch, "sdd/c1");
         assert!(!binding.base_sha.is_empty());
-        assert!(!binding.checkpointed);
 
         let diff = branch_diff(root, &binding.base_sha).unwrap();
         assert!(diff.contains("extra.txt") || !diff.is_empty());
