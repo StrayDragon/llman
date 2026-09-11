@@ -20,13 +20,20 @@ pub(crate) fn compute_spec_hash(specs_dir: &Path) -> Result<String> {
     let mut entries: Vec<PathBuf> = Vec::new();
     for entry in fs::read_dir(specs_dir).context("Failed to read specs directory")? {
         let entry = entry?;
+        let path = entry.path();
+        // r131 dual layout: a flat `<cap>.feature` file is a spec source too.
+        if entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+            if path.extension().is_some_and(|ext| ext == "feature") {
+                entries.push(path);
+            }
+            continue;
+        }
         if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
             continue;
         }
-        let spec_dir = entry.path();
         // Single-track (r131): `.feature` files are the only spec artifacts;
         // a leftover spec.toon is ignored here (validate reports it).
-        if let Ok(features) = feature_paths_in(&spec_dir) {
+        if let Ok(features) = feature_paths_in(&path) {
             entries.extend(features);
         }
     }
