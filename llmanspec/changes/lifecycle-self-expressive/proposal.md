@@ -3,9 +3,9 @@ depends_on:
 - git-native-v2
 branch: sdd/lifecycle-self-expressive
 base_sha: f91cbe1003d4af00649f23e997cc7063a43c0111
-checkpointed: false
 rules_touched: [r1, r57, r93, r94, r111, r124, r130, r132, r135, r137]
 ---
+
 
 # 生命周期自表达：draft 落地足够信息，配置趋零，cli 开箱即用
 
