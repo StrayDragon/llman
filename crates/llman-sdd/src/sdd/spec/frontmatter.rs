@@ -21,7 +21,14 @@ pub(crate) fn split_frontmatter(content: &str) -> (Option<String>, String) {
         return (None, normalized);
     }
 
-    let body = lines.collect::<Vec<_>>().join("\n");
+    // Canonicalize to exactly one trailing newline so frontmatter rewrites
+    // (write_binding / checkpoint / finalize upserts) always emit files that
+    // pass EOF hygiene hooks — `str::lines()` drops the trailing-newline fact,
+    // and dropping it here made every rewrite produce a hook-dirty file.
+    let mut body = lines.collect::<Vec<_>>().join("\n");
+    if !body.is_empty() {
+        body.push('\n');
+    }
     (Some(yaml_lines.join("\n")), body)
 }
 
