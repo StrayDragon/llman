@@ -1,8 +1,14 @@
 ---
 depends_on: []
+branch: sdd/specs-flatten-repo-run
+base_sha: 0189a539a6da68dc280029bdf85862a320b63e6e
+checkpointed: false
+rules_edit_acked: true
 ---
 
 # 本仓库执行 specs-flatten 全库平铺（specs-flat-layout 后续）
+
+> `rules_edit_acked` 缘由：base_sha 锚定 origin/main（`0189a539`，未 push），锁定门禁 diff 范围因此包含上一个已归档 change（specs-flat-layout）的 r131/r136 条文编辑；本 change 自身零哈希漂移（只动路径与 `# scope:` 头注释，均不在锁定哈希规范化内）。
 
 ## Why
 

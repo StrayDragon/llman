@@ -139,7 +139,7 @@ draft [proposal.md]
 ## BDD 兼容测试维护规则
 
 `tests/it/sdd_bdd_compat.rs` 承载实现细节层（init 结构、serde 向后兼容、子命令 smoke）；
-行为合约在 `llmanspec/specs/sdd-bdd-mode-compat/*.feature`。改动以下内容必须同步适配：
+行为合约在 `llmanspec/specs/sdd-bdd-mode-compat.feature`。改动以下内容必须同步适配：
 validate `--check` 语义、change 生命周期命令面、锁定门禁、index rebuild embed、
 sdd 子命令增删（smoke 列表）、step 库（保持泛化 step 可驱动全部 @executable 场景；
 注意 rstest-bdd 占位符引号陷阱：`{mode}` 含引号需 trim）。
