@@ -2,7 +2,7 @@
 name: "llman-sdd-propose"
 description: "创建带规划工件（proposal/tasks；先 `change start`/`attach` 完成 Branch binding，再在绑定分支编辑 live specs/feature）的 llman SDD 变更提案。用于 MUST/SHALL 行为合约变更。"
 metadata:
-  version: "0.0.76"
+  version: "0.0.77"
 ---
 
 # LLMAN SDD Propose
@@ -18,8 +18,9 @@ metadata:
 ```mermaid
 flowchart TB
   subgraph main_ok["允许短暂在默认分支"]
-    A["change new → Draft<br/>仅 proposal.md"]
-    B["充实 design + tasks → Designed"]
+    A["change new → draft<br/>仅 proposal.md"]
+    B1["补 design.md → designed"]
+    B2["补 tasks.md → planned"]
   end
 
   subgraph gate_start["Branch binding"]
@@ -36,10 +37,10 @@ flowchart TB
   subgraph implement["实现"]
     H["apply：按 tasks 改代码<br/>可继续改 specs"]
     I["verify"]
-    J["finalize / archive<br/>ff-merge → 默认分支才首次合入 specs"]
+    J["finalize<br/>ff-merge → rename → 自动提交 archive(sdd): &lt;id&gt;<br/>默认分支才首次合入 specs"]
   end
 
-  A --> B --> C
+  A --> B1 --> B2 --> C
   C -->|是| D --> F
   C -->|已在 feature| E --> F
   F --> G --> H --> I --> J
@@ -47,8 +48,9 @@ flowchart TB
 
 硬规则：
 1. **先** `change start` / `attach`（Branch binding / 分支绑定）进入 Full；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（Specs landing / 合约落地）。
-2. 无 live 合约变更时可设 frontmatter `needs_specs_change: false``。进入 apply 前 `llman sdd show <id> --json` 的 `readyToImplement` 须为 true（`Full ∧ gateChecks 全过`；specs-landed 项 = `specsLanded ∨ skip`；一切范围 = 现算 merge-base，存储 `base_sha` 仅审计）。
-3. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
+2. 无 live 合约变更时可设 frontmatter `needs_specs_change: false`。进入 apply 前 `llman sdd show <id> --json` 的 `readyToImplement` 须为 true（`Full ∧ gateChecks 全过`；specs-landed 项 = `specsLanded ∨ needs_specs_change=false`；一切范围 = 现算 merge-base，存储 `base_sha` 仅审计）。
+3. `change checkpoint` 已移除（r25）：收口一律 `llman sdd change finalize <id>`——自动提交 `archive(sdd): <id>`（实现 diff + 改名一次提交）；`--no-commit` 跳过自动提交（CI/手动历史场景）。change 分支上提交自由（分段或 finalize 单次收尾均可）。
+4. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
 # 人读摘要（强制）
 
 在本工作流中产出的每一份报告、交接或门禁输出，MUST 在任何机器细节之前
@@ -73,7 +75,7 @@ flowchart LR
     style propose fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在 propose 阶段：上方 Git-native 路径为 **Designed → Branch binding → Specs landing**（直到 `readyToImplement=true`）→ 下一步：`llman-sdd-apply`
+> 📍 你现在在 propose 阶段：上方 Git-native 路径为 **规划壳（draft → designed → planned）→ Branch binding → Specs landing**（直到 `readyToImplement=true`）→ 下一步：`llman-sdd-apply`
 > 📎 小改动（不改行为合约）请走 `llman-sdd-quick`（快速路径）
 
 ## 硬约束
@@ -84,7 +86,7 @@ flowchart LR
 
 - **change 已存在**：STOP。若 `readyToImplement=true`，建议 `llman-sdd-apply`；否则补完规划壳 / Branch binding / Specs landing（编辑 `llmanspec/changes/<id>/`，或在配置启用 `extra_skills: [llman-sdd-continue]`）。
 
-- **frontmatter 有固定 schema**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段（含 `depends_on`、`blocks`、`branch`、`base_sha`/`baseSha`、`checkpointed`、`checkpoint_sha`/`checkpointSha`、`needs_specs_change: false`）。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（用 `llman sdd show`/`list` 查询），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 是人类可读标题，不是 change id 的复读。
+- **frontmatter 有固定 schema**：充实 `proposal.md` 时只接受 `llmanspec/AGENTS.md`「Change Proposal Frontmatter SSOT」中的合法字段（含 `depends_on`、`blocks`、`branch`、`base_sha`、`needs_specs_change`、`rules_touched`、`agent_acked`）。`status`/`title`/`priority`/`author` 等会被 `llman sdd validate` 报 ERROR 拒绝；生命周期阶段是推断量（用 `llman sdd show`/`list` 查询），绝不写进 frontmatter。正文 MUST NOT 复读 frontmatter 字段；正文 H1 是人类可读标题，不是 change id 的复读。
 
 ## 快速记录分流
 
@@ -124,7 +126,8 @@ flowchart LR
    - `tasks.md`：按**垂直切片**拆分（每个 task 打穿 schema→API→UI→tests 一条窄而完整的路径，可独立验证），并带 `[blocked-by: <task-id>]` 依赖标记。**大范围重构例外**（一个机械改动扫全库、单点编辑牵动大量调用处）：按 expand-contract 排序（旧的旁边加新的 → 分批迁移调用处 → 删掉旧的），不强拆垂直切片。
    - **先** `llman sdd change start <change-id>`（推荐；默认分支上工作树干净时）或手动建分支后 `change attach <change-id>` 到达 Full（bound）。
    - **然后**在绑定的非默认分支上编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件）并 commit（Specs landing）。**不要**在 start 之前改 live specs；**不要**为过干净树门禁把 live specs commit 到默认分支。已 attach 时勿重复 `start`（丢失 specs 时用 checkout/重建 + `attach --force` 恢复）。
-   - 无 live 合约编辑的 change，设置 frontmatter `needs_specs_change: false``。仅当 `llman sdd show <id> --json` 给出 `readyToImplement=true` 才进入 apply。
+   - 无 live 合约编辑的 change，设置 frontmatter `needs_specs_change: false`。仅当 `llman sdd show <id> --json` 给出 `readyToImplement=true` 才进入 apply。
+   - **破坏性合约变更**（移除/重命名字段、命令、tag 或 stage 值域）MUST 规划升级路径：`migrations/v<from>-v<to>/`（README prompt + 一次性脚本，r28）——写进提案的 What Changes。
 
 ### 4) 校验：
    ```bash
@@ -174,7 +177,7 @@ flowchart LR
 
 Git-native 护栏：
 - **Branch binding** → **Specs landing**：先 `change start` / `attach`，再在绑定的非默认分支编辑 live `.feature` 并 commit。
-- 锁定规则：修改/删除既有 `@human` 场景会触发门禁，除非 proposal frontmatter 的 `rules_touched` 列出被改动的 req-id（legacy `rules_edit_acked: true` 全量豁免仍兼容读取）。
+- 锁定规则：修改/删除既有 `@human` 场景会触发门禁，除非 proposal frontmatter 的 `rules_touched` 列出被改动的 req-id。确认路径：finalize 交互一次 y/n 写回 `rules_touched`；`--yes` 只确认带 `@agent` 的规则（审计写入 `agent_acked`）；`rules_edit_acked` 已移除（r135/q9）。
 - apply 前须 `readyToImplement=true`（或 `needs_specs_change: false`）。收尾优先 `change finalize`。
 - 勿使用 `change delta` / solidify / `*.feature.delta.toon`。
 
