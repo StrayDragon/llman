@@ -14,11 +14,12 @@ pub(crate) const SPECS_PATHSPEC: &str = "llmanspec/specs";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SpecsLandingStatus {
-    /// True when `base_sha...binding.branch` touches `llmanspec/specs/**`.
+    /// True when `<effective base>...binding.branch` touches `llmanspec/specs/**`
+    /// (add / remove / update of any file under the directory, r1).
     pub(crate) specs_landed: bool,
-    /// Frontmatter exemption: no live-contract edit expected.
-    pub(crate) skip_specs_landing: bool,
-    /// `stage == Full && (specs_landed || skip_specs_landing)`.
+    /// Frontmatter declaration (default true): false skips the diff check.
+    pub(crate) needs_specs_change: bool,
+    /// `stage == Full && (specs_landed || !needs_specs_change)`.
     pub(crate) ready_to_implement: bool,
     pub(crate) stage: ChangeStage,
     /// Short reason when not landed (token-friendly; may guide agents to skills).
@@ -42,7 +43,7 @@ impl SpecsLandingStatus {
         }
         format!(
             "specs not landed: change `{change_id}` is Full but has no llmanspec/specs/ diff on its bound branch. \
-Edit live specs on the bound branch and commit (or set skip_specs_landing: true if no contract change). \
+Edit live specs on the bound branch and commit (or set needs_specs_change: false if no contract change). \
 Skill: llman-sdd-propose — do NOT re-run change start if already attached. Apply when show --json readyToImplement=true (llman-sdd-apply)."
         )
     }
@@ -51,13 +52,13 @@ Skill: llman-sdd-propose — do NOT re-run change start if already attached. App
 /// Evaluate specs-landing + apply-ready for a change directory.
 pub(crate) fn evaluate_specs_landing(root: &Path, change_dir: &Path) -> SpecsLandingStatus {
     let stage = determine_stage(change_dir);
-    let skip = read_skip_specs_landing(change_dir);
+    let needs = read_needs_specs_change(change_dir);
     let binding = read_binding_for_change(root, change_dir);
 
     if stage != ChangeStage::Full {
         return SpecsLandingStatus {
             specs_landed: false,
-            skip_specs_landing: skip,
+            needs_specs_change: needs,
             ready_to_implement: false,
             stage,
             detail: None,
@@ -68,8 +69,8 @@ pub(crate) fn evaluate_specs_landing(root: &Path, change_dir: &Path) -> SpecsLan
         let msg = "change is Full but Git binding unreadable; re-run `llman sdd change attach` on the feature branch. Skill: llman-sdd-propose.".to_string();
         return SpecsLandingStatus {
             specs_landed: false,
-            skip_specs_landing: skip,
-            ready_to_implement: skip,
+            needs_specs_change: needs,
+            ready_to_implement: !needs,
             stage,
             detail: Some(msg),
         };
@@ -77,16 +78,22 @@ pub(crate) fn evaluate_specs_landing(root: &Path, change_dir: &Path) -> SpecsLan
 
     let (landed, detail) = match specs_diff_nonempty(root, &binding) {
         Ok(true) => (true, None),
-        Ok(false) => (
-            false,
-            Some(format!(
-                "specs not landed: change bound to `{}` but the live range (merge-base of the local default branch with HEAD, git-native-v2) to `{}` shows no changes under `{SPECS_PATHSPEC}/`. \
+        Ok(false) => {
+            if needs {
+                (
+                    false,
+                    Some(format!(
+                        "specs not landed: change bound to `{}` but the live range (merge-base of the local default branch with HEAD, git-native-v2) to `{}` shows no changes under `{SPECS_PATHSPEC}/`. \
 Edit live specs on that branch and commit. Skill: llman-sdd-propose (land specs) — do NOT re-run change start if already attached. \
 Apply only when `llman sdd show <id> --json` has readyToImplement=true (llman-sdd-apply). \
-Or set `skip_specs_landing: true` in proposal frontmatter if this change has no live contract edits.",
-                binding.branch, binding.branch
-            )),
-        ),
+Or set `needs_specs_change: false` in proposal frontmatter if this change has no live contract edits.",
+                        binding.branch, binding.branch
+                    )),
+                )
+            } else {
+                (false, None)
+            }
+        }
         Err(err) => (
             false,
             Some(format!(
@@ -97,19 +104,20 @@ Ensure the bound branch exists locally; recover by checkout/recreate then `chang
         ),
     };
 
+    let ready = landed || !needs;
     SpecsLandingStatus {
         specs_landed: landed,
-        skip_specs_landing: skip,
-        ready_to_implement: landed || skip,
+        needs_specs_change: needs,
+        ready_to_implement: ready,
         stage,
-        detail: if landed || skip { None } else { detail },
+        detail: if ready { None } else { detail },
     }
 }
 
-fn read_skip_specs_landing(change_dir: &Path) -> bool {
+fn read_needs_specs_change(change_dir: &Path) -> bool {
     let (issues, fm) = check_proposal_frontmatter(change_dir, &[], &[], false);
     let _ = issues;
-    fm.skip_specs_landing
+    fm.needs_specs_change
 }
 
 fn read_binding_for_change(root: &Path, change_dir: &Path) -> Option<ChangeGitBinding> {
@@ -118,8 +126,10 @@ fn read_binding_for_change(root: &Path, change_dir: &Path) -> Option<ChangeGitBi
 }
 
 /// True when three-dot diff `<effective base>...branch` lists any path under live specs.
-/// Range base is the live merge-base against the local default branch
-/// (git-native-v2 D1), falling back to the stored attach base_sha (audit).
+/// r1 directory-level semantics: ANY file add/remove/update under
+/// `llmanspec/specs/` counts (not just `.feature`). Range base is the live
+/// merge-base against the local default branch (git-native-v2 D1), falling
+/// back to the stored attach base_sha (audit).
 pub(crate) fn specs_diff_nonempty(root: &Path, binding: &ChangeGitBinding) -> Result<bool> {
     let range_base =
         crate::sdd::change::lock_gate::effective_range_base(root, Some(&binding.base_sha))
@@ -136,10 +146,7 @@ pub(crate) fn specs_diff_nonempty(root: &Path, binding: &ChangeGitBinding) -> Re
             SPECS_PATHSPEC,
         ],
     )?;
-    // r130: only `.feature` files count as contract landing.
-    Ok(out
-        .lines()
-        .any(|l| l.trim().ends_with(".feature") && !l.trim().is_empty()))
+    Ok(out.lines().any(|l| !l.trim().is_empty()))
 }
 
 /// WARNING when the default branch has uncommitted edits under live specs.
@@ -186,11 +193,6 @@ mod tests {
         run_git(root, &["config", "user.name", "t"]).unwrap();
         run_git(root, &["checkout", "-b", "main"]).unwrap();
         fs::create_dir_all(root.join("llmanspec/specs/sample")).unwrap();
-        fs::write(
-            root.join("llmanspec/specs/sample/spec.toon"),
-            "kind: llman.sdd.spec\nname: sample\npurpose: p\nvalid_scope[1]: x\nrequirements[0]{req_id,title,statement}:\nscenarios[0]{req_id,id,given,when,then}:\n",
-        )
-        .unwrap();
         fs::create_dir_all(root.join("llmanspec/changes/c1")).unwrap();
         fs::write(
             root.join("llmanspec/changes/c1/proposal.md"),
@@ -204,12 +206,7 @@ mod tests {
         tmp
     }
 
-    #[test]
-    fn landed_when_specs_commit_on_bound_branch() {
-        let tmp = init_repo();
-        let root = tmp.path();
-        let base = run_git(root, &["rev-parse", "HEAD"]).unwrap();
-        let base = base.trim();
+    fn bind_c1(root: &std::path::Path, base: &str) {
         run_git(root, &["checkout", "-b", "sdd/c1"]).unwrap();
         write_binding(
             root,
@@ -217,11 +214,18 @@ mod tests {
             &ChangeGitBinding {
                 branch: "sdd/c1".into(),
                 base_sha: base.to_string(),
-                checkpointed: false,
-                checkpoint_sha: None,
             },
         )
         .unwrap();
+    }
+
+    #[test]
+    fn landed_when_specs_commit_on_bound_branch() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        let base = run_git(root, &["rev-parse", "HEAD"]).unwrap();
+        let base = base.trim();
+        bind_c1(root, base);
         fs::write(
             root.join("llmanspec/specs/sample/sample.feature"),
             "# capability: sample\n# purpose: updated\n# scope: x\n\nFeature: sample\n",
@@ -233,7 +237,28 @@ mod tests {
         let st = evaluate_specs_landing(root, &root.join("llmanspec/changes/c1"));
         assert!(st.specs_landed, "{st:?}");
         assert!(st.ready_to_implement);
-        assert!(!st.skip_specs_landing);
+        assert!(st.needs_specs_change);
+    }
+
+    #[test]
+    fn any_file_under_specs_dir_counts_as_landing() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        let base = run_git(root, &["rev-parse", "HEAD"]).unwrap();
+        let base = base.trim();
+        bind_c1(root, base);
+        // Directory-level semantics: a non-.feature file (e.g. a helper) also lands.
+        fs::write(
+            root.join("llmanspec/specs/sample/notes.md"),
+            "# design note\n",
+        )
+        .unwrap();
+        run_git(root, &["add", "llmanspec/specs"]).unwrap();
+        run_git(root, &["commit", "-m", "specs-note"]).unwrap();
+
+        let st = evaluate_specs_landing(root, &root.join("llmanspec/changes/c1"));
+        assert!(st.specs_landed, "{st:?}");
+        assert!(st.ready_to_implement);
     }
 
     #[test]
@@ -242,18 +267,7 @@ mod tests {
         let root = tmp.path();
         let base = run_git(root, &["rev-parse", "HEAD"]).unwrap();
         let base = base.trim().to_string();
-        run_git(root, &["checkout", "-b", "sdd/c1"]).unwrap();
-        write_binding(
-            root,
-            "c1",
-            &ChangeGitBinding {
-                branch: "sdd/c1".into(),
-                base_sha: base,
-                checkpointed: false,
-                checkpoint_sha: None,
-            },
-        )
-        .unwrap();
+        bind_c1(root, &base);
         // Binding write dirties proposal — commit so only binding changed, no specs.
         run_git(root, &["add", "llmanspec/changes"]).unwrap();
         run_git(root, &["commit", "-m", "bind"]).unwrap();
@@ -265,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn skip_flag_makes_ready_without_specs_diff() {
+    fn needs_false_makes_ready_without_specs_diff() {
         let tmp = init_repo();
         let root = tmp.path();
         let base = run_git(root, &["rev-parse", "HEAD"]).unwrap();
@@ -273,15 +287,15 @@ mod tests {
         run_git(root, &["checkout", "-b", "sdd/c1"]).unwrap();
         fs::write(
             root.join("llmanspec/changes/c1/proposal.md"),
-            "---\ndepends_on: []\nbranch: sdd/c1\nbase_sha: {base}\nskip_specs_landing: true\n---\n\n## Why\nw\n\n## What Changes\n- x\n"
+            "---\ndepends_on: []\nbranch: sdd/c1\nbase_sha: {base}\nneeds_specs_change: false\n---\n\n## Why\nw\n\n## What Changes\n- x\n"
                 .replace("{base}", &base),
         )
         .unwrap();
         run_git(root, &["add", "."]).unwrap();
-        run_git(root, &["commit", "-m", "skip"]).unwrap();
+        run_git(root, &["commit", "-m", "needs-false"]).unwrap();
 
         let st = evaluate_specs_landing(root, &root.join("llmanspec/changes/c1"));
-        assert!(st.skip_specs_landing);
+        assert!(!st.needs_specs_change);
         assert!(st.ready_to_implement);
         assert!(!st.specs_landed);
     }

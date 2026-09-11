@@ -67,26 +67,19 @@ pub(crate) struct ProposalFrontmatter {
     pub(crate) branch: Option<String>,
     /// BDD-on Git-native binding: immutable merge-base SHA at attach time.
     pub(crate) base_sha: Option<String>,
-    /// Whether `sdd change checkpoint` has succeeded.
-    /// Parsed for frontmatter SSOT completeness; state transitions are
-    /// written via `write_binding`, never read back from this struct.
-    #[allow(dead_code)]
-    pub(crate) checkpointed: bool,
-    #[allow(dead_code)]
-    pub(crate) checkpoint_sha: Option<String>,
-    /// When true, apply-ready does not require a live `llmanspec/specs/**` diff
-    /// on the bound branch (docs/governance changes with no contract edit).
-    pub(crate) skip_specs_landing: bool,
-    /// Human acknowledgement (spec-format r135, git-native-v2 D2): allows the
-    /// change to modify locked `@human` rule scenarios under
-    /// `llmanspec/specs/**/*.feature`. Granular per-req-id list
-    /// (`rules_touched`); legacy `rules_edit_acked: true` ≈ blanket.
-    pub(crate) rules_edit_acked: bool,
-    /// New granular locked-rule acknowledgement (D2): req-ids this change
-    /// declares it edits; only edits to these rules are exempted from the
-    /// lock gate. `rules_edit_acked: true` (legacy) is read as blanket
-    /// (≈ all ids) and takes precedence.
+    /// r1: positive specs-change declaration (default true). When false, the
+    /// specs-landing diff check is skipped entirely (docs/governance-only
+    /// changes with no contract edit). `skip_specs_landing` is removed.
+    pub(crate) needs_specs_change: bool,
+    /// Granular locked-rule acknowledgement (spec-format r135): req-ids this
+    /// change declares it edits; only edits to these rules are exempted from
+    /// the lock gate.
     pub(crate) rules_touched: Vec<String>,
+    /// r135 audit trail: locked rules whose edits were acknowledged by an
+    /// agent via `--yes` (only `@agent`-marked rules qualify). Surfaced in
+    /// `llman sdd review` / `change diff` for human re-audit.
+    #[allow(dead_code)]
+    pub(crate) agent_acked: Vec<String>,
 }
 
 /// Cache of BDD full-mode results keyed by the expanded `run_command` string.
@@ -968,7 +961,7 @@ mod tests {
             &tmp,
             &[(
                 "proposal.md",
-                "---\ndepends_on: []\nblocks: []\nbranch: sdd/x\nbaseSha: abc123\ncheckpointed: true\ncheckpointSha: def456\nskip_specs_landing: true\n---\n## Why\nTest",
+                "---\ndepends_on: []\nblocks: []\nbranch: sdd/x\nbase_sha: abc123\nneeds_specs_change: false\nrules_touched: [r1]\nagent_acked: [r1]\n---\n## Why\nTest",
             )],
         );
         let (issues, _) = check_proposal_frontmatter(&change_dir, &["x".to_string()], &[], false);
@@ -1437,7 +1430,7 @@ Feature: cli
     }
 
     #[test]
-    fn stage_designed_when_proposal_design_tasks_without_attach() {
+    fn stage_planned_when_proposal_design_tasks_without_attach() {
         let tmp = tempfile::tempdir().unwrap();
         let change_dir = setup_change_dir(
             &tmp,
@@ -1446,6 +1439,17 @@ Feature: cli
                 ("design.md", "# design"),
                 ("tasks.md", "- [ ] t1"),
             ],
+        );
+        assert_eq!(determine_stage(&change_dir), ChangeStage::Planned);
+    }
+
+    #[test]
+    fn stage_designed_when_design_without_tasks() {
+        let tmp = tempfile::tempdir().unwrap();
+        // r93: design.md alone (no tasks.md) is enough for designed.
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[("proposal.md", PROPOSAL_NO_FM), ("design.md", "# design")],
         );
         assert_eq!(determine_stage(&change_dir), ChangeStage::Designed);
     }
@@ -1465,11 +1469,11 @@ Feature: cli
     }
 
     #[test]
-    fn stage_draft_when_attached_but_missing_tasks() {
+    fn stage_designed_when_attached_but_missing_tasks() {
         let tmp = tempfile::tempdir().unwrap();
-        // attached + proposal + design, but no tasks → Draft: Full requires all
-        // three artifacts; Designed requires tasks too. Missing tasks is an
-        // incomplete state, reported as Draft (not Full, not Designed).
+        // r93: attached + proposal + design, but no tasks → Designed:
+        // binding never changes the artifact tier; full additionally needs
+        // tasks.md. `attached` stays visible separately.
         let change_dir = setup_change_dir(
             &tmp,
             &[
@@ -1477,7 +1481,7 @@ Feature: cli
                 ("design.md", "# design"),
             ],
         );
-        assert_eq!(determine_stage(&change_dir), ChangeStage::Draft);
+        assert_eq!(determine_stage(&change_dir), ChangeStage::Designed);
     }
 
     #[test]
@@ -1492,9 +1496,9 @@ Feature: cli
                 ("tasks.md", "- [ ] t1"),
             ],
         );
-        // proposal+design+tasks but no valid attach → Designed (not Draft):
+        // proposal+design+tasks but no valid attach → Planned (not Draft):
         // artifacts are ready, just not bound to a branch yet.
-        assert_eq!(determine_stage(&change_dir), ChangeStage::Designed);
+        assert_eq!(determine_stage(&change_dir), ChangeStage::Planned);
     }
 
     #[test]
@@ -1511,8 +1515,8 @@ Feature: cli
                 ("specs/cap/spec.toon", "kind: llman.sdd.spec\n"),
             ],
         );
-        // specs/ present but no attach → Designed (specs/ is ignored).
-        assert_eq!(determine_stage(&change_dir), ChangeStage::Designed);
+        // specs/ present but no attach → Planned (specs/ is ignored).
+        assert_eq!(determine_stage(&change_dir), ChangeStage::Planned);
     }
 
     #[test]
@@ -1803,20 +1807,17 @@ pub(crate) fn check_proposal_exists(change_dir: &Path) -> Vec<ValidationIssue> {
 /// Allowed top-level keys in a change `proposal.md` frontmatter (r124). Any
 /// other key (e.g. `status`, `title`, `priority`, `author`) is rejected as an
 /// ERROR by [`check_proposal_frontmatter`] to keep frontmatter the single
-/// source of truth for change metadata. `baseSha` / `checkpointSha` are
-/// accepted camelCase aliases of the snake_case attach/checkpoint bindings.
+/// source of truth for change metadata. No legacy aliases: `baseSha`,
+/// `checkpointed`, `checkpoint_sha`, `checkpointSha`, `skip_specs_landing`,
+/// `rules_edit_acked` are removed (q9 no-compatibility migration policy).
 const PROPOSAL_FRONTMATTER_ALLOWED_FIELDS: &[&str] = &[
     "depends_on",
     "blocks",
     "branch",
     "base_sha",
-    "baseSha",
-    "checkpointed",
-    "checkpoint_sha",
-    "checkpointSha",
-    "skip_specs_landing",
-    "rules_edit_acked",
+    "needs_specs_change",
     "rules_touched",
+    "agent_acked",
 ];
 
 pub(crate) fn check_proposal_frontmatter(
@@ -1862,14 +1863,11 @@ pub(crate) fn check_proposal_frontmatter(
     let depends_on = parse_yaml_string_list(&parsed, "depends_on", &mut issues);
     let blocks = parse_yaml_string_list(&parsed, "blocks", &mut issues);
     let branch = parse_yaml_optional_string(&parsed, "branch");
-    let base_sha = parse_yaml_optional_string(&parsed, "base_sha")
-        .or_else(|| parse_yaml_optional_string(&parsed, "baseSha"));
-    let checkpointed = parse_yaml_optional_bool(&parsed, "checkpointed");
-    let checkpoint_sha = parse_yaml_optional_string(&parsed, "checkpoint_sha")
-        .or_else(|| parse_yaml_optional_string(&parsed, "checkpointSha"));
-    let skip_specs_landing = parse_yaml_optional_bool(&parsed, "skip_specs_landing");
-    let rules_edit_acked = parse_yaml_optional_bool(&parsed, "rules_edit_acked");
+    let base_sha = parse_yaml_optional_string(&parsed, "base_sha");
+    // r1: positive flag, default true. Explicit `false` skips the landing check.
+    let needs_specs_change = parse_yaml_optional_bool(&parsed, "needs_specs_change", true);
     let rules_touched = parse_yaml_string_list(&parsed, "rules_touched", &mut issues);
+    let agent_acked = parse_yaml_string_list(&parsed, "agent_acked", &mut issues);
 
     // r124: reject unknown frontmatter fields (e.g. `status`, `title`,
     // `priority`, `author`). The allowed set is exactly the keys this parser
@@ -1947,11 +1945,9 @@ pub(crate) fn check_proposal_frontmatter(
             blocks,
             branch,
             base_sha,
-            checkpointed,
-            checkpoint_sha,
-            skip_specs_landing,
-            rules_edit_acked,
+            needs_specs_change,
             rules_touched,
+            agent_acked,
         },
     )
 }
@@ -1970,11 +1966,11 @@ fn parse_yaml_optional_string(doc: &serde_json::Value, key: &str) -> Option<Stri
     })
 }
 
-pub(crate) fn parse_yaml_optional_bool(doc: &serde_json::Value, key: &str) -> bool {
+pub(crate) fn parse_yaml_optional_bool(doc: &serde_json::Value, key: &str, default: bool) -> bool {
     match doc.get(key) {
         Some(serde_json::Value::Bool(b)) => *b,
         Some(serde_json::Value::String(s)) => matches!(s.trim(), "true" | "yes" | "1"),
-        _ => false,
+        _ => default,
     }
 }
 
@@ -2174,6 +2170,7 @@ pub(crate) fn check_design_md(change_dir: &Path) -> Vec<ValidationIssue> {
 pub(crate) enum ChangeStage {
     Draft,
     Designed,
+    Planned,
     Full,
 }
 
@@ -2182,18 +2179,22 @@ impl ChangeStage {
         match self {
             ChangeStage::Draft => "draft",
             ChangeStage::Designed => "designed",
+            ChangeStage::Planned => "planned",
             ChangeStage::Full => "full",
         }
     }
 }
 
 /// Infer the change stage from on-disk artifacts under the unified Git-native
-/// flow (r93). Three states only — `Specified` is removed:
-/// - **Draft**: only `proposal.md` (or no attach binding).
-/// - **Designed**: `proposal.md` + `design.md` + `tasks.md` present, but not
-///   yet attached to a feature branch (no `branch`/`base_sha` in frontmatter).
-/// - **Full**: `proposal.md` + `design.md` + `tasks.md` present **and** an
-///   attach binding exists (via `change start` / `change attach`).
+/// flow (r93). Four tiers, each named after its completed artifact:
+/// - **Draft**: only `proposal.md`.
+/// - **Designed**: `proposal.md` + `design.md` present (**tasks not required**).
+/// - **Planned**: `proposal.md` + `design.md` + `tasks.md` present, not bound.
+/// - **Full**: Planned + an attach binding exists (via `change start`/`attach`).
+///
+/// Binding never changes the artifact tier by itself (attached but missing
+/// tasks stays `Designed`; `attached` is exposed separately). `tasks` without
+/// `design` stays `Draft` and is an ERROR via `check_design_tasks_constraint`.
 ///
 /// The spec signal is always the Git-native attach binding; `changes/<id>/specs/`
 /// is no longer consulted (the directory is abolished, see r115).
@@ -2203,9 +2204,10 @@ pub(crate) fn determine_stage(change_dir: &Path) -> ChangeStage {
     let has_tasks = change_dir.join("tasks.md").exists();
     let attached = has_attach_binding(change_dir);
 
-    match (has_proposal, attached, has_design, has_tasks) {
+    match (has_proposal, has_design, has_tasks, attached) {
         (true, true, true, true) => ChangeStage::Full,
-        (true, _, true, true) => ChangeStage::Designed,
+        (true, true, true, false) => ChangeStage::Planned,
+        (true, true, false, _) => ChangeStage::Designed,
         _ => ChangeStage::Draft,
     }
 }
@@ -2286,6 +2288,13 @@ pub(crate) fn check_completeness_stage(
     // blocking validation. Stage-aware enforcement lives in validate_change_full.
     match stage {
         ChangeStage::Full => {}
+        ChangeStage::Planned => {
+            issues.push(ValidationIssue {
+                level: ValidationLevel::Info,
+                path: "completeness".to_string(),
+                message: t!("sdd.validate.stage_planned_hint").to_string(),
+            });
+        }
         ChangeStage::Designed => {
             issues.push(ValidationIssue {
                 level: ValidationLevel::Info,

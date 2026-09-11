@@ -165,6 +165,7 @@ fn collect_spec_signals(root: &Path, cap: &str, review: &mut Review) -> Result<(
 fn collect_locked_hints(root: &Path, review: &mut Review) {
     let mut bound = 0usize;
     let mut edits = 0usize;
+    let mut agent_acked_total = 0usize;
     let Ok(changes) = discover_changes(root) else {
         review.push("locked", "-", 0, String::new());
         return;
@@ -176,8 +177,7 @@ fn collect_locked_hints(root: &Path, review: &mut Review) {
             continue;
         };
         let branch = frontmatter_value(&text, "branch");
-        let base_sha =
-            frontmatter_value(&text, "base_sha").or_else(|| frontmatter_value(&text, "baseSha"));
+        let base_sha = frontmatter_value(&text, "base_sha");
         let (Some(_branch), Some(base_sha)) = (branch, base_sha) else {
             continue;
         };
@@ -187,6 +187,9 @@ fn collect_locked_hints(root: &Path, review: &mut Review) {
             .and_then(|n| n.to_str())
             .unwrap_or("<change>")
             .to_string();
+        // r135 audit: agent-confirmed locked-rule edits surface here for the
+        // human's focused re-review (design §6.2).
+        agent_acked_total += lock_gate::agent_acked_for(root, &change_id).len();
         let ack = lock_gate::locked_ack_for(root, &change_id);
         let base = lock_gate::effective_range_base(root, Some(&base_sha)).unwrap_or(base_sha);
         let violations = lock_gate::check(root, &base, &ack);
@@ -197,12 +200,14 @@ fn collect_locked_hints(root: &Path, review: &mut Review) {
         edits += errors;
         review.critical += errors;
     }
-    review.push(
-        "locked",
-        "-",
-        edits,
-        format!("{bound} bound change(s); inspect with `llman sdd change diff <id>`"),
-    );
+    let detail = if agent_acked_total > 0 {
+        format!(
+            "{bound} bound change(s); {agent_acked_total} rule(s) ack'd by agent — re-audit with `llman sdd change diff <id>`"
+        )
+    } else {
+        format!("{bound} bound change(s); inspect with `llman sdd change diff <id>`")
+    };
+    review.push("locked", "-", edits, detail);
 }
 
 fn collect_validate_sweep(review: &mut Review) {

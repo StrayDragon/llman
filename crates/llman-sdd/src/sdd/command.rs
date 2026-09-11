@@ -197,12 +197,17 @@ pub enum SddCommands {
         /// Emit compact JSON (no pretty whitespace). Requires `--json`.
         #[arg(long, requires = "json")]
         compact_json: bool,
-        /// Force validation stage: draft, spec, or full (overrides auto-detection)
-        #[arg(long, value_parser = ["draft", "spec", "full"])]
+        /// Force validation stage: draft, designed, planned, or full (overrides auto-detection)
+        #[arg(long, value_parser = ["draft", "designed", "planned", "full"])]
         stage: Option<String>,
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
+        /// Acknowledge undeclared locked-rule edits for @agent-marked rules
+        /// (r135): equivalent to a --yes confirmation for THIS validation run;
+        /// does not write frontmatter (finalize --yes does)
+        #[arg(long)]
+        yes: bool,
         /// Run the BDD check command after fast validation (BDD-on spec only).
         /// Default: enabled when bdd.run_command is configured; use --no-check to skip.
         #[arg(long)]
@@ -444,37 +449,42 @@ pub enum SddChangeCommands {
         #[arg(long)]
         no_interactive: bool,
     },
-    /// Checkpoint a clean, validated feature branch for archive
+    /// Checkpoint is removed (r25): any call fails with a single-line pointer
+    /// to `change finalize`. Args kept for a clean clap surface.
     Checkpoint {
         /// Change id
         change: String,
-        /// Skip BDD runner during checkpoint (fast gates only)
+        /// Skip BDD runner
         #[arg(long)]
         no_check: bool,
-        /// Accepted and ignored; checkpoint has no interactive mode. Keeps the
-        /// flag matrix uniform across change subcommands so skills can pass it
-        /// unconditionally (alongside archive/freeze/migrate).
+        /// Accepted and ignored
         #[arg(long)]
         no_interactive: bool,
     },
-    /// BDD-on single-commit closure: checkpoint (relaxed gates) + docs-only archive
-    /// in one process, leaving a single dirty tree for one `git commit`.
+    /// Close out a change: relaxed gates + lock-rule confirmation + ff-merge +
+    /// docs-only archive rename + one auto `git commit` (`archive(sdd): <id>`)
+    /// bundling the implementation diff, frontmatter and rename.
     ///
-    /// Differs from `checkpoint` + `archive` in two ways: (1) it does NOT require
-    /// a clean working tree (the whole point — let the implementation diff be
-    /// committed together with the finalize metadata), and (2) the written
-    /// `checkpoint_sha` equals the attach-time `base_sha` (not the HEAD commit
-    /// carrying the implementation). If you need the strict sha semantics, use
-    /// `change checkpoint` then `change archive` instead.
+    /// `--no-commit` skips the auto commit (CI/hook scenarios); `--yes`
+    /// acknowledges `@agent`-marked locked-rule edits (spec-format r135).
     Finalize {
         /// Change id
         change: String,
         /// Skip BDD runner during finalize (fast gates only)
         #[arg(long)]
         no_check: bool,
+        /// Skip the automatic `archive(sdd): <id>` git commit; leave the tree
+        /// dirty for manual commit (CI / pre-commit hook conflicts)
+        #[arg(long)]
+        no_commit: bool,
+        /// Acknowledge locked-rule edits for `@agent`-marked rules (writes
+        /// rules_touched + agent_acked) and continue; plain `@human` rules
+        /// still require declaration in rules_touched
+        #[arg(long)]
+        yes: bool,
         /// Accepted and ignored; finalize has no interactive mode. Keeps the
         /// flag matrix uniform across change subcommands so skills can pass it
-        /// unconditionally (alongside checkpoint/archive/freeze/migrate).
+        /// unconditionally (alongside archive/freeze/migrate).
         #[arg(long)]
         no_interactive: bool,
     },
@@ -637,6 +647,7 @@ fn run_command(args: &SddArgs) -> Result<()> {
             no_interactive,
             check,
             no_check,
+            yes,
         } => validate::run(
             std::path::Path::new("."),
             validate::ValidateArgs {
@@ -652,6 +663,7 @@ fn run_command(args: &SddArgs) -> Result<()> {
                 no_interactive: *no_interactive,
                 check: *check,
                 no_check: *no_check,
+                yes: *yes,
             },
         ),
         SddCommands::Archive {
@@ -708,26 +720,20 @@ fn run_command(args: &SddArgs) -> Result<()> {
                     no_interactive: false,
                 },
             ),
-            SddChangeCommands::Checkpoint {
-                change,
-                no_check,
-                no_interactive: _,
-            } => git_native::run_checkpoint(
-                std::path::Path::new("."),
-                git_native::CheckpointArgs {
-                    change: change.clone(),
-                    no_check: *no_check,
-                },
-            ),
+            SddChangeCommands::Checkpoint { .. } => git_native::run_checkpoint_removed(),
             SddChangeCommands::Finalize {
                 change,
                 no_check,
+                no_commit,
+                yes,
                 no_interactive: _,
             } => crate::sdd::change::finalize::run_finalize(
                 std::path::Path::new("."),
                 crate::sdd::change::finalize::FinalizeArgs {
                     change: change.clone(),
                     no_check: *no_check,
+                    no_commit: *no_commit,
+                    yes: *yes,
                 },
             ),
             SddChangeCommands::Diff {

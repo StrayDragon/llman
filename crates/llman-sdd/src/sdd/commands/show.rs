@@ -11,7 +11,9 @@ use crate::sdd::shared::types::{ItemType, normalize_type};
 use crate::sdd::spec::backend::feature_backend;
 use crate::sdd::spec::backend::feature_backend::compute_rule_morphology;
 use crate::sdd::spec::parser::parse_change;
-use crate::sdd::spec::validation::{ValidationLevel, check_proposal_frontmatter, determine_stage};
+use crate::sdd::spec::validation::{
+    ChangeStage, ValidationLevel, check_proposal_frontmatter, determine_stage,
+};
 use anyhow::{Result, anyhow};
 use inquire::Select;
 use serde::Serialize;
@@ -234,23 +236,31 @@ fn compute_gate_checks(root: &Path, change_id: &str, change_dir: &Path) -> Vec<G
     };
     checks.push(gate("on-bound-branch", on_bound, bound_hint));
 
-    // stage-complete: proposal + design + tasks all present (designed+).
-    let artifacts_done = ["proposal.md", "design.md", "tasks.md"]
-        .iter()
-        .all(|a| change_dir.join(a).exists());
-    checks.push(gate(
-        "stage-complete",
-        artifacts_done,
-        "planning artifacts incomplete: add design.md + tasks.md",
-    ));
+    // stage-complete: proposal + design + tasks all present (planned+).
+    // r93 dynamic hint: name the missing artifact and the tier it unlocks.
+    let stage = determine_stage(change_dir);
+    let has_design = change_dir.join("design.md").exists();
+    let has_tasks = change_dir.join("tasks.md").exists();
+    let artifacts_done = has_design && has_tasks;
+    let stage_hint = if !has_design {
+        "add design.md (current: draft → designed)".to_string()
+    } else if !has_tasks {
+        "add tasks.md (current: designed → planned)".to_string()
+    } else if stage == ChangeStage::Planned {
+        "bind via `llman sdd change start <id>` (planned → full)".to_string()
+    } else {
+        String::new()
+    };
+    checks.push(gate("stage-complete", artifacts_done, &stage_hint));
 
-    // specs-landed: r1 landing via the live range (new anchor) or skip flag.
+    // specs-landed: r1 landing via the live range (new anchor) or the
+    // `needs_specs_change: false` declaration.
     let landing = crate::sdd::change::specs_landing::evaluate_specs_landing(root, change_dir);
-    let specs_ok = landing.specs_landed || landing.skip_specs_landing;
+    let specs_ok = landing.specs_landed || !landing.needs_specs_change;
     checks.push(gate(
         "specs-landed",
         specs_ok,
-        "edit live specs on the bound branch and commit (or skip_specs_landing)",
+        "edit live specs on the bound branch and commit (or needs_specs_change: false)",
     ));
 
     // lock-gate: locked @human scenarios untouched vs the effective range
@@ -358,7 +368,7 @@ fn show_change(
             "artifacts": artifacts,
             "readyToImplement": ready_to_implement,
             "specsLanded": landing.specs_landed,
-            "skipSpecsLanding": landing.skip_specs_landing,
+            "needsSpecsChange": landing.needs_specs_change,
             "attached": attached,
             "deltaCount": deltas.len(),
             "deltas": deltas,
@@ -619,8 +629,9 @@ mod gate_checks_tests {
             GateCheck {
                 name: "specs-landed",
                 pass: false,
-                hint: "edit live specs on the bound branch and commit (or skip_specs_landing)"
-                    .into(),
+                hint:
+                    "edit live specs on the bound branch and commit (or needs_specs_change: false)"
+                        .into(),
             },
             GateCheck {
                 name: "tasks-done",

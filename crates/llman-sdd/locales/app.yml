@@ -1489,7 +1489,9 @@ sdd:
     stage_draft_hint:
       en: "Change is in 'draft' stage (next: add design.md + tasks.md, then `llman sdd change start <id>` to enter a feature branch)"
     stage_designed_hint:
-      en: "Change is in 'designed' stage (next: `llman sdd change start` to enter feature branch and reach 'full')"
+      en: "Change is in 'designed' stage (next: add tasks.md to reach 'planned', then `llman sdd change start` to enter feature branch and reach 'full')"
+    stage_planned_hint:
+      en: "Change is in 'planned' stage (next: `llman sdd change start` to enter feature branch and reach 'full')"
     next_steps:
       en: "Next steps:"
     change_step_1:
