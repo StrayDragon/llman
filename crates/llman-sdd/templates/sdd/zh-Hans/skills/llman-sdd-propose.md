@@ -7,7 +7,7 @@ metadata:
 
 # LLMAN SDD Propose
 
-创建一个带规划工件的新 change（proposal + tasks；design 可选），**先** `change start`（或 `attach`）完成 Branch binding，**然后**在绑定分支上编辑 live `llmanspec/specs/<capability>/*.feature`（Specs landing）、校验，并建议下一步。
+创建一个带规划工件的新 change（proposal + tasks；design 可选），**先** `change start`（或 `attach`）完成 Branch binding，**然后**在绑定分支上编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录主文件）（Specs landing）、校验，并建议下一步。
 
 ## Pipeline 位置
 
@@ -64,7 +64,7 @@ flowchart LR
 3. 收集输入：
    - 一段简短的变更描述
    - 一个 change id（用户给出则用之；否则按 r140 推导并宣布）
-   - 受影响的 capability（用于命名 `specs/<capability>/`）
+   - 受影响的 capability（用于命名 `specs/<capability>`）
 
 ### 2) 确认项目已初始化：
    - `llmanspec/` 必须存在；若缺失，让用户运行 `llman sdd init`，然后 STOP。
@@ -81,7 +81,7 @@ flowchart LR
    - **写 tasks.md 前确认测试边界（seam，接缝）**：列出将要测试的 seam 并与用户确认。seam = 由 `*.feature` GWT 步骤驱动的公共边界（CLI 子进程或公共接口）——MUST 复用既有 harness seam，MUST NOT 脱离 `.feature` 凭空发明 seam。没有 `.feature` 时，seam = 被测的 CLI 子命令或公共函数边界。
    - `tasks.md`：按**垂直切片**拆分（每个 task 打穿 schema→API→UI→tests 一条窄而完整的路径，可独立验证），并带 `[blocked-by: <task-id>]` 依赖标记。**大范围重构例外**（一个机械改动扫全库、单点编辑牵动大量调用处）：按 expand-contract 排序（旧的旁边加新的 → 分批迁移调用处 → 删掉旧的），不强拆垂直切片。
    - **先** `llman sdd change start <change-id>`（推荐；默认分支上工作树干净时）或手动建分支后 `change attach <change-id>` 到达 Full（bound）。
-   - **然后**在绑定的非默认分支上编辑 live `llmanspec/specs/<capability>/<capability>.feature` 并 commit（Specs landing）。**不要**在 start 之前改 live specs；**不要**为过干净树门禁把 live specs commit 到默认分支。已 attach 时勿重复 `start`（丢失 specs 时用 checkout/重建 + `attach --force` 恢复）。
+   - **然后**在绑定的非默认分支上编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件）并 commit（Specs landing）。**不要**在 start 之前改 live specs；**不要**为过干净树门禁把 live specs commit 到默认分支。已 attach 时勿重复 `start`（丢失 specs 时用 checkout/重建 + `attach --force` 恢复）。
    - 无 live 合约编辑的 change，设置 frontmatter `skip_specs_landing: true`。仅当 `llman sdd show <id> --json` 给出 `readyToImplement=true` 才进入 apply。
 
 ### 4) 校验：

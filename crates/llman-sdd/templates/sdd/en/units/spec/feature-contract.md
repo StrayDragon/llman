@@ -1,6 +1,6 @@
 ## Canonical Single-Track Feature Contract
 
-Each capability is ONE Gherkin file: `llmanspec/specs/<capability>/<capability>.feature`.
+Each capability is ONE Gherkin file: flat `llmanspec/specs/<capability>.feature` (default) or directory `llmanspec/specs/<capability>/` with a same-named main file (spec-format r131).
 It is the only spec artifact — there is no `spec.toon`.
 
 ```gherkin

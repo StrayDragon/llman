@@ -1,7 +1,7 @@
 Validation fixes (single-track feature-as-spec):
 
 1) Missing header comments (`missing `# capability:`` header comment`):
-Every `llmanspec/specs/<capability>/<capability>.feature` MUST start with:
+Every capability `.feature` (`llmanspec/specs/<capability>.feature` or `llmanspec/specs/<capability>/<capability>.feature`) MUST start with:
 ```
 # language: zh-CN
 # capability: <capability>
