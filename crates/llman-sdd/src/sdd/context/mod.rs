@@ -331,18 +331,34 @@ fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path, _lang: &str) ->
     std::fs::create_dir_all(&pageindex_dir)?;
 
     eprintln!("Scanning specs for pageindex tree (no LLM)...");
-    let mut entries: Vec<PathBuf> = fs::read_dir(specs_dir)?
+    // r131 dual layout: flat `<cap>.feature` files and capability directories
+    // are both spec sources. Sorted by spec id for deterministic output.
+    let mut scanned: Vec<(String, PathBuf)> = Vec::new();
+    let mut raw: Vec<(String, PathBuf, bool)> = fs::read_dir(specs_dir)?
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
-        .map(|e| e.path())
+        .filter_map(|e| {
+            let is_dir = e.file_type().map(|t| t.is_dir()).ok()?;
+            let name = e.file_name().to_string_lossy().to_string();
+            Some((name, e.path(), is_dir))
+        })
         .collect();
-    entries.sort();
+    raw.sort_by(|a, b| a.0.cmp(&b.0));
 
-    let mut parsed: Vec<(String, MainSpecDoc)> = Vec::new();
-    for spec_dir in &entries {
+    for (name, path, is_dir) in raw {
+        if !is_dir {
+            // Flat layout (r131): `<cap>.feature` IS the capability.
+            if path.extension().is_some_and(|ext| ext == "feature") {
+                let spec_id = path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or(name);
+                scanned.push((spec_id, path));
+            }
+            continue;
+        }
         // Single-track (r131): the capability's `.feature` IS the spec. Legacy
         // `spec.toon` files are skipped with a warning pointing at migrate.
-        let spec_file = spec_dir.join("spec.toon");
+        let spec_file = path.join("spec.toon");
         if spec_file.exists() {
             eprintln!(
                 "Warning: skipping legacy {} (run `llman sdd project migrate --kind toon2features`)",
@@ -350,13 +366,18 @@ fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path, _lang: &str) ->
             );
             continue;
         }
-        let features = crate::sdd::spec::validation::discover_features(spec_dir);
+        let features = crate::sdd::spec::validation::discover_features(&path);
         let Some(feature_path) = features.first() else {
             continue;
         };
+        // Directory layout (r131): the capability id is the directory name.
+        scanned.push((name, feature_path.clone()));
+    }
+
+    let mut parsed: Vec<(String, MainSpecDoc)> = Vec::new();
+    for (spec_id, feature_path) in &scanned {
         let content = fs::read_to_string(feature_path)?;
-        let spec_id = spec_dir.file_name().unwrap().to_string_lossy().to_string();
-        let ctx = format!("spec `{}`", spec_id);
+        let ctx = format!("spec `{spec_id}`");
         let doc = match FEATURE_BACKEND.parse_main_spec(&content, &ctx) {
             Ok(doc) => doc,
             Err(e) => {
@@ -364,7 +385,7 @@ fn index_rebuild_pageindex(context_dir: &Path, specs_dir: &Path, _lang: &str) ->
                 continue;
             }
         };
-        parsed.push((spec_id, doc));
+        parsed.push((spec_id.clone(), doc));
     }
 
     if parsed.is_empty() {
