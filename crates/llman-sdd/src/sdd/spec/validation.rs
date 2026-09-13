@@ -926,6 +926,25 @@ mod tests {
     }
 
     #[test]
+    fn proposal_frontmatter_base_branch_is_accepted() {
+        // r111/r124: `base_branch` is a CLI-written binding field (fork-point
+        // branch); its presence must not trip the unknown-field guard.
+        let tmp = tempfile::tempdir().unwrap();
+        let change_dir = setup_change_dir(
+            &tmp,
+            &[(
+                "proposal.md",
+                "---\ndepends_on: []\nbranch: feat/x\nbase_sha: abc\nbase_branch: main\n---\n## Why\nTest",
+            )],
+        );
+        let (issues, _) = check_proposal_frontmatter(&change_dir, &["x".to_string()], &[], false);
+        assert!(
+            issues.iter().all(|i| i.level != ValidationLevel::Error),
+            "base_branch must be an allowed field: {issues:?}"
+        );
+    }
+
+    #[test]
     fn proposal_frontmatter_unknown_field_title_reports_error() {
         let tmp = tempfile::tempdir().unwrap();
         let change_dir = setup_change_dir(
@@ -1806,6 +1825,7 @@ const PROPOSAL_FRONTMATTER_ALLOWED_FIELDS: &[&str] = &[
     "blocks",
     "branch",
     "base_sha",
+    "base_branch",
     "needs_specs_change",
 ];
 

@@ -172,6 +172,13 @@
             "string",
             "null"
           ]
+        },
+        "merge_method": {
+          "description": "Default merge method for `change finalize`/`change archive` close-out (r113): \"squash\" (default; feature diff + docs rename land as ONE close-out commit on the merge target) or \"ff\" (fast-forward feature commits as-is, legacy). Per-invocation --method overrides this.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     }

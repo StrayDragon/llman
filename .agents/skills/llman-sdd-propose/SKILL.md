@@ -37,7 +37,7 @@ flowchart TB
   subgraph implement["实现"]
     H["apply：按 tasks 改代码<br/>可继续改 specs"]
     I["verify"]
-    J["finalize<br/>ff-merge → rename → 自动提交 archive(sdd): &lt;id&gt;<br/>默认分支才首次合入 specs"]
+    J["finalize<br/>合并（squash 缺省）→ rename → 自动提交 archive(sdd): &lt;id&gt;<br/>目标分支才首次合入 specs"]
   end
 
   A --> B1 --> B2 --> C

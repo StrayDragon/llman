@@ -214,6 +214,7 @@ mod tests {
             &ChangeGitBinding {
                 branch: "sdd/c1".into(),
                 base_sha: base.to_string(),
+                base_branch: String::new(),
             },
         )
         .unwrap();

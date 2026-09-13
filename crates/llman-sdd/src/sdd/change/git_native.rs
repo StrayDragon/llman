@@ -1,8 +1,9 @@
-//! Unified Git-native change binding: branch + base SHA as the change anchor.
+//! Unified Git-native change binding: branch + fork-point branch (base_branch)
+//! + base SHA as the change anchor.
 //!
 //! Changes attach to a non-default Git branch via `change start` or `change attach`.
 //! The only delta is `git diff <base>...HEAD`. Archive seals documentation
-//! and fast-forward merges into the default branch.
+//! and merges back into the recorded fork-point branch (r113; squash by default).
 
 use crate::fs_utils::atomic_write_with_mode;
 use crate::git_utils::{
@@ -25,6 +26,13 @@ use std::path::{Path, PathBuf};
 pub(crate) struct ChangeGitBinding {
     pub(crate) branch: String,
     pub(crate) base_sha: String,
+    /// Fork-point branch (r111): where this change forked from. `change start`
+    /// and `attach` resolve it to the local default branch; `attach --base`
+    /// records a stacked fork source explicitly. Empty = legacy binding
+    /// written before this field existed (merge target falls back to the
+    /// local default branch). MUST NOT feed diff/lock-gate range math — it
+    /// only resolves the finalize/archive merge target (sdd-workflow r113).
+    pub(crate) base_branch: String,
 }
 
 #[derive(Debug, Clone)]
@@ -32,6 +40,9 @@ pub(crate) struct AttachArgs {
     pub(crate) change: String,
     /// Re-bind even if already attached (updates branch/base to current HEAD state).
     pub(crate) force: bool,
+    /// Record the fork-point branch explicitly (stacked workflows). Defaults
+    /// to the local default branch when omitted.
+    pub(crate) base: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -105,8 +116,15 @@ pub(crate) fn read_binding(root: &Path, change_id: &str) -> Result<Option<Change
         .map_err(|err| anyhow!("proposal frontmatter YAML invalid: {err}"))?;
     let branch = parse_yaml_string(&parsed, "branch");
     let base_sha = parse_yaml_string(&parsed, "base_sha");
+    // Legacy bindings predate `base_branch`; empty = fall back to the local
+    // default branch at merge-target resolution time.
+    let base_branch = parse_yaml_string(&parsed, "base_branch").unwrap_or_default();
     match (branch, base_sha) {
-        (Some(branch), Some(base_sha)) => Ok(Some(ChangeGitBinding { branch, base_sha })),
+        (Some(branch), Some(base_sha)) => Ok(Some(ChangeGitBinding {
+            branch,
+            base_sha,
+            base_branch,
+        })),
         _ => Ok(None),
     }
 }
@@ -144,6 +162,7 @@ pub(crate) fn write_binding(
     let updates = vec![
         ("branch", binding.branch.clone()),
         ("base_sha", binding.base_sha.clone()),
+        ("base_branch", binding.base_branch.clone()),
     ];
     let rebuilt = upsert_frontmatter_fields(&content, &updates)?;
     atomic_write_with_mode(&path, rebuilt.as_bytes(), None)?;
@@ -191,16 +210,44 @@ pub(crate) fn run_attach(root: &Path, args: AttachArgs) -> Result<()> {
     }
     let default_ref = resolve_default_branch_ref(root)?;
     let base_sha = merge_base_sha(root, &default_ref)?;
+    let base_branch = match args.base.as_deref() {
+        Some(raw) => {
+            let trimmed = raw.trim();
+            if let Err(reason) = crate::env_safety::validate_user_git_ref(trimmed) {
+                bail!("invalid --base ref: {reason}");
+            }
+            if !crate::git_utils::git_ref_exists(root, &format!("refs/heads/{trimmed}")) {
+                bail!(
+                    "base branch `{trimmed}` does not exist; --base records the fork source branch for merge-target resolution (r111)"
+                );
+            }
+            if trimmed == branch {
+                bail!("--base must differ from the bound branch `{branch}`");
+            }
+            trimmed.to_string()
+        }
+        None => local_branch_name(&default_ref),
+    };
     let binding = ChangeGitBinding {
         branch: branch.clone(),
         base_sha: base_sha.clone(),
+        base_branch: base_branch.clone(),
     };
     write_binding(root, &change_name, &binding)?;
     println!(
-        "attached change `{}` → branch `{branch}` base `{base_sha}`",
+        "attached change `{}` → branch `{branch}` base `{base_sha}` base-branch `{base_branch}`",
         change_name
     );
     Ok(())
+}
+
+/// Local checkout-able branch name for a resolved default ref
+/// (`origin/main` → `main`; local refs pass through unchanged).
+pub(crate) fn local_branch_name(default_ref: &str) -> String {
+    default_ref
+        .strip_prefix("origin/")
+        .unwrap_or(default_ref)
+        .to_string()
 }
 
 /// Count uncommitted entries in the working tree (`git status --porcelain`).
@@ -266,9 +313,12 @@ pub(crate) fn run_start(root: &Path, args: StartArgs) -> Result<()> {
     let branch = feature_branch_name(&change_name, &config);
     let default_ref = resolve_default_branch_ref(root)?;
     let base_sha = merge_base_sha(root, &default_ref)?;
+    // start always forks from the default branch (r111 requires being on it),
+    // so base_branch is the resolved local default branch name.
     let binding = ChangeGitBinding {
         branch: branch.clone(),
         base_sha: base_sha.clone(),
+        base_branch: local_branch_name(&default_ref),
     };
     if args.worktree {
         let wt_path = crate::sdd::change::start::run_start_worktree(
@@ -286,7 +336,10 @@ pub(crate) fn run_start(root: &Path, args: StartArgs) -> Result<()> {
         run_git(root, &["checkout", "-b", &branch])?;
         write_binding(root, &change_name, &binding)?;
     }
-    println!("started change `{change_name}` → branch `{branch}` base `{base_sha}`");
+    println!(
+        "started change `{change_name}` → branch `{branch}` base `{base_sha}` base-branch `{}`",
+        binding.base_branch
+    );
     Ok(())
 }
 
@@ -503,6 +556,7 @@ mod tests {
             AttachArgs {
                 change: "c1".into(),
                 force: false,
+                base: None,
             },
         )
         .unwrap_err()
@@ -677,6 +731,7 @@ mod tests {
             AttachArgs {
                 change: "c1".into(),
                 force: false,
+                base: None,
             },
         )
         .unwrap();
@@ -686,5 +741,172 @@ mod tests {
 
         let diff = branch_diff(root, &binding.base_sha).unwrap();
         assert!(diff.contains("extra.txt") || !diff.is_empty());
+    }
+
+    #[test]
+    fn start_records_base_branch_as_local_default() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        init_repo(root);
+        fs::create_dir_all(root.join("llmanspec/changes/c1")).unwrap();
+        fs::write(
+            root.join("llmanspec/config.yaml"),
+            "schema: spec-driven\nlocale: en\n",
+        )
+        .unwrap();
+        fs::write(root.join("llmanspec/changes/c1/proposal.md"), "## Why\nx\n").unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-qm", "seed"]);
+        run_start(
+            root,
+            StartArgs {
+                change: "c1".into(),
+                worktree: false,
+                no_interactive: false,
+            },
+        )
+        .expect("start");
+        let binding = read_binding(root, "c1").unwrap().unwrap();
+        assert_eq!(binding.base_branch, "main");
+    }
+
+    #[test]
+    fn attach_base_flag_records_custom_fork_source() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        init_repo(root);
+        fs::create_dir_all(root.join("llmanspec/changes/c1")).unwrap();
+        fs::write(
+            root.join("llmanspec/config.yaml"),
+            "schema: spec-driven\nlocale: en\n",
+        )
+        .unwrap();
+        fs::write(root.join("llmanspec/changes/c1/proposal.md"), "## Why\nx\n").unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-qm", "seed"]);
+        git(root, &["branch", "stack-base"]);
+        git(root, &["checkout", "-b", "feat/x"]);
+        run_attach(
+            root,
+            AttachArgs {
+                change: "c1".into(),
+                force: false,
+                base: Some("stack-base".into()),
+            },
+        )
+        .expect("attach --base");
+        let binding = read_binding(root, "c1").unwrap().unwrap();
+        assert_eq!(binding.base_branch, "stack-base");
+    }
+
+    #[test]
+    fn attach_base_rejects_missing_and_self_referential_branch() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        init_repo(root);
+        fs::create_dir_all(root.join("llmanspec/changes/c1")).unwrap();
+        fs::write(
+            root.join("llmanspec/config.yaml"),
+            "schema: spec-driven\nlocale: en\n",
+        )
+        .unwrap();
+        fs::write(root.join("llmanspec/changes/c1/proposal.md"), "## Why\nx\n").unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-qm", "seed"]);
+        git(root, &["checkout", "-b", "feat/x"]);
+
+        let missing = run_attach(
+            root,
+            AttachArgs {
+                change: "c1".into(),
+                force: false,
+                base: Some("no-such-branch".into()),
+            },
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(missing.contains("does not exist"), "got: {missing}");
+
+        let self_ref = run_attach(
+            root,
+            AttachArgs {
+                change: "c1".into(),
+                force: false,
+                base: Some("feat/x".into()),
+            },
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(self_ref.contains("must differ"), "got: {self_ref}");
+    }
+
+    #[test]
+    fn read_binding_legacy_without_base_branch_yields_empty() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("llmanspec/changes/c1")).unwrap();
+        fs::write(
+            root.join("llmanspec/changes/c1/proposal.md"),
+            "---\nbranch: feat/x\nbase_sha: abc123\n---\n## Why\nx\n",
+        )
+        .unwrap();
+        let binding = read_binding(root, "c1").unwrap().unwrap();
+        assert_eq!(binding.branch, "feat/x");
+        assert_eq!(binding.base_sha, "abc123");
+        assert!(
+            binding.base_branch.is_empty(),
+            "legacy binding must fall back via empty base_branch"
+        );
+    }
+
+    #[test]
+    fn resolve_merge_method_precedence_and_validation() {
+        use crate::sdd::change::archive::{MergeMethod, resolve_merge_method};
+        // Built-in default.
+        assert_eq!(
+            resolve_merge_method(None, None).unwrap(),
+            MergeMethod::Squash
+        );
+        // Config wins over default.
+        assert_eq!(
+            resolve_merge_method(Some("ff"), None).unwrap(),
+            MergeMethod::Ff
+        );
+        // Flag wins over config.
+        assert_eq!(
+            resolve_merge_method(Some("ff"), Some("squash")).unwrap(),
+            MergeMethod::Squash
+        );
+        // Invalid values error with the legal set.
+        let err = resolve_merge_method(Some("rebase"), None)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("squash") && err.contains("ff"), "got: {err}");
+    }
+
+    #[test]
+    fn resolve_merge_target_precedence() {
+        use crate::sdd::change::archive::resolve_merge_target;
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        init_repo(root); // repo has local `main`
+
+        // 1. --into wins (validated ref).
+        assert_eq!(
+            resolve_merge_target(root, "stack-base", Some("main")).unwrap(),
+            "main"
+        );
+        // 2. Recorded base_branch wins when the branch exists locally.
+        git(root, &["branch", "stack-base"]);
+        assert_eq!(
+            resolve_merge_target(root, "stack-base", None).unwrap(),
+            "stack-base"
+        );
+        // 3. Recorded base_branch missing locally → fall back to default.
+        assert_eq!(resolve_merge_target(root, "ghost", None).unwrap(), "main");
+        // 4. Legacy empty base_branch → default.
+        assert_eq!(resolve_merge_target(root, "", None).unwrap(), "main");
+        // 5. --into refuses option injection.
+        assert!(resolve_merge_target(root, "", Some("-c")).is_err());
     }
 }

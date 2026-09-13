@@ -18,6 +18,7 @@ rules, context, or conventions that AI agents should follow.
 | `blocks` | 否 | agent | 反向依赖（阻塞哪些 change） |
 | `branch` | 否 | **CLI**（`change start`/`attach`） | attach binding 的 feature 分支 |
 | `base_sha` | 否 | **CLI** | attach binding 的 base SHA（`baseSha` 别名已移除，出现即 ERROR） |
+| `base_branch` | 否 | **CLI**（`change start`/`attach`，`attach --base <branch>` 可覆盖） | attach binding 的 fork 基准分支，仅用于 finalize/archive 合并目标解析（sdd-workflow r111/r113）；缺键回退本地默认分支，MUST NOT 参与 diff/lock-gate 范围计算 |
 | `needs_specs_change` | 否（缺省 `true`） | agent | `false` 时跳过「绑定分支是否改动 `llmanspec/specs/`」检查（r1） |
 
 > **生命周期阶段不是 frontmatter 字段**：它由 `determine_stage`（r93）实时从磁盘 artifacts 推断四档（Draft/Designed/Planned/Full），用 `llman sdd show` / `llman sdd list` 查看。`status` 字段已废弃——不要再写进 frontmatter，CLI 会拒绝。`checkpointed`/`checkpoint_sha`/`skip_specs_landing`/`rules_edit_acked`/`rules_touched`/`agent_acked` 已移除（出现即 ERROR）。锁定 `@human` 规则的改动为报告制（WARNING，不阻断，spec-format r135/S0）。

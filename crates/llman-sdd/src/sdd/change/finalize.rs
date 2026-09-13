@@ -1,26 +1,31 @@
 //! `llman sdd change finalize` — unified single-commit close-out (r25).
 //!
-//! Combines relaxed gates + locked-rule confirmation + ff-merge + docs-only
+//! Combines relaxed gates + auto merge (target: --into > base_branch >
+//! default; method: --method > config, squash by default) + docs-only
 //! archive rename in one process, then **auto-commits** the whole thing as
-//! `archive(sdd): <change-id>` (one commit bundling the implementation diff,
-//! frontmatter and rename). `--no-commit` skips the auto commit for
+//! `archive(sdd): <change-id>` (one commit bundling the squash-staged feature
+//! diff, frontmatter and rename). `--no-commit` skips the auto commit for
 //! CI / pre-commit-hook scenarios.
 
-use crate::sdd::change::archive::{archive_name_for, do_archive_rename, do_ff_merge};
+use crate::sdd::change::archive::{
+    archive_name_for, do_archive_rename, do_merge, resolve_merge_method, resolve_merge_target,
+};
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
 use anyhow::Result;
 use std::path::Path;
 
-#[cfg(test)]
-use std::process::Command;
-
 #[derive(Debug, Clone)]
 pub(crate) struct FinalizeArgs {
     pub(crate) change: String,
     pub(crate) no_check: bool,
     pub(crate) no_commit: bool,
+    /// Merge target override (r113): --into > binding base_branch > default.
+    pub(crate) into: Option<String>,
+    /// Merge method override (r113): --method > config `sdd.merge_method` >
+    /// built-in default (squash).
+    pub(crate) method: Option<String>,
     /// Accepted and ignored since the r135 report-only rework (the interactive
     /// confirmation path is gone); kept so skills can pass it unconditionally.
     #[allow(dead_code)]
@@ -57,10 +62,11 @@ or re-run `llman sdd change finalize {change_id} --no-commit`."
 /// 1. Idempotency: change already renamed into `changes/archive/` → finish a
 ///    possibly-failed auto commit (unless `--no-commit`) and stop.
 /// 2. Relaxed gates (attach/branch/default/feature_delta). No clean-tree check.
-/// 3. Locked-rule confirmation (r135; `--yes` narrowing).
+/// 3. Locked-rule confirmation (r135; report-only).
 /// 4. Validate (live strict + change stage; `--no-check` skips the BDD runner).
 /// 5. r137 commit count.
-/// 6. ff-merge to default branch + docs-only archive rename.
+/// 6. Auto merge (r113 target/method resolution; r142 topology guard) +
+///    docs-only archive rename.
 /// 7. Auto `git commit -m "archive(sdd): <change-id>"` (skip with `--no-commit`).
 pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
     // Idempotency probes must survive an already-archived change: resolution
@@ -84,7 +90,7 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         };
     validate_sdd_id(&change_name, "change")?;
     let llmanspec = root.join(LLMANSPEC_DIR_NAME);
-    let _config = load_required_config(&llmanspec)?;
+    let config = load_required_config(&llmanspec)?;
 
     // 1. Idempotency: rename already done (previous run failed at the commit).
     let changes_dir = llmanspec.join("changes");
@@ -157,24 +163,26 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
             .unwrap_or_else(|_| binding.base_sha.clone()),
     )?;
 
-    // 6. ff-merge THEN rename (merge first so the dirty impl/frontmatter carry
-    //    across; rename lands on the default branch). Merge failure still
-    //    renames (no rollback); `do_ff_merge` restores the feature branch
-    //    best-effort.
+    // 6. merge THEN rename (merge first so the dirty impl/frontmatter carry
+    //    across; rename lands on the target branch). Merge failure still
+    //    renames (no rollback); `do_merge` degrades explicitly (r113) with
+    //    the r142 worktree topology guard.
     let feature_branch = binding.branch.clone();
-    do_ff_merge(root, &feature_branch, &change_name);
+    let method = resolve_merge_method(
+        config.sdd.as_ref().and_then(|s| s.merge_method.as_deref()),
+        args.method.as_deref(),
+    )?;
+    let target = resolve_merge_target(root, &binding.base_branch, args.into.as_deref())?;
+    do_merge(root, &feature_branch, &target, method, &change_name);
     do_archive_rename(&change_dir, &archive_dir, &archive_name)?;
 
     // 7. Auto commit (unless --no-commit).
     if args.no_commit {
         println!(
-            "finalized change `{change_name}` → archive `{archive_name}` on branch `{feature_branch}`"
+            "finalized change `{change_name}` → archive `{archive_name}` on branch `{target}`"
         );
-        let default_branch = crate::git_utils::resolve_default_branch_ref(root)
-            .map(|r| r.strip_prefix("origin/").unwrap_or(r.as_str()).to_string())
-            .unwrap_or_else(|_| "<default>".to_string());
         eprintln!(
-            "auto-commit skipped (--no-commit): the tree is dirty on `{default_branch}`. \
+            "auto-commit skipped (--no-commit): the tree is dirty on `{target}`. \
 Run `git add -A && git commit -m \"archive(sdd): {change_name}\"` manually."
         );
         return Ok(());
@@ -261,6 +269,7 @@ mod tests {
         let binding = ChangeGitBinding {
             branch: "feat/x".to_string(),
             base_sha: base_sha.clone(),
+            base_branch: String::new(),
         };
         crate::sdd::change::git_native::write_binding(root, change_id, &binding).unwrap();
 
@@ -326,6 +335,8 @@ mod tests {
                 change: id.clone(),
                 no_check: true,
                 no_commit: false,
+                into: None,
+                method: None,
                 no_interactive: true,
             },
         )
@@ -381,15 +392,19 @@ mod tests {
                 change: id.clone(),
                 no_check: true,
                 no_commit: true,
+                into: None,
+                method: None,
                 no_interactive: true,
             },
         )
         .expect("finalize --no-commit succeeds");
 
-        // Rename happened but no commit: tree is dirty (rename uncommitted).
+        // Rename happened but no commit. Under the default squash method the
+        // feature work stays STAGED (never committed), so HEAD remains at the
+        // fixture's base commit and the tree stays dirty for manual close-out.
         assert_eq!(
             last_commit_subject(root),
-            "add sample spec",
+            "init",
             "no auto commit must be created"
         );
         let dirty = crate::git_utils::run_git(root, &["status", "--porcelain"]).unwrap();
@@ -397,6 +412,107 @@ mod tests {
             !dirty.trim().is_empty(),
             "tree must stay dirty after --no-commit finalize"
         );
+    }
+
+    #[test]
+    fn finalize_squash_single_commit_into_recorded_base_branch() {
+        let _env_lock = crate::test_utils::lock_env();
+        // Safety: env mutation only during tests, never in shipped binaries.
+        unsafe { std::env::remove_var("LLMANSPEC_BASE_REF") };
+
+        let (tmp, id, _base_sha) = setup_repo_with_attached_change("finalize-squash");
+        let root = tmp.path();
+        seed_sample_spec(root);
+
+        // Record a stacked fork source: base_branch = a non-default branch.
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .output()
+                .unwrap()
+        };
+        git(&["branch", "stack-base"]);
+        let before = {
+            let out = std::process::Command::new("git")
+                .args(["rev-parse", "stack-base"])
+                .current_dir(root)
+                .output()
+                .unwrap();
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+        let binding = ChangeGitBinding {
+            branch: "feat/x".to_string(),
+            base_sha: _base_sha.clone(),
+            base_branch: "stack-base".to_string(),
+        };
+        crate::sdd::change::git_native::write_binding(root, &id, &binding).unwrap();
+        git(&["add", "-A"]);
+        git(&["commit", "-m", "record stacked binding"]);
+
+        run_finalize(
+            root,
+            FinalizeArgs {
+                change: id.clone(),
+                no_check: true,
+                no_commit: false,
+                into: None,
+                method: None,
+                no_interactive: true,
+            },
+        )
+        .expect("finalize succeeds");
+
+        // r113 v2: the merge target is the recorded base_branch (not the
+        // default branch), and the close-out is ONE squash commit there.
+        let out = std::process::Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        let branch = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        assert_eq!(
+            branch, "stack-base",
+            "must land on the recorded base_branch"
+        );
+        assert_eq!(last_commit_subject(root), format!("archive(sdd): {id}"));
+        let count = crate::git_utils::run_git(
+            root,
+            &["rev-list", "--count", &format!("{before}..stack-base")],
+        )
+        .unwrap();
+        assert_eq!(
+            count.trim(),
+            "1",
+            "squash close-out must be a single commit"
+        );
+    }
+
+    #[test]
+    fn finalize_into_flag_overrides_target() {
+        let _env_lock = crate::test_utils::lock_env();
+        unsafe { std::env::remove_var("LLMANSPEC_BASE_REF") };
+
+        let (tmp, id, _base_sha) = setup_repo_with_attached_change("finalize-into");
+        let root = tmp.path();
+        seed_sample_spec(root);
+
+        run_finalize(
+            root,
+            FinalizeArgs {
+                change: id.clone(),
+                no_check: true,
+                no_commit: false,
+                into: Some("main".to_string()),
+                method: None,
+                no_interactive: true,
+            },
+        )
+        .expect("finalize --into succeeds");
+
+        let branch = crate::git_utils::current_branch(root).unwrap().unwrap();
+        assert_eq!(branch, "main", "--into must override the merge target");
+        assert_eq!(last_commit_subject(root), format!("archive(sdd): {id}"));
     }
 
     #[test]
@@ -425,6 +541,8 @@ mod tests {
                 change: id,
                 no_check: true,
                 no_commit: false,
+                into: None,
+                method: None,
                 no_interactive: true,
             },
         )
@@ -454,6 +572,8 @@ mod tests {
                 change: id.clone(),
                 no_check: false, // skipped: idempotent path returns early
                 no_commit: false,
+                into: None,
+                method: None,
                 no_interactive: true,
             },
         )
@@ -484,6 +604,8 @@ mod tests {
                 change: id.clone(),
                 no_check: true,
                 no_commit: false,
+                into: None,
+                method: None,
                 no_interactive: true,
             },
         )
@@ -498,6 +620,7 @@ mod tests {
         let _ = ChangeGitBinding {
             branch: String::new(),
             base_sha: String::new(),
+            base_branch: String::new(),
         };
     }
 }

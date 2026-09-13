@@ -429,6 +429,11 @@ pub enum SddChangeCommands {
         /// Rebind even if already attached
         #[arg(long)]
         force: bool,
+        /// Record the fork-point branch explicitly (stacked workflows).
+        /// Defaults to the local default branch; used by finalize/archive to
+        /// resolve the merge target (r111/r113).
+        #[arg(long)]
+        base: Option<String>,
     },
     /// Designed → Full entry point (r111): clean-tree gate + auto-create
     /// `sdd/<change-id>` feature branch + write attach binding, in one process.
@@ -457,9 +462,11 @@ pub enum SddChangeCommands {
         #[arg(long)]
         no_interactive: bool,
     },
-    /// Close out a change: relaxed gates + lock-rule confirmation + ff-merge +
-    /// docs-only archive rename + one auto `git commit` (`archive(sdd): <id>`)
-    /// bundling the implementation diff, frontmatter and rename.
+    /// Close out a change: relaxed gates + auto merge (target: --into >
+    /// recorded base_branch > default branch; method: --method > config
+    /// `sdd.merge_method`, squash by default) + docs-only archive rename +
+    /// one auto `git commit` (`archive(sdd): <id>`) bundling the
+    /// implementation diff, frontmatter and rename.
     ///
     /// `--no-commit` skips the auto commit (CI/hook scenarios).
     Finalize {
@@ -472,6 +479,14 @@ pub enum SddChangeCommands {
         /// dirty for manual commit (CI / pre-commit hook conflicts)
         #[arg(long)]
         no_commit: bool,
+        /// Merge target branch override (r113). Defaults to the binding's
+        /// recorded base_branch, then the local default branch.
+        #[arg(long)]
+        into: Option<String>,
+        /// Merge method override: `squash` (default; one close-out commit on
+        /// the target) or `ff` (fast-forward feature commits as-is).
+        #[arg(long, value_parser = ["squash", "ff"])]
+        method: Option<String>,
         /// Accepted and ignored; finalize has no interactive mode. Keeps the
         /// flag matrix uniform across change subcommands so skills can pass it
         /// unconditionally (alongside archive/freeze/migrate).
@@ -493,7 +508,8 @@ pub enum SddChangeCommands {
     /// (removed) `change delta` is no longer supported; edit live specs on a feature branch
     #[command(hide = true)]
     Delta(DeltaStubArgs),
-    /// Seal a change: auto ff-merge into default branch, then rename docs to archive/
+    /// Seal a change: auto merge into the resolved target branch (r113), then
+    /// rename docs to archive/
     Archive {
         /// Change id
         change: Option<String>,
@@ -506,6 +522,14 @@ pub enum SddChangeCommands {
         /// Force archive even if validation fails
         #[arg(long, hide = true)]
         force: bool,
+        /// Merge target branch override (r113). Defaults to the binding's
+        /// recorded base_branch, then the local default branch.
+        #[arg(long)]
+        into: Option<String>,
+        /// Merge method override: `squash` (default; one close-out commit on
+        /// the target) or `ff` (fast-forward feature commits as-is).
+        #[arg(long, value_parser = ["squash", "ff"])]
+        method: Option<String>,
         /// Disable interactive prompts
         #[arg(long)]
         no_interactive: bool,
@@ -689,11 +713,16 @@ fn run_command(args: &SddArgs) -> Result<()> {
                     force: *force,
                 },
             ),
-            SddChangeCommands::Attach { change, force } => git_native::run_attach(
+            SddChangeCommands::Attach {
+                change,
+                force,
+                base,
+            } => git_native::run_attach(
                 std::path::Path::new("."),
                 git_native::AttachArgs {
                     change: change.clone(),
                     force: *force,
+                    base: base.clone(),
                 },
             ),
             SddChangeCommands::Start {
@@ -713,6 +742,8 @@ fn run_command(args: &SddArgs) -> Result<()> {
                 change,
                 no_check,
                 no_commit,
+                into,
+                method,
                 no_interactive,
             } => crate::sdd::change::finalize::run_finalize(
                 std::path::Path::new("."),
@@ -720,6 +751,8 @@ fn run_command(args: &SddArgs) -> Result<()> {
                     change: change.clone(),
                     no_check: *no_check,
                     no_commit: *no_commit,
+                    into: into.clone(),
+                    method: method.clone(),
                     no_interactive: *no_interactive,
                 },
             ),
@@ -744,12 +777,16 @@ fn run_command(args: &SddArgs) -> Result<()> {
                 skip_specs,
                 dry_run,
                 force,
+                into,
+                method,
                 no_interactive,
             } => archive::run(archive::ArchiveArgs {
                 change: change.clone(),
                 skip_specs: *skip_specs,
                 dry_run: *dry_run,
                 force: *force,
+                into: into.clone(),
+                method: method.clone(),
                 no_interactive: *no_interactive,
             }),
         },

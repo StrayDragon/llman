@@ -306,7 +306,7 @@ fn test_bdd_on_attach_checkpoint_archive_docs_only() {
     // Diff is read-only and non-empty after attach (may be empty if no commits since base).
     let _ = run(&["sdd", "change", "diff", "add-scen"], &env);
 
-    // Finalize: relaxed gates + ff-merge + docs-only rename + auto commit.
+    // Finalize: relaxed gates + auto merge (squash default) + docs-only rename + auto commit.
     assert_success(&run(
         &["sdd", "change", "finalize", "add-scen", "--no-check"],
         &env,
