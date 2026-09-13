@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/add-change-id-convention-config
+base_sha: f959b04981fc88347bb34fc8431a88f837a2f1f5
+base_branch: main
 ---
 
 ## Why

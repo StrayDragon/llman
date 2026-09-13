@@ -12,6 +12,9 @@
 //!          an add-scen change delta; git init+commit; sets cwd to the project)
 //!     - 假如 项目中存在技能目录 {name}     (plant `.agents/skills/<name>/SKILL.md`)
 //!     - 假如 项目 extra_skills 包含 {name} (rewrite config.yaml `extra_skills`)
+//!     - 假如 已初始化含 change_id pattern 与 archive 形态存量的 sdd 项目且存在违规 active change {id}
+//!     - 假如 已初始化含 change_id template 的 sdd 项目
+//!     - 假如 已初始化含 change_id 段且 delayed-changes 深层目录含更大号的 sdd 项目
 //!     - 假如 {env_var} 为 {value}          (accumulate env override for subprocess)
 //!     - 假如今目录为 {cwd}                 (set working directory for subprocess)
 //!   When:
@@ -429,6 +432,82 @@ fn given_active_and_archived_changes_with_c123() {
         world.fixture_dir = Some(temp);
         world.cwd = Some(dir);
     });
+}
+
+/// Seed a full active change directory (proposal + design + all-done tasks) so
+/// it introduces no unrelated validate noise.
+fn write_complete_change(dir: &std::path::Path, id: &str) {
+    let change_dir = dir.join("llmanspec/changes").join(id);
+    std::fs::create_dir_all(&change_dir).expect("mkdir change");
+    std::fs::write(
+        change_dir.join("proposal.md"),
+        "---\ndepends_on: []\n---\n\n## Why\nWhy.\n\n## What Changes\n- What.\n",
+    )
+    .expect("write proposal");
+    std::fs::write(change_dir.join("design.md"), "# Design\n").expect("write design");
+    std::fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
+}
+
+/// Append a `change_id:` block (r29) to the fixture config.
+fn write_change_id_config(dir: &std::path::Path, pattern: Option<&str>, template: Option<&str>) {
+    let path = dir.join("llmanspec/config.yaml");
+    let mut config = std::fs::read_to_string(&path).expect("read fixture config");
+    config.push_str("\nchange_id:\n");
+    if let Some(pattern) = pattern {
+        config.push_str(&format!("  pattern: '{pattern}'\n"));
+    }
+    if let Some(template) = template {
+        config.push_str(&format!("  template: '{template}'\n"));
+    }
+    std::fs::write(&path, config).expect("write change_id config");
+}
+
+/// r29 pattern gate: an active change id violating the configured pattern is
+/// an ERROR, while the equally non-matching archive shape is never back-checked.
+#[given("已初始化含 change_id pattern 与 archive 形态存量的 sdd 项目且存在违规 active change {id}")]
+fn given_sdd_project_change_id_pattern_violation(id: String) {
+    seed_bdd_project("on");
+    let dir = fixture_cwd();
+    write_change_id_config(&dir, Some(r"^c[0-9]+-(add|fix)-[a-z0-9-]+$"), None);
+    // rstest-bdd captures quoted placeholders verbatim — strip the quotes.
+    let raw_id = id.trim().trim_matches('"');
+    write_complete_change(&dir, raw_id);
+    // Archive shape that also violates the pattern: must stay ERROR-free.
+    let archived = dir.join("llmanspec/changes/archive/2026-09-13-c20-legacy");
+    std::fs::create_dir_all(&archived).expect("mkdir archived");
+    std::fs::write(
+        archived.join("proposal.md"),
+        "---\ndepends_on: []\n---\n\n## Why\nOld.\n\n## What Changes\n- Done.\n",
+    )
+    .expect("write archived proposal");
+}
+
+/// r29 template generation: `change new --from --dry-run` renders the template
+/// with the whole-tree unique number without creating anything.
+#[given("已初始化含 change_id template 的 sdd 项目")]
+fn given_sdd_project_change_id_template() {
+    seed_bdd_project("on");
+    let dir = fixture_cwd();
+    write_change_id_config(
+        &dir,
+        None,
+        Some("c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}"),
+    );
+}
+
+/// r29 whole-tree unique-id scan: a deeply nested dir under a downstream-only
+/// directory (delayed-changes/) carries the highest number and must win.
+#[given("已初始化含 change_id 段且 delayed-changes 深层目录含更大号的 sdd 项目")]
+fn given_sdd_project_delayed_changes_deeper_number() {
+    seed_bdd_project("on");
+    let dir = fixture_cwd();
+    write_change_id_config(
+        &dir,
+        Some(r"^c[0-9]+-(add|fix)-[a-z0-9-]+$"),
+        Some("c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}"),
+    );
+    let deep = dir.join("llmanspec/delayed-changes/tools/c2620-tool-x");
+    std::fs::create_dir_all(&deep).expect("mkdir deep delayed change");
 }
 
 /// BDD fixture with a leftover legacy `spec.toon` next to the single-track

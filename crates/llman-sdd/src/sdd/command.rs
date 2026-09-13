@@ -2,6 +2,7 @@ use crate::sdd::authoring;
 use crate::sdd::change::archive;
 use crate::sdd::change::freeze;
 use crate::sdd::change::git_native;
+use crate::sdd::change::next_id;
 use crate::sdd::commands::{graph, list, show, validate};
 use crate::sdd::project::{init, interop, migrate};
 use crate::sdd::review;
@@ -411,14 +412,25 @@ pub enum SddChangeCommands {
         /// description). Exactly one of `<CHANGE>` or `--from` is required.
         change: Option<String>,
         /// Derive a legal, meaningful change id from this description and create
-        /// the draft shell. Follows naming conventions declared in the repo's
-        /// `llmanspec/AGENTS.md`; otherwise names by the description's semantics.
-        /// Prints the derived id and proposal path on stdout.
+        /// the draft shell. When `change_id.template` is configured in
+        /// `llmanspec/config.yaml`, the id is rendered from that template with
+        /// preset vars (`llman_sdd_unique_id`, `verb`, `subject`, `date`) and
+        /// follows the project's declared naming convention; otherwise a
+        /// heuristic sanitize is applied (lowercase kebab-case, ASCII only,
+        /// 60-char cap). Prints the derived id and proposal path on stdout.
         #[arg(long, value_name = "DESCRIPTION")]
         from: Option<String>,
         /// Overwrite existing proposal.md
         #[arg(long)]
         force: bool,
+        /// Print the id that would be produced and exit without creating
+        /// anything (use with --from / change_id.template, r29).
+        #[arg(long)]
+        dry_run: bool,
+        /// Explicit verb for `change_id.template` rendering; overrides the
+        /// verb auto-detected from the description (add/update/remove/refactor/fix).
+        #[arg(long, value_name = "VERB")]
+        verb: Option<String>,
     },
     /// Attach the current feature branch + base SHA to a change (manual binding).
     /// Unified flow (r57): works regardless of `bdd:` config. Use when the
@@ -506,6 +518,14 @@ pub enum SddChangeCommands {
     },
 
     /// (removed) `change delta` is no longer supported; edit live specs on a feature branch
+    /// Preview the next free change id number, read-only (r29). Scans the
+    /// whole `llmanspec/` tree (changes/, archive/, nested dirs, frozen
+    /// archives best-effort) — the same basis as `llman_sdd_unique_id`.
+    NextId {
+        /// Emit JSON `{ maxNumber, nextNumber, warnings }`
+        #[arg(long)]
+        json: bool,
+    },
     #[command(hide = true)]
     Delta(DeltaStubArgs),
     /// Seal a change: auto merge into the resolved target branch (r113), then
@@ -705,12 +725,16 @@ fn run_command(args: &SddArgs) -> Result<()> {
                 change,
                 from,
                 force,
+                dry_run,
+                verb,
             } => crate::sdd::change::new::run(
                 std::path::Path::new("."),
                 crate::sdd::change::new::NewArgs {
                     change: change.clone(),
                     from: from.clone(),
                     force: *force,
+                    dry_run: *dry_run,
+                    verb: verb.clone(),
                 },
             ),
             SddChangeCommands::Attach {
@@ -769,6 +793,7 @@ fn run_command(args: &SddArgs) -> Result<()> {
                 },
             ),
 
+            SddChangeCommands::NextId { json } => next_id::run(std::path::Path::new("."), *json),
             SddChangeCommands::Delta(_) => {
                 anyhow::bail!("change delta is removed; edit live specs on a feature branch");
             }

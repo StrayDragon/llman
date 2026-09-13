@@ -1,5 +1,6 @@
 use crate::sdd::change::freeze::FREEZE_ARCHIVE_NAME;
 use crate::sdd::project::config::{ArchiveConfig, BddConfig, load_required_config};
+use crate::sdd::shared::change_id::compile_change_id_pattern;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{
     list_archived_changes, list_changes, list_specs, resolve_change_dir,
@@ -23,6 +24,39 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
+
+/// r29 gate: an active change id must fully match the configured
+/// `change_id.pattern`. Scope is active ids only — archive/legacy shapes are
+/// never back-checked here. `load_config` already rejects uncompilable
+/// patterns, so the compile error branch is defensive.
+fn change_id_pattern_issues(pattern: Option<&str>, change_id: &str) -> Vec<ValidationIssue> {
+    let Some(pattern) = pattern else {
+        return Vec::new();
+    };
+    let re = match compile_change_id_pattern(pattern) {
+        Ok(re) => re,
+        Err(err) => {
+            return vec![ValidationIssue {
+                level: ValidationLevel::Error,
+                path: "config.yaml".to_string(),
+                message: format!("change_id.pattern {pattern:?} failed to compile: {err}"),
+            }];
+        }
+    };
+    if re.is_match(change_id) {
+        return Vec::new();
+    }
+    vec![ValidationIssue {
+        level: ValidationLevel::Error,
+        path: "change-id".to_string(),
+        message: t!(
+            "sdd.validate.change_id_pattern_violation",
+            id = change_id,
+            pattern = pattern
+        )
+        .to_string(),
+    }]
+}
 
 fn has_frozen_archive(root: &Path) -> bool {
     root.join(LLMANSPEC_DIR_NAME)
@@ -449,7 +483,11 @@ pub(crate) fn collect_change_issues_fast(root: &Path, change_id: &str) -> Vec<Va
         .map(|c| c.archive_config())
         .unwrap_or_default();
     let bdd_on = config.as_ref().map(|c| c.bdd.is_some()).unwrap_or(false);
-    validate_change_full(
+    let change_id_pattern = config
+        .as_ref()
+        .and_then(|c| c.change_id.as_ref())
+        .and_then(|ci| ci.pattern.as_deref());
+    let mut issues = validate_change_full(
         &change_dir,
         &all_change_ids,
         &archived_change_ids,
@@ -460,7 +498,9 @@ pub(crate) fn collect_change_issues_fast(root: &Path, change_id: &str) -> Vec<Va
         &archive_config,
         bdd_on,
     )
-    .issues
+    .issues;
+    issues.extend(change_id_pattern_issues(change_id_pattern, change_id));
+    issues
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -723,6 +763,13 @@ fn validate_by_type(
             report
                 .issues
                 .extend(crate::sdd::spec::req_registry::global_req_id_uniqueness_issues(root));
+            let change_id_pattern = load_required_config(&root.join(LLMANSPEC_DIR_NAME))
+                .ok()
+                .and_then(|config| config.change_id)
+                .and_then(|change_id| change_id.pattern);
+            report
+                .issues
+                .extend(change_id_pattern_issues(change_id_pattern.as_deref(), id));
             report.valid = !report
                 .issues
                 .iter()
@@ -1006,6 +1053,12 @@ fn run_bulk_validation(
 
     let all_change_ids: Vec<String> = changes.clone();
 
+    // r29: one load for the whole batch; applied per active change below.
+    let bulk_change_id_pattern = load_required_config(&root.join(LLMANSPEC_DIR_NAME))
+        .ok()
+        .and_then(|config| config.change_id)
+        .and_then(|change_id| change_id.pattern);
+
     let global_req_issues = if validate_specs || validate_changes {
         crate::sdd::spec::req_registry::global_req_id_uniqueness_issues(root)
     } else {
@@ -1035,7 +1088,7 @@ fn run_bulk_validation(
             }
         };
         let dag_issues = dag_issues_map.get(&id).cloned().unwrap_or_default();
-        let report = validate_change_full(
+        let mut report = validate_change_full(
             &change_dir,
             &all_change_ids,
             &archived_changes,
@@ -1046,6 +1099,14 @@ fn run_bulk_validation(
             archive_config,
             bdd_config.is_some(),
         );
+        report.issues.extend(change_id_pattern_issues(
+            bulk_change_id_pattern.as_deref(),
+            &id,
+        ));
+        report.valid = !report
+            .issues
+            .iter()
+            .any(|issue| issue.level == ValidationLevel::Error);
         items.push(ValidationItem {
             id,
             item_type: "change".to_string(),

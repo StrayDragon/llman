@@ -181,6 +181,29 @@
           ]
         }
       }
+    },
+    "change_id": {
+      "description": "Optional machine-readable change id naming convention (sdd-workflow r29). pattern: regex active change ids must fully match (validate ERROR on violation). template: minijinja template rendered by `change new --from` with preset vars llman_sdd_unique_id/verb/subject/date. Absent section = legacy behavior, zero breakage.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "pattern": {
+          "description": "Regex active change ids MUST fully match (anchored full-match). Violations are reported as validate ERROR entries containing the id and this pattern. Scope is active changes/ only; archive/ and out-of-tree dirs are never back-checked.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "template": {
+          "description": "Minijinja template rendered by `change new --from` to build the id. Preset vars: llman_sdd_unique_id (next unused number after a whole-llmanspec-tree scan), verb (normalized verb or --verb), subject (sanitized description minus verb prefix), date (local %Y-%m-%d). Referencing an unprovided var fails with a clear error.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     }
   },
   "required": [
