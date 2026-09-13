@@ -16,7 +16,8 @@ metadata:
 4. 需要时使用 `--type change|spec` 消除歧义。
 5. 对 change 使用 `--json`：状态 SSOT 字段为 `stage` / `specsLanded` / `needsSpecsChange` / `readyToImplement`（勿凭「完整工件」口头判断可否 apply）。
 
-> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表（r139）。
+> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
+> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman sdd list --specs` / `llman sdd show <capability>` 查全文。
 
 {{ unit("skills/validation-hints") }}
 

@@ -41,7 +41,7 @@ flowchart LR
 
 ## Commit Policy
 
-- **Commits on the change branch are free** (r25/Q4b): segment by task or milestone when it helps review, or keep the working tree dirty and let finalize make ONE close commit — both are first-class. `change checkpoint` no longer exists, so there is no mid-flight "archive point" to maintain; `change finalize` handles both shapes (it does NOT require a clean tree).
+- **Commits on the change branch are free** (no mid-flight archive point; `change finalize` needs no clean tree): segment by task or milestone when it helps review, or keep the working tree dirty and let finalize make ONE close commit — both are first-class. `change checkpoint` no longer exists (calling it exits non-zero and points to finalize), so there is no mid-flight "archive point" to maintain; `change finalize` handles both shapes (it does NOT require a clean tree).
 - **Default close-out**: after all tasks pass gates and verify is green, `llman sdd change finalize <id>` auto-commits `archive(sdd): <change-id>` (uncommitted impl diff + frontmatter + archive rename in one commit). Do not run finalize inside the apply loop. `--no-commit` skips the auto commit (manual/CI histories; pre-commit-hook conflicts).
 - **Blocker interrupt**: when you must STOP on a blocker, make ONE work-in-progress commit (e.g. `wip(sdd): <change-id> <summary>`) to preserve the state, then report.
 
@@ -118,7 +118,8 @@ Then suggest running `llman-sdd-verify` for the verification phase.
 
 > 💡 Implementation done → next: `llman-sdd-verify` (verify)
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
 
 {{ unit("skills/validation-hints") }}
 

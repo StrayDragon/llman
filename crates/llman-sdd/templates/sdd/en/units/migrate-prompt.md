@@ -2,8 +2,8 @@
 
 ## Command intent
 
-- `llman sdd project migrate --kind toon2features`: legacy `spec.toon` → single-track `.feature` (one-shot, r136).
-- `llman sdd project migrate --kind specs-flatten`: pure single-file directories `specs/<cap>/<cap>.feature` → flat `specs/<cap>.feature` (git history preserved, spec-format r141).
+- `llman sdd project migrate --kind toon2features`: legacy `spec.toon` → single-track `.feature` (one-shot, idempotent).
+- `llman sdd project migrate --kind specs-flatten`: pure single-file directories `specs/<cap>/<cap>.feature` → flat `specs/<cap>.feature` (git mv preserves history).
 
 ## What the agent does
 

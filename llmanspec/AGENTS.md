@@ -8,7 +8,9 @@ rules, context, or conventions that AI agents should follow.
 `llmanspec/changes/` 下任意深度（默认扫描深度 8，可用 `llman sdd --max-scan-depth` 调整）含 `proposal.md` 的目录都是 change；叶子目录名为 change id（可用分组目录组织，如 `changes/<group>/<id>/proposal.md`）。其 `proposal.md` 的 frontmatter（YAML）是**变更元信息的唯一权威**。
 正文 MUST NOT 重复声明已在 frontmatter 中声明的字段，否则 SSOT 失效。
 
-### 合法字段集（r124 强制）
+> 下文规约锚点 `<capability> r<n>` = `llmanspec/specs/<capability>.feature` 中 `@req:r<n>` 的场景；看全文用 `llman sdd show <capability>`。
+
+### 合法字段集（规约 sdd-workflow r124 强制）
 
 `llman sdd validate` 对 frontmatter 做未知字段检测：只接受下表字段，其余（如 `status`、`title`、`priority`、`author`）报 **ERROR**。
 
@@ -18,17 +20,17 @@ rules, context, or conventions that AI agents should follow.
 | `blocks` | 否 | agent | 反向依赖（阻塞哪些 change） |
 | `branch` | 否 | **CLI**（`change start`/`attach`） | attach binding 的 feature 分支 |
 | `base_sha` | 否 | **CLI** | attach binding 的 base SHA（`baseSha` 别名已移除，出现即 ERROR） |
-| `base_branch` | 否 | **CLI**（`change start`/`attach`，`attach --base <branch>` 可覆盖） | attach binding 的 fork 基准分支，仅用于 finalize/archive 合并目标解析（sdd-workflow r111/r113）；缺键回退本地默认分支，MUST NOT 参与 diff/lock-gate 范围计算 |
-| `needs_specs_change` | 否（缺省 `true`） | agent | `false` 时跳过「绑定分支是否改动 `llmanspec/specs/`」检查（r1） |
+| `base_branch` | 否 | **CLI**（`change start`/`attach`，`attach --base <branch>` 可覆盖） | attach binding 的 fork 基准分支，仅用于 finalize/archive 合并目标解析（规约 sdd-workflow r111、r113）；缺键回退本地默认分支，MUST NOT 参与 diff/lock-gate 范围计算 |
+| `needs_specs_change` | 否（缺省 `true`） | agent | `false` 时跳过「绑定分支是否改动 `llmanspec/specs/`」检查（规约 sdd-workflow r1） |
 
-> **生命周期阶段不是 frontmatter 字段**：它由 `determine_stage`（r93）实时从磁盘 artifacts 推断四档（Draft/Designed/Planned/Full），用 `llman sdd show` / `llman sdd list` 查看。`status` 字段已废弃——不要再写进 frontmatter，CLI 会拒绝。`checkpointed`/`checkpoint_sha`/`skip_specs_landing`/`rules_edit_acked`/`rules_touched`/`agent_acked` 已移除（出现即 ERROR）。锁定 `@human` 规则的改动为报告制（WARNING，不阻断，spec-format r135/S0）。
+> **生命周期阶段不是 frontmatter 字段**：它由 `determine_stage`（规约 sdd-workflow r93）实时从磁盘 artifacts 推断四档（Draft/Designed/Planned/Full），用 `llman sdd show` / `llman sdd list` 查看。`status` 字段已废弃——不要再写进 frontmatter，CLI 会拒绝。`checkpointed`/`checkpoint_sha`/`skip_specs_landing`/`rules_edit_acked`/`rules_touched`/`agent_acked` 已移除（出现即 ERROR）。锁定 `@human` 规则的改动为报告制（只出 WARNING，不阻断；规约 spec-format r135）。
 
 ### 正文写作约束
 
 - **MUST NOT** 在正文复读 frontmatter 字段：frontmatter 已声明 `branch`/`depends_on` 等，正文就不要再贴同样信息的横幅或 `## Status` 段。
 - **MUST NOT** 把 `change_id` 当作 H1 重复（目录名已是 id）。正文 H1 用人类可读标题或省略。
 - 正文横幅留给**非元信息**：如「本草案不实现」「前置 change 是 X」「与 Y 案的区别」等叙事说明。
-- 生命周期阶段用 `llman sdd show` / `llman sdd list` 查看推断的 stage（r93），**不要**在正文写 status 段，也**不要**在 frontmatter 写 `status` 字段（已被 CLI 拒绝，见 r124）。
+- 生命周期阶段用 `llman sdd show` / `llman sdd list` 查看推断的 stage（规约 sdd-workflow r93），**不要**在正文写 status 段，也**不要**在 frontmatter 写 `status` 字段（已被 CLI 拒绝，见规约 sdd-workflow r124）。
 
 ## Project Context
 

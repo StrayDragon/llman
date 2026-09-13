@@ -15,7 +15,8 @@ LLMAN_CMD_RE = re.compile(
 UNIT_REF_RE = re.compile(r'\{\{\s*unit\("([^"]+)"\)\s*\}\}')
 JINJA_BLOCK_RE = re.compile(r"\{%[^%]*%\}")
 SPEC_TAG_RE = re.compile(r"@(?:human|executable|manual)\b|@req:[A-Za-z0-9_-]+")
-HEADING_RE = re.compile(r"^(#{1,6}) ")
+# Headings are matched per line, so the outline comparison needs MULTILINE.
+HEADING_RE = re.compile(r"^(#{1,6}) ", re.MULTILINE)
 ORDERED_ITEM_RE = re.compile(r"^(\d+)\. ")
 # Files whose body is intentionally identical across locales carry this marker.
 LOCALE_INDEPENDENT_MARKER = "sdd-template: locale-independent"

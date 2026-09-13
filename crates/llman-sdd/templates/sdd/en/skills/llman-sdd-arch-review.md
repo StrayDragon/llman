@@ -59,4 +59,7 @@ Run `llman-sdd-explore`'s **grilling branch** (trigger "deep-dig") to walk the d
 ## Output
 Candidate list (text; optional HTML report written to OS temp dir, not the repo) + the grilling decision record after the user picks one (write back to proposal; contract edits only via Specs landing into live `.feature`).
 
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+
 {{ unit("skills/structured-protocol") }}
