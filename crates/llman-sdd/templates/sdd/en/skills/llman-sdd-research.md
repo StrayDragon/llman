@@ -40,4 +40,7 @@ The background agent's job:
 
 `llman-sdd-wayfinder`'s research tickets delegate to this skill for background resolution; on completion, write back to the ticket proposal and record a one-line gist in the map's Decisions-so-far.
 
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+
 {{ unit("skills/structured-protocol") }}

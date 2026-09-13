@@ -41,7 +41,7 @@ flowchart LR
 
 ## Commit 策略
 
-- **change 分支上提交自由**（r25/Q4b）：可按 task/里程碑分段提交（利于 review），也可保持工作区不提交、交给 finalize 一次收尾——两条路都是一等公民。`change checkpoint` 已不存在，因此没有「中途存档点」要维护；`change finalize` 对两种形态都原生支持（不要求干净树）。
+- **change 分支上提交自由**（无存档点概念：`change finalize` 不要求干净树）：可按 task/里程碑分段提交（利于 review），也可保持工作区不提交、交给 finalize 一次收尾——两条路都是一等公民。`change checkpoint` 已不存在（调用它以非零退出报错并指向 finalize），因此没有「中途存档点」要维护；`change finalize` 对两种形态都原生支持（不要求干净树）。
 - **默认收尾**：全部 task 过门禁且 verify 全绿后，`llman sdd change finalize <id>` 自动提交 `archive(sdd): <change-id>`（未提交的实现 diff + frontmatter + archive 改名一次提交）。不要在 apply 循环内 finalize。`--no-commit` 可跳过自动提交（手动/CI 历史、pre-commit hook 冲突场景）。
 - **blocker 中断**：必须因 blocker STOP 时，先做**一次** WIP commit（如 `wip(sdd): <change-id> <摘要>`）保全现场，再报告。
 
@@ -118,7 +118,8 @@ flowchart LR
 
 > 💡 实施完成 → 下一步 `llman-sdd-verify`（验证）
 
-> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表（r139）。
+> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
+> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman sdd list --specs` / `llman sdd show <capability>` 查全文。
 
 {{ unit("skills/validation-hints") }}
 

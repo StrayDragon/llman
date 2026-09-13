@@ -21,7 +21,7 @@
 | explore | 逐问深挖 | 「深挖」「逐个问」 | 一次只问一个问题并附推荐答案；能查到的事实不问用户，只有决策才问；术语冲突时回写 live `.feature`（不另建词表） |
 | propose | 测试边界前置 + 垂直切片 | 写 tasks 前自动 | 先列将测试的边界（seam，来自 `*.feature` GWT）并确认；tasks 按垂直切片拆 + `[blocked-by]` 依赖 |
 | apply | 紧反馈诊断 | 自修复失败且判定为难定位 bug | 先建一个能复现失败的命令，再排查；禁止没有复现命令就猜原因 |
-| verify | 双轴审查 | 默认启用（r103 定义为 MUST，非触发式） | 合约轴（`.feature` 中 @human 规约与 @executable 验收）+ 标准轴（AGENTS.md 编码规范 + 12 项代码坏味）分离呈现 |
+| verify | 双轴审查 | 默认启用（规约 sdd-workflow r103 定为 MUST，非触发式） | 合约轴（`.feature` 中 @human 规约与 @executable 验收）+ 标准轴（AGENTS.md 编码规范 + 12 项代码坏味）分离呈现 |
 
 ### 独立可选 skill（不属于线性 pipeline）
 
@@ -94,8 +94,9 @@ verify→finalize, and before any archive.
 
 - Treat `pending`/`unbound` as planning debt to schedule, `stale` as spec-vs-code drift
   to resolve.
-- `locked` hints are prompts to inspect `llman sdd change diff <id>` — locked-rule
-  edits are report-only (spec-format r135/S0)，确认元数据已移除（无兼容）。
+- `locked` hints are prompts to inspect `llman sdd change diff <id>` — locked-rule edits are
+  report-only (spec-format r135: WARNING only, never blocks a gate); the old lock-ack
+  metadata is fully removed (零兼容，无别名)。
 - Nonzero exit = CRITICAL findings: stop and fix before proceeding.
 - Contract disputes discovered during review go back through explore/propose, never
   edited ad-hoc.
@@ -113,9 +114,9 @@ verify→finalize, and before any archive.
 | **Specs landing** | 在绑定分支编辑 `llmanspec/specs/**`（目录级 add/remove/update 任一）并留相对 merge-base 的 diff；frontmatter `needs_specs_change`（缺省 true）声明是否检查 | 不是在默认分支改 live specs |
 | **`needs_specs_change`** | 正向 frontmatter 字段（缺省 true）：true → 绑定分支必须留 specs 目录改动；false → 跳过检查 | `skip_specs_landing` 已移除（出现即 ERROR），不是跳过 Branch binding |
 | **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ needs_specs_change=false)` | 用 `show --json` 查 |
-| **`change checkpoint`** | 已移除（r25）：任何调用报错指向 `change finalize` | 不是 auto-WIP；finalize 负责收口 |
-| **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于有效范围（现算 merge-base，见 spec-format r135） | 报告制（S0）：改/删以 WARNING 报告、不阻断；控制点 = git 分支对比 + review/diff 浮现；`rules_touched`/`agent_acked`/`@agent`/`--yes` 已移除 |
-| **分支提交自由** | change 分支上提交自由：分段 commit 或 finalize 单次收尾均可；finalize 自动合并（目标 `--into` > 绑定 `base_branch` > 默认分支；方式 `--method` > `sdd.merge_method`，squash 缺省——基准分支上单 commit 收口；worktree 占用目标时显式降级，r142）并自动提交 `archive(sdd): <id>`（`--no-commit` 可跳过） | 不是必须 checkpoint；`--amend` 由用户自行处理 |
+| **`change checkpoint`** | 已移除（规约 sdd-workflow r25）：调用即以非零退出报错并指向 `change finalize` | 不是 auto-WIP；finalize 负责收口 |
+| **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于有效范围（现算 merge-base，规约 spec-format r135） | 报告制：改/删以 WARNING 报告、不阻断门禁；控制点 = git 分支对比 + review/diff 浮现；`rules_touched`/`agent_acked`/`@agent`/`--yes` 已移除 |
+| **分支提交自由** | change 分支上提交自由：分段 commit 或 finalize 单次收尾均可；finalize 自动合并（目标 `--into` > 绑定 `base_branch` > 默认分支；方式 `--method` > `sdd.merge_method`，squash 缺省——基准分支上单 commit 收口；worktree 占用目标时显式降级，规约 sdd-workflow r142）并自动提交 `archive(sdd): <id>`（`--no-commit` 可跳过） | 不是必须 checkpoint；`--amend` 由用户自行处理 |
 
 线性流程：
 
@@ -128,7 +129,9 @@ draft [proposal.md]
   → apply → verify → finalize/archive（自动提交收尾）
 ```
 
-### 单轨格式（spec-format r131-r136, r141）
+### 单轨格式（规约 spec-format r131–r136、r141）
+
+> 规约锚点 `<capability> r<n>` = `llmanspec/specs/<capability>.feature` 中 `@req:r<n>` 的场景；看全文用 `llman sdd show <capability>`。
 
 - 每个 capability 恰好**一个** `.feature` 事实源，布局二选一：扁平 `specs/<capability>.feature`（新默认）或目录 `specs/<capability>/`（兼容存量；同一 id 双布局并存 = 冲突 ERROR，可用 `llman sdd project migrate --kind specs-flatten` 一次性平铺）；`spec.toon` 已废除（出现即 ERROR，跑 toon2features）。
 - 头注释 `# capability:` / `# purpose:` / `# scope:` 必填（scope 驱动 staleness）。

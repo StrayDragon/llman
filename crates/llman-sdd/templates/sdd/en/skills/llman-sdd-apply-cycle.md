@@ -70,3 +70,6 @@ push / hosting PR only when the user explicitly asks.
 - `ethics.required_evidence`: `readyToImplement=true`, validate --strict pass, all tasks checked, finalize/archive success
 - `ethics.refusal_contract`: after 3 gate/validation failures, report blocker; do not force-archive
 - `ethics.escalation_policy`: if changing SDD workflow specs/templates, pause for user confirm before archive
+
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.

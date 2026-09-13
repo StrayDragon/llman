@@ -72,6 +72,7 @@ If the user asks you to implement while in explore mode, STOP and remind them to
 
 > 💡 Explore done → next: `llman-sdd-propose` (propose) or `llman-sdd-quick` (quick path)
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
 
 {{ unit("skills/structured-protocol") }}

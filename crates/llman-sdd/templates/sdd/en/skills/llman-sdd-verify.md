@@ -32,6 +32,7 @@ flowchart LR
 - **Don't ask "should I continue?"**: run the full verification flow, output a complete report.
 
 {{ unit("skills/stage-guard") }}
+
 ## Steps
 1. Select the change id (or ask the user to pick from `llman sdd list --json`).
 2. Run a fast validation gate:
@@ -42,14 +43,29 @@ flowchart LR
    - `proposal.md` and `design.md` if present
    - `tasks.md` to understand what was implemented
    - `llmanspec/changes/<id>/specs/` only if residual old docs exist — ignore; SSOT is live specs
-4. **Dual-axis review (Standards + Spec, kept separate so neither masks the other)** — diff against `git diff <merge-base>...HEAD` (merge-base is COMPUTED via `git merge-base <local-default> HEAD`; the stored base_sha is audit-only and MUST NOT feed range math, see r130/r137) on two axes:
+4. **Dual-axis review (Standards + Spec, kept separate so neither masks the other)** — diff against `git diff <merge-base>...HEAD` (merge-base is COMPUTED via `git merge-base <local-default> HEAD`; the stored base_sha is audit-only and MUST NOT feed range math) on two axes:
    - **Spec axis**: does the implementation satisfy the `@human` rule MUST/SHALL and the `@executable` GWT?
      - Missing/partial behaviors, wrong implementations, and scope creep in the diff not asked for by the spec.
      - Suggest minimal fixes or artifact updates.
    - **Standards axis**: does the code follow `AGENTS.md` coding style + the Fowler smell baseline?
      - **Authority priority**: `AGENTS.md` documented standard > smell baseline (repo overrides); skip anything tooling already enforces.
      - Smells are **judgement heuristics** ("possible Feature Envy"), not hard violations.
-     - Smell baseline (each "what → fix"): Mysterious Name (name hides intent → rename) / Duplicated Code (same logic shape → extract shared) / Feature Envy (method uses another's data more → move it) / Data Clumps (same fields travel together → bundle into a type) / Primitive Obsession (primitive stands in for a domain concept → dedicated type) / Repeated Switches (same switch recurs → polymorphism or shared map) / Shotgun Surgery (one change scatters edits → gather into one module) / Divergent Change (one file changes for unrelated reasons → split) / Speculative Generality (abstraction for unseen needs → delete) / Message Chains (long a.b().c() → hide behind one method) / Middle Man (just delegates → cut, call direct) / Refused Bequest (subclass rejects most inheritance → composition).
+     - Smell baseline (each "what → fix"):
+
+     | Smell | Fix |
+     |-------|-----|
+     | Mysterious Name (name hides intent) | rename it |
+     | Duplicated Code (same logic shape) | extract the shared part |
+     | Feature Envy (method uses another's data more) | move the method over |
+     | Data Clumps (same fields travel together) | bundle into a type |
+     | Primitive Obsession (primitive stands in for a domain concept) | give it a dedicated type |
+     | Repeated Switches (same switch recurs) | polymorphism or a shared map |
+     | Shotgun Surgery (one change scatters edits) | gather into one module |
+     | Divergent Change (one file changes for unrelated reasons) | split it |
+     | Speculative Generality (abstraction for unseen needs) | delete it |
+     | Message Chains (long a.b().c()) | hide the chain behind one method |
+     | Middle Man (just delegates) | cut it, call direct |
+     | Refused Bequest (subclass rejects most inheritance) | use composition |
    - The two axes may be reviewed in parallel (sub-agents); the report MUST present them separately, MUST NOT merge or cross-rerank (one axis passing must not mask the other failing).
 5. **BDD-on verification (Git-native Partitioned SSOT)** — only when `config.yaml` has a `bdd:` block:
    - Confirm the change is attached and you are on that feature branch.
@@ -72,7 +88,8 @@ flowchart LR
 
 {{ unit("skills/git-native-flow-brief") }}
 {{ unit("skills/human-readable-summary") }}
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables (r139).
+> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
 
 {{ unit("skills/validation-hints") }}
 

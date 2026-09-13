@@ -2,8 +2,8 @@
 
 ## 命令意图
 
-- `llman sdd project migrate --kind toon2features`：遗留 `spec.toon` → 单轨 `.feature`（一次性，r136）。
-- `llman sdd project migrate --kind specs-flatten`：纯同名单文件目录 `specs/<cap>/<cap>.feature` → 扁平 `specs/<cap>.feature`（git 历史保留，spec-format r141）。
+- `llman sdd project migrate --kind toon2features`：遗留 `spec.toon` → 单轨 `.feature`（一次性迁移，幂等）。
+- `llman sdd project migrate --kind specs-flatten`：纯同名单文件目录 `specs/<cap>/<cap>.feature` → 扁平 `specs/<cap>.feature`（git mv 保留历史）。
 
 ## Agent 该做什么
 
