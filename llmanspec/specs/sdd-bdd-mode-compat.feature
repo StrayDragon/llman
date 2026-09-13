@@ -11,7 +11,7 @@
 
   @req:r57 @human
   场景: Git-native change binding（统一流程）
-    - change MUST 绑定非默认 Git 分支与 immutable base SHA（统一流程，不再按 bdd 段分叉）：`llman sdd change start <id>` 为推荐入口（自动建分支 + clean-tree 门禁 + 绑定，见 sdd-workflow r111）；`llman sdd change attach <id>` 为共存命令（手动绑已有分支，含 --force 重绑）。`diff` MUST 只读展示/导出 base...HEAD。`llman sdd change new` MUST 能创建 proposal 草稿。`llman sdd change delta` MUST 在任何模式下失败并提示已移除（统一 Git-native，见 sdd-workflow r115）；`llman sdd change checkpoint` MUST 同样失败并提示改用 finalize（见 sdd-workflow r25）。默认分支上 start/attach/archive MUST 失败。MUST NOT 再提供 `sdd solidify` 子命令。`change start` MUST 接受并忽略 `--no-interactive` flag（对齐 change 子命令 flag 矩阵，便于 skill 统一传参）。
+    - change MUST 绑定非默认 Git 分支、fork 基准分支（base_branch）与 immutable base SHA（统一流程，不再按 bdd 段分叉；base_branch 语义与合并目标解析见 sdd-workflow r111/r113）：`llman sdd change start <id>` 为推荐入口（自动建分支 + clean-tree 门禁 + 绑定，见 sdd-workflow r111）；`llman sdd change attach <id>` 为共存命令（手动绑已有分支，含 --force 重绑与 `--base <branch>` fork 源覆盖）。`diff` MUST 只读展示/导出 base...HEAD。`llman sdd change new` MUST 能创建 proposal 草稿。`llman sdd change delta` MUST 在任何模式下失败并提示已移除（统一 Git-native，见 sdd-workflow r115）；`llman sdd change checkpoint` MUST 同样失败并提示改用 finalize（见 sdd-workflow r25）。默认分支上 start/attach/archive MUST 失败。MUST NOT 再提供 `sdd solidify` 子命令。`change start` MUST 接受并忽略 `--no-interactive` flag（对齐 change 子命令 flag 矩阵，便于 skill 统一传参）。
 
   @req:r78 @human
   场景: index rebuild 的 feature embed
@@ -22,8 +22,8 @@
     - validate 在无 bdd 段的项目中 MUST 静默跳过 runner 执行（既不解析可执行绑定也不因格式问题报错），但仍 MUST 做 .feature 的结构校验（头注释、tag 语法学）。单轨格式下无 bdd 段不等于'无 specs'——specs 即 live .feature（在绑定分支编辑）。
 
   @req:r7 @human
-  场景: archive docs rename + ff-merge（统一流程）
-    - `llman sdd change archive` 统一行为（不再按 bdd 段分叉）：MUST 先自动 ff-merge feature 分支回分叉点分支，再移动 change 文档到 changes/archive/YYYY-MM-DD-<id>/（详见 sdd-workflow r113）。MUST NOT merge TOON delta（已废除 change/specs 路径）、MUST NOT apply feature_delta。活跃 `*.feature.delta.toon` MUST 作为迁移阻断（ERROR，提示人工清理遗留 delta；partitioned migrate 已移除）。顶层 `sdd archive run` 为兼容别名但 MUST 走统一的 ff-merge 路径。
+  场景: archive docs rename + 自动合并（统一流程）
+    - `llman sdd change archive` 统一行为（不再按 bdd 段分叉）：MUST 先自动合并 feature 分支到合并目标分支（目标解析 `--into` > binding base_branch > 默认分支，方式解析 `--method` > config `sdd.merge_method`（缺省 squash），详见 sdd-workflow r113/r142），再移动 change 文档到 changes/archive/YYYY-MM-DD-<id>/。MUST NOT merge TOON delta（已废除 change/specs 路径）、MUST NOT apply feature_delta。活跃 `*.feature.delta.toon` MUST 作为迁移阻断（ERROR，提示人工清理遗留 delta；partitioned migrate 已移除）。顶层 `sdd archive run` 为兼容别名但 MUST 走统一的自动合并路径。
 
   @req:r85 @human
   场景: partition-migrate 已移除（零兼容）
@@ -39,7 +39,7 @@
 
   @req:r94 @human
   场景: finalize 单 commit 收尾（统一流程）
-    - `llman sdd change finalize <id>` MUST 在单进程内执行（统一流程，不再仅限 BDD-on）：门禁（已 start/attach、当前分支 == binding.branch、非默认分支、无遗留 *.feature.delta.toon）→ validate 门禁（live strict + change stage，除非 --no-check）→ 锁定规则收尾确认（spec-format r135）→ 自动 ff-merge（失败降级为提示且不回滚后续 rename）→ docs-only archive rename（详见 sdd-workflow r113）→ **自动一次 git commit 收尾**（`archive(sdd): <change-id>`：未提交实现 diff + frontmatter + rename 一次提交；`--no-commit` 跳过并输出手动指引；提交失败保留现场并提示，见 sdd-workflow r25）。finalize MUST NOT 检查工作区 clean tree（实现 diff 可保持未提交，随自动提交一次收尾）。finalize MUST 在任何写入前退出非零且不改 frontmatter / 不移动文件（gate 失败或 validate 失败时）。finalize 幂等 MUST 基于「change 目录已在 changes/archive/」判定（不得依赖任何 frontmatter 存档字段；字段已移除）。finalize MUST 接受并忽略 --no-interactive。旧路径 checkpoint 已移除；archive 命令保留（不再要求任何存档字段）。
+    - `llman sdd change finalize <id>` MUST 在单进程内执行（统一流程，不再仅限 BDD-on）：门禁（已 start/attach、当前分支 == binding.branch、非默认分支、无遗留 *.feature.delta.toon）→ validate 门禁（live strict + change stage，除非 --no-check）→ 锁定规则收尾确认（spec-format r135）→ 自动合并（目标解析 `--into` > binding base_branch > 默认分支、方式解析 `--method` > config `sdd.merge_method` 缺省 squash，见 sdd-workflow r113；无法执行时输出显式 WARNING 与手动指引且不回滚后续 rename，拓扑守卫见 r142）→ docs-only archive rename（详见 sdd-workflow r113）→ **自动一次 git commit 收尾**（`archive(sdd): <change-id>`：squash 方式下与合并暂存合为目标分支上单一 commit，ff 方式下为合并后的独立收尾提交；内容含未提交实现 diff + frontmatter + rename；`--no-commit` 跳过并输出手动指引；提交失败保留现场并提示，见 sdd-workflow r25）。finalize MUST NOT 检查工作区 clean tree（实现 diff 可保持未提交，随自动提交一次收尾）。finalize MUST 在任何写入前退出非零且不改 frontmatter / 不移动文件（gate 失败或 validate 失败时）。finalize 幂等 MUST 基于「change 目录已在 changes/archive/」判定（不得依赖任何 frontmatter 存档字段；字段已移除）。finalize MUST 接受并忽略 --no-interactive。旧路径 checkpoint 已移除；archive 命令保留（不再要求任何存档字段）。
   @executable
   @req:r57
   场景: 默认分支上 change attach 拒绝

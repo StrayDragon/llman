@@ -19,11 +19,11 @@
 
   @req:r48 @human
   场景: 变更规模分类与路径选择（Triage）
-    - SDD 工作流 MUST 在提案阶段前引入变更规模分类步骤，帮助 agent 选择合适的工作路径。分类规则 MUST 包含：- 行为合约变更：修改 MUST/SHALL 定义的外部可观测行为 → 走完整 SDD 流程（proposal + tasks；design 可选；进 feature 分支编辑 live specs；archive + ff-merge）- 实现变更：不改变外部行为只改变内部实现 → 走快速路径（直接改代码，无需 change 目录）- 治理/工具变更：修改 CI/工具配置 → 仅创建 proposal.md 记录 why- 元规范变更：修改 SDD 规范/模板/流程本身 → 走完整 SDD 流程（自举）当变更性质不明确时 agent MUST 升级为完整 SDD 流程而非猜测。统一 Git-native 流程下不再有 change/specs/ delta 路径。
+    - SDD 工作流 MUST 在提案阶段前引入变更规模分类步骤，帮助 agent 选择合适的工作路径。分类规则 MUST 包含：- 行为合约变更：修改 MUST/SHALL 定义的外部可观测行为 → 走完整 SDD 流程（proposal + tasks；design 可选；进 feature 分支编辑 live specs；archive 合并收口）- 实现变更：不改变外部行为只改变内部实现 → 走快速路径（直接改代码，无需 change 目录）- 治理/工具变更：修改 CI/工具配置 → 仅创建 proposal.md 记录 why- 元规范变更：修改 SDD 规范/模板/流程本身 → 走完整 SDD 流程（自举）当变更性质不明确时 agent MUST 升级为完整 SDD 流程而非猜测。统一 Git-native 流程下不再有 change/specs/ delta 路径。
 
   @req:r61 @human
   场景: 统一 Git-native 流水线
-    - 流水线 propose/apply/verify/archive MUST 统一为 Git-native 单轨流程，不再区分 BDD-on / BDD-off 的命令分叉：Designed 阶段仅维护 changes/<id>/ 规划壳；change start（或 attach）完成 Branch binding 后，才在绑定分支编辑 live specs（每个 capability 唯一的 <capability>.feature：@human 约束与 @executable 验收同轨单文件，@executable 用 @req 挂回约束，见 spec-format）形成 Specs landing；archive 在 docs rename 后自动 ff-merge 回分叉点（一般是默认分支）才是 specs 合入默认分支的正常窗口。Skills 与 validate 阶段感知 MUST 与此统一流程及 r1 Specs landing 门禁一致。MUST NOT 提供 change delta / solidify / feature_delta / change/specs/ delta 路径（已废除，零兼容）。
+    - 流水线 propose/apply/verify/archive MUST 统一为 Git-native 单轨流程，不再区分 BDD-on / BDD-off 的命令分叉：Designed 阶段仅维护 changes/<id>/ 规划壳；change start（或 attach）完成 Branch binding 后，才在绑定分支编辑 live specs（每个 capability 唯一的 <capability>.feature：@human 约束与 @executable 验收同轨单文件，@executable 用 @req 挂回约束，见 spec-format）形成 Specs landing；archive 在 docs rename 后自动合并回分叉点分支（目标与方式解析见 r113，squash 缺省）才是 specs 合入默认分支的正常窗口。Skills 与 validate 阶段感知 MUST 与此统一流程及 r1 Specs landing 门禁一致。MUST NOT 提供 change delta / solidify / feature_delta / change/specs/ delta 路径（已废除，零兼容）。
 
   @req:r87 @human
   场景: spec next-req-id 分配器
@@ -95,15 +95,19 @@
 
   @req:r111 @human
   场景: change start 自动进分支与干净门禁
-    - llman sdd change start <id> MUST 在单进程内完成 planning 档（Draft/Designed/Planned 任一）→ Full 的 Git-native 切换：先校验工作区 MUST 干净（git status --porcelain 为空），不干净时 MUST 以非零退出失败并输出简练的 token 友好错误（如 'dirty tree: N uncommitted files; commit/stash before change start'），MUST NOT 长篇堆栈或建议清单；校验通过后 MUST 要求当前在默认分支上（已在非默认分支时 MUST 提示改用 change attach，或先切回默认分支），然后自动创建 feature 分支（命名规则 sdd/<change-id> 或可配 sdd.branch_prefix）、写 attach binding（branch + base_sha，base_sha = 绑定时与默认分支的 merge-base，**仅作审计/溯源记录**；一切 diff 范围语义 MUST 使用现算 `git merge-base <本地默认分支> HEAD`，见 r1/r130 与 spec-format r135）到 proposal frontmatter，并打印新建分支名与 base SHA。change start MUST NOT 把默认分支写为 binding.branch。已 attach 且未带 --force 时 MUST 报错提示当前绑定分支。change attach（手动绑已有分支）MUST 作为 change start 的共存命令保留：当用户已手动 git switch -c 到分支、或需要绑定非 sdd/ 前缀分支时使用；两者写入同一 frontmatter binding 结构。start 仅完成 Branch binding，MUST NOT 表示 Specs landing 已完成或 readyToImplement 已为 true。
+    - llman sdd change start <id> MUST 在单进程内完成 planning 档（Draft/Designed/Planned 任一）→ Full 的 Git-native 切换：先校验工作区 MUST 干净（git status --porcelain 为空），不干净时 MUST 以非零退出失败并输出简练的 token 友好错误（如 'dirty tree: N uncommitted files; commit/stash before change start'），MUST NOT 长篇堆栈或建议清单；校验通过后 MUST 要求当前在默认分支上（已在非默认分支时 MUST 提示改用 change attach，或先切回默认分支），然后自动创建 feature 分支（命名规则 sdd/<change-id> 或可配 sdd.branch_prefix）、写 attach binding（branch + base_branch + base_sha；base_branch = fork 基准分支——start 语境恒为本地默认分支，`change attach` 缺省写默认分支且 MUST 支持 `--base <branch>` 显式覆盖以记录 stacked fork 源，`--force` 重绑时随当前状态重算；base_sha = 绑定时与默认分支的 merge-base，**仅作审计/溯源记录**；一切 diff 范围语义 MUST 使用现算 `git merge-base <本地默认分支> HEAD`，base_branch MUST NOT 参与 diff/lock-gate 范围计算，仅用于 r113 的合并目标解析，见 r1/r130 与 spec-format r135）到 proposal frontmatter，并打印新建分支名与 base SHA。change start MUST NOT 把默认分支写为 binding.branch。已 attach 且未带 --force 时 MUST 报错提示当前绑定分支。change attach（手动绑已有分支）MUST 作为 change start 的共存命令保留：当用户已手动 git switch -c 到分支、或需要绑定非 sdd/ 前缀分支时使用；两者写入同一 frontmatter binding 结构。start 仅完成 Branch binding，MUST NOT 表示 Specs landing 已完成或 readyToImplement 已为 true。
 
   @req:r116 @human
   场景: change start worktree 并行与依赖守卫
     - llman sdd change start <id> --worktree MUST 用 git worktree add（而非 git switch）创建独立工作树，使多个 change 可并行 checkout。worktree 路径默认为 <repo>/.git/sdd/worktrees/<dir>/，<dir> 默认等于 change-id（已为安全字符集）；可通过 config 的 sdd.worktree_root（绝对路径）与 sdd.worktree_naming（id|hash，hash = 确定性 base32(sha256(change_id))[:8] 纯字母）配置。worktree 路径 MUST NOT 写入 proposal frontmatter（branch 才是稳定锚，路径仅本机有效）。若 change 的 depends_on 指向未完成的 change，change start --worktree MUST 以非零退出失败并提示串行处理（或先完成依赖）；当 depends_on 为空或指向已完成 change 时允许并行。当目标分支已被某 worktree checkout 时，change start MUST 复用该 worktree 路径而非报错。系统 MUST 提供 llman sdd worktree prune 子命令清理无主 worktree（对应 proposal 已删除或已 archive 的）。
 
   @req:r113 @human
-  场景: archive 自动 ff-merge 回分叉点
-    - llman sdd change archive <id>（及 finalize 内联的 archive 步骤）MUST 先对 attach binding 的 feature 分支执行 git merge --ff-only 到分叉点分支（一般是默认分支），再将 change 文档 docs rename 到 changes/archive/YYYY-MM-DD-<id>/（未提交的 rename 若先于 merge 会被 feature tip 还原，故顺序为 merge→rename）。成功则打印 ff-merge 结果并留在默认分支，由调用方一次 commit 收尾 rename；失败（如非 fast-forward）时 MUST NOT 跳过后续 docs rename，而是打印 token 友好提示（如 'ff-merge failed: <reason>; run manually: git switch <default> && git merge --ff-only <feature>'）后仍完成 rename。archive MUST NOT 因 ff-merge 失败回滚 docs rename。统一流程下不再有 TOON delta 合并路径。
+  场景: archive 自动合并回分叉点分支（目标/方式可解析，squash 缺省）
+    - llman sdd change archive <id>（及 finalize 内联的 archive 步骤）MUST 先对 attach binding 的 feature 分支执行自动合并到合并目标分支，再将 change 文档 docs rename 到 changes/archive/YYYY-MM-DD-<id>/（未提交的 rename 若先于合并会被 feature tip 还原，故顺序为 merge→rename）。合并目标 MUST 按「显式 `--into <branch>` > binding 记录的 base_branch（fork 基准分支；旧绑定缺键时回退）> 本地默认分支」解析；合并方式 MUST 按「显式 `--method <squash|ff>` > config `sdd.merge_method`（缺省 squash）」解析。squash 方式（缺省）MUST 使目标分支恰好新增一个收口 commit：squash 暂存 feature 全部 diff、docs rename 与收尾提交合而为一（message 沿用 `archive(sdd): <change-id>`）；ff 方式 MUST 保留原语义（`git merge --ff-only` 原样带入 feature commits，再由调用方一次 commit 收尾 rename）。成功则打印合并结果并留在目标分支。合并无法执行（目标分支被其他 worktree 持有、非 fast-forward、checkout 失败等）时 MUST NOT 静默降级：MUST 输出显式 WARNING 与可执行的手动合并命令指引，MUST NOT 跳过后续 docs rename，且 MUST NOT 因合并失败回滚 docs rename（worktree 拓扑守卫细则见 r142）。统一流程下不再有 TOON delta 合并路径。
+
+  @req:r142 @human
+  场景: worktree 拓扑守卫——目标分支被他树持有时不自动合并
+    - finalize/archive 的自动合并 MUST 在 checkout 目标分支前经 `git worktree list` 感知拓扑：当合并目标分支已被其他 worktree 持有时 MUST 跳过自动合并（MUST NOT 试图在同一 worktree checkout 该分支；MUST NOT 在持有方 worktree 内代为执行合并），MUST 输出含持有方 worktree 路径的可执行手动命令指引（squash/ff 各自形式）与「归档文档仅落在当前分支、基准分支未收口」的显式 WARNING；随后 docs rename 与收尾照常完成，进程退出码不受影响。目标分支由当前 worktree 自己持有（即正在绑定分支上操作）时 MUST NOT 触发该守卫。
 
   @req:r114 @human
   场景: spec scaffold 脚手架与书写指引
@@ -115,7 +119,7 @@
 
   @req:r124 @human
   场景: proposal frontmatter schema 守卫
-    - llman sdd validate（单 change / --all / --specs 路径）MUST 对 active change 的 proposal.md frontmatter 进行未知字段检测：合法字段集为 depends_on、blocks、branch、base_sha、needs_specs_change（后两者语义见 r1 / spec-format r135）。`baseSha`/`checkpointed`/`checkpoint_sha`/`checkpointSha`/`skip_specs_landing`/`rules_edit_acked`/`rules_touched`/`agent_acked` MUST 全部移除（无兼容读取，出现即 ERROR；旧项目由 migrations 升级工具一次性清理）。当 frontmatter 含合法集外的键（如 status、title、priority、author）时 MUST 报 ERROR（非 WARNING），错误消息 MUST 列出该未知字段名并提示合法字段集。changes/archive/ 下的 proposal MUST 免检（历史归档保持只读，零迁移成本）。determine_stage 行为 MUST 不变：stage 继续从磁盘 artifacts 与 attach binding 推断（r93 三态），MUST NOT 引入任何 frontmatter 字段（含 status）影响 stage；skip_specs_landing 仅影响 r1 的 readyToImplement，不影响 stage。
+    - llman sdd validate（单 change / --all / --specs 路径）MUST 对 active change 的 proposal.md frontmatter 进行未知字段检测：合法字段集为 depends_on、blocks、branch、base_sha、base_branch、needs_specs_change（base_sha/base_branch 语义见 r111，needs_specs_change 见 r1 / spec-format r135）。`baseSha`/`checkpointed`/`checkpoint_sha`/`checkpointSha`/`skip_specs_landing`/`rules_edit_acked`/`rules_touched`/`agent_acked` MUST 全部移除（无兼容读取，出现即 ERROR；旧项目由 migrations 升级工具一次性清理）。当 frontmatter 含合法集外的键（如 status、title、priority、author）时 MUST 报 ERROR（非 WARNING），错误消息 MUST 列出该未知字段名并提示合法字段集。changes/archive/ 下的 proposal MUST 免检（历史归档保持只读，零迁移成本）。determine_stage 行为 MUST 不变：stage 继续从磁盘 artifacts 与 attach binding 推断（r93 三态），MUST NOT 引入任何 frontmatter 字段（含 status）影响 stage；skip_specs_landing 仅影响 r1 的 readyToImplement，不影响 stage。
 
   @req:r127 @human
   场景: 嵌套 change 递归发现与叶子 id 唯一

@@ -109,13 +109,13 @@ verify→finalize, and before any archive.
 | **Skill 导航** | explore → propose → apply → verify → archive 的 agent 技能顺序 | **不是** Git-native 生命周期 |
 | **Git-native 生命周期** | Draft → Designed → Planned → Branch binding → Specs landing → apply → verify → finalize/archive | Specs landing 不是 skill |
 | **CLI 四档 `stage`** | `draft`（仅 proposal）/ `designed`（+design）/ `planned`（+tasks）/ `full`（+绑定） | full 仍可能 `readyToImplement=false` |
-| **Branch binding** | `change start`/`attach` 绑定非默认 `sdd/<id>` 分支 + `base_sha` | 不等于 Specs landing，不等于可 apply |
+| **Branch binding** | `change start`/`attach` 绑定非默认 `sdd/<id>` 分支 + `base_branch`（fork 基准分支；attach `--base` 可覆盖）+ `base_sha` | 不等于 Specs landing，不等于可 apply；base_branch 不参与 diff/lock-gate 范围 |
 | **Specs landing** | 在绑定分支编辑 `llmanspec/specs/**`（目录级 add/remove/update 任一）并留相对 merge-base 的 diff；frontmatter `needs_specs_change`（缺省 true）声明是否检查 | 不是在默认分支改 live specs |
 | **`needs_specs_change`** | 正向 frontmatter 字段（缺省 true）：true → 绑定分支必须留 specs 目录改动；false → 跳过检查 | `skip_specs_landing` 已移除（出现即 ERROR），不是跳过 Branch binding |
 | **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ needs_specs_change=false)` | 用 `show --json` 查 |
 | **`change checkpoint`** | 已移除（r25）：任何调用报错指向 `change finalize` | 不是 auto-WIP；finalize 负责收口 |
 | **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于有效范围（现算 merge-base，见 spec-format r135） | 报告制（S0）：改/删以 WARNING 报告、不阻断；控制点 = git 分支对比 + review/diff 浮现；`rules_touched`/`agent_acked`/`@agent`/`--yes` 已移除 |
-| **分支提交自由** | change 分支上提交自由：分段 commit 或 finalize 单次收尾均可；finalize 自动提交 `archive(sdd): <id>`（`--no-commit` 可跳过） | 不是必须 checkpoint；`--amend` 由用户自行处理 |
+| **分支提交自由** | change 分支上提交自由：分段 commit 或 finalize 单次收尾均可；finalize 自动合并（目标 `--into` > 绑定 `base_branch` > 默认分支；方式 `--method` > `sdd.merge_method`，squash 缺省——基准分支上单 commit 收口；worktree 占用目标时显式降级，r142）并自动提交 `archive(sdd): <id>`（`--no-commit` 可跳过） | 不是必须 checkpoint；`--amend` 由用户自行处理 |
 
 线性流程：
 

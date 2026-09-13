@@ -19,6 +19,12 @@ pub(crate) struct ArchiveArgs {
     pub(crate) skip_specs: bool,
     pub(crate) dry_run: bool,
     pub(crate) force: bool,
+    /// Merge target override (r113). Precedence: --into > binding
+    /// base_branch > local default branch.
+    pub(crate) into: Option<String>,
+    /// Merge method override (r113): `squash` | `ff`. Precedence: --method >
+    /// config `sdd.merge_method` > built-in default (squash).
+    pub(crate) method: Option<String>,
     /// Accepted and ignored: archive has no interactive mode. Flag-matrix
     /// uniformity across change subcommands.
     #[allow(dead_code)]
@@ -96,20 +102,27 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
 
     // Capture feature branch / gates before any mutation.
     // Strict gates (attach / branch / clean / checkpointed) unless `--force`.
-    let feature_branch = if args.force {
+    let (feature_branch, base_branch) = if args.force {
         match crate::sdd::change::git_native::read_binding(root, &change_name) {
-            Ok(Some(b)) => Some(b.branch),
-            _ => None,
+            Ok(Some(b)) => (Some(b.branch), b.base_branch),
+            _ => (None, String::new()),
         }
     } else {
-        Some(crate::sdd::change::git_native::enforce_bdd_archive_gates(root, &change_name)?.branch)
+        let binding =
+            crate::sdd::change::git_native::enforce_bdd_archive_gates(root, &change_name)?;
+        (Some(binding.branch), binding.base_branch)
     };
 
-    // r113 outcomes: docs archived + best-effort ff-merge; rename is never rolled
-    // back. Order is ff-merge THEN rename: a dirty rename before merge is restored
+    // r113 outcomes: docs archived + best-effort merge; rename is never rolled
+    // back. Order is merge THEN rename: a dirty rename before merge is restored
     // from the feature tip (committed tree still has changes/<id>/).
     if let Some(ref branch) = feature_branch {
-        do_ff_merge(root, branch, &change_name);
+        let method = resolve_merge_method(
+            config.sdd.as_ref().and_then(|s| s.merge_method.as_deref()),
+            args.method.as_deref(),
+        )?;
+        let target = resolve_merge_target(root, &base_branch, args.into.as_deref())?;
+        do_merge(root, branch, &target, method, &change_name);
     }
 
     do_archive_rename(&change_dir, &archive_dir, &archive_name)?;
@@ -126,41 +139,138 @@ fn run_with_root(root: &Path, args: ArchiveArgs) -> Result<()> {
     Ok(())
 }
 
-/// Try `git merge --ff-only <feature>` into the default branch.
-///
-/// On success: stay on the default branch so the caller can rename docs and
-/// commit once (r94/r113). On failure: print a token-friendly hint and
-/// best-effort restore the original branch (rename still proceeds afterward).
-///
-/// When the working tree is dirty (finalize's intentional single-commit path),
-/// local changes are stashed across checkout/merge and popped afterward so
-/// they land on the default branch.
-pub(crate) fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) {
-    let default_ref = match crate::git_utils::resolve_default_branch_ref(root) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!(
-                "ff-merge: cannot resolve default branch ({e}); run manually: git switch <default> && git merge --ff-only {feature_branch}"
-            );
-            return;
+/// Merge method for the close-out merge (r113).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MergeMethod {
+    /// Default: stage the whole feature diff (`git merge --squash`) so the
+    /// caller's single auto commit lands feature work + docs rename as ONE
+    /// close-out commit on the target branch.
+    Squash,
+    /// Legacy: `git merge --ff-only` brings feature commits as-is; the caller
+    /// then commits the docs rename once.
+    Ff,
+}
+
+/// Resolve the merge method (r113): `--method` > config `sdd.merge_method` >
+/// built-in default `squash`.
+pub(crate) fn resolve_merge_method(
+    config_method: Option<&str>,
+    flag: Option<&str>,
+) -> Result<MergeMethod> {
+    let raw = flag
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .or(config_method.map(str::trim).filter(|s| !s.is_empty()))
+        .unwrap_or("squash");
+    match raw {
+        "squash" => Ok(MergeMethod::Squash),
+        "ff" => Ok(MergeMethod::Ff),
+        other => anyhow::bail!("invalid merge method `{other}` (expected `squash` or `ff`)"),
+    }
+}
+
+/// Resolve the merge target (r113): `--into` > binding `base_branch` (when
+/// non-empty AND the branch exists locally) > local default branch.
+pub(crate) fn resolve_merge_target(
+    root: &Path,
+    binding_base_branch: &str,
+    into: Option<&str>,
+) -> Result<String> {
+    if let Some(raw) = into {
+        let trimmed = raw.trim();
+        crate::env_safety::validate_user_git_ref(trimmed)
+            .map_err(|e| anyhow!("invalid --into ref: {e}"))?;
+        return Ok(trimmed.to_string());
+    }
+    if !binding_base_branch.trim().is_empty()
+        && crate::git_utils::git_ref_exists(root, &format!("refs/heads/{binding_base_branch}"))
+    {
+        return Ok(binding_base_branch.to_string());
+    }
+    let default_ref = crate::git_utils::resolve_default_branch_ref(root)?;
+    Ok(crate::sdd::change::git_native::local_branch_name(
+        &default_ref,
+    ))
+}
+
+/// User-executable manual command matching the intended merge, printed on any
+/// degradation path so nothing fails silently (r113/r142).
+fn manual_merge_command(method: MergeMethod, feature: &str, target: &str) -> String {
+    match method {
+        MergeMethod::Squash => format!(
+            "git switch {target} && git merge --squash {feature} && git commit -m \"archive(sdd): <change-id>\""
+        ),
+        MergeMethod::Ff => format!("git switch {target} && git merge --ff-only {feature}"),
+    }
+}
+
+/// r142 topology guard: is `branch` checked out in a worktree OTHER than
+/// `root`? Returns that worktree's path. The current worktree is excluded so
+/// running from the bound feature branch itself never trips the guard.
+fn other_worktree_holding(root: &Path, branch: &str) -> Option<String> {
+    let out = Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let root_canon = fs::canonicalize(root).ok();
+    let mut current_path: Option<String> = None;
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        if let Some(path) = line.strip_prefix("worktree ") {
+            current_path = Some(path.to_string());
+        } else if let Some(refs) = line.strip_prefix("branch ") {
+            let name = refs.strip_prefix("refs/heads/").unwrap_or(refs);
+            if name == branch
+                && let Some(path) = current_path.clone()
+                && fs::canonicalize(&path).ok().as_deref() != root_canon.as_deref()
+            {
+                return Some(path);
+            }
         }
-    };
-    let default_name = default_ref
-        .strip_prefix("origin/")
-        .unwrap_or(default_ref.as_str())
-        .to_string();
+    }
+    None
+}
+
+/// Merge `<feature_branch>` into `<target>` using `<method>` (r113/r142).
+///
+/// Contract: best-effort with EXPLICIT degradation — any failure prints a
+/// WARNING plus an executable manual command and returns without error, so
+/// the caller still renames docs (never rolled back). Success leaves the repo
+/// on `<target>`; the squash method leaves the feature diff staged for the
+/// caller's single close-out commit.
+pub(crate) fn do_merge(
+    root: &Path,
+    feature_branch: &str,
+    target: &str,
+    method: MergeMethod,
+    change_name: &str,
+) {
+    if let Some(holder) = other_worktree_holding(root, target) {
+        eprintln!(
+            "merge skipped: target branch `{target}` is held by another worktree at `{holder}` \
+             (r142 topology guard) — docs archive proceeds on the current branch only. \
+             Finish manually in that worktree: {}",
+            manual_merge_command(method, feature_branch, target)
+        );
+        return;
+    }
 
     let original = match crate::git_utils::current_branch(root) {
         Ok(Some(b)) => b,
         Ok(None) => {
             eprintln!(
-                "ff-merge: HEAD is detached (no current branch); run manually: git switch {default_name} && git merge --ff-only {feature_branch}"
+                "merge skipped: HEAD is detached (no current branch); run manually: {}",
+                manual_merge_command(method, feature_branch, target)
             );
             return;
         }
         Err(e) => {
             eprintln!(
-                "ff-merge: cannot detect current branch ({e}); run manually: git switch {default_name} && git merge --ff-only {feature_branch}"
+                "merge skipped: cannot detect current branch ({e}); run manually: {}",
+                manual_merge_command(method, feature_branch, target)
             );
             return;
         }
@@ -168,32 +278,46 @@ pub(crate) fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) 
 
     let stashed = stash_if_dirty(root);
 
-    // Switch to default branch.
     let checkout_ok = Command::new("git")
-        .args(["checkout", &default_name])
+        .args(["checkout", target])
         .current_dir(root)
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
     if !checkout_ok {
         eprintln!(
-            "ff-merge: failed to checkout `{default_name}`; run manually: git switch {default_name} && git merge --ff-only {feature_branch}"
+            "merge skipped: failed to checkout `{target}`; run manually: {}",
+            manual_merge_command(method, feature_branch, target)
         );
         pop_stash_if(root, stashed);
         return;
     }
 
-    // Attempt ff-only merge.
+    let merge_args: &[&str] = match method {
+        MergeMethod::Squash => &["merge", "--squash", feature_branch],
+        MergeMethod::Ff => &["merge", "--ff-only", feature_branch],
+    };
     let merge = Command::new("git")
-        .args(["merge", "--ff-only", feature_branch])
+        .args(merge_args)
         .current_dir(root)
         .output();
     match merge {
-        Ok(o) if o.status.success() => {
-            println!("ff-merged `{feature_branch}` into `{default_name}` ({change_name})");
-            pop_stash_if(root, stashed);
-            // Stay on default — caller renames docs and commits once (r94).
-        }
+        Ok(o) if o.status.success() => match method {
+            MergeMethod::Squash => {
+                println!(
+                    "squash-staged `{feature_branch}` onto `{target}` ({change_name}); \
+                     finishing with the close-out commit"
+                );
+                pop_stash_if(root, stashed);
+                // Stay on target — staged diff + docs rename land in the one
+                // auto commit (r94).
+            }
+            MergeMethod::Ff => {
+                println!("ff-merged `{feature_branch}` into `{target}` ({change_name})");
+                pop_stash_if(root, stashed);
+                // Stay on target — caller renames docs and commits once (r94).
+            }
+        },
         Ok(o) => {
             let reason = String::from_utf8_lossy(&o.stderr).trim().to_string();
             let reason = if reason.is_empty() {
@@ -202,8 +326,18 @@ pub(crate) fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) 
                 reason
             };
             eprintln!(
-                "ff-merge failed: {reason}; run manually: git switch {default_name} && git merge --ff-only {feature_branch}"
+                "merge failed: {reason}; run manually: {}",
+                manual_merge_command(method, feature_branch, target)
             );
+            // A failed squash can leave conflict entries in the index; all
+            // valuable state is committed (feature branch + stash above), so a
+            // hard reset of the index here is safe and unblocks the checkout.
+            if method == MergeMethod::Squash {
+                let _ = Command::new("git")
+                    .args(["reset", "--hard", "HEAD"])
+                    .current_dir(root)
+                    .output();
+            }
             let _ = Command::new("git")
                 .args(["checkout", &original])
                 .current_dir(root)
@@ -212,7 +346,8 @@ pub(crate) fn do_ff_merge(root: &Path, feature_branch: &str, change_name: &str) 
         }
         Err(e) => {
             eprintln!(
-                "ff-merge failed: {e}; run manually: git switch {default_name} && git merge --ff-only {feature_branch}"
+                "merge failed: {e}; run manually: {}",
+                manual_merge_command(method, feature_branch, target)
             );
             let _ = Command::new("git")
                 .args(["checkout", &original])
@@ -360,6 +495,8 @@ mod tests {
             skip_specs: true,
             dry_run: true,
             force: false,
+            into: None,
+            method: None,
             no_interactive: false,
         };
         let result = run_with_root(dir.path(), args);
@@ -386,6 +523,8 @@ mod tests {
             skip_specs: true,
             dry_run: false,
             force: false,
+            into: None,
+            method: None,
             no_interactive: true,
         };
         let result = run_with_root(root, args);
@@ -410,6 +549,8 @@ mod tests {
             skip_specs: true,
             dry_run: false,
             force: true,
+            into: None,
+            method: None,
             no_interactive: true,
         };
         let result = run_with_root(root, args);
@@ -434,6 +575,7 @@ mod tests {
         let binding = crate::sdd::change::git_native::ChangeGitBinding {
             branch: "feat/x".to_string(),
             base_sha: "abc".to_string(),
+            base_branch: String::new(),
         };
         crate::sdd::change::git_native::write_binding(root, "test-change", &binding).unwrap();
         git(root, &["add", "."]);
@@ -443,6 +585,8 @@ mod tests {
             skip_specs: true,
             dry_run: false,
             force: false,
+            into: None,
+            method: None,
             no_interactive: true,
         };
         let result = run_with_root(root, args);
@@ -466,6 +610,8 @@ mod tests {
             skip_specs: true,
             dry_run: false,
             force: false,
+            into: None,
+            method: None,
             no_interactive: true,
         };
         let result = run_with_root(root, args);
@@ -493,6 +639,8 @@ mod tests {
             skip_specs: true,
             dry_run: false,
             force: false,
+            into: None,
+            method: None,
             no_interactive: true,
         };
         let result = run_with_root(root, args);
@@ -507,7 +655,7 @@ mod tests {
     }
 
     #[test]
-    fn archive_ff_merge_success() {
+    fn archive_ff_method_fast_forwards_clean_target() {
         let dir = tempdir().expect("tempdir");
         let root = dir.path();
         init_repo(root);
@@ -534,6 +682,7 @@ mod tests {
         let binding = crate::sdd::change::git_native::ChangeGitBinding {
             branch: "feat/x".to_string(),
             base_sha: "abc123".to_string(),
+            base_branch: String::new(),
         };
         crate::sdd::change::git_native::write_binding(root, "test-change", &binding).unwrap();
         git(root, &["add", "."]);
@@ -544,6 +693,8 @@ mod tests {
             skip_specs: true,
             dry_run: false,
             force: false,
+            into: None,
+            method: Some("ff".to_string()),
             no_interactive: true,
         };
         assert!(run_with_root(root, args).is_ok());
@@ -559,7 +710,70 @@ mod tests {
     }
 
     #[test]
-    fn archive_ff_merge_non_ff_downgrades_gracefully() {
+    fn archive_squash_default_merges_diverged_target() {
+        // r113 v2: the default squash method succeeds even when the target has
+        // advanced — the exact scenario where --ff-only used to hard-fail.
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        init_repo(root);
+        write_file(
+            &root.join("llmanspec/config.yaml"),
+            "schema: spec-driven\nlocale: en\n",
+        );
+        let change_dir = root.join("llmanspec/changes/test-change");
+        write_file(
+            &change_dir.join("proposal.md"),
+            "---\nbranch: feat/y\nbase_sha: abc123\n---\n## Why\nTest",
+        );
+        write_file(&change_dir.join("tasks.md"), "- [x] done\n");
+        git(root, &["add", "."]);
+        git(root, &["commit", "-m", "seed change"]);
+
+        // Feature branch with a commit.
+        git(root, &["checkout", "-b", "feat/y"]);
+        write_file(&root.join("feat-file"), "feat");
+        git(root, &["add", "feat-file"]);
+        git(root, &["commit", "-m", "feat"]);
+
+        // Advance main so histories diverge.
+        git(root, &["checkout", "main"]);
+        write_file(&root.join("main-file"), "main");
+        git(root, &["add", "main-file"]);
+        git(root, &["commit", "-m", "main-only"]);
+
+        git(root, &["checkout", "feat/y"]);
+        let binding = crate::sdd::change::git_native::ChangeGitBinding {
+            branch: "feat/y".to_string(),
+            base_sha: "abc123".to_string(),
+            base_branch: String::new(),
+        };
+        crate::sdd::change::git_native::write_binding(root, "test-change", &binding).unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-m", "checkpoint"]);
+
+        let args = ArchiveArgs {
+            change: Some("test-change".to_string()),
+            skip_specs: true,
+            dry_run: false,
+            force: false,
+            into: None,
+            method: None, // config unset → default squash
+            no_interactive: true,
+        };
+        assert!(run_with_root(root, args).is_ok());
+        assert!(!root.join("llmanspec/changes/test-change").exists());
+        // Squash landed feature content on main (staged; archive leaves the
+        // single close-out commit to the caller per r94).
+        let branch = crate::git_utils::current_branch(root).unwrap().unwrap();
+        assert_eq!(branch, "main");
+        assert!(
+            root.join("feat-file").exists(),
+            "squash must bring feature content onto the target"
+        );
+    }
+
+    #[test]
+    fn archive_ff_method_degrades_explicitly_on_diverged_target() {
         let dir = tempdir().expect("tempdir");
         let root = dir.path();
         init_repo(root);
@@ -594,6 +808,7 @@ mod tests {
         let binding = crate::sdd::change::git_native::ChangeGitBinding {
             branch: "feat/y".to_string(),
             base_sha: "abc123".to_string(),
+            base_branch: String::new(),
         };
         crate::sdd::change::git_native::write_binding(root, "test-change", &binding).unwrap();
         git(root, &["add", "."]);
@@ -604,6 +819,8 @@ mod tests {
             skip_specs: true,
             dry_run: false,
             force: false,
+            into: None,
+            method: Some("ff".to_string()),
             no_interactive: true,
         };
         // Archive succeeds (rename happened) even though ff-merge fails.
@@ -621,5 +838,71 @@ mod tests {
         // On ff-merge failure, restore to the feature branch (best-effort).
         let branch = crate::git_utils::current_branch(root).unwrap().unwrap();
         assert_eq!(branch, "feat/y");
+    }
+
+    #[test]
+    fn archive_skips_merge_when_target_held_by_other_worktree() {
+        // r142 topology guard: `main` checked out in a second worktree → the
+        // auto merge is skipped with an explicit WARNING; docs rename proceeds.
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+        init_repo(root);
+        write_file(
+            &root.join("llmanspec/config.yaml"),
+            "schema: spec-driven\nlocale: en\n",
+        );
+        let change_dir = root.join("llmanspec/changes/test-change");
+        write_file(
+            &change_dir.join("proposal.md"),
+            "---\nbranch: feat/y\nbase_sha: abc123\n---\n## Why\nTest",
+        );
+        write_file(&change_dir.join("tasks.md"), "- [x] done\n");
+        git(root, &["add", "."]);
+        git(root, &["commit", "-m", "seed change"]);
+
+        git(root, &["checkout", "-b", "feat/y"]);
+        write_file(&root.join("feat-file"), "feat");
+        git(root, &["add", "feat-file"]);
+        git(root, &["commit", "-m", "feat"]);
+
+        // A second worktree (outside the repo dir, inside its own TempDir so
+        // parallel tests never collide) holds `main` — the merge target.
+        let wt_tmp = tempdir().expect("worktree tmpdir");
+        let wt = wt_tmp.path().join("holding-wt");
+        assert!(git(
+            root,
+            &["worktree", "add", wt.to_str().unwrap(), "main"]
+        ));
+
+        let binding = crate::sdd::change::git_native::ChangeGitBinding {
+            branch: "feat/y".to_string(),
+            base_sha: "abc123".to_string(),
+            base_branch: String::new(),
+        };
+        crate::sdd::change::git_native::write_binding(root, "test-change", &binding).unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-m", "checkpoint"]);
+
+        let args = ArchiveArgs {
+            change: Some("test-change".to_string()),
+            skip_specs: true,
+            dry_run: false,
+            force: false,
+            into: None,
+            method: None,
+            no_interactive: true,
+        };
+        assert!(run_with_root(root, args).is_ok());
+        // Rename completed; the repo stays on the feature branch.
+        assert!(!root.join("llmanspec/changes/test-change").exists());
+        let branch = crate::git_utils::current_branch(root).unwrap().unwrap();
+        assert_eq!(branch, "feat/y");
+        // The merge was skipped: feature content never reached the target
+        // branch in the holding worktree (root stays on feat/y where the file
+        // legitimately exists).
+        assert!(
+            !wt_tmp.path().join("holding-wt/feat-file").exists(),
+            "topology guard must skip the auto merge"
+        );
     }
 }

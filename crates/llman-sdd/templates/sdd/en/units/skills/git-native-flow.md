@@ -24,7 +24,7 @@ flowchart TB
   subgraph implement["Implement"]
     H["apply: code per tasks<br/>may keep editing specs"]
     I["verify"]
-    J["finalize<br/>ff-merge → rename → auto commit archive(sdd): &lt;id&gt;<br/>specs first hit default branch"]
+    J["finalize<br/>merge (squash default) → rename → auto commit archive(sdd): &lt;id&gt;<br/>specs first hit default branch"]
   end
 
   A --> B1 --> B2 --> C

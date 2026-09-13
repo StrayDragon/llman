@@ -281,6 +281,16 @@ pub(crate) struct FlowConfig {
         \"hash\" (deterministic base32(sha256(change_id))[:8], letters only)."
     )]
     pub(crate) worktree_naming: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Default merge method for `change finalize`/`change archive` close-out \
+        (r113): \"squash\" (default; feature diff + docs rename land as ONE close-out commit \
+        on the merge target) or \"ff\" (fast-forward feature commits as-is, legacy). \
+        Per-invocation --method overrides this."
+    )]
+    pub(crate) merge_method: Option<String>,
 }
 
 impl Default for SddConfig {
