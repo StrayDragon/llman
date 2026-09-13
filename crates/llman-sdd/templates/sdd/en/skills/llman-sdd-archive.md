@@ -54,11 +54,11 @@ flowchart LR
   - Prerequisites: Branch binding done (`change start` / `attach`); still on the bound branch (or the target branch after the auto merge).
   - `change archive` / `change finalize` run the **auto merge** (target `--into` > binding `base_branch` > default branch; method squash by default or `ff`; if the target is held by another worktree the merge is skipped with an explicit manual command, r142), **then** rename change docs into `changes/archive/` — rename is never rolled back on merge failure and degradation is reported explicitly.
   - Legacy `*.feature.delta.toon` or `spec.toon` under specs is a migration blocker — run `llman sdd project migrate --kind toon2features`.
-  - **Default: `change finalize` (one-command close)** — gates → locked-rule confirmation → auto merge → docs rename → **auto commit** `archive(sdd): <change-id>` (uncommitted implementation diff + rename in one commit; no manual `git commit` needed):
+  - **Default: `change finalize` (one-command close)** — gates → auto merge → docs rename → **auto commit** `archive(sdd): <change-id>` (squash default: impl diff + rename collapse into ONE commit on the target; no manual `git commit` needed; locked-rule edits are report-only WARNINGs, see spec-format r135):
     ```text
     1. Implement live specs + code (working tree may stay dirty; commits on the branch are free — segmented or none)
     2. llman sdd change finalize <id>    # gates + merge (squash default) + rename + auto commit
-    3. optional: git commit --amend      # adjust the message; then git branch -d <feature>
+    3. optional: git commit --amend    # adjust the message; git branch -D <feature>  # after squash the branch is no longer an ancestor; -d gets refused
     ```
     `--no-commit` skips the auto commit (CI / pre-commit-hook conflicts): finalize then leaves the tree dirty and prints the manual `git commit` command. Idempotent retry: a rerun after a failed auto commit detects the already-archived rename and finishes the commit.
   - **Fallback: plain `change archive <id>`** — same merge + rename, no auto commit; requires a clean tree. `checkpointed`/`checkpoint_sha` fields are removed (r25) — nothing to write beforehand, and nothing to review for the snapshot (use `change diff` instead).
@@ -69,7 +69,7 @@ flowchart LR
 
 ### 4) Commit guidance
 - Finalize auto-committed (`archive(sdd): <id>`); with `--no-commit`, commit manually: `git add -A && git commit -m "archive(sdd): <id1>, <id2>"` (or the archive skill's suggested format).
-- Optional: `git branch -d <feature>` after the merge. push / hosting PR only when the user or project explicitly requires remote review.
+- Optional: `git branch -D <feature>` after the merge (squash leaves the branch outside main's ancestry). push / hosting PR only when the user or project explicitly requires remote review.
 - **Breaking contract changes** (removed/renamed frontmatter field, command, tag, or stage value) MUST ship an upgrade path under `migrations/v<from>-v<to>/` (README prompt + one-shot script; r28) — verify it exists before closing the change.
 - **Archived `depends_on`**: archive renames the change dir to `archive/YYYY-MM-DD-<id>`, but validate recognizes `depends_on` pointing to archived/frozen ids as INFO (not ERROR), so you do **not** need to manually update other changes' `depends_on` frontmatter after archive.
 

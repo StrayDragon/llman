@@ -12,7 +12,7 @@ flowchart TB
 
   subgraph gate_start["Branch binding"]
     C{"工作区干净<br/>且在默认分支？"}
-    D["change start<br/>建 sdd/&lt;id&gt; + 写 branch/base_sha"]
+    D["change start<br/>建 sdd/&lt;id&gt; + 写 branch/base_branch/base_sha"]
     E["或手动 checkout -b<br/>再 change attach"]
   end
 

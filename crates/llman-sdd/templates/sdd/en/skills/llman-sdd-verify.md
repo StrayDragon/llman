@@ -42,7 +42,7 @@ flowchart LR
    - `proposal.md` and `design.md` if present
    - `tasks.md` to understand what was implemented
    - `llmanspec/changes/<id>/specs/` only if residual old docs exist — ignore; SSOT is live specs
-4. **Dual-axis review (Standards + Spec, kept separate so neither masks the other)** — diff against `git diff <merge-base>...HEAD` (merge-base = the attach base_sha or `main`) on two axes:
+4. **Dual-axis review (Standards + Spec, kept separate so neither masks the other)** — diff against `git diff <merge-base>...HEAD` (merge-base is COMPUTED via `git merge-base <local-default> HEAD`; the stored base_sha is audit-only and MUST NOT feed range math, see r130/r137) on two axes:
    - **Spec axis**: does the implementation satisfy the `@human` rule MUST/SHALL and the `@executable` GWT?
      - Missing/partial behaviors, wrong implementations, and scope creep in the diff not asked for by the spec.
      - Suggest minimal fixes or artifact updates.

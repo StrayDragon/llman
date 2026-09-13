@@ -56,7 +56,7 @@ llman sdd show <id> --json --type change
    - `proposal.md` 与 `design.md`（如存在）
    - `tasks.md`（理解实现范围）
    - `llmanspec/changes/<id>/specs/` 若残留旧文档可忽略；SSOT 是 live specs
-4. **双轴审查（标准轴 + 合约轴分离，互不掩盖）**——对比 diff（`git diff <merge-base>...HEAD`，merge-base 取 attach 的 base_sha 或 `main`）分两轴：
+4. **双轴审查（标准轴 + 合约轴分离，互不掩盖）**——对比 diff（`git diff <merge-base>...HEAD`，merge-base 用现算 `git merge-base <本地默认分支> HEAD`；存储的 base_sha 仅作审计、MUST NOT 参与范围计算，见 r130/r137）分两轴：
    - **合约轴（Spec）**：实现是否满足 `@human` 规则的 MUST/SHALL 与 `@executable` 的 GWT。
      - 缺失/部分实现的行为、错误实现、以及 diff 中未被 spec 要求的超范围改动。
      - 给出最小修复建议，或建议更新 artifacts。

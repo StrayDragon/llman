@@ -12,7 +12,7 @@ flowchart TB
 
   subgraph gate_start["Branch binding"]
     C{"Clean tree<br/>and on default branch?"}
-    D["change start<br/>create sdd/&lt;id&gt; + write branch/base_sha"]
+    D["change start<br/>create sdd/&lt;id&gt; + write branch/base_branch/base_sha"]
     E["or manual checkout -b<br/>then change attach"]
   end
 

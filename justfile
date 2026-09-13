@@ -96,12 +96,15 @@ clean-bdd-targets:
 # T11 拆出 crates/llman-core 后根包默认只测根包自身，必须显式 --workspace
 # CI 与本地一致：nextest 不跑 doctest，所以 nextest 分支后补 `cargo test --doc
 # --workspace`（CI 无 nextest 时 fallback 的 cargo test 已含 doctest，不重复）。
+# 静默输出（省 token）：status/final 都只报 fail——成功时仅剩一行 Summary，
+# 失败时失败详情完整可见；--cargo-quiet 压掉 Compiling 噪音（错误照常输出）。
+# 退出码语义不变，CI 用法不受影响。
 test:
-    if command -v cargo-nextest >/dev/null; then cargo nextest run --workspace --profile ci && cargo test --doc --workspace; else cargo test --workspace; fi
+    if command -v cargo-nextest >/dev/null; then cargo nextest run --workspace --profile ci --cargo-quiet --status-level fail --final-status-level fail && cargo test --doc --workspace -q; else cargo test --workspace -q; fi
 
-# 运行 BDD 测试（feature-as-spec 可执行验证，需 --features bdd）
+# 运行 BDD 测试（feature-as-spec 可执行验证，需 --features bdd；静默策略同 test）
 test-bdd:
-    cargo test --features bdd
+    if command -v cargo-nextest >/dev/null; then cargo nextest run --features bdd --cargo-quiet --status-level fail --final-status-level fail; else cargo test --features bdd -q; fi
 
 # =============================================================================
 # 代码质量检查

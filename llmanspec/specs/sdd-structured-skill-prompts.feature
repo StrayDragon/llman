@@ -19,7 +19,7 @@
 
   @req:r98 @human
   场景: 收尾提示不默认导向 PR/push
-    - 统一 Git-native 下：llman-sdd-apply-cycle 技能 MUST 含「本地合回默认分支」步骤（finalize 已自动合并时为确认性步骤；手动兜底命令与 finalize 合并语义一致（sdd-workflow r113，squash 缺省）：`git switch <default> && git merge --squash <feature> && git commit`，可选 `git branch -d <feature>`），且其硬约束 MUST 声明「未获用户明确要求时禁止 git push / gh pr create|merge」。`llman sdd change finalize` 成功 stdout MUST 在归档提示后追加一行 next-step（通常指引在合并目标分支上确认收口 commit；push / hosting PR 为可选）。`llman sdd validate <change>` 失败时 MUST NOT 打印诱导编写 change 内 TOON delta 的 next-steps（如 `Ensure change has deltas in specs/`），MUST 指向 live `llmanspec/specs/**` 与 `change start`/`attach`。
+    - 统一 Git-native 下：llman-sdd-apply-cycle 技能 MUST 含「本地合回默认分支」步骤（finalize 已自动合并时为确认性步骤；手动兜底命令与 finalize 合并语义一致（sdd-workflow r113，squash 缺省）：`git switch <default> && git merge --squash <feature> && git commit`，可选 `git branch -D <feature>`（squash 收口后分支不再是目标分支祖先，`git branch -d` 会被拒绝）），且其硬约束 MUST 声明「未获用户明确要求时禁止 git push / gh pr create|merge」。`llman sdd change finalize` 成功 stdout MUST 在归档提示后追加一行 next-step（通常指引在合并目标分支上确认收口 commit；push / hosting PR 为可选）。`llman sdd validate <change>` 失败时 MUST NOT 打印诱导编写 change 内 TOON delta 的 next-steps（如 `Ensure change has deltas in specs/`），MUST 指向 live `llmanspec/specs/**` 与 `change start`/`attach`。
 
   @req:r99 @human
   场景: 轻量 draft 提案路径与 change id 自动推导

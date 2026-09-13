@@ -53,7 +53,7 @@ Finalize already auto-committed unless `--no-commit` was passed.
 
 ### 6) Optional cleanup
 ```bash
-git branch -d <feature-branch>
+git branch -D <feature-branch>   # after squash the branch is no longer an ancestor of main; -d gets refused
 ```
 push / hosting PR only when the user explicitly asks.
 
