@@ -94,8 +94,8 @@ verify→finalize, and before any archive.
 
 - Treat `pending`/`unbound` as planning debt to schedule, `stale` as spec-vs-code drift
   to resolve.
-- `locked` hints are prompts to inspect `llman sdd change diff <id>` — never re-edit
-  locked rules without `rules_touched`（`rules_edit_acked` 已移除；`@agent` 规则可用 `--yes` 确认）。
+- `locked` hints are prompts to inspect `llman sdd change diff <id>` — locked-rule
+  edits are report-only (spec-format r135/S0)，确认元数据已移除（无兼容）。
 - Nonzero exit = CRITICAL findings: stop and fix before proceeding.
 - Contract disputes discovered during review go back through explore/propose, never
   edited ad-hoc.
@@ -114,7 +114,7 @@ verify→finalize, and before any archive.
 | **`needs_specs_change`** | 正向 frontmatter 字段（缺省 true）：true → 绑定分支必须留 specs 目录改动；false → 跳过检查 | `skip_specs_landing` 已移除（出现即 ERROR），不是跳过 Branch binding |
 | **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ needs_specs_change=false)` | 用 `show --json` 查 |
 | **`change checkpoint`** | 已移除（r25）：任何调用报错指向 `change finalize` | 不是 auto-WIP；finalize 负责收口 |
-| **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于有效范围（现算 merge-base，见 spec-format r135） | 新增规则无需 ack；改/删须在 proposal frontmatter 的 `rules_touched: [<req-id>]` 列出被改规则；`--yes` 仅对带 `@agent` 标记的规则生效（审计写入 `agent_acked`） |
+| **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于有效范围（现算 merge-base，见 spec-format r135） | 报告制（S0）：改/删以 WARNING 报告、不阻断；控制点 = git 分支对比 + review/diff 浮现；`rules_touched`/`agent_acked`/`@agent`/`--yes` 已移除 |
 | **分支提交自由** | change 分支上提交自由：分段 commit 或 finalize 单次收尾均可；finalize 自动提交 `archive(sdd): <id>`（`--no-commit` 可跳过） | 不是必须 checkpoint；`--amend` 由用户自行处理 |
 
 线性流程：

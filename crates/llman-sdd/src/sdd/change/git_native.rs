@@ -371,11 +371,14 @@ pub(crate) fn run_diff(root: &Path, args: DiffArgs) -> Result<()> {
             println!();
         }
     }
-    // r135 audit: surface agent-acked locked rules (--yes / finalize wrote
-    // `agent_acked`) so humans know which edits to re-review.
-    let agent_acked = crate::sdd::change::lock_gate::agent_acked_for(root, &change_name);
-    if !agent_acked.is_empty() {
-        println!("agent-acked rules: {}", agent_acked.join(", "));
+    // r135 report-only: surface locked-rule edits behind this change's diff.
+    for issue in crate::sdd::change::lock_gate::check(root, &range_base) {
+        let label = match issue.level {
+            crate::sdd::spec::validation::ValidationLevel::Warning => "WARNING",
+            crate::sdd::spec::validation::ValidationLevel::Info => "INFO",
+            crate::sdd::spec::validation::ValidationLevel::Error => "ERROR",
+        };
+        println!("[{}] {}: {}", label, issue.path, issue.message);
     }
     Ok(())
 }

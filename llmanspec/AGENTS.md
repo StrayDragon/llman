@@ -19,10 +19,8 @@ rules, context, or conventions that AI agents should follow.
 | `branch` | 否 | **CLI**（`change start`/`attach`） | attach binding 的 feature 分支 |
 | `base_sha` | 否 | **CLI** | attach binding 的 base SHA（`baseSha` 别名已移除，出现即 ERROR） |
 | `needs_specs_change` | 否（缺省 `true`） | agent | `false` 时跳过「绑定分支是否改动 `llmanspec/specs/`」检查（r1） |
-| `rules_touched` | 否 | agent / **CLI**（收尾确认、`finalize --yes`） | 本 change 声明会改动的锁定 `@human` 规则 req-id 列表（r135） |
-| `agent_acked` | 否 | **CLI**（`--yes`） | 审计：经 agent 确认的锁定规则 req-id（review/diff 浮现） |
 
-> **生命周期阶段不是 frontmatter 字段**：它由 `determine_stage`（r93）实时从磁盘 artifacts 推断四档（Draft/Designed/Planned/Full），用 `llman sdd show` / `llman sdd list` 查看。`status` 字段已废弃——不要再写进 frontmatter，CLI 会拒绝。`checkpointed`/`checkpoint_sha`/`skip_specs_landing`/`rules_edit_acked` 已移除（出现即 ERROR）。
+> **生命周期阶段不是 frontmatter 字段**：它由 `determine_stage`（r93）实时从磁盘 artifacts 推断四档（Draft/Designed/Planned/Full），用 `llman sdd show` / `llman sdd list` 查看。`status` 字段已废弃——不要再写进 frontmatter，CLI 会拒绝。`checkpointed`/`checkpoint_sha`/`skip_specs_landing`/`rules_edit_acked`/`rules_touched`/`agent_acked` 已移除（出现即 ERROR）。锁定 `@human` 规则的改动为报告制（WARNING，不阻断，spec-format r135/S0）。
 
 ### 正文写作约束
 

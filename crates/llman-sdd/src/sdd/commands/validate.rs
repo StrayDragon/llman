@@ -49,9 +49,6 @@ pub(crate) struct ValidateArgs {
     pub(crate) check: bool,
     /// Skip BDD runner execution even when bdd.run_command is configured.
     pub(crate) no_check: bool,
-    /// r135: acknowledge undeclared locked-rule edits for @agent-marked rules
-    /// during THIS validation run (no frontmatter write; finalize --yes writes).
-    pub(crate) yes: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -135,7 +132,6 @@ pub(crate) fn run(root: &Path, args: ValidateArgs) -> Result<()> {
             bdd_config,
             &locale,
             check_mode,
-            args.yes,
         )?;
         return Ok(());
     }
@@ -152,7 +148,6 @@ pub(crate) fn run(root: &Path, args: ValidateArgs) -> Result<()> {
                 bdd_config,
                 &locale,
                 check_mode,
-                args.yes,
             )?;
             return Ok(());
         }
@@ -175,7 +170,6 @@ pub(crate) fn run(root: &Path, args: ValidateArgs) -> Result<()> {
         &locale,
         check_mode,
         check_deprecated,
-        args.yes,
     )
 }
 
@@ -190,7 +184,6 @@ fn run_interactive_selector(
     bdd_config: Option<&BddConfig>,
     locale: &str,
     check_mode: bool,
-    yes: bool,
 ) -> Result<()> {
     let choice = Select::new(
         &t!("sdd.validate.select_scope"),
@@ -216,7 +209,6 @@ fn run_interactive_selector(
             bdd_config,
             locale,
             check_mode,
-            yes,
         )?;
         return Ok(());
     }
@@ -233,7 +225,6 @@ fn run_interactive_selector(
             bdd_config,
             locale,
             check_mode,
-            yes,
         )?;
         return Ok(());
     }
@@ -250,7 +241,6 @@ fn run_interactive_selector(
             bdd_config,
             locale,
             check_mode,
-            yes,
         )?;
         return Ok(());
     }
@@ -282,7 +272,6 @@ fn run_interactive_selector(
         check_mode,
         false, // interactive user can't pass --check
         false, // interactive pick is never a prefix match
-        yes,
     )
 }
 
@@ -312,7 +301,6 @@ fn validate_direct(
     locale: &str,
     check_mode: bool,
     check_deprecated: bool,
-    yes: bool,
 ) -> Result<()> {
     let specs = list_specs(root)?;
     let is_spec = specs.contains(&item.to_string());
@@ -405,7 +393,6 @@ fn validate_direct(
         check_mode,
         check_deprecated,
         matched_via_prefix,
-        yes,
     )
 }
 
@@ -472,7 +459,6 @@ pub(crate) fn collect_change_issues_fast(root: &Path, change_id: &str) -> Vec<Va
         &dag_issues,
         &archive_config,
         bdd_on,
-        false,
     )
     .issues
 }
@@ -488,7 +474,6 @@ fn validate_change_full(
     dag_issues: &[ValidationIssue],
     archive_config: &ArchiveConfig,
     bdd_on: bool,
-    yes_locked_ack: bool,
 ) -> ValidationReport {
     let stage = stage_override.unwrap_or_else(|| determine_stage(change_dir));
     let mut issues = Vec::new();
@@ -563,27 +548,12 @@ fn validate_change_full(
             .as_deref()
             .is_some_and(|b| !b.trim().is_empty())
     {
-        let mut ack = crate::sdd::change::lock_gate::LockedAck::from_frontmatter(&frontmatter);
         let base = crate::sdd::change::lock_gate::effective_range_base(
             root,
             frontmatter.base_sha.as_deref(),
         )
         .unwrap_or_default();
-        if yes_locked_ack {
-            // validate --yes: exempt @agent-marked undeclared edits for THIS
-            // run only (no frontmatter write). Plain @human edits still error.
-            let undeclared = crate::sdd::change::lock_gate::undeclared_ids(root, base.trim(), &ack);
-            let agent_ids = crate::sdd::change::lock_gate::agent_marked_ids(root, &undeclared);
-            if !agent_ids.is_empty() {
-                match &mut ack {
-                    crate::sdd::change::lock_gate::LockedAck::Some(ids) => ids.extend(agent_ids),
-                    crate::sdd::change::lock_gate::LockedAck::None => {
-                        ack = crate::sdd::change::lock_gate::LockedAck::Some(agent_ids)
-                    }
-                }
-            }
-        }
-        for issue in crate::sdd::change::lock_gate::check(root, base.trim(), &ack) {
+        for issue in crate::sdd::change::lock_gate::check(root, base.trim()) {
             issues.push(issue);
         }
     }
@@ -724,7 +694,6 @@ fn validate_by_type(
     check_mode: bool,
     check_deprecated: bool,
     matched_via_prefix: bool,
-    yes: bool,
 ) -> Result<()> {
     let start = Instant::now();
     let (report, staleness) = match item_type {
@@ -749,7 +718,6 @@ fn validate_by_type(
                 &dag_issues,
                 archive_config,
                 bdd_config.is_some(),
-                yes,
             );
             // Common validate path: fail closed on main-library req_id collisions.
             report
@@ -1012,7 +980,6 @@ fn run_bulk_validation(
     bdd_config: Option<&BddConfig>,
     locale: &str,
     check_mode: bool,
-    yes: bool,
 ) -> Result<()> {
     let changes = if validate_changes {
         list_changes(root)?
@@ -1078,7 +1045,6 @@ fn run_bulk_validation(
             &dag_issues,
             archive_config,
             bdd_config.is_some(),
-            yes,
         );
         items.push(ValidationItem {
             id,

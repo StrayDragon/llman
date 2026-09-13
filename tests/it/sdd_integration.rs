@@ -1364,11 +1364,12 @@ fn test_sdd_show_change_full_stage_ready_to_implement() {
     assert_eq!(show_json["needsSpecsChange"], false);
     assert_eq!(show_json["readyToImplement"], true);
     assert_eq!(show_json["specsLanded"], false);
-    // gateChecks present; hint is empty exactly when pass=true.
+    // gateChecks present; hint is empty exactly when pass=true. The lock-gate
+    // entry is gone since the report-only rework (spec-format r135 S0).
     let gates = show_json["gateChecks"]
         .as_array()
         .expect("gateChecks array");
-    assert_eq!(gates.len(), 7);
+    assert_eq!(gates.len(), 6);
     for gate in gates {
         assert!(gate["name"].is_string());
         assert!(gate["pass"].is_boolean());

@@ -294,14 +294,6 @@ fn classify_tier(tags: &[String]) -> Result<Option<ScenarioTier>> {
             "@manual requires @human (manual review waives a constraint rule)"
         ));
     }
-    // r132: @agent (delegated confirmation) is a modifier of @human; a lone
-    // @agent tag is governance misuse and must fail validation.
-    let agent = has("agent");
-    if agent && !human {
-        return Err(anyhow!(
-            "@agent requires @human (delegated confirmation only applies to locked constraint rules)"
-        ));
-    }
     if human && manual {
         Ok(Some(ScenarioTier::Manual))
     } else if human {
