@@ -204,10 +204,6 @@ pub enum SddCommands {
         #[arg(long)]
         no_interactive: bool,
         /// Acknowledge undeclared locked-rule edits for @agent-marked rules
-        /// (r135): equivalent to a --yes confirmation for THIS validation run;
-        /// does not write frontmatter (finalize --yes does)
-        #[arg(long)]
-        yes: bool,
         /// Run the BDD check command after fast validation (BDD-on spec only).
         /// Default: enabled when bdd.run_command is configured; use --no-check to skip.
         #[arg(long)]
@@ -465,8 +461,7 @@ pub enum SddChangeCommands {
     /// docs-only archive rename + one auto `git commit` (`archive(sdd): <id>`)
     /// bundling the implementation diff, frontmatter and rename.
     ///
-    /// `--no-commit` skips the auto commit (CI/hook scenarios); `--yes`
-    /// acknowledges `@agent`-marked locked-rule edits (spec-format r135).
+    /// `--no-commit` skips the auto commit (CI/hook scenarios).
     Finalize {
         /// Change id
         change: String,
@@ -477,11 +472,6 @@ pub enum SddChangeCommands {
         /// dirty for manual commit (CI / pre-commit hook conflicts)
         #[arg(long)]
         no_commit: bool,
-        /// Acknowledge locked-rule edits for `@agent`-marked rules (writes
-        /// rules_touched + agent_acked) and continue; plain `@human` rules
-        /// still require declaration in rules_touched
-        #[arg(long)]
-        yes: bool,
         /// Accepted and ignored; finalize has no interactive mode. Keeps the
         /// flag matrix uniform across change subcommands so skills can pass it
         /// unconditionally (alongside archive/freeze/migrate).
@@ -647,7 +637,6 @@ fn run_command(args: &SddArgs) -> Result<()> {
             no_interactive,
             check,
             no_check,
-            yes,
         } => validate::run(
             std::path::Path::new("."),
             validate::ValidateArgs {
@@ -663,7 +652,6 @@ fn run_command(args: &SddArgs) -> Result<()> {
                 no_interactive: *no_interactive,
                 check: *check,
                 no_check: *no_check,
-                yes: *yes,
             },
         ),
         SddCommands::Archive {
@@ -725,7 +713,6 @@ fn run_command(args: &SddArgs) -> Result<()> {
                 change,
                 no_check,
                 no_commit,
-                yes,
                 no_interactive,
             } => crate::sdd::change::finalize::run_finalize(
                 std::path::Path::new("."),
@@ -733,7 +720,6 @@ fn run_command(args: &SddArgs) -> Result<()> {
                     change: change.clone(),
                     no_check: *no_check,
                     no_commit: *no_commit,
-                    yes: *yes,
                     no_interactive: *no_interactive,
                 },
             ),

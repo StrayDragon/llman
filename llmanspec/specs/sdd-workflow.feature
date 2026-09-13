@@ -115,7 +115,7 @@
 
   @req:r124 @human
   场景: proposal frontmatter schema 守卫
-    - llman sdd validate（单 change / --all / --specs 路径）MUST 对 active change 的 proposal.md frontmatter 进行未知字段检测：合法字段集为 depends_on、blocks、branch、base_sha、needs_specs_change、rules_touched、agent_acked（后三者语义见 r1 / spec-format r135）。`baseSha`/`checkpointed`/`checkpoint_sha`/`checkpointSha`/`skip_specs_landing`/`rules_edit_acked` MUST 全部移除（无兼容读取，出现即 ERROR；旧项目由 migrations 升级工具一次性清理）。当 frontmatter 含合法集外的键（如 status、title、priority、author）时 MUST 报 ERROR（非 WARNING），错误消息 MUST 列出该未知字段名并提示合法字段集。changes/archive/ 下的 proposal MUST 免检（历史归档保持只读，零迁移成本）。determine_stage 行为 MUST 不变：stage 继续从磁盘 artifacts 与 attach binding 推断（r93 三态），MUST NOT 引入任何 frontmatter 字段（含 status）影响 stage；skip_specs_landing 仅影响 r1 的 readyToImplement，不影响 stage。
+    - llman sdd validate（单 change / --all / --specs 路径）MUST 对 active change 的 proposal.md frontmatter 进行未知字段检测：合法字段集为 depends_on、blocks、branch、base_sha、needs_specs_change（后两者语义见 r1 / spec-format r135）。`baseSha`/`checkpointed`/`checkpoint_sha`/`checkpointSha`/`skip_specs_landing`/`rules_edit_acked`/`rules_touched`/`agent_acked` MUST 全部移除（无兼容读取，出现即 ERROR；旧项目由 migrations 升级工具一次性清理）。当 frontmatter 含合法集外的键（如 status、title、priority、author）时 MUST 报 ERROR（非 WARNING），错误消息 MUST 列出该未知字段名并提示合法字段集。changes/archive/ 下的 proposal MUST 免检（历史归档保持只读，零迁移成本）。determine_stage 行为 MUST 不变：stage 继续从磁盘 artifacts 与 attach binding 推断（r93 三态），MUST NOT 引入任何 frontmatter 字段（含 status）影响 stage；skip_specs_landing 仅影响 r1 的 readyToImplement，不影响 stage。
 
   @req:r127 @human
   场景: 嵌套 change 递归发现与叶子 id 唯一
@@ -131,7 +131,7 @@
 
   @req:r130 @human
   场景: specs landing 单轨口径与锁定门禁
-    - Specs landing 的 live specs 路径口径 MUST 收窄为 llmanspec/specs/**/*.feature（spec.toon 不再是合约载体）。change finalize/diff 与 validate --strict MUST 执行 @human 场景锁定哈希对比（范围 = 现算 `git merge-base <本地默认分支> HEAD`...HEAD，规则见 spec-format r135）；未带 rules_touched 的 proposal MUST NOT 能改动已锁定场景（`rules_edit_acked` 已移除、无兼容；`--yes` 仅对 @agent 规则生效，见 spec-format r135）。
+    - Specs landing 的 live specs 路径口径 MUST 收窄为 llmanspec/specs/**/*.feature（spec.toon 不再是合约载体）。change finalize/diff 与 validate --strict MUST 执行 @human 场景锁定哈希对比（范围 = 现算 `git merge-base <本地默认分支> HEAD`...HEAD，规则见 spec-format r135）；锁定哈希对比为报告制（WARNING，不阻断），语义见 spec-format r135。
 
   @req:r2 @human
   场景: bdd.bindings 可声明绑定源

@@ -10,8 +10,7 @@ use crate::sdd::change::archive::{archive_name_for, do_archive_rename, do_ff_mer
 use crate::sdd::project::config::load_required_config;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::ids::validate_sdd_id;
-use crate::sdd::spec::validation::ValidationIssue;
-use anyhow::{Result, bail};
+use anyhow::Result;
 use std::path::Path;
 
 #[cfg(test)]
@@ -22,7 +21,9 @@ pub(crate) struct FinalizeArgs {
     pub(crate) change: String,
     pub(crate) no_check: bool,
     pub(crate) no_commit: bool,
-    pub(crate) yes: bool,
+    /// Accepted and ignored since the r135 report-only rework (the interactive
+    /// confirmation path is gone); kept so skills can pass it unconditionally.
+    #[allow(dead_code)]
     pub(crate) no_interactive: bool,
 }
 
@@ -48,87 +49,6 @@ or re-run `llman sdd change finalize {change_id} --no-commit`."
     // Commit succeeded: HEAD is authoritative (no output parsing).
     let sha = crate::git_utils::run_git(root, &["rev-parse", "--short", "HEAD"])?;
     Ok(Some(sha.trim().to_string()))
-}
-
-/// Locked-rule confirmation path (spec-format r135, see lock_gate.rs):
-/// - interactive: one y/n over the undeclared edits (writes rules_touched);
-/// - `--yes`: auto-writes only `@agent`-marked rules (agent_acked audit too);
-/// - otherwise non-interactive error listing the req-ids + copy-paste fix.
-fn confirm_locked_rules(
-    root: &Path,
-    change_id: &str,
-    yes: bool,
-    no_interactive: bool,
-) -> Result<()> {
-    let (issues, fm) = crate::sdd::spec::validation::check_proposal_frontmatter(
-        crate::sdd::shared::discovery::resolve_change_dir(root, change_id)?.as_path(),
-        &[],
-        &[],
-        false,
-    );
-    let _ = issues;
-    let Some(base_sha) = fm.base_sha.as_deref().filter(|b| !b.trim().is_empty()) else {
-        return Ok(());
-    };
-    let ack = crate::sdd::change::lock_gate::LockedAck::from_frontmatter(&fm);
-    let base = crate::sdd::change::lock_gate::effective_range_base(root, Some(base_sha))
-        .unwrap_or_else(|_| base_sha.to_string());
-    let lock_issues = crate::sdd::change::lock_gate::check(root, base.trim(), &ack);
-    if lock_issues
-        .iter()
-        .all(|i| i.level != crate::sdd::spec::validation::ValidationLevel::Error)
-    {
-        return Ok(());
-    }
-
-    let undeclared = crate::sdd::change::lock_gate::undeclared_ids(root, base.trim(), &ack);
-    if !yes && !no_interactive && crate::sdd::shared::interactive::is_interactive(false) {
-        // r135 interactive confirmation: one y/n over ALL undeclared edits;
-        // y writes rules_touched (full ack), n stops with the same list.
-        eprintln!(
-            "locked @human scenarios were modified without human acknowledgement (spec-format r135):"
-        );
-        for issue in &lock_issues {
-            eprintln!("  {}", issue.message);
-        }
-        let confirmed = inquire::Confirm::new(
-            "Acknowledge ALL listed locked-rule edits (writes rules_touched) and continue?",
-        )
-        .with_default(false)
-        .prompt()
-        .unwrap_or(false);
-        if !confirmed {
-            anyhow::bail!(
-                "locked-rule gate failed: add `rules_touched: [<req-id>,...]` to proposal frontmatter, or pass `--yes` to acknowledge @agent-marked rules"
-            );
-        }
-        crate::sdd::change::lock_gate::ack_all_undeclared(root, change_id, &undeclared)?;
-        return Ok(());
-    }
-    if yes {
-        // --yes: acknowledge @agent-marked rules only; plain @human edits still error.
-        crate::sdd::change::lock_gate::ack_agent_marked(root, change_id, &undeclared)?;
-    }
-    // Re-check after any --yes write; remaining errors are plain @human edits.
-    let ack_after = crate::sdd::change::lock_gate::locked_ack_for(root, change_id);
-    let remaining: Vec<ValidationIssue> =
-        crate::sdd::change::lock_gate::check(root, base.trim(), &ack_after)
-            .into_iter()
-            .filter(|i| i.level == crate::sdd::spec::validation::ValidationLevel::Error)
-            .collect();
-    if !remaining.is_empty() {
-        eprintln!(
-            "locked @human scenarios were modified without human acknowledgement (spec-format r135):"
-        );
-        for issue in &remaining {
-            eprintln!("  {}", issue.message);
-        }
-        bail!(
-            "locked-rule gate failed: add `rules_touched: [<req-id>,...]` to proposal frontmatter, \
-or pass `--yes` to acknowledge @agent-marked rules"
-        );
-    }
-    Ok(())
 }
 
 /// Run `finalize` against a repo rooted at `root`.
@@ -191,7 +111,6 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
         crate::sdd::change::git_native::enforce_bdd_archive_gates_relaxed(root, &change_name)?;
 
     // 3. Locked-rule confirmation / acknowledgement (r135).
-    confirm_locked_rules(root, &change_name, args.yes, args.no_interactive)?;
 
     // 4. Validate (unless --no-check): live specs strict + change docs.
     if !args.no_check {
@@ -210,7 +129,6 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
                 no_interactive: true,
                 check: true,
                 no_check: false,
-                yes: false,
             },
         )?;
         crate::sdd::commands::validate::run(
@@ -228,7 +146,6 @@ pub(crate) fn run_finalize(root: &Path, args: FinalizeArgs) -> Result<()> {
                 no_interactive: true,
                 check: false,
                 no_check: true,
-                yes: false,
             },
         )?;
     }
@@ -409,7 +326,6 @@ mod tests {
                 change: id.clone(),
                 no_check: true,
                 no_commit: false,
-                yes: false,
                 no_interactive: true,
             },
         )
@@ -465,7 +381,6 @@ mod tests {
                 change: id.clone(),
                 no_check: true,
                 no_commit: true,
-                yes: false,
                 no_interactive: true,
             },
         )
@@ -510,7 +425,6 @@ mod tests {
                 change: id,
                 no_check: true,
                 no_commit: false,
-                yes: false,
                 no_interactive: true,
             },
         )
@@ -540,7 +454,6 @@ mod tests {
                 change: id.clone(),
                 no_check: false, // skipped: idempotent path returns early
                 no_commit: false,
-                yes: false,
                 no_interactive: true,
             },
         )
@@ -571,7 +484,6 @@ mod tests {
                 change: id.clone(),
                 no_check: true,
                 no_commit: false,
-                yes: false,
                 no_interactive: true,
             },
         )

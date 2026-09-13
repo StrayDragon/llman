@@ -1578,8 +1578,6 @@ sdd:
       en: "Archive '%{name}' already exists."
     archived:
       en: "Change '%{change}' archived as '%{archive}'."
-    finalize_next_step:
-      en: "Next: commit the archive rename (and any remaining dirty work) on '%{default}' locally (push / hosting PR optional — only if explicitly required)."
     dry_run_move:
       en: "Would move %{from} -> %{to}"
     task_gate_blocked:

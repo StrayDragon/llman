@@ -1,27 +1,37 @@
-//! Locked-rule integrity gate (spec-format r135, git-native-v2 D1/D2).
+//! Locked-rule report (spec-format r135 report-only, git-native-v2 D1/D2).
 //!
 //! Every `@human` scenario in `llmanspec/specs/**/*.feature` is hashed
-//! (normalized, design D4). A bound change MUST NOT add/remove/modify any
-//! locked scenario between the **effective range base** (live merge-base of
-//! the local default branch with HEAD; falls back to the stored `base_sha`)
-//! and the worktree unless its proposal frontmatter carries `rules_touched`
-//! (per-req-id granular). Confirmations may be delegated to agents for
-//! `@agent`-marked rules via `--yes` (audit trail in `agent_acked`).
+//! (normalized, design D4). Locked-scenario add/remove/modify between the
+//! **effective range base** (live merge-base of the local default branch with
+//! HEAD; falls back to the stored `base_sha`) and the worktree is REPORTED as
+//! WARNING — it never blocks validate/finalize/diff. The human control points
+//! are the git branch diff and the surfaced report (`llman sdd review`,
+//! `change diff`). Ack metadata (`rules_touched` / `agent_acked` / `@agent`)
+//! is removed (S0, q9 no-compat).
 
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::spec::backend::FEATURE_BACKEND;
 use crate::sdd::spec::backend::feature_backend::{self};
 use crate::sdd::spec::validation::{ValidationIssue, ValidationLevel};
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, anyhow};
 use std::collections::BTreeMap;
 use std::path::Path;
 
 /// Hash multiset per feature path: hash -> count.
 type Hashes = BTreeMap<String, usize>;
 
-/// req-id -> lock hash, so violations can be reported and exempted by
-/// requirement id instead of opaque hashes (design D2).
-type IdHashes = BTreeMap<String, String>;
+/// lock hash -> req-id (first locked scenario carrying the hash wins), so
+/// reports can name the requirement id instead of opaque hashes (design D2).
+/// Inverse of the former id->hash map, which lost the id for every
+/// duplicate-req-id scenario beyond the first (issue #18).
+type HashIds = BTreeMap<String, String>;
+
+/// Locked-rule parse of one feature revision (base or worktree).
+#[derive(Default)]
+struct LockedContent {
+    hashes: Hashes,
+    hash_ids: HashIds,
+}
 
 /// One locked-rule edit detected between base and worktree (r135).
 pub(crate) struct RuleEdit {
@@ -31,37 +41,8 @@ pub(crate) struct RuleEdit {
     pub(crate) hash: String,
 }
 
-/// Locked-rule acknowledgement carrier (design D2, r135). Legacy blanket
-/// `rules_edit_acked` is removed (q9): only granular `rules_touched` exists.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum LockedAck {
-    /// Granular `rules_touched: [<req-id>...]`: exempt exactly these ids.
-    Some(Vec<String>),
-    /// No exemption declared.
-    None,
-}
-
-impl LockedAck {
-    /// Build from a parsed proposal frontmatter.
-    pub(crate) fn from_frontmatter(fm: &crate::sdd::spec::validation::ProposalFrontmatter) -> Self {
-        if fm.rules_touched.is_empty() {
-            LockedAck::None
-        } else {
-            LockedAck::Some(fm.rules_touched.clone())
-        }
-    }
-
-    /// True when the given req-id edit is exempted.
-    fn exempts(&self, req_id: &str) -> bool {
-        match self {
-            LockedAck::Some(ids) => ids.iter().any(|id| id == req_id),
-            LockedAck::None => false,
-        }
-    }
-}
-
-/// Issues for the locked-rule gate of one change.
-pub(crate) fn check(root: &Path, base_sha: &str, ack: &LockedAck) -> Vec<ValidationIssue> {
+/// Locked-rule edits of one change, reported as WARNING (never blocking).
+pub(crate) fn check(root: &Path, base_sha: &str) -> Vec<ValidationIssue> {
     let specs_prefix = format!("{LLMANSPEC_DIR_NAME}/specs/");
 
     let edits = match diff_edits(root, base_sha, &specs_prefix) {
@@ -78,106 +59,68 @@ pub(crate) fn check(root: &Path, base_sha: &str, ack: &LockedAck) -> Vec<Validat
         return Vec::new();
     }
 
-    let mut exempted: Vec<String> = Vec::new();
-    let mut violations: Vec<String> = Vec::new();
+    let mut entries: Vec<String> = Vec::new();
+    let mut hash_only_edits = 0usize;
     for edit in &edits {
-        let entry = match &edit.req_id {
-            Some(id) => format!("{}: {} rule @req:{id}", edit.rel, edit.kind),
+        match &edit.req_id {
+            Some(id) => entries.push(format!("{}: {} rule @req:{id}", edit.rel, edit.kind)),
             None => {
                 let short = &edit.hash[..edit.hash.len().min(12)];
-                format!("{}: {} rule ({short})", edit.rel, edit.kind)
+                entries.push(format!("{}: {} rule ({short})", edit.rel, edit.kind));
+                hash_only_edits += 1;
             }
-        };
-        match &edit.req_id {
-            Some(id) if ack.exempts(id) => exempted.push(entry),
-            _ => violations.push(entry),
         }
     }
 
-    if let Some(msg) = lock_gate_message(&exempted, &violations) {
-        return vec![msg];
+    let mut detail = entries.join("; ");
+    if hash_only_edits > 0 {
+        detail.push_str(&format!(
+            "; {hash_only_edits} edited rule(s) carry no @req tag — restore them \
+             or add `@req:<id>` tags"
+        ));
     }
-    Vec::new()
+    vec![ValidationIssue {
+        level: ValidationLevel::Warning,
+        path: "lock-gate".to_string(),
+        message: format!(
+            "locked @human scenarios were modified (spec-format r135 report-only; \
+             compare via git branch diff or `llman sdd review`; {} edited): {detail}",
+            edits.len()
+        ),
+    }]
 }
 
-/// req-ids of undeclared locked-rule edits (deduplicated, order-preserving).
-/// Used by the r135 confirmation path to decide `--yes` applicability.
-pub(crate) fn undeclared_ids(root: &Path, base_sha: &str, ack: &LockedAck) -> Vec<String> {
+/// Number of locked-rule edits between base and worktree (0 when git fails).
+pub(crate) fn edited_locked_rule_count(root: &Path, base_sha: &str) -> usize {
     let specs_prefix = format!("{LLMANSPEC_DIR_NAME}/specs/");
-    let Ok(edits) = diff_edits(root, base_sha, &specs_prefix) else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    for edit in &edits {
-        if let Some(id) = &edit.req_id
-            && !ack.exempts(id)
-            && !out.iter().any(|x| x == id)
-        {
-            out.push(id.clone());
-        }
-    }
-    out
-}
-
-/// Assemble the single gate issue: ERROR with hints when unexempted edits
-/// exist, INFO when every edit is covered by an ack.
-fn lock_gate_message(exempted: &[String], violations: &[String]) -> Option<ValidationIssue> {
-    if violations.is_empty() && exempted.is_empty() {
-        return None;
-    }
-    let detail = if violations.is_empty() {
-        exempted.join("; ")
-    } else {
-        format!(
-            "{}; exempted: {}",
-            violations.join("; "),
-            exempted.join("; ")
-        )
-    };
-    if violations.is_empty() {
-        Some(ValidationIssue {
-            level: ValidationLevel::Info,
-            path: "lock-gate".to_string(),
-            message: format!("locked @human scenarios modified with rules_touched: {detail}"),
-        })
-    } else {
-        Some(ValidationIssue {
-            level: ValidationLevel::Error,
-            path: "lock-gate".to_string(),
-            message: format!(
-                "locked @human scenarios were modified without human acknowledgement\
-                 (spec-format r135; add `rules_touched: [<req-id>]` to proposal frontmatter, \
-                 or pass `--yes` to acknowledge @agent-marked rules): {detail}"
-            ),
-        })
-    }
+    diff_edits(root, base_sha, &specs_prefix)
+        .map(|edits| edits.len())
+        .unwrap_or(0)
 }
 
 /// Detect locked-rule edits (removal/modification of rules that existed at
 /// base) between `base_sha` and the working tree. ADDING rules is normal
-/// spec landing and never reported. Shared by [`check`] and [`undeclared_ids`].
+/// spec landing and never reported. Shared by [`check`] and
+/// [`edited_locked_rule_count`].
 fn diff_edits(root: &Path, base_sha: &str, prefix: &str) -> anyhow::Result<Vec<RuleEdit>> {
     let changed = changed_feature_files(root, base_sha, prefix)?;
     let mut edits = Vec::new();
     for rel in &changed {
-        let (before, ids_before) = hashes_at(root, base_sha, rel).unwrap_or_default();
-        let (after, _ids_after) = worktree_hashes(root, rel).unwrap_or_default();
-        if before.is_empty() {
+        let before = hashes_at(root, base_sha, rel).unwrap_or_default();
+        let after = worktree_hashes(root, rel).unwrap_or_default();
+        if before.hashes.is_empty() {
             continue;
         }
-        let mut keys: std::collections::BTreeSet<&String> = before.keys().collect();
-        keys.extend(after.keys());
+        let mut keys: std::collections::BTreeSet<&String> = before.hashes.keys().collect();
+        keys.extend(after.hashes.keys());
         for hash in keys {
-            let b = before.get(hash).copied().unwrap_or(0);
-            let a = after.get(hash).copied().unwrap_or(0);
+            let b = before.hashes.get(hash).copied().unwrap_or(0);
+            let a = after.hashes.get(hash).copied().unwrap_or(0);
             if b == 0 || b == a {
                 continue;
             }
             let kind = if a == 0 { "removed" } else { "modified" };
-            let req_id = ids_before
-                .iter()
-                .find(|(_, h)| *h == hash)
-                .map(|(id, _)| id.clone());
+            let req_id = before.hash_ids.get(hash).cloned();
             edits.push(RuleEdit {
                 rel: rel.clone(),
                 kind,
@@ -187,171 +130,6 @@ fn diff_edits(root: &Path, base_sha: &str, prefix: &str) -> anyhow::Result<Vec<R
         }
     }
     Ok(edits)
-}
-
-/// Read `agent_acked` (audit trail of agent-confirmed locked-rule edits, r135).
-pub(crate) fn agent_acked_for(root: &Path, change_name: &str) -> Vec<String> {
-    let proposal = root
-        .join(LLMANSPEC_DIR_NAME)
-        .join("changes")
-        .join(change_name)
-        .join("proposal.md");
-    let Ok(content) = std::fs::read_to_string(proposal) else {
-        return Vec::new();
-    };
-    let (yaml, _body) = crate::sdd::spec::frontmatter::split_frontmatter(&content);
-    let Some(yaml) = yaml else {
-        return Vec::new();
-    };
-    let Ok(v) = serde_saphyr::from_str::<serde_json::Value>(&yaml) else {
-        return Vec::new();
-    };
-    v.get("agent_acked")
-        .and_then(|x| x.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|item| item.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-/// req-ids of locked scenarios in the CURRENT working tree that carry the
-/// `@agent` tag (delegated confirmation, r132/r135).
-pub(crate) fn agent_marked_ids(root: &Path, candidates: &[String]) -> Vec<String> {
-    let specs_root = root.join(LLMANSPEC_DIR_NAME).join("specs");
-    let mut out = Vec::new();
-    let mut stack = vec![specs_root];
-    while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-                continue;
-            }
-            if !path.extension().is_some_and(|e| e == "feature") {
-                continue;
-            }
-            let Ok(content) = std::fs::read_to_string(&path) else {
-                continue;
-            };
-            let Ok(parsed) = FEATURE_BACKEND.parse_content(&content, "agent-markers") else {
-                continue;
-            };
-            for sc in parsed
-                .scenarios
-                .iter()
-                .filter(|sc| sc.tier.map(|t| t.is_locked()).unwrap_or(false))
-            {
-                let agent = sc.tags.iter().any(|t| {
-                    t.trim()
-                        .trim_start_matches('@')
-                        .eq_ignore_ascii_case("agent")
-                });
-                if !agent {
-                    continue;
-                }
-                for rid in &sc.req_ids {
-                    if candidates.iter().any(|c| c == rid) && !out.iter().any(|x| x == rid) {
-                        out.push(rid.clone());
-                    }
-                }
-            }
-        }
-    }
-    out
-}
-
-/// Interactive-confirmation path (r135): write ALL undeclared req-ids into
-/// `rules_touched` (human confirmed; no agent_acked audit).
-pub(crate) fn ack_all_undeclared(
-    root: &Path,
-    change_id: &str,
-    undeclared: &[String],
-) -> Result<()> {
-    if undeclared.is_empty() {
-        return Ok(());
-    }
-    upsert_frontmatter_id_list(root, change_id, "rules_touched", undeclared)?;
-    println!(
-        "acknowledged locked-rule edits (interactive): {}",
-        undeclared.join(", ")
-    );
-    Ok(())
-}
-
-/// Append ids to a frontmatter list field (deduplicated), rebuilding the
-/// proposal frontmatter. Shared by the interactive and `--yes` ack paths.
-fn upsert_frontmatter_id_list(
-    root: &Path,
-    change_id: &str,
-    key: &str,
-    ids: &[String],
-) -> Result<()> {
-    let proposal = root
-        .join(LLMANSPEC_DIR_NAME)
-        .join("changes")
-        .join(change_id)
-        .join("proposal.md");
-    let content = std::fs::read_to_string(&proposal)?;
-    let (yaml, body) = crate::sdd::spec::frontmatter::split_frontmatter(&content);
-    let mut map: serde_json::Map<String, serde_json::Value> = if let Some(yaml) = yaml {
-        serde_saphyr::from_str::<serde_json::Map<String, serde_json::Value>>(&yaml)
-            .unwrap_or_default()
-    } else {
-        serde_json::Map::new()
-    };
-    let mut existing: Vec<String> = map
-        .get(key)
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|i| i.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default();
-    for id in ids {
-        if !existing.iter().any(|x| x == id) {
-            existing.push(id.clone());
-        }
-    }
-    map.insert(
-        key.to_string(),
-        serde_json::Value::Array(
-            existing
-                .into_iter()
-                .map(serde_json::Value::String)
-                .collect(),
-        ),
-    );
-    let yaml_out = serde_saphyr::to_string(&serde_json::Value::Object(map))?;
-    let rebuilt = format!(
-        "---\n{}\n---\n\n{}",
-        yaml_out.trim_end(),
-        body.trim_start_matches('\n')
-    );
-    crate::fs_utils::atomic_write_with_mode(&proposal, rebuilt.as_bytes(), None)?;
-    Ok(())
-}
-
-/// `--yes` path (r135): write `rules_touched` + `agent_acked` for the
-/// `@agent`-marked subset of the undeclared ids. Plain `@human` rules are
-/// left alone — they still require human declaration.
-pub(crate) fn ack_agent_marked(root: &Path, change_id: &str, undeclared: &[String]) -> Result<()> {
-    let agent_ids = agent_marked_ids(root, undeclared);
-    if agent_ids.is_empty() {
-        return Ok(());
-    }
-    upsert_frontmatter_id_list(root, change_id, "rules_touched", &agent_ids)?;
-    upsert_frontmatter_id_list(root, change_id, "agent_acked", &agent_ids)?;
-    println!(
-        "--yes: acknowledged @agent-marked rules: {}",
-        agent_ids.join(", ")
-    );
-    Ok(())
 }
 
 /// Paths under `<prefix>` (`.feature` only) that differ between base and HEAD.
@@ -370,30 +148,29 @@ fn changed_feature_files(root: &Path, base_sha: &str, prefix: &str) -> anyhow::R
         .collect())
 }
 
-/// Rule-scenario hash multiset from a git object (`base_sha:path`), plus the
-/// req-id → hash map captured at that revision.
-fn hashes_at(root: &Path, base_sha: &str, rel: &str) -> Option<(Hashes, IdHashes)> {
+/// Locked-rule content snapshot from a git object (`base_sha:path`).
+fn hashes_at(root: &Path, base_sha: &str, rel: &str) -> Option<LockedContent> {
     let output = std::process::Command::new("git")
         .args(["show", &format!("{base_sha}:{rel}")])
         .current_dir(root)
         .output()
         .ok()?;
     if !output.status.success() {
-        return Some((BTreeMap::new(), BTreeMap::new())); // file did not exist at base
+        return Some(LockedContent::default()); // file did not exist at base
     }
     let content = String::from_utf8(output.stdout).ok()?;
     Some(hashes_from_content(&content))
 }
 
-/// Rule-scenario hash multiset from the current working tree (plus id map).
-fn worktree_hashes(root: &Path, rel: &str) -> Option<(Hashes, IdHashes)> {
+/// Locked-rule content snapshot from the current working tree.
+fn worktree_hashes(root: &Path, rel: &str) -> Option<LockedContent> {
     let content = std::fs::read_to_string(root.join(rel)).ok()?;
     Some(hashes_from_content(&content))
 }
 
-fn hashes_from_content(content: &str) -> (Hashes, IdHashes) {
+fn hashes_from_content(content: &str) -> LockedContent {
     let mut hashes: Hashes = BTreeMap::new();
-    let mut ids: IdHashes = BTreeMap::new();
+    let mut hash_ids: HashIds = BTreeMap::new();
     if let Ok(parsed) = FEATURE_BACKEND.parse_content(content, "lock-gate") {
         for sc in parsed
             .scenarios
@@ -403,13 +180,13 @@ fn hashes_from_content(content: &str) -> (Hashes, IdHashes) {
             let hash = feature_backend::lock_hash(sc);
             *hashes.entry(hash.clone()).or_insert(0) += 1;
             if let Some(rid) = sc.req_ids.first() {
-                ids.entry(rid.clone()).or_insert(hash);
+                hash_ids.entry(hash.clone()).or_insert(rid.clone());
             }
         }
     }
     // Unparseable legacy content yields an empty set; the diff then reports the
     // file as gaining all its current rules, which is the safe direction.
-    (hashes, ids)
+    LockedContent { hashes, hash_ids }
 }
 
 fn ensure_success(output: &std::process::Output) -> anyhow::Result<()> {
@@ -435,54 +212,12 @@ pub(crate) fn effective_range_base(root: &Path, stored: Option<&str>) -> anyhow:
         .ok_or_else(|| anyhow!("no git range base available"))
 }
 
-/// Read the locked-rule ack from the change's proposal frontmatter
-/// (granular `rules_touched` list; legacy `rules_edit_acked` is removed).
-pub(crate) fn locked_ack_for(root: &Path, change_name: &str) -> LockedAck {
-    let proposal = root
-        .join(LLMANSPEC_DIR_NAME)
-        .join("changes")
-        .join(change_name)
-        .join("proposal.md");
-    let Ok(content) = std::fs::read_to_string(proposal) else {
-        return LockedAck::None;
-    };
-    let (yaml, _body) = crate::sdd::spec::frontmatter::split_frontmatter(&content);
-    let Some(yaml) = yaml else {
-        return LockedAck::None;
-    };
-    let Ok(v) = serde_saphyr::from_str::<serde_json::Value>(&yaml) else {
-        return LockedAck::None;
-    };
-    let touched: Vec<String> = v
-        .get("rules_touched")
-        .and_then(|x| x.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|item| item.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default();
-    if touched.is_empty() {
-        LockedAck::None
-    } else {
-        LockedAck::Some(touched)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const FEATURE_V1: &str = "\
-# language: en\n# capability: demo\n# purpose: p\n# scope: src/\n\nFeature: demo\n\n  @req:r1 @human\n  Scenario: R1\n    System MUST do X.\n";
-    fn feature_v2_modified() -> String {
-        FEATURE_V1.replace("do X.", "do Y.")
-    }
-    const FEATURE_V2_ADDED: &str = concat!(
-        "# language: en\n# capability: demo\n# purpose: p\n# scope: src/\n\nFeature: demo\n\n",
-        "  @req:r1 @human\n  Scenario: R1\n    System MUST do X.\n\n",
-        "  @req:r2 @human\n  Scenario: R2\n    System MUST do Z.\n"
-    );
+    const HEADER: &str =
+        "# language: en\n# capability: demo\n# purpose: p\n# scope: src/\n\nFeature: demo\n";
 
     fn git(root: &Path, args: &[&str]) {
         let out = std::process::Command::new("git")
@@ -495,76 +230,13 @@ mod tests {
         assert!(out.status.success(), "git {:?} failed", args);
     }
 
-    #[test]
-    fn modify_and_delete_require_ack_but_adding_does_not() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let root = tmp.path();
-        let dir = root.join(LLMANSPEC_DIR_NAME).join("specs").join("demo");
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("demo.feature"), FEATURE_V1).unwrap();
-        git(root, &["init", "-q"]);
+    fn commit_all(root: &Path, msg: &str) {
         git(root, &["add", "-A"]);
-        git(root, &["commit", "-qm", "base"]);
-        let base = String::from_utf8(
-            std::process::Command::new("git")
-                .args(["rev-parse", "HEAD"])
-                .current_dir(root)
-                .output()
-                .unwrap()
-                .stdout,
-        )
-        .unwrap()
-        .trim()
-        .to_string();
-
-        // Case 1: modify the locked rule -> ERROR without ack, INFO with ack.
-        std::fs::write(dir.join("demo.feature"), feature_v2_modified()).unwrap();
-        git(root, &["add", "-A"]);
-        git(root, &["commit", "-qm", "v2"]);
-        let issues = check(root, &base, &LockedAck::None);
-        assert!(
-            issues
-                .iter()
-                .any(|i| i.level == ValidationLevel::Error && i.message.contains("rules_touched")),
-            "{issues:?}"
-        );
-        let issues = check(root, &base, &LockedAck::Some(vec!["r1".into()]));
-        assert!(issues.iter().all(|i| i.level != ValidationLevel::Error));
-
-        // Case 2: ADDING a new rule needs no ack.
-        std::fs::write(dir.join("demo.feature"), FEATURE_V2_ADDED).unwrap();
-        git(root, &["add", "-A"]);
-        git(root, &["commit", "-qm", "v3"]);
-        let issues = check(root, &base, &LockedAck::None);
-        assert!(
-            issues.iter().all(|i| i.level != ValidationLevel::Error),
-            "adding rules must not require ack: {issues:?}"
-        );
-
-        // Case 3: DELETING the locked rule requires ack.
-        std::fs::remove_file(dir.join("demo.feature")).unwrap();
-        git(root, &["add", "-A"]);
-        git(root, &["commit", "-qm", "v4"]);
-        let issues = check(root, &base, &LockedAck::None);
-        assert!(
-            issues
-                .iter()
-                .any(|i| i.level == ValidationLevel::Error && i.message.contains("removed")),
-            "{issues:?}"
-        );
+        git(root, &["commit", "-qm", msg]);
     }
 
-    #[test]
-    fn rules_touched_exempts_only_listed_ids() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let root = tmp.path();
-        let dir = root.join(LLMANSPEC_DIR_NAME).join("specs").join("demo");
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("demo.feature"), FEATURE_V1).unwrap();
-        git(root, &["init", "-q"]);
-        git(root, &["add", "-A"]);
-        git(root, &["commit", "-qm", "base"]);
-        let base = String::from_utf8(
+    fn head_sha(root: &Path) -> String {
+        String::from_utf8(
             std::process::Command::new("git")
                 .args(["rev-parse", "HEAD"])
                 .current_dir(root)
@@ -574,163 +246,199 @@ mod tests {
         )
         .unwrap()
         .trim()
-        .to_string();
+        .to_string()
+    }
 
-        // Modify r1: ERROR when the list does not contain r1 …
-        std::fs::write(dir.join("demo.feature"), feature_v2_modified()).unwrap();
-        git(root, &["add", "-A"]);
-        git(root, &["commit", "-qm", "v2"]);
-        let issues = check(root, &base, &LockedAck::Some(vec!["r2".into()]));
-        assert!(
-            issues
-                .iter()
-                .any(|i| i.level == ValidationLevel::Error && i.message.contains("@req:r1")),
-            "non-listed id must stay a violation: {issues:?}"
+    fn seed(root: &Path, body: &str) -> String {
+        let dir = root.join(LLMANSPEC_DIR_NAME).join("specs").join("demo");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("demo.feature"), body).unwrap();
+        git(root, &["init", "-q"]);
+        commit_all(root, "base");
+        head_sha(root)
+    }
+
+    fn first_warning(issues: &[ValidationIssue]) -> &ValidationIssue {
+        issues
+            .iter()
+            .find(|i| i.level == ValidationLevel::Warning)
+            .expect("expected a lock-gate WARNING")
+    }
+
+    /// Modify + delete are reported; adding is never reported.
+    #[test]
+    fn modify_and_delete_report_but_adding_does_not() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let feature = root
+            .join(LLMANSPEC_DIR_NAME)
+            .join("specs")
+            .join("demo")
+            .join("demo.feature");
+        let base = seed(
+            root,
+            &format!("{HEADER}\n  @req:r1 @human\n  Scenario: R1\n    System MUST do X.\n"),
         );
-        // … and passes when the list contains r1 (granular exemption).
-        let issues = check(root, &base, &LockedAck::Some(vec!["r1".into()]));
+
+        // Modify the locked rule -> WARNING.
+        std::fs::write(
+            &feature,
+            format!("{HEADER}\n  @req:r1 @human\n  Scenario: R1\n    System MUST do Y.\n"),
+        )
+        .unwrap();
+        commit_all(root, "v2");
+        let issues = check(root, &base);
         assert!(
-            issues.iter().all(|i| i.level != ValidationLevel::Error),
-            "listed id must be exempted: {issues:?}"
+            first_warning(&issues).message.contains("@req:r1"),
+            "{issues:?}"
         );
         assert!(
-            issues
-                .iter()
-                .any(|i| i.level == ValidationLevel::Info && i.message.contains("@req:r1")),
-            "exempted edits surface as INFO: {issues:?}"
+            first_warning(&issues).message.contains("1 edited"),
+            "{issues:?}"
         );
+
+        // ADDING a new rule (content back to base state + r2) needs no report.
+        std::fs::write(
+            &feature,
+            format!("{HEADER}\n  @req:r1 @human\n  Scenario: R1\n    System MUST do X.\n\n  @req:r2 @human\n  Scenario: R2\n    System MUST do Z.\n"),
+        )
+        .unwrap();
+        commit_all(root, "v3");
+        assert!(check(root, &base).is_empty(), "adding must not report");
+    }
+
+    /// Issue #18 fix: two locked scenarios sharing one req-id (different
+    /// content) must both be reported by that req-id — never as hash-only
+    /// entries, which no reader could act on.
+    #[test]
+    fn duplicate_req_id_removals_report_by_id() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let feature = root
+            .join(LLMANSPEC_DIR_NAME)
+            .join("specs")
+            .join("demo")
+            .join("demo.feature");
+        let dup = format!(
+            "{HEADER}\n  @req:r1 @human\n  Scenario: A\n    System MUST do X quickly.\n\n  @req:r1 @human\n  Scenario: B\n    System MUST do X slowly.\n"
+        );
+        let base = seed(root, &dup);
+
+        std::fs::write(&feature, HEADER).unwrap();
+        commit_all(root, "compact: drop duplicate r1 rules");
+
+        let issues = check(root, &base);
+        let warning = first_warning(&issues);
+        assert_eq!(warning.message.matches("@req:r1").count(), 2, "{warning:?}");
+        assert!(
+            !warning.message.contains("removed rule ("),
+            "hash-only entries are forbidden: {warning:?}"
+        );
+        assert!(warning.message.contains("2 edited"), "{warning:?}");
+        assert_eq!(edited_locked_rule_count(root, &base), 2);
+    }
+
+    /// Different req-ids with the same statement still hash apart (id and
+    /// name feed the hash) and report separately.
+    #[test]
+    fn same_statement_different_ids_report_separately() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let feature = root
+            .join(LLMANSPEC_DIR_NAME)
+            .join("specs")
+            .join("demo")
+            .join("demo.feature");
+        let base = seed(
+            root,
+            &format!(
+                "{HEADER}\n  @req:r5 @human\n  Scenario: R5\n    System MUST do X.\n\n  @req:r6 @human\n  Scenario: R6\n    System MUST do X.\n"
+            ),
+        );
+
+        std::fs::write(&feature, HEADER).unwrap();
+        commit_all(root, "compact: drop identical rules");
+
+        let issues = check(root, &base);
+        let warning = first_warning(&issues);
+        assert!(warning.message.contains("@req:r5"), "{warning:?}");
+        assert!(warning.message.contains("@req:r6"), "{warning:?}");
+    }
+
+    /// r135: locked scenarios without an `@req` tag are reported with a
+    /// restore-or-tag hint (there is no req-id to name for them).
+    #[test]
+    fn reqless_locked_rule_edit_hints_restore_or_tag() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let feature = root
+            .join(LLMANSPEC_DIR_NAME)
+            .join("specs")
+            .join("demo")
+            .join("demo.feature");
+        let base = seed(
+            root,
+            &format!("{HEADER}\n  @human\n  Scenario: Tagless\n    System MUST do X.\n"),
+        );
+
+        std::fs::write(&feature, HEADER).unwrap();
+        commit_all(root, "compact: drop tagless rule");
+
+        let issues = check(root, &base);
+        let warning = first_warning(&issues);
+        assert!(warning.message.contains("carry no @req tag"), "{warning:?}");
     }
 
     /// git-native-v2 D1 regression: with the LIVE merge-base anchor, a change
     /// that merges the default branch (which gained a previous change's
-    /// locked-rule edit) stays zero-drift — no ack needed. The STORED
-    /// attach-time base would have flagged the merged edit (blanket-ack era).
+    /// locked-rule edit) stays zero-drift — no report. The STORED attach-time
+    /// base would have flagged the merged edit.
     #[test]
     fn merged_default_rule_edits_are_immune_with_live_anchor() {
         let tmp = tempfile::TempDir::new().unwrap();
         let root = tmp.path();
         let dir = root.join(LLMANSPEC_DIR_NAME).join("specs").join("demo");
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("demo.feature"), FEATURE_V1).unwrap();
+        let feature = dir.join("demo.feature");
+        std::fs::write(
+            &feature,
+            format!("{HEADER}\n  @req:r1 @human\n  Scenario: R1\n    System MUST do X.\n"),
+        )
+        .unwrap();
         git(root, &["init", "-q", "-b", "main"]);
-        git(root, &["add", "-A"]);
-        git(root, &["commit", "-qm", "base"]);
+        commit_all(root, "base");
 
         // Previous change: locked-rule edit on its branch, ff-merged into main.
         git(root, &["checkout", "-q", "-b", "feat/prev"]);
-        std::fs::write(dir.join("demo.feature"), feature_v2_modified()).unwrap();
-        git(root, &["add", "-A"]);
-        git(root, &["commit", "-qm", "prev rule edit"]);
+        std::fs::write(
+            &feature,
+            format!("{HEADER}\n  @req:r1 @human\n  Scenario: R1\n    System MUST do Y.\n"),
+        )
+        .unwrap();
+        commit_all(root, "prev rule edit");
         git(root, &["checkout", "-q", "main"]);
         git(root, &["merge", "-q", "--ff-only", "feat/prev"]);
 
-        // This change binds at the current merge-base (stored anchor), with
-        // docs only — zero spec edits, zero ack.
-        let stored_base = String::from_utf8(
-            std::process::Command::new("git")
-                .args(["rev-parse", "main"])
-                .current_dir(root)
-                .output()
-                .unwrap()
-                .stdout,
-        )
-        .unwrap()
-        .trim()
-        .to_string();
+        let stored_base = head_sha(root);
         git(root, &["checkout", "-q", "-b", "feat/next"]);
         std::fs::write(root.join("docs.md"), "# next\n").unwrap();
-        git(root, &["add", "-A"]);
-        git(root, &["commit", "-qm", "next docs"]);
+        commit_all(root, "next docs");
 
         // Main moves again with ANOTHER rule edit; next merges it back.
         git(root, &["checkout", "-q", "main"]);
         std::fs::write(
-            dir.join("demo.feature"),
-            FEATURE_V1.replace("do X.", "do Z."),
+            &feature,
+            format!("{HEADER}\n  @req:r1 @human\n  Scenario: R1\n    System MUST do Z.\n"),
         )
         .unwrap();
-        git(root, &["add", "-A"]);
-        git(root, &["commit", "-qm", "later rule edit"]);
+        commit_all(root, "later rule edit");
         git(root, &["checkout", "-q", "feat/next"]);
         git(root, &["merge", "-q", "--no-edit", "main"]);
 
-        // The stored anchor WOULD flag the merged later edit as this change's
-        // own violation (old behavior)…
-        let stored_issues = check(root, &stored_base, &LockedAck::None);
-        assert!(
-            stored_issues
-                .iter()
-                .any(|i| i.level == ValidationLevel::Error),
-            "stored anchor must still report the merged edit: {stored_issues:?}"
-        );
-        // …but the live anchor (D1) is immune: zero drift, gate green.
+        // The stored anchor WOULD report the merged later edit…
+        assert!(!check(root, &stored_base).is_empty());
+        // …but the live anchor (D1) is immune: zero drift, no report.
         let live_base = effective_range_base(root, Some(&stored_base)).unwrap();
-        let live_issues = check(root, &live_base, &LockedAck::None);
-        assert!(
-            live_issues
-                .iter()
-                .all(|i| i.level != ValidationLevel::Error),
-            "live anchor must be accumulation-immune: {live_issues:?}"
-        );
-    }
-
-    #[test]
-    fn locked_ack_reads_granular_list_and_ignores_removed_fields() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let root = tmp.path();
-        let change_dir = root
-            .join(LLMANSPEC_DIR_NAME)
-            .join("changes")
-            .join("c-touched");
-        std::fs::create_dir_all(&change_dir).unwrap();
-        std::fs::write(
-            change_dir.join("proposal.md"),
-            "---\ndepends_on: []\nrules_touched: [r131, r135]\n---\n## Why\nx\n",
-        )
-        .unwrap();
-        assert_eq!(
-            locked_ack_for(root, "c-touched"),
-            LockedAck::Some(vec!["r131".into(), "r135".into()])
-        );
-    }
-
-    #[test]
-    fn ack_all_undeclared_writes_rules_touched() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let root = tmp.path();
-        let change_dir = root
-            .join(LLMANSPEC_DIR_NAME)
-            .join("changes")
-            .join("c-inter");
-        std::fs::create_dir_all(&change_dir).unwrap();
-        std::fs::write(
-            change_dir.join("proposal.md"),
-            "---\ndepends_on: []\nrules_touched: [r1]\n---\n## Why\nx\n",
-        )
-        .unwrap();
-        ack_all_undeclared(root, "c-inter", &["r5".into(), "r7".into()]).unwrap();
-        let content = std::fs::read_to_string(change_dir.join("proposal.md")).unwrap();
-        assert!(content.contains("rules_touched"));
-        assert!(content.contains("r5"));
-        assert!(content.contains("r7"));
-        assert!(
-            content.contains("r1"),
-            "existing ids must be preserved: {content}"
-        );
-    }
-
-    #[test]
-    fn agent_marked_ids_finds_delegated_rules() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let root = tmp.path();
-        let dir = root.join(LLMANSPEC_DIR_NAME).join("specs").join("demo");
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(
-            dir.join("demo.feature"),
-            "# language: en\n# capability: demo\n# purpose: p\n# scope: src/\n\nFeature: demo\n\n  @req:r1 @human @agent\n  Scenario: R1\n    System MUST do X.\n\n  @req:r2 @human\n  Scenario: R2\n    System MUST do Z.\n",
-        )
-        .unwrap();
-        let agent_ids = agent_marked_ids(root, &["r1".into(), "r2".into(), "r99".into()]);
-        assert_eq!(agent_ids, vec!["r1".to_string()]);
+        assert!(check(root, &live_base).is_empty());
     }
 }

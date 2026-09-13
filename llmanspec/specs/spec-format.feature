@@ -15,7 +15,7 @@
 
   @req:r132 @human
   场景: tag 语法学
-    - 场景 tag MUST 遵循保留字汇：@req:<id>（全库唯一约束标识）、@human（人类拥有的约束场景）、@agent（把该规则的确认托管给 agent；MUST 与 @human 同场景，单独出现 MUST 报 ERROR；语义 = 授权 + 审计，见 r135）、@manual（人审豁免）、@executable（harness 绑定验收）。validate MUST 校验 @req 悬空链接并判失败；无任何 @req 的 @executable 场景 MUST 给 WARNING（孤儿验收）；同一 @human 场景归一化后重复 MUST 判失败。可执行场景 MUST 位于 Feature 顶层（rstest-bdd scenarios! 不展开 Rule 块内场景）。
+    - 场景 tag MUST 遵循保留字汇：@req:<id>（全库唯一约束标识）、@human（人类拥有的约束场景）、@manual（人审豁免）、@executable（harness 绑定验收）。validate MUST 校验 @req 悬空链接并判失败；无任何 @req 的 @executable 场景 MUST 给 WARNING（孤儿验收）；同一 @human 场景归一化后重复 MUST 判失败。可执行场景 MUST 位于 Feature 顶层（rstest-bdd scenarios! 不展开 Rule 块内场景）。
 
   @req:r133 @human
   场景: 头注释元数据
@@ -27,7 +27,7 @@
 
   @req:r135 @human
   场景: 锁定哈希门禁与收尾确认
-    - 所有 @human 场景按规范化规则（id+name+description+steps 逐行 trim 尾随空白后 SHA-256）计算哈希；validate --strict 与 change finalize/diff MUST 对比「有效范围」内哈希集合（有效范围 = 现算 `git merge-base <本地默认分支> HEAD`...HEAD，见 sdd-workflow r111 的审计说明与 r130；git/绑定不可用时回退存储 base_sha，fail-open），任何增删改 MUST 报 ERROR 且报告 MUST 按 req-id 指明被改动的规则（不得只给哈希摘要），除非该 change proposal frontmatter 的 `rules_touched` 列表覆盖了被改动规则的 req-id（`rules_edit_acked` 已移除、无兼容）。确认路径：交互模式（TTY 且无 --no-interactive）MUST 一次列出全部未声明改动并做单个 y/n 确认，y MUST 自动把检测到的 req-id 写入/追加到 `rules_touched` 后继续；非交互模式 MUST 报错点名 req-id 并给出可复制指引（add rules_touched 或 pass --yes）。`--yes` 语义 MUST 收窄为：仅对带 `@agent` 标记的规则自动写回 `rules_touched`（对应 req-id 同时记入 `agent_acked` 审计字段），未带 `@agent` 的改动 MUST 仍报错列出。`rules_touched`、`agent_acked` MUST 加入 proposal frontmatter 合法字段集并同步 JSON Schema；`agent_acked` 的规则 MUST 在 `llman sdd review` 与 `change diff` 输出中浮现（审计）。
+    - 所有 @human 场景按规范化规则（id+name+description+steps 逐行 trim 尾随空白后 SHA-256）计算哈希；validate --strict 与 change finalize/diff MUST 对比「有效范围」内哈希集合（有效范围 = 现算 `git merge-base <本地默认分支> HEAD`...HEAD，见 sdd-workflow r111 的审计说明与 r130；git/绑定不可用时回退存储 base_sha，fail-open）。报告制（S0）：检出增删改 MUST 以 WARNING 报告且 MUST NOT 阻断 validate / change finalize / change diff；报告 MUST 按 hash→req-id 反查后的 req-id 指明被改动的规则（同一 req-id 的多版本场景哈希 MUST 挂回该 id，MUST NOT 只给哈希摘要）并 MUST 附带编辑计数；无 `@req` 的锁定场景编辑 MUST 在报告中指引回滚或补标 `@req`。确认元数据整体移除（无兼容）：frontmatter 字段 `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 锁定确认语义 MUST NOT 再被读取或生成；锁定规则改动的控制点为 git 分支对比与 `llman sdd review` / `change diff` 的报告浮现。
 
   @req:r136 @human
   场景: toon2features 一次性迁移
@@ -227,28 +227,23 @@
 
 
   @executable
-  @req:r132
-  场景: agent-tag-without-human-rejected
-    假如 已初始化含单独 @agent 场景的 sdd 项目且 bdd 配置为 "on"
-    当 在非交互终端运行 llman sdd validate --specs --strict --no-check --no-interactive
-    那么 退出码非零
-    那么 stderr 包含 @agent
-
-
-  @executable
   @req:r135
-  场景: yes-acks-agent-marked-rule-edit
+  场景: locked-rule-edit-reports-without-blocking
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
-    而且 变更 yes-agent 绑定且编辑了规则 @agent
-    当 在非交互终端运行 llman sdd validate yes-agent --strict --no-check --yes
+    而且 变更 rep-edit 绑定且编辑了规则 普通
+    当 在非交互终端运行 llman sdd validate rep-edit --strict --no-check
     那么 退出码为零
+    那么 stderr 包含 WARNING
+    那么 stderr 包含 @req:r1
 
 
   @executable
   @req:r135
-  场景: yes-rejects-plain-rule-edit
+  场景: dup-req-removal-reports-req-id
     假如 已初始化 sdd 项目且 bdd 配置为 "on"
-    而且 变更 yes-plain 绑定且编辑了规则 普通
-    当 在非交互终端运行 llman sdd validate yes-plain --strict --no-check --yes
-    那么 退出码非零
-    那么 stderr 包含 r1
+    而且 变更 dup-fix 绑定且删除了重复 @req 锁定场景之一
+    当 在非交互终端运行 llman sdd validate dup-fix --strict --no-check
+    那么 退出码为零
+    那么 stderr 包含 WARNING
+    那么 stderr 包含 @req:r1
+    那么 stderr 包含 1 edited

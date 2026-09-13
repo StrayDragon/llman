@@ -71,15 +71,6 @@ pub(crate) struct ProposalFrontmatter {
     /// specs-landing diff check is skipped entirely (docs/governance-only
     /// changes with no contract edit). `skip_specs_landing` is removed.
     pub(crate) needs_specs_change: bool,
-    /// Granular locked-rule acknowledgement (spec-format r135): req-ids this
-    /// change declares it edits; only edits to these rules are exempted from
-    /// the lock gate.
-    pub(crate) rules_touched: Vec<String>,
-    /// r135 audit trail: locked rules whose edits were acknowledged by an
-    /// agent via `--yes` (only `@agent`-marked rules qualify). Surfaced in
-    /// `llman sdd review` / `change diff` for human re-audit.
-    #[allow(dead_code)]
-    pub(crate) agent_acked: Vec<String>,
 }
 
 /// Cache of BDD full-mode results keyed by the expanded `run_command` string.
@@ -961,7 +952,7 @@ mod tests {
             &tmp,
             &[(
                 "proposal.md",
-                "---\ndepends_on: []\nblocks: []\nbranch: sdd/x\nbase_sha: abc123\nneeds_specs_change: false\nrules_touched: [r1]\nagent_acked: [r1]\n---\n## Why\nTest",
+                "---\ndepends_on: []\nblocks: []\nbranch: sdd/x\nbase_sha: abc123\nneeds_specs_change: false\n---\n## Why\nTest",
             )],
         );
         let (issues, _) = check_proposal_frontmatter(&change_dir, &["x".to_string()], &[], false);
@@ -1816,8 +1807,6 @@ const PROPOSAL_FRONTMATTER_ALLOWED_FIELDS: &[&str] = &[
     "branch",
     "base_sha",
     "needs_specs_change",
-    "rules_touched",
-    "agent_acked",
 ];
 
 pub(crate) fn check_proposal_frontmatter(
@@ -1866,8 +1855,6 @@ pub(crate) fn check_proposal_frontmatter(
     let base_sha = parse_yaml_optional_string(&parsed, "base_sha");
     // r1: positive flag, default true. Explicit `false` skips the landing check.
     let needs_specs_change = parse_yaml_optional_bool(&parsed, "needs_specs_change", true);
-    let rules_touched = parse_yaml_string_list(&parsed, "rules_touched", &mut issues);
-    let agent_acked = parse_yaml_string_list(&parsed, "agent_acked", &mut issues);
 
     // r124: reject unknown frontmatter fields (e.g. `status`, `title`,
     // `priority`, `author`). The allowed set is exactly the keys this parser
@@ -1946,8 +1933,6 @@ pub(crate) fn check_proposal_frontmatter(
             branch,
             base_sha,
             needs_specs_change,
-            rules_touched,
-            agent_acked,
         },
     )
 }
@@ -2324,7 +2309,11 @@ pub(crate) fn build_report(issues: Vec<ValidationIssue>, strict: bool) -> Valida
 
     for issue in issues {
         let level = match issue.level {
-            ValidationLevel::Warning if strict => ValidationLevel::Error,
+            // r135 report-only: locked-rule edits never block, even under
+            // --strict.
+            ValidationLevel::Warning if strict && issue.path != "lock-gate" => {
+                ValidationLevel::Error
+            }
             level => level,
         };
         match level {

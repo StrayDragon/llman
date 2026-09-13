@@ -11,9 +11,7 @@ use crate::sdd::shared::types::{ItemType, normalize_type};
 use crate::sdd::spec::backend::feature_backend;
 use crate::sdd::spec::backend::feature_backend::compute_rule_morphology;
 use crate::sdd::spec::parser::parse_change;
-use crate::sdd::spec::validation::{
-    ChangeStage, ValidationLevel, check_proposal_frontmatter, determine_stage,
-};
+use crate::sdd::spec::validation::{ChangeStage, ValidationLevel, determine_stage};
 use anyhow::{Result, anyhow};
 use inquire::Select;
 use serde::Serialize;
@@ -261,27 +259,6 @@ fn compute_gate_checks(root: &Path, change_id: &str, change_dir: &Path) -> Vec<G
         "specs-landed",
         specs_ok,
         "edit live specs on the bound branch and commit (or needs_specs_change: false)",
-    ));
-
-    // lock-gate: locked @human scenarios untouched vs the effective range
-    // base unless `rules_touched` (or legacy `rules_edit_acked: true`) covers
-    // the edits. Unbound changes have no base → no gate applies (pass=true).
-    let (_, fm) = check_proposal_frontmatter(change_dir, &[], &[], false);
-    let lock_ok = if fm.base_sha.as_deref().is_some_and(|b| !b.trim().is_empty()) {
-        let ack = crate::sdd::change::lock_gate::LockedAck::from_frontmatter(&fm);
-        let base =
-            crate::sdd::change::lock_gate::effective_range_base(root, fm.base_sha.as_deref())
-                .unwrap_or_default();
-        crate::sdd::change::lock_gate::check(root, base.trim(), &ack)
-            .iter()
-            .all(|i| i.level != ValidationLevel::Error)
-    } else {
-        true
-    };
-    checks.push(gate(
-        "lock-gate",
-        lock_ok,
-        "add rules_touched: [<req-id>] or restore the locked rules",
     ));
 
     // tasks-done: tasks.md has no unchecked items.

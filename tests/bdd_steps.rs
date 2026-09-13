@@ -895,7 +895,7 @@ fn given_sdd_project_lone_agent(mode: String) {
 /// r135: bound change that edits a locked rule. `kind` = "@agent" (the rule
 /// carries @agent) or "普通" (plain @human). No rules_touched declared.
 #[given("变更 {change} 绑定且编辑了规则 {kind}")]
-fn given_change_bound_editing_locked_rule(change: String, kind: String) {
+fn given_change_bound_editing_locked_rule(change: String, _kind: String) {
     let dir = fixture_cwd();
     let change_dir = dir
         .join("llmanspec/changes")
@@ -928,17 +928,70 @@ fn given_change_bound_editing_locked_rule(change: String, kind: String) {
     .expect("rewrite fixture base_sha");
     run_fixture_git(&dir, &["add", "-A"]);
     run_fixture_git(&dir, &["commit", "-qm", "binding"]);
-    // Edit the locked r1 rule; optionally mark it @agent first.
+    // Edit the locked r1 rule.
     let feature_path = dir.join("llmanspec/specs/sample/sample.feature");
-    let mut body = std::fs::read_to_string(&feature_path).expect("read seeded feature");
-    if kind.trim().trim_matches('"') == "@agent" {
-        body = body.replace("@req:r1 @human", "@req:r1 @human @agent");
-    }
-    std::fs::write(&feature_path, body).expect("mark agent");
     fixture_edit_r1(&dir, "(edited by r135 fixture)");
     // Landing counts committed diffs; commit the rule edit.
     run_fixture_git(&dir, &["add", "-A"]);
     run_fixture_git(&dir, &["commit", "-qm", "edit locked rule"]);
+}
+
+/// r135 (issue #18): bound change that deletes one of two duplicate-`@req`
+/// locked scenarios (same id, different content). The duplicate is seeded and
+/// committed BEFORE binding, so the base side carries both hashes.
+#[given("变更 {change} 绑定且删除了重复 @req 锁定场景之一")]
+fn given_change_bound_deleting_duplicate_req_rule(change: String) {
+    let dir = fixture_cwd();
+    let change_id = change.trim().trim_matches('"');
+    let feature_path = dir.join("llmanspec/specs/sample/sample.feature");
+    let dup_block = "\n  @req:r1 @human\n  Scenario: R1b\n    System MUST cover R1 differently.\n";
+
+    // Seed the duplicate r1 scenario on the base side.
+    let mut body = std::fs::read_to_string(&feature_path).expect("read seeded feature");
+    body.push_str(dup_block);
+    std::fs::write(&feature_path, body).expect("append duplicate r1 rule");
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(&dir, &["commit", "-qm", "seed duplicate r1 rule"]);
+
+    // Change docs + binding (same pattern as the r135 edit fixture).
+    let change_dir = dir.join("llmanspec/changes").join(change_id);
+    std::fs::create_dir_all(&change_dir).expect("mkdir dup-delete fixture change");
+    std::fs::write(
+        change_dir.join("proposal.md"),
+        format!(
+            "---\ndepends_on: []\nbranch: feat/{change_id}\nbase_sha: 0000000000000000000000000000000000000000\n---\n\n## Why\nr135 duplicate-req fixture.\n\n## What Changes\n- Delete a duplicate locked rule.\n"
+        ),
+    )
+    .expect("write fixture proposal");
+    std::fs::write(change_dir.join("design.md"), "# Design\nfixture.\n").expect("write design");
+    std::fs::write(change_dir.join("tasks.md"), "- [x] t1\n").expect("write tasks");
+    run_fixture_git(
+        &dir,
+        &["checkout", "-q", "-b", &format!("feat/{change_id}")],
+    );
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(
+        &dir,
+        &["commit", "-qm", &format!("fixture change {change_id}")],
+    );
+    let head = current_fixture_head(&dir);
+    let proposal_path = change_dir.join("proposal.md");
+    let proposal_body = std::fs::read_to_string(&proposal_path).expect("read fixture proposal");
+    std::fs::write(
+        &proposal_path,
+        proposal_body.replace("0000000000000000000000000000000000000000", &head),
+    )
+    .expect("rewrite fixture base_sha");
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(&dir, &["commit", "-qm", "binding"]);
+
+    // Specs landing: delete the duplicate R1b scenario (keep R1).
+    let body = std::fs::read_to_string(&feature_path).expect("read feature for delete");
+    let deleted = body.replace(dup_block, "");
+    assert!(deleted != body, "duplicate scenario block must be present");
+    std::fs::write(&feature_path, deleted).expect("delete duplicate r1 rule");
+    run_fixture_git(&dir, &["add", "-A"]);
+    run_fixture_git(&dir, &["commit", "-qm", "delete duplicate locked rule"]);
 }
 
 #[given("变更 {change} 含 proposal design tasks 且 attach 状态为 {attached}")]
