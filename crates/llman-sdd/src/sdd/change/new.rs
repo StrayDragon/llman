@@ -4,19 +4,23 @@
 //! planning artifacts — those are added by propose/authoring helpers.
 //!
 //! `--from <description>` (r99): derive a legal, meaningful change id from the
-//! description instead of requiring `<CHANGE>`. Naming follows the repo's
-//! `llmanspec/AGENTS.md` conventions when declared; otherwise the id is built
-//! from the description's semantics (kebab-case, sanitized). Exactly one of
-//! `<CHANGE>` or `--from` is required.
+//! description instead of requiring `<CHANGE>`. When the project configures
+//! `change_id.template` (r29), the id is rendered from that template with
+//! preset vars — output then follows the project's declared convention.
+//! Otherwise the id is built from the description's semantics (kebab-case,
+//! sanitized). Exactly one of `<CHANGE>` or `--from` is required.
 
 use crate::fs_utils::atomic_write_with_mode;
-use crate::sdd::project::config::load_required_config;
+use crate::sdd::project::config::{self, SddConfig};
+use crate::sdd::shared::change_id::harvest_unique_numbers;
 use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::sdd::shared::discovery::{change_dir, proposal_path};
 use crate::sdd::shared::ids::validate_sdd_id;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
+use minijinja::{Environment, UndefinedBehavior};
 use std::fs;
 use std::path::Path;
+use time::OffsetDateTime;
 
 #[derive(Debug, Clone)]
 pub(crate) struct NewArgs {
@@ -25,6 +29,11 @@ pub(crate) struct NewArgs {
     /// Free-form description to derive the change id from (r99 lightweight path).
     pub(crate) from: Option<String>,
     pub(crate) force: bool,
+    /// Print the id that would be produced without creating anything (r29).
+    pub(crate) dry_run: bool,
+    /// Explicit verb for `change_id.template` rendering (r29); overrides the
+    /// auto-detected verb prefix.
+    pub(crate) verb: Option<String>,
 }
 
 const PROPOSAL_SKELETON: &str = "\
@@ -54,12 +63,135 @@ pub(crate) fn run(root: &Path, args: NewArgs) -> Result<()> {
         (None, None) => {
             bail!("change id is required: pass <CHANGE> or --from <DESCRIPTION>");
         }
-        (Some(id), None) => create_draft(root, id, false, args.force),
+        (Some(id), None) => {
+            if args.dry_run {
+                println!("{id}");
+                return Ok(());
+            }
+            create_draft(root, id, false, args.force)
+        }
         (None, Some(desc)) => {
-            let id = derive_change_id(desc)?;
+            let id = derive_id_for_run(root, desc, args.verb.as_deref())?;
+            if args.dry_run {
+                // r29: preview only — no directory, no file, no force check.
+                println!("{id}");
+                return Ok(());
+            }
             create_draft(root, &id, true, args.force)
         }
     }
+}
+
+/// Resolve the id for a `--from` run: template rendering when the project
+/// configures `change_id.template`, heuristic sanitization otherwise.
+fn derive_id_for_run(root: &Path, desc: &str, verb_override: Option<&str>) -> Result<String> {
+    let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
+    let config = config::load_required_config(&llmanspec_dir)?;
+    if config
+        .change_id
+        .as_ref()
+        .and_then(|change_id| change_id.template.as_deref())
+        .is_some()
+    {
+        render_template_id(&llmanspec_dir, &config, desc, verb_override)
+    } else {
+        // Legacy heuristic path (r99 pre-r29 behavior, unchanged).
+        derive_change_id(desc)
+    }
+}
+
+/// Render the change id from the configured `change_id.template` (r29).
+fn render_template_id(
+    llmanspec_dir: &Path,
+    config: &SddConfig,
+    desc: &str,
+    verb_override: Option<&str>,
+) -> Result<String> {
+    let change_id = config
+        .change_id
+        .as_ref()
+        .expect("caller checked change_id.template");
+    let template = change_id
+        .template
+        .as_deref()
+        .expect("caller checked template");
+    let pattern_re =
+        crate::sdd::shared::change_id::unique_group_regex(change_id.pattern.as_deref())?;
+    let harvest = harvest_unique_numbers(llmanspec_dir, pattern_re.as_ref())?;
+    for warning in &harvest.warnings {
+        eprintln!("warning: {warning}");
+    }
+
+    let derived = derive_change_id(desc)?;
+    let (verb, subject) = split_verb(&derived, verb_override);
+
+    let date = OffsetDateTime::now_utc().date().to_string();
+    let mut env = Environment::new();
+    env.set_undefined_behavior(UndefinedBehavior::Strict);
+    env.add_template("change_id", template)
+        .context("invalid change_id.template")?;
+    let template_handle = env.get_template("change_id")?;
+
+    // Strict rendering names no variable, so pre-check undeclared refs and
+    // report exactly which unprovided vars the template uses (r29 acceptance:
+    // clear error for illegal template vars).
+    let mut provided: std::collections::BTreeSet<&str> = ["llman_sdd_unique_id", "subject", "date"]
+        .into_iter()
+        .collect();
+    if verb.is_some() {
+        provided.insert("verb");
+    }
+    let missing: Vec<String> = template_handle
+        .undeclared_variables(false)
+        .into_iter()
+        .filter(|var| !provided.contains(var.as_str()))
+        .map(|var| var.to_string())
+        .collect();
+    if !missing.is_empty() {
+        bail!(
+            "change_id.template references unprovided variable(s): {} — preset vars are \
+             llman_sdd_unique_id, verb, subject, date (pass --verb when it uses {{{{ verb }}}})",
+            missing.join(", ")
+        );
+    }
+
+    env.add_global("llman_sdd_unique_id", harvest.next_number.to_string());
+    if let Some(verb) = verb {
+        env.add_global("verb", verb);
+    }
+    env.add_global("subject", subject);
+    env.add_global("date", date);
+
+    let rendered = env
+        .get_template("change_id")
+        .context("invalid change_id.template")?
+        .render(())
+        .map_err(|err| anyhow!("failed to render change_id.template: {err}"))?;
+    let id = rendered.trim().to_string();
+    if id.is_empty() {
+        bail!("change_id.template rendered an empty id");
+    }
+    validate_sdd_id(&id, "change")?;
+    Ok(id)
+}
+
+/// Split a sanitized id into (verb, subject). The subject is the derived id
+/// minus a detected table-verb prefix (falls back to the full derived id when
+/// no verb prefix is present). `--verb` overrides the verb only — it never
+/// changes the subject.
+fn split_verb(derived: &str, verb_override: Option<&str>) -> (Option<String>, String) {
+    const VERB_TABLE: [&str; 5] = ["add", "update", "remove", "refactor", "fix"];
+    let mut subject = derived;
+    let mut detected: Option<String> = None;
+    for verb in VERB_TABLE {
+        if let Some(rest) = derived.strip_prefix(&format!("{verb}-")) {
+            detected = Some(verb.to_string());
+            subject = rest;
+            break;
+        }
+    }
+    let verb = verb_override.map(str::to_string).or(detected);
+    (verb, subject.to_string())
 }
 
 /// Create the draft change directory + proposal skeleton. When `derived` is
@@ -68,7 +200,7 @@ pub(crate) fn run(root: &Path, args: NewArgs) -> Result<()> {
 fn create_draft(root: &Path, id: &str, derived: bool, force: bool) -> Result<()> {
     validate_sdd_id(id, "change")?;
     let llmanspec_dir = root.join(LLMANSPEC_DIR_NAME);
-    let _config = load_required_config(&llmanspec_dir)?;
+    let _config = config::load_required_config(&llmanspec_dir)?;
 
     let change_dir = change_dir(root, id);
     let proposal_path = proposal_path(root, id);
@@ -95,8 +227,9 @@ fn create_draft(root: &Path, id: &str, derived: bool, force: bool) -> Result<()>
 /// fixed naming convention (verb prefix, length cap as strict rule, etc.). The
 /// only hard requirement is passing [`validate_sdd_id`]. Hygiene measures
 /// (lowercase, collapse whitespace/punctuation to `-`, trim, cap length) keep
-/// the id readable and filesystem-safe. The agent or user reading the repo's
-/// `llmanspec/AGENTS.md` is the authority on project-specific naming style.
+/// the id readable and filesystem-safe. Projects that want a convention
+/// machine-enforced configure `change_id.pattern` / `change_id.template`
+/// (sdd-workflow r29); this function then supplies the `subject` fragment.
 pub(crate) fn derive_change_id(desc: &str) -> Result<String> {
     let trimmed = desc.trim();
     if trimmed.is_empty() {
@@ -168,6 +301,8 @@ mod tests {
                 change: Some("add-sample-change".into()),
                 from: None,
                 force: false,
+                dry_run: false,
+                verb: None,
             },
         )
         .unwrap();
@@ -195,6 +330,8 @@ mod tests {
             change: Some("add-sample-change".into()),
             from: None,
             force: false,
+            dry_run: false,
+            verb: None,
         };
         run(root, args.clone()).unwrap();
         assert!(run(root, args).is_err());
@@ -213,6 +350,8 @@ mod tests {
                 change: Some(change.into()),
                 from: None,
                 force: false,
+                dry_run: false,
+                verb: None,
             },
         )
         .unwrap();
@@ -226,6 +365,8 @@ mod tests {
                 change: Some(change.into()),
                 from: None,
                 force: true,
+                dry_run: false,
+                verb: None,
             },
         )
         .unwrap();
@@ -246,6 +387,8 @@ mod tests {
                 change: Some("add-x".into()),
                 from: Some("add x".into()),
                 force: false,
+                dry_run: false,
+                verb: None,
             },
         )
         .unwrap_err();
@@ -263,6 +406,8 @@ mod tests {
                 change: None,
                 from: None,
                 force: false,
+                dry_run: false,
+                verb: None,
             },
         )
         .unwrap_err();
@@ -338,6 +483,8 @@ mod tests {
                 change: None,
                 from: Some("Add user login".into()),
                 force: false,
+                dry_run: false,
+                verb: None,
             },
         )
         .unwrap();
@@ -348,6 +495,152 @@ mod tests {
             proposal
                 .to_string_lossy()
                 .ends_with("add-user-login/proposal.md")
+        );
+    }
+
+    fn write_change_id_config(root: &Path, pattern: &str, template: &str) {
+        let path = root.join("llmanspec/config.yaml");
+        let content = fs::read_to_string(&path).unwrap();
+        let addition = format!("change_id:\n  pattern: '{pattern}'\n  template: '{template}'\n");
+        fs::write(&path, content + &addition).unwrap();
+    }
+
+    #[test]
+    fn template_renders_unique_id_verb_subject() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        init_project(root);
+        write_change_id_config(
+            root,
+            r"^c[0-9]+-(add|update|remove|refactor|fix)-[a-z0-9-]+$",
+            "c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}",
+        );
+        // Issue #20 shape: a deep dir with a higher number must be picked up.
+        fs::create_dir_all(root.join("llmanspec/delayed-changes/tools/c2620-tool-x")).unwrap();
+
+        run(
+            root,
+            NewArgs {
+                change: None,
+                from: Some("add user login".into()),
+                force: false,
+                dry_run: false,
+                verb: None,
+            },
+        )
+        .unwrap();
+        let created: Vec<String> = fs::read_dir(root.join("llmanspec/changes"))
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(
+            root.join("llmanspec/changes/c2621-add-user-login/proposal.md")
+                .exists(),
+            "unique id must scan the whole tree (next = 2621); verb must not duplicate; created={created:?}"
+        );
+    }
+
+    #[test]
+    fn dry_run_prints_id_and_creates_nothing() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        init_project(root);
+        write_change_id_config(
+            root,
+            r"^c[0-9]+-.*$",
+            "c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}",
+        );
+        run(
+            root,
+            NewArgs {
+                change: None,
+                from: Some("Add user login".into()),
+                force: false,
+                dry_run: true,
+                verb: None,
+            },
+        )
+        .unwrap();
+        assert!(
+            !root
+                .join("llmanspec/changes")
+                .join("c1-add-user-login")
+                .exists(),
+            "dry-run must not create the change dir"
+        );
+    }
+
+    #[test]
+    fn explicit_verb_overrides_detection_and_dedupes_subject() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        init_project(root);
+        write_change_id_config(
+            root,
+            r"^c[0-9]+-.*$",
+            "c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}",
+        );
+        run(
+            root,
+            NewArgs {
+                change: None,
+                from: Some("add user login".into()),
+                force: false,
+                dry_run: false,
+                verb: Some("update".into()),
+            },
+        )
+        .unwrap();
+        assert!(root.join("llmanspec/changes/c1-update-user-login").exists());
+    }
+
+    #[test]
+    fn missing_verb_yields_actionable_error() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        init_project(root);
+        write_change_id_config(
+            root,
+            r"^c[0-9]+-.*$",
+            "c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}",
+        );
+        let err = run(
+            root,
+            NewArgs {
+                change: None,
+                from: Some("login flow".into()), // no table-verb prefix → no verb
+                force: false,
+                dry_run: true,
+                verb: None,
+            },
+        )
+        .unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("--verb"), "got: {msg}");
+    }
+
+    #[test]
+    fn unknown_template_var_yields_clear_error() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        init_project(root);
+        write_change_id_config(root, r"^c[0-9]+-.*$", "c{{ nope_var }}");
+        let err = run(
+            root,
+            NewArgs {
+                change: None,
+                from: Some("add x".into()),
+                force: false,
+                dry_run: true,
+                verb: None,
+            },
+        )
+        .unwrap_err();
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("nope_var") && msg.contains("preset vars"),
+            "got: {msg}"
         );
     }
 }

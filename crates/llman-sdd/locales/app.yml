@@ -1482,6 +1482,8 @@ sdd:
       en: "Change is missing tasks.md."
     task_pending:
       en: "Pending task (line %{line}): %{task}"
+    change_id_pattern_violation:
+      en: "Change id '%{id}' does not match change_id.pattern '%{pattern}' (sdd-workflow r29; scope: active changes only, archive/legacy shapes are not back-checked)."
     design_present:
       en: "design.md is present."
     tasks_without_design:

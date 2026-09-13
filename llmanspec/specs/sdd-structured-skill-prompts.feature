@@ -23,7 +23,7 @@
 
   @req:r99 @human
   场景: 轻量 draft 提案路径与 change id 自动推导
-    - 当用户意图为快速起草提案（如说「draft 提案」「draft change」「记一个提案」且未提供 change id）时，llman-sdd-propose 技能 MUST 走轻量路径：MUST NOT 询问用户确认 change id，MUST 从用户描述内容直接生成一个合法且有意义的 change id（MUST 通过 `validate_sdd_id` 的合法性格式；MUST 遵循该仓库 `llmanspec/AGENTS.md` 声明的命名约定，若无则按描述语义合理命名），并仅创建 `llmanspec/changes/<生成的 id>/proposal.md`（draft shell，不强制 tasks/design/specs/attach）。`llman sdd change new` MUST 支持从描述生成 id：提供 `--from <description>`（或等价）时 MUST 由 CLI 生成 id 并在 stdout 打印最终 id 与 proposal 路径；生成冲突既有 change 时 MUST 以非零退出码失败并提示用 `--force` 覆盖或换描述。技能 MUST 告知用户已生成的 id（可应要求修改）；完整 propose（triage + tasks + specs + attach）仅在用户明确要求正式化时启动。
+    - 当用户意图为快速起草提案（如说「draft 提案」「draft change」「记一个提案」且未提供 change id）时，llman-sdd-propose 技能 MUST 走轻量路径：MUST NOT 询问用户确认 change id，MUST 从用户描述内容直接生成一个合法且有意义的 change id（MUST 通过 `validate_sdd_id` 的合法性格式；MUST 遵循该仓库 `llmanspec/AGENTS.md` 声明的命名约定，若无则按描述语义合理命名），并仅创建 `llmanspec/changes/<生成的 id>/proposal.md`（draft shell，不强制 tasks/design/specs/attach）。`llman sdd change new` MUST 支持从描述生成 id：提供 `--from <description>`（或等价）时 MUST 由 CLI 生成 id 并在 stdout 打印最终 id 与 proposal 路径；生成冲突既有 change 时 MUST 以非零退出码失败并提示用 `--force` 覆盖或换描述。项目配置了 `change_id.template`（sdd-workflow r29）时 MUST 按模板渲染生成 id，使产出天然符合该项目命名约定；未配置时保持启发式消毒。技能 MUST 告知用户已生成的 id（可应要求修改）；完整 propose（triage + tasks + specs + attach）仅在用户明确要求正式化时启动。
 
   @req:r117 @human
   场景: 独立 draft 技能默认安装与职责分离

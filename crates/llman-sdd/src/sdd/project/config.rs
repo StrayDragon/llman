@@ -1,5 +1,6 @@
 use crate::fs_utils::atomic_write_with_mode;
 use crate::schema_utils;
+use crate::sdd::shared::change_id::compile_change_id_pattern;
 use crate::sdd::shared::constants::LLMANSPEC_CONFIG_FILE;
 use anyhow::{Result, anyhow};
 use schemars::JsonSchema;
@@ -253,6 +254,40 @@ pub struct SddConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(description = "Unified Git-native flow tuning (branch prefix, worktree).")]
     pub(crate) sdd: Option<FlowConfig>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Optional machine-readable change id naming convention (sdd-workflow r29). \
+        pattern: regex active change ids must fully match (validate ERROR on violation). \
+        template: minijinja template rendered by `change new --from` with preset vars \
+        llman_sdd_unique_id/verb/subject/date. Absent section = legacy behavior, zero breakage."
+    )]
+    pub(crate) change_id: Option<ChangeIdConfig>,
+}
+
+/// Optional change id naming convention (`change_id:` section, sdd-workflow r29).
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
+#[schemars(description = "Machine-readable change id naming convention (r29).")]
+pub(crate) struct ChangeIdConfig {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Regex active change ids MUST fully match (anchored full-match). \
+        Violations are reported as validate ERROR entries containing the id and this pattern. \
+        Scope is active changes/ only; archive/ and out-of-tree dirs are never back-checked."
+    )]
+    pub(crate) pattern: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Minijinja template rendered by `change new --from` to build the id. \
+        Preset vars: llman_sdd_unique_id (next unused number after a whole-llmanspec-tree scan), \
+        verb (normalized verb or --verb), subject (sanitized description minus verb prefix), \
+        date (local %Y-%m-%d). Referencing an unprovided var fails with a clear error."
+    )]
+    pub(crate) template: Option<String>,
 }
 
 /// Unified Git-native flow tuning (r111/r116).
@@ -302,6 +337,7 @@ impl Default for SddConfig {
             archive: None,
             bdd: None,
             sdd: None,
+            change_id: None,
         }
     }
 }
@@ -362,6 +398,16 @@ pub(crate) fn load_config(llmanspec_dir: &Path) -> Result<Option<SddConfig>> {
                 ));
             }
         }
+    }
+
+    if let Some(pattern) = config.change_id.as_ref().and_then(|c| c.pattern.as_deref()) {
+        compile_change_id_pattern(pattern).map_err(|err| {
+            anyhow!(
+                "Invalid change_id.pattern {:?} in {}: {err}",
+                pattern,
+                path.display()
+            )
+        })?;
     }
 
     config.locale = normalize_locale(&config.locale);
@@ -617,6 +663,61 @@ mod tests {
         fs::write(&path, content).expect("write config");
         let result = load_config(llmanspec_dir);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn change_id_section_parses_pattern_and_template() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        let path = config_path(llmanspec_dir);
+        let content = "\
+schema: spec-driven
+change_id:
+  pattern: '^c[0-9]+-(add|fix)-[a-z0-9-]+$'
+  template: 'c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}'
+";
+        fs::write(&path, content).expect("write config");
+        let config = load_config(llmanspec_dir).expect("load").expect("config");
+        let change_id = config.change_id.expect("change_id");
+        assert_eq!(
+            change_id.pattern.as_deref(),
+            Some("^c[0-9]+-(add|fix)-[a-z0-9-]+$")
+        );
+        assert!(
+            change_id
+                .template
+                .as_deref()
+                .unwrap_or_default()
+                .contains("llman_sdd_unique_id")
+        );
+    }
+
+    #[test]
+    fn change_id_absent_is_none() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        let path = config_path(llmanspec_dir);
+        fs::write(&path, "schema: spec-driven\n").expect("write config");
+        let config = load_config(llmanspec_dir).expect("load").expect("config");
+        assert!(config.change_id.is_none(), "absent section must stay None");
+    }
+
+    #[test]
+    fn change_id_rejects_invalid_pattern() {
+        let dir = tempdir().expect("tempdir");
+        let llmanspec_dir = dir.path();
+        let path = config_path(llmanspec_dir);
+        let content = "\
+schema: spec-driven
+change_id:
+  pattern: 'c([0-9]+'
+";
+        fs::write(&path, content).expect("write config");
+        let err = load_config(llmanspec_dir).unwrap_err().to_string();
+        assert!(
+            err.contains("Invalid change_id.pattern") && err.contains("c([0-9]+"),
+            "got: {err}"
+        );
     }
 
     #[test]

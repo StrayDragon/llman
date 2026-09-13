@@ -21,6 +21,7 @@ mod processor;
 mod prompts_orchestrator;
 mod rm_empty_dirs;
 mod sdd_bdd_compat;
+mod sdd_change_id_convention;
 mod sdd_integration;
 mod skills_integration;
 mod skills_targets_sync;

@@ -1,3 +1,4 @@
+pub(crate) mod change_id;
 pub mod constants;
 pub mod discovery;
 pub(crate) mod ids;

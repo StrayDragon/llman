@@ -137,6 +137,11 @@
   场景: specs landing 单轨口径与锁定门禁
     - Specs landing 的 live specs 路径口径 MUST 收窄为 llmanspec/specs/**/*.feature（spec.toon 不再是合约载体）。change finalize/diff 与 validate --strict MUST 执行 @human 场景锁定哈希对比（范围 = 现算 `git merge-base <本地默认分支> HEAD`...HEAD，规则见 spec-format r135）；锁定哈希对比为报告制（WARNING，不阻断），语义见 spec-format r135。
 
+  @req:r29 @human
+  场景: change id 命名规约机读化（pattern 门禁 + 模板生成 + 取号预览）
+    - llmanspec/config.yaml MUST 支持可选 `change_id:` 段（`pattern`: 用户配置正则；`template`: minijinja 模板），未配置该段（或其字段）时 validate 与 change new 的行为 MUST 与无该段现状完全一致（零破坏）。配置 `pattern` 时 llman sdd validate MUST 对 active change id 做 full-match，违规 MUST 作为独立 ERROR 条目报告且消息 MUST 含违规 id 全文与 pattern 原文；校验范围 MUST 仅限 active `changes/` 发现产物——`changes/archive/` 与 llman 视野外的目录（如下游自定义 `delayed-changes/`）MUST NOT 被回溯强制。配置 `template` 时 llman sdd change new --from MUST 以模板渲染生成 id，预设变量 MUST 至少含 `llman_sdd_unique_id`、`verb`、`subject`、`date`：`llman_sdd_unique_id` = llmanspec/ 全树递归查重后的下一个未占用号，扫描范围 MUST 含 `changes/`、`changes/archive/` 与任意层级子目录中 change-id 形态的目录名（取号查重必须全树，漏扫即撞号）；压缩包冻结形态 best-effort 透视，透视工具缺失或失败时 MUST 输出 WARNING 列出该路径并提示人工核对；`verb` = 描述动词归一（add/update/remove/refactor/fix）或 `--verb` 显式指定；`subject` = 启发式消毒产物去除 verb 前缀；`date` = UTC 日期 `%Y-%m-%d`（对齐 archive 日期前缀先例）。模板引用未注入变量 MUST 以清晰错误失败。change new MUST 支持 `--dry-run`：只打印将生成的完整 id，MUST NOT 创建任何目录或文件。MUST 新增只读子命令 llman sdd change next-id：打印当前全树最大号与下一个可用号（即 `llman_sdd_unique_id` 的取值依据），MUST NOT 创建目录或修改任何文件。`--from` 的 help 文本 MUST 与实际行为一致。
+
+
   @req:r2 @human
   场景: bdd.bindings 可声明绑定源
     - llmanspec 配置 MUST 支持在 bdd 段下声明 bindings 列表作为 harness bound 口径的绑定源：kind=tags 时场景 tags 含全部所列 tag 即视为 bound（@ 前缀归一化）；kind=scenario-attrs 时对 files glob 匹配的文件提取 scenario 属性块内 path 与 name 字面量对，feature 路径按 capability 目录归属，specs 目录外的路径忽略。多个源结果取并集去重；未知 kind 或空 tags 或空 files MUST 解析失败。未声明 bindings 时 bound 口径 MUST NOT 生效且现有输出形态不变。
@@ -369,3 +374,36 @@
     那么 退出码为零
     那么 最近提交说明不含 archive(sdd): fin-nocommit
     那么 工作区存在未提交改动
+
+  @executable
+  @req:r29
+  场景: change-id-pattern-violation-errors-active-only
+    假如 已初始化含 change_id pattern 与 archive 形态存量的 sdd 项目且存在违规 active change "Weird Id!"
+    当 在非交互终端运行 llman sdd validate --all --strict --no-check --no-interactive
+    那么 退出码非零
+    那么 stderr 包含 Weird Id!
+    那么 stderr 不含 2026-09-13-c20-legacy
+
+  @executable
+  @req:r29
+  场景: change-id-unconfigured-inert
+    假如 已初始化 sdd 项目且 bdd 配置为 "on"
+    当 在非交互终端运行 llman sdd validate --all --strict --no-check --no-interactive
+    那么 退出码为零
+
+  @executable
+  @req:r29
+  场景: change-new-from-template-dry-run-readonly
+    假如 已初始化含 change_id template 的 sdd 项目
+    当 在非交互终端运行 llman sdd change new --from "add user login" --dry-run
+    那么 退出码为零
+    那么 stdout 包含 -add-user-login
+    而且 相对路径 llmanspec/changes/c1-add-user-login 不存在
+
+  @executable
+  @req:r29
+  场景: next-id-scans-whole-tree-readonly
+    假如 已初始化含 change_id 段且 delayed-changes 深层目录含更大号的 sdd 项目
+    当 在非交互终端运行 llman sdd change next-id
+    那么 退出码为零
+    那么 stdout 包含 2620
