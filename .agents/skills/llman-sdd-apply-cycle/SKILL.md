@@ -53,7 +53,7 @@ finalize 已自动提交，除非传了 `--no-commit`。
 
 ### 6) 可选清理
 ```bash
-git branch -d <feature-branch>
+git branch -D <feature-branch>   # squash 后分支不再是 main 祖先，-d 会被拒绝
 ```
 push / Hosting PR 仅当用户明确要求。
 

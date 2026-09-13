@@ -196,6 +196,13 @@ Run `git add -A && git commit -m \"archive(sdd): {change_name}\"` manually."
             "finalized change `{change_name}` → archive `{archive_name}` (nothing to commit)"
         ),
     }
+    // r98: a next-step hint after the archive line — confirm the close-out
+    // commit on the merge target; push / hosting PR stays opt-in.
+    println!(
+        "next: confirm the close-out commit on `{target}`; \
+         cleanup with `git branch -D {feature_branch}` (squash leaves it unmerged); \
+         push / hosting PR only if explicitly requested"
+    );
     Ok(())
 }
 
