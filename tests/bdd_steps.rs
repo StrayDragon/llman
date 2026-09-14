@@ -39,7 +39,7 @@
 use rstest_bdd_macros::{given, scenarios, then, when};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use tempfile::TempDir;
 
@@ -58,6 +58,11 @@ struct BddWorld {
     /// Owned temp project created by `已初始化 sdd 项目…` Given step. Kept here so
     /// it is not dropped (and deleted) before the scenario's When/Then run.
     fixture_dir: Option<TempDir>,
+    /// Temp dirs that must outlive the scenario (external-subcommand plugin
+    /// fixtures and the injected `-C` config dir, cli.feature r56).
+    kept_dirs: Vec<TempDir>,
+    /// Config dir injected via `-C` in external-subcommand scenarios (r56).
+    plugin_config_dir: Option<PathBuf>,
 }
 
 // Each scenario runs in a single thread, so thread-local storage avoids the
@@ -1543,6 +1548,112 @@ fn record_output(output: std::process::Output) {
         world.stdout = stdout;
         world.success = success;
     });
+}
+
+// ---------------------------------------------------------------------------
+// External subcommand delegation (cli.feature r56): plugin fixtures live in
+// per-scenario TempDirs that are prepended to the subprocess PATH.
+// ---------------------------------------------------------------------------
+
+fn write_exec_plugin(dir: &Path, file_name: &str, body: &str) {
+    let path = dir.join(file_name);
+    std::fs::write(&path, body).expect("write plugin script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod +x plugin");
+    }
+}
+
+fn prepend_path_env(plugin_dir: &Path) {
+    let original = std::env::var("PATH").unwrap_or_default();
+    WORLD.with(|w| {
+        let mut w = w.borrow_mut();
+        let world = w.as_mut().expect("world not initialized");
+        world.env_overrides.insert(
+            "PATH".to_string(),
+            format!("{}:{original}", plugin_dir.display()),
+        );
+    });
+}
+
+const FAKE_ECHO_PLUGIN_BODY: &str =
+    "#!/bin/sh\nprintf 'args=%s\\n' \"$*\"\nprintf 'config=%s\\n' \"$LLMAN_CONFIG_DIR\"\n";
+
+#[given("PATH 前置目录含可执行假插件 llman-fake-echo")]
+fn given_fake_echo_plugin() {
+    reset_world();
+    let plugins = TempDir::new().expect("plugin tempdir");
+    write_exec_plugin(plugins.path(), "llman-fake-echo", FAKE_ECHO_PLUGIN_BODY);
+    let config = TempDir::new().expect("config tempdir");
+    prepend_path_env(plugins.path());
+    WORLD.with(|w| {
+        let mut w = w.borrow_mut();
+        let world = w.as_mut().expect("world not initialized");
+        world.plugin_config_dir = Some(config.path().to_path_buf());
+        world.kept_dirs.push(plugins);
+        world.kept_dirs.push(config);
+    });
+}
+
+#[given("PATH 前置目录含以退出码 3 结束的假插件 llman-fake-exit")]
+fn given_fake_exit_plugin() {
+    reset_world();
+    let plugins = TempDir::new().expect("plugin tempdir");
+    write_exec_plugin(plugins.path(), "llman-fake-exit", "#!/bin/sh\nexit 3\n");
+    prepend_path_env(plugins.path());
+    WORLD.with(|w| {
+        let mut w = w.borrow_mut();
+        let world = w.as_mut().expect("world not initialized");
+        world.kept_dirs.push(plugins);
+    });
+}
+
+#[given("PATH 前置目录仅含 llman-real-plugin 而无 llman-no-such-cmd")]
+fn given_real_plugin_only() {
+    reset_world();
+    let plugins = TempDir::new().expect("plugin tempdir");
+    write_exec_plugin(plugins.path(), "llman-real-plugin", "#!/bin/sh\nexit 0\n");
+    prepend_path_env(plugins.path());
+    WORLD.with(|w| {
+        let mut w = w.borrow_mut();
+        let world = w.as_mut().expect("world not initialized");
+        world.kept_dirs.push(plugins);
+    });
+}
+
+#[when("用 -C 临时配置目录运行 llman fake-echo")]
+fn when_run_fake_echo_with_temp_config() {
+    let config_dir = WORLD.with(|w| {
+        let w = w.borrow();
+        let world = w.as_ref().expect("world not initialized");
+        world
+            .plugin_config_dir
+            .clone()
+            .expect("plugin config dir not prepared by given step")
+    });
+    run_llman(&format!("--config-dir {} fake-echo", config_dir.display()));
+}
+
+#[then("假插件进程 env 中 LLMAN_CONFIG_DIR 为 -C 临时配置目录")]
+fn then_fake_echo_config_env_matches() {
+    let (stdout, config_dir) = WORLD.with(|w| {
+        let w = w.borrow();
+        let world = w.as_ref().expect("world not initialized");
+        (
+            world.stdout.clone(),
+            world
+                .plugin_config_dir
+                .clone()
+                .expect("plugin config dir not prepared by given step"),
+        )
+    });
+    let expected = format!("config={}", config_dir.display());
+    assert!(
+        stdout.contains(&expected),
+        "expected stdout to contain `{expected}`; stdout:\n{stdout}"
+    );
 }
 
 // ---------------------------------------------------------------------------

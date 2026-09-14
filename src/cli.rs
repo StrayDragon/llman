@@ -22,7 +22,9 @@ pub trait RequiresGlobalConfig {
 
 impl RequiresGlobalConfig for Commands {
     fn requires_global_config(&self) -> bool {
-        !matches!(self, Commands::Sdd(_))
+        // `sdd` is project-config-only; external subcommands are separate
+        // processes that resolve their own configuration (cli.feature r56).
+        !matches!(self, Commands::Sdd(_) | Commands::External(_))
     }
 }
 
@@ -61,6 +63,9 @@ pub enum Commands {
     /// Self-management commands
     #[command(name = "self")]
     SelfCommand(SelfArgs),
+    /// Unknown subcommand: delegate to `llman-<name>` found on PATH (r56)
+    #[command(external_subcommand)]
+    External(Vec<String>),
 }
 
 #[derive(Parser)]
@@ -125,6 +130,7 @@ pub fn run() -> Result<()> {
         Commands::X(args) => handle_x_command(&args),
         Commands::Tool(args) => handle_tool_command(&args),
         Commands::SelfCommand(args) => crate::self_command::run(&args),
+        Commands::External(args) => crate::external_command::run(&args, config_dir.as_deref()),
     }
 }
 

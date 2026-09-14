@@ -1722,3 +1722,10 @@ self:
       en: "Failed to write file: %{path} (%{error})"
     invalid_marker:
       en: "Invalid completion marker state in %{path}."
+ext_subcommand:
+  not_found:
+    en: "unrecognized command '%{name}': no llman-%{name} executable found on PATH"
+  hint:
+    en: "discovered llman-* commands: %{list}"
+  spawn_failed:
+    en: "failed to launch external subcommand %{path}"

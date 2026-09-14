@@ -1,7 +1,7 @@
 //! llman-core: the foundation utility layer of llman.
 //!
 //! Members: `fs_utils` / `path_utils` / `managed_block` / `env_safety` /
-//! `git_utils` / `schema_utils`. These modules MUST NOT import llman feature
+//! `git_utils` / `schema_utils` / `ext_subcommand`. These modules MUST NOT import llman feature
 //! modules (sdd/skills/tool/x) — the direction is locked by
 //! `tests/import_direction_tests.rs` on the facade side.
 //!
@@ -10,6 +10,7 @@
 //! not drift when this crate was split out (change src-cleanup-pre-split T11).
 
 pub mod env_safety;
+pub mod ext_subcommand;
 pub mod fs_utils;
 pub mod git_utils;
 pub mod managed_block;
