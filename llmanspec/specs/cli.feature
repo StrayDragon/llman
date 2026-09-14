@@ -40,3 +40,34 @@
     当 用前缀 c123 运行 llman sdd show c123 --output json
     那么 stdout 含 JSON 键 matchedViaPrefix
     那么 stdout 的 JSON 键 matchedViaPrefix 为 true
+
+  @req:r56 @human
+  场景: 外部子命令自动发现与委托
+    - The CLI MUST treat an unknown first token `<name>` as an external subcommand: resolve executable `llman-<name>` on `PATH` (directory order, first hit; file AND any-execute-bit on Unix) and delegate to it as a child process. Built-in subcommands MUST always take precedence. The contract is language-agnostic and MUST forward: (1) argv after `<name>` verbatim without reparsing; (2) environment inherited, plus one normalization — the hub-resolved config dir (priority per config-paths r17) injected as `LLMAN_CONFIG_DIR` for the child; when neither `-C/--config-dir` nor `LLMAN_CONFIG_DIR` is provided, nothing is injected; (3) stdio inherited; (4) cwd inherited; (5) exit code exactly propagated, and `128+signum` when the child dies by signal on Unix. The `LLMAN_*` prefix is reserved across processes. When no `llman-<name>` exists on `PATH`, the CLI MUST print an unrecognized-command error to stderr (exit 1, per errors-exit r22) and SHALL append a hint listing discovered `llman-*` commands on `PATH`. `RequiresGlobalConfig` guard MUST NOT apply to external delegation.
+
+  @req:r56 @executable
+  场景: external-delegation-baseline
+    假如 PATH 前置目录含可执行假插件 llman-fake-echo
+    当 运行 llman fake-echo --flag value
+    那么 退出码为零
+    那么 stdout 包含 args=--flag value
+
+  @req:r56 @executable
+  场景: external-delegation-config-env
+    假如 PATH 前置目录含可执行假插件 llman-fake-echo
+    当 用 -C 临时配置目录运行 llman fake-echo
+    那么 假插件进程 env 中 LLMAN_CONFIG_DIR 为 -C 临时配置目录
+
+  @req:r56 @executable
+  场景: external-delegation-exit-code
+    假如 PATH 前置目录含以退出码 3 结束的假插件 llman-fake-exit
+    当 运行 llman fake-exit
+    那么 退出码为 3
+
+  @req:r56 @executable
+  场景: external-not-found-hint
+    假如 PATH 前置目录仅含 llman-real-plugin 而无 llman-no-such-cmd
+    当 运行 llman no-such-cmd
+    那么 退出码为 1
+    那么 stderr 包含 unrecognized
+    那么 stderr 包含 llman-real-plugin

@@ -59,6 +59,10 @@ llmanspec validate --all    # 校验规格与变更
 llmanspec review            # 人工评审检查点
 ```
 
+## 外部子命令（llman-* 插件）
+
+`llman` 会自动发现 `PATH` 上名为 `llman-*` 的可执行文件（git 外部子命令模式）：`llman <name>` 未命中内置命令时委托给 `llman-<name>` 执行——参数原样转发、stdio/cwd/环境继承、退出码透传，`-C/--config-dir` 会以 `LLMAN_CONFIG_DIR` 形式注入子进程。任何语言编写的可执行文件（二进制、Node/Python/Shell 脚本）放入 `PATH` 即接入，例如 `cargo install llman-foo` 或 `npm install -g` 后立即可用 `llman foo`；内置命令始终优先。
+
 ## 安装
 
 <!-- README:GENERATED version START -->

@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/add-external-subcommand-discovery
+base_sha: 253123f2acee327a972eff870bba994cdec24da7
+base_branch: main
 ---
 
 # 外部子命令自动发现（llman-* PATH 插件合约）

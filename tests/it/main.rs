@@ -12,6 +12,7 @@ mod claude_code_forward_args;
 mod config;
 mod configuration;
 mod error;
+mod external_subcommand;
 mod import_direction;
 mod integration;
 mod path_validation;

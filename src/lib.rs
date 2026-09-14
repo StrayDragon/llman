@@ -11,10 +11,13 @@ pub mod config;
 pub mod config_schema;
 pub mod editor;
 pub mod error;
+pub mod external_command;
 // 顶层工具层已拆至 llman-core crate（T11）；此处重导出保持历史路径零漂移：
 // `crate::fs_utils` / `llman::path_utils` / `llman_core::git_utils` 均可。
 pub(crate) use llman_core::fs_utils;
-pub use llman_core::{env_safety, git_utils, managed_block, path_utils, schema_utils};
+pub use llman_core::{
+    env_safety, ext_subcommand, git_utils, managed_block, path_utils, schema_utils,
+};
 pub mod prompts;
 // 全局 inquire 主题（❯/✔/▸/◉ 现代终端符号，一处配置全 CLI 生效）。
 pub mod theme;
