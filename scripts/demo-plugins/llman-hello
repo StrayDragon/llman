@@ -1,0 +1,26 @@
+#!/bin/sh
+# llman-hello — 手动集成演示插件：验证 llman 对 PATH 上 llman-* 可执行文件的
+# 自动发现与委托（cli.feature r56）。
+#
+# 用法（仓库根目录）：
+#   PATH="$PWD/scripts/demo-plugins:$PATH" ./target/debug/llman hello 你好 --flag=value
+#   PATH="$PWD/scripts/demo-plugins:$PATH" ./target/debug/llman -C /tmp/llman-demo hello
+#   PATH="$PWD/scripts/demo-plugins:$PATH" ./target/debug/llman hello --exit 7   # 退出码透传
+#   PATH="$PWD/scripts/demo-plugins:$PATH" ./target/debug/llman no-such-cmd      # 未找到清单提示
+#
+# 任何语言的可执行文件都等价：本脚本只用 sh，证明合约语言无关。
+
+echo "hello from llman-hello (sh, pid $$)"
+
+i=0
+prev=""
+for arg in "$@"; do
+    i=$((i + 1))
+    echo "argv[$i]=$arg"
+    if [ "$prev" = "--exit" ]; then
+        exit "$arg"
+    fi
+    prev=$arg
+done
+
+echo "LLMAN_CONFIG_DIR=${LLMAN_CONFIG_DIR:-<unset>}"
