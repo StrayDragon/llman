@@ -1,14 +1,8 @@
-//! Pure git plumbing shared across feature modules (sdd change binding,
-//! tool agents-md, skills config discovery, prompts paths).
-//!
-//! Function bodies are moved verbatim from their original homes
-//! (`sdd::change::git_native`, `skills::shared::git`) so error messages stay
-//! byte-identical. Sdd-specific binding semantics (ChangeGitBinding,
-//! read/write_binding, start/attach/checkpoint flows) remain in
-//! `sdd::change::git_native`.
+//! Pure git plumbing shared across feature modules (tool agents-md, skills
+//! config discovery, prompts paths).
 //!
 //! This module is a member of the top-level utility layer (future
-//! `llman-core`); it MUST NOT import feature modules (sdd/skills/tool/x).
+//! `llman-core`); it MUST NOT import feature modules (skills/tool/x).
 
 use anyhow::{Result, anyhow, bail};
 use std::fs;
@@ -383,7 +377,7 @@ mod tests {
             "effective base must be the LOCAL main merge-base (== HEAD here)"
         );
         // On a feature branch fork point, the base is the live fork point.
-        git(&root, &["checkout", "-q", "-b", "sdd/c1"]);
+        git(&root, &["checkout", "-q", "-b", "feature/c1"]);
         git(
             &root,
             &[
@@ -418,7 +412,7 @@ mod tests {
             ],
         );
         let new_main = run_git(&root, &["rev-parse", "main"]).unwrap();
-        git(&root, &["checkout", "-q", "sdd/c1"]);
+        git(&root, &["checkout", "-q", "feature/c1"]);
         git(
             &root,
             &[

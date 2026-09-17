@@ -1,8 +1,6 @@
 use crate::config::resolve_config_dir;
 use crate::fs_utils::{atomic_write_new_with_mode, atomic_write_with_mode};
 use crate::schema_utils;
-use crate::sdd::project::config::{SddConfig, llmanspec_schema};
-use crate::sdd::shared::constants::LLMANSPEC_DIR_NAME;
 use crate::tool::config as tool_config;
 use anyhow::{Result, anyhow};
 use schemars::JsonSchema;
@@ -11,14 +9,17 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Project-layout marker: an existing `llmanspec/` directory marks the project
+/// root. Read-only discovery only — llman never writes into it (the llmanspec
+/// data format is owned by the standalone llman-sdd v2 project).
+pub const LLMANSPEC_DIR_NAME: &str = "llmanspec";
+
 pub const SCHEMA_OUTPUT_DIR: &str = "artifacts/schema/configs/en";
 pub const GLOBAL_SCHEMA_FILE: &str = "llman-config.schema.json";
 pub const PROJECT_SCHEMA_FILE: &str = "llman-project-config.schema.json";
-pub const LLMANSPEC_SCHEMA_FILE: &str = "llmanspec-config.schema.json";
 
 pub const GLOBAL_SCHEMA_URL: &str = "https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llman-config.schema.json";
 pub const PROJECT_SCHEMA_URL: &str = "https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llman-project-config.schema.json";
-// LLMANSPEC_SCHEMA_URL lives with its schema owner: `sdd::project::config`.
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[schemars(
@@ -109,20 +110,17 @@ pub struct SchemaPaths {
     pub root: PathBuf,
     pub global: PathBuf,
     pub project: PathBuf,
-    pub llmanspec: PathBuf,
 }
 
 pub struct SchemaArtifacts {
     pub global: String,
     pub project: String,
-    pub llmanspec: String,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum ConfigSchemaKind {
     Global,
     Project,
-    Llmanspec,
 }
 
 pub enum ApplyResult {
@@ -136,7 +134,6 @@ pub fn schema_paths() -> SchemaPaths {
     SchemaPaths {
         global: root.join(GLOBAL_SCHEMA_FILE),
         project: root.join(PROJECT_SCHEMA_FILE),
-        llmanspec: root.join(LLMANSPEC_SCHEMA_FILE),
         root,
     }
 }
@@ -169,14 +166,11 @@ pub fn apply_schema_header(path: &Path, schema_url: &str) -> Result<ApplyResult>
 pub fn generate_schema_artifacts() -> Result<SchemaArtifacts> {
     let global = schema_utils::generate_schema::<GlobalConfig>();
     let project = schema_utils::generate_schema::<ProjectConfig>();
-    let llmanspec = llmanspec_schema();
 
     Ok(SchemaArtifacts {
         global: serde_json::to_string_pretty(&global)
             .map_err(|e| anyhow!(t!("self.schema.generate_failed", error = e)))?,
         project: serde_json::to_string_pretty(&project)
-            .map_err(|e| anyhow!(t!("self.schema.generate_failed", error = e)))?,
-        llmanspec: serde_json::to_string_pretty(&llmanspec)
             .map_err(|e| anyhow!(t!("self.schema.generate_failed", error = e)))?,
     })
 }
@@ -191,9 +185,6 @@ pub fn validate_yaml_value(
         }
         ConfigSchemaKind::Project => {
             schema_utils::validate_yaml_value_against::<ProjectConfig>(value)
-        }
-        ConfigSchemaKind::Llmanspec => {
-            schema_utils::validate_yaml_value_against::<SddConfig>(value)
         }
     }
 }
@@ -223,15 +214,6 @@ pub fn write_schema_files() -> Result<SchemaPaths> {
             error = e
         ))
     })?;
-    atomic_write_with_mode(&paths.llmanspec, artifacts.llmanspec.as_bytes(), None).map_err(
-        |e| {
-            anyhow!(t!(
-                "self.schema.write_failed",
-                path = paths.llmanspec.display(),
-                error = e
-            ))
-        },
-    )?;
 
     Ok(paths)
 }
@@ -300,19 +282,9 @@ pub fn project_config_path() -> Result<PathBuf> {
     Ok(project_config_path_from(&cwd))
 }
 
-pub fn llmanspec_config_path() -> Result<PathBuf> {
-    let cwd = env::current_dir()?;
-    Ok(llmanspec_config_path_from(&cwd))
-}
-
 fn project_config_path_from(cwd: &Path) -> PathBuf {
     let root = find_config_root(cwd).unwrap_or_else(|| cwd.to_path_buf());
     root.join(".llman").join("config.yaml")
-}
-
-fn llmanspec_config_path_from(cwd: &Path) -> PathBuf {
-    let root = find_config_root(cwd).unwrap_or_else(|| cwd.to_path_buf());
-    root.join(LLMANSPEC_DIR_NAME).join("config.yaml")
 }
 
 #[cfg(test)]
@@ -321,7 +293,7 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn project_and_llmanspec_paths_discover_root_from_subdir() {
+    fn project_paths_discover_root_from_subdir() {
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path().join("repo");
         let nested = root.join("a").join("b");
@@ -331,10 +303,6 @@ mod tests {
         assert_eq!(
             project_config_path_from(&nested),
             root.join(".llman").join("config.yaml")
-        );
-        assert_eq!(
-            llmanspec_config_path_from(&nested),
-            root.join(LLMANSPEC_DIR_NAME).join("config.yaml")
         );
     }
 

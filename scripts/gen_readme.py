@@ -9,7 +9,7 @@ Managed regions are delimited in README.md by marker pairs:
 
 Sections and their inputs:
 - version  <- `[workspace.package] version` in Cargo.toml
-- commands <- `--help` output of the `llman` binary (top level + sdd/x/tool)
+- commands <- `--help` output of the `llman` binary (top level + x/tool)
 
 Anything outside the markers is hand-written and never touched.
 
@@ -42,7 +42,6 @@ MARKER_RE = re.compile(
 
 # CLI groups rendered as their own sub-tables (top level is always rendered).
 COMMAND_GROUPS = [
-    ("llman sdd", ["sdd"]),
     ("llman x", ["x"]),
     ("llman tool", ["tool"]),
 ]
@@ -111,7 +110,7 @@ def gen_version(version: str) -> str:
     return "\n".join(
         [
             "```bash",
-            "# crates.io（llman-core / llman-sdd / gherkin-zh 依赖一并安装）",
+            "# crates.io（llman-core 依赖一并安装）",
             f"cargo install llman --version {version}",
             "```",
         ]
@@ -128,7 +127,7 @@ def gen_commands() -> str:
 
     out += [
         "",
-        "> 独立二进制 `llmanspec` ≡ `llman sdd`（参数一致，供不带主 CLI 的场景使用）；`llman self` 提供 schema 生成与 shell 补全。",
+        "> SDD 工作流（原 `llman sdd`）已迁移至独立项目 llman-sdd v2：`npm install -g @llman-sdd/cli`（命令 `llman-sdd` / `llmanspec`）；`llman self` 提供 schema 生成与 shell 补全。",
     ]
     return "\n".join(out)
 

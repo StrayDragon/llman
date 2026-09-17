@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""Check .agents/skills/*/SKILL.md version metadata matches Cargo.toml workspace version."""
+"""Check .agents/skills/*/SKILL.md version metadata matches Cargo.toml workspace version.
+
+llman-sdd-* skills are generated and owned by the external llman-sdd v2 tool
+(its own release cadence, e.g. metadata.version "0.1.2"), so they are exempt
+from the llman-workspace version gate.
+"""
 import re
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+EXTERNALLY_OWNED_PREFIX = "llman-sdd-"
 
 
 def extract_workspace_version() -> str:
@@ -29,6 +35,8 @@ def main() -> int:
     errors = []
     for skill_dir in sorted(skills_dir.iterdir()):
         if not skill_dir.is_dir() or skill_dir.name.startswith("."):
+            continue
+        if skill_dir.name.startswith(EXTERNALLY_OWNED_PREFIX):
             continue
         skill_md = skill_dir / "SKILL.md"
         if not skill_md.is_file():

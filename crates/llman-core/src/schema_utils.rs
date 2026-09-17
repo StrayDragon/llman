@@ -1,9 +1,9 @@
-//! Generic schema utilities shared by all config layers (global / project /
-//! llmanspec). Pure logic only: no i18n, no filesystem writes — the
-//! facade-side file handling stays in `config_schema`.
+//! Generic schema utilities shared by all config layers (global / project).
+//! Pure logic only: no i18n, no filesystem writes — the facade-side file
+//! handling stays in `config_schema`.
 //!
 //! This module is a member of the top-level utility layer (future
-//! `llman-core`); it MUST NOT import feature modules (sdd/skills/tool/x).
+//! `llman-core`); it MUST NOT import feature modules (skills/tool/x).
 
 use jsonschema::validator_for;
 use schemars::JsonSchema;
@@ -22,9 +22,8 @@ pub fn generate_schema<T: JsonSchema>() -> schemars::Schema {
 /// Validate a YAML-derived value against the JSON schema of `T` (draft-07,
 /// inlined).
 ///
-/// Generic over the config type so feature crates (e.g. sdd owning
-/// `SddConfig`) can validate without importing the facade's schema registry —
-/// this is what breaks the former `config_schema <-> sdd::project` ring.
+/// Generic over the config type so downstream consumers can validate their
+/// own config types without importing the facade's schema registry.
 ///
 /// Callers parse YAML into `serde_json::Value` (via `serde-saphyr`) before
 /// validation; the dynamic value tree is JSON-schema-shaped by construction.

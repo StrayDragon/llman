@@ -21,9 +21,9 @@ pub use llman_core::{
 pub mod prompts;
 // 全局 inquire 主题（❯/✔/▸/◉ 现代终端符号，一处配置全 CLI 生效）。
 pub mod theme;
-// sdd 模块树已拆至 llman-sdd crate（T12）；crate 内保留 `pub mod sdd` 保内部
-// 路径，门面重导出该模块 → `crate::sdd::…` 与 `llman::sdd::…` 零漂移。
-pub use llman_sdd::sdd;
+// SDD 工作流实现已迁移至独立项目 llman-sdd v2（npm `@llman-sdd/cli`）。
+// 本仓库不再内置任何 `sdd` 子命令：`llman sdd <args>` 未命中内置命令，
+// 经 `llman-*` 外部子命令发现自动委托给 PATH 上的 `llman-sdd`（cli.feature r56）。
 pub mod self_command;
 pub mod skills;
 pub mod tool;

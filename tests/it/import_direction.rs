@@ -4,11 +4,9 @@
 //!
 //! | source                | forbidden `crate::` targets      |
 //! |-----------------------|----------------------------------|
-//! | `src/sdd/**`          | skills, tool, x                  |
-//! | `src/skills/**`       | sdd, tool, x                     |
-//! | `src/tool/**`         | sdd, skills, x                   |
-//! | `src/x/**`            | sdd                              |
-//! | top-level util layer  | sdd, skills, tool, x             |
+//! | `src/skills/**`       | tool, x                          |
+//! | `src/tool/**`         | skills, x                        |
+//! | top-level util layer  | skills, tool, x                  |
 //!
 //! The utility layer lives in the `crates/llman-core` workspace member
 //! (`fs_utils` / `path_utils` / `managed_block` / `env_safety` / `git_utils`
@@ -29,15 +27,11 @@ const SRC_DIR: &str = "src";
 const CORE_SRC_DIR: &str = "crates/llman-core/src";
 
 /// Feature-module directories and the `crate::` first segments they forbid.
-const FORBIDDEN_FOR_MODULE_DIRS: &[(&str, &[&str])] = &[
-    ("sdd", &["skills", "tool", "x"]),
-    ("skills", &["sdd", "tool", "x"]),
-    ("tool", &["sdd", "skills", "x"]),
-    ("x", &["sdd"]),
-];
+const FORBIDDEN_FOR_MODULE_DIRS: &[(&str, &[&str])] =
+    &[("skills", &["tool", "x"]), ("tool", &["skills", "x"])];
 
 /// Top-level utility-layer files that must not reference any feature module.
-const FORBIDDEN_FOR_ALL_MODULES: &[&str] = &["sdd", "skills", "tool", "x"];
+const FORBIDDEN_FOR_ALL_MODULES: &[&str] = &["skills", "tool", "x"];
 
 const UTILITY_LAYER_FILES: &[&str] = &[
     "fs_utils.rs",
@@ -79,7 +73,7 @@ fn rs_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 /// Extract the first path segment after every `crate::` occurrence,
-/// ignoring line comments. Returns segments like `sdd`, `skills`, `config`.
+/// ignoring line comments. Returns segments like `skills`, `config`.
 fn crate_path_segments(text: &str) -> Vec<(usize, String)> {
     let mut found = Vec::new();
     for (line_no, line) in text.lines().enumerate() {
@@ -126,41 +120,21 @@ fn direction_violations(dir: &str, forbidden: &[&str]) -> Vec<String> {
 }
 
 #[test]
-fn sdd_must_not_reference_sibling_feature_modules() {
-    let violations = direction_violations("sdd", &["skills", "tool", "x"]);
-    assert!(
-        violations.is_empty(),
-        "src/sdd/** must not depend on skills/tool/x:\n{}",
-        violations.join("\n")
-    );
-}
-
-#[test]
 fn skills_must_not_reference_sibling_feature_modules() {
-    let violations = direction_violations("skills", &["sdd", "tool", "x"]);
+    let violations = direction_violations("skills", &["tool", "x"]);
     assert!(
         violations.is_empty(),
-        "src/skills/** must not depend on sdd/tool/x:\n{}",
+        "src/skills/** must not depend on tool/x:\n{}",
         violations.join("\n")
     );
 }
 
 #[test]
 fn tool_must_not_reference_sibling_feature_modules() {
-    let violations = direction_violations("tool", &["sdd", "skills", "x"]);
+    let violations = direction_violations("tool", &["skills", "x"]);
     assert!(
         violations.is_empty(),
-        "src/tool/** must not depend on sdd/skills/x (git merge made this hold, keep it):\n{}",
-        violations.join("\n")
-    );
-}
-
-#[test]
-fn x_must_not_reference_sdd() {
-    let violations = direction_violations("x", &["sdd"]);
-    assert!(
-        violations.is_empty(),
-        "src/x/** must not depend on sdd:\n{}",
+        "src/tool/** must not depend on skills/x (git merge made this hold, keep it):\n{}",
         violations.join("\n")
     );
 }
@@ -199,13 +173,8 @@ fn direction_table_covers_existing_modules() {
         !FORBIDDEN_FOR_MODULE_DIRS.is_empty(),
         "direction table must not be emptied silently"
     );
-    // sdd lives in the llman-sdd crate since T12; the rest stayed in the facade.
     for (module, _) in FORBIDDEN_FOR_MODULE_DIRS {
-        let dir = if *module == "sdd" {
-            repo.join("crates/llman-sdd/src/sdd")
-        } else {
-            repo.join("src").join(module)
-        };
+        let dir = repo.join("src").join(module);
         assert!(
             dir.is_dir(),
             "{module} missing but referenced by the direction table ({dir:?})"

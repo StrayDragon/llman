@@ -1,13 +1,11 @@
 use crate::cli::Cli;
 use crate::config_schema::{
     ApplyResult, GLOBAL_SCHEMA_URL, PROJECT_SCHEMA_URL, SchemaPaths, apply_schema_header,
-    global_config_path, llmanspec_config_path, project_config_path, schema_paths,
-    write_schema_files,
+    global_config_path, project_config_path, schema_paths, write_schema_files,
 };
 use crate::fs_utils::atomic_write_with_mode;
 use crate::managed_block::find_marker_index;
 use crate::schema_utils::format_schema_errors;
-use crate::sdd::project::config::LLMANSPEC_SCHEMA_URL;
 use anyhow::{Result, anyhow};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::generate;
@@ -347,11 +345,9 @@ fn run_apply() -> Result<()> {
     println!("{}", t!("self.schema.apply_start"));
     let global_path = global_config_path()?;
     let project_path = project_config_path()?;
-    let llmanspec_path = llmanspec_config_path()?;
 
     apply_and_report(&global_path, GLOBAL_SCHEMA_URL)?;
     apply_and_report(&project_path, PROJECT_SCHEMA_URL)?;
-    apply_and_report(&llmanspec_path, LLMANSPEC_SCHEMA_URL)?;
     Ok(())
 }
 
@@ -359,28 +355,17 @@ fn run_check() -> Result<()> {
     let paths = schema_paths();
     let global_schema = load_schema(&paths.global)?;
     let project_schema = load_schema(&paths.project)?;
-    let llmanspec_schema = load_schema(&paths.llmanspec)?;
 
     let global_path = global_config_path()?;
     let project_path = project_config_path()?;
-    let llmanspec_path = llmanspec_config_path()?;
-    run_check_with_paths(
-        &global_schema,
-        &project_schema,
-        &llmanspec_schema,
-        &global_path,
-        &project_path,
-        &llmanspec_path,
-    )
+    run_check_with_paths(&global_schema, &project_schema, &global_path, &project_path)
 }
 
 fn run_check_with_paths(
     global_schema: &Value,
     project_schema: &Value,
-    llmanspec_schema: &Value,
     global_config_path: &Path,
     project_config_path: &Path,
-    llmanspec_config_path: &Path,
 ) -> Result<()> {
     println!("{}", t!("self.schema.check_start"));
     fn sample_from_yaml_or_default<F>(path: &Path, default: F) -> Result<Value>
@@ -422,14 +407,6 @@ fn run_check_with_paths(
             serde_json::to_value(crate::config_schema::ProjectConfig::default()).map_err(Into::into)
         })?,
     )?;
-    validate_schema(
-        "llmanspec-config",
-        llmanspec_schema,
-        sample_from_yaml_or_default(llmanspec_config_path, || {
-            serde_json::to_value(crate::sdd::project::config::SddConfig::default())
-                .map_err(Into::into)
-        })?,
-    )?;
 
     println!("{}", t!("self.schema.check_ok"));
     Ok(())
@@ -448,13 +425,6 @@ fn print_written(paths: &SchemaPaths) -> Result<()> {
         t!(
             "self.schema.generate_written",
             path = paths.project.display()
-        )
-    );
-    println!(
-        "{}",
-        t!(
-            "self.schema.generate_written",
-            path = paths.llmanspec.display()
         )
     );
     Ok(())
@@ -540,18 +510,10 @@ mod tests {
         let paths = schema_paths();
         let global_schema = load_schema(&paths.global).expect("load global schema");
         let project_schema = load_schema(&paths.project).expect("load project schema");
-        let llmanspec_schema = load_schema(&paths.llmanspec).expect("load llmanspec schema");
 
         let missing = temp.path().join("missing.yaml");
-        let err = run_check_with_paths(
-            &global_schema,
-            &project_schema,
-            &llmanspec_schema,
-            &config_path,
-            &missing,
-            &missing,
-        )
-        .expect_err("schema check should fail");
+        let err = run_check_with_paths(&global_schema, &project_schema, &config_path, &missing)
+            .expect_err("schema check should fail");
         assert!(err.to_string().contains("Schema validation failed"));
     }
 
@@ -565,18 +527,10 @@ mod tests {
         let paths = schema_paths();
         let global_schema = load_schema(&paths.global).expect("load global schema");
         let project_schema = load_schema(&paths.project).expect("load project schema");
-        let llmanspec_schema = load_schema(&paths.llmanspec).expect("load llmanspec schema");
 
         let missing = temp.path().join("missing.yaml");
-        let err = run_check_with_paths(
-            &global_schema,
-            &project_schema,
-            &llmanspec_schema,
-            &config_path,
-            &missing,
-            &missing,
-        )
-        .expect_err("schema check should fail");
+        let err = run_check_with_paths(&global_schema, &project_schema, &config_path, &missing)
+            .expect_err("schema check should fail");
         assert!(err.to_string().contains("Failed to parse YAML"));
     }
 

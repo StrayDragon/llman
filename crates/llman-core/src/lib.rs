@@ -2,7 +2,7 @@
 //!
 //! Members: `fs_utils` / `path_utils` / `managed_block` / `env_safety` /
 //! `git_utils` / `schema_utils` / `ext_subcommand`. These modules MUST NOT import llman feature
-//! modules (sdd/skills/tool/x) — the direction is locked by
+//! modules (skills/tool/x) — the direction is locked by
 //! `tests/import_direction_tests.rs` on the facade side.
 //!
 //! The facade crate (`llman`) re-exports every member at its historical

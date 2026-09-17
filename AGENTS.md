@@ -7,44 +7,8 @@
 
 使用 `/llman-sdd-explore` 开始，然后按照 pipeline：`/llman-sdd-propose` → `/llman-sdd-apply` → `/llman-sdd-verify` → `/llman-sdd-archive`。
 
-保留此托管块，便于 `llman sdd init --update` 刷新。
+保留此托管块，便于 `llman-sdd init --update` 刷新。
 <!-- LLMANSPEC:END -->
-
-## SDD 可选增强能力
-
-主 pipeline（explore→propose→apply→verify→archive）之外的**可选增强**，按需触发，默认行为不变。能力借鉴自 [mattpocock/skills](https://github.com/mattpocock/skills)（MIT，见下方致谢），经内化重写以 llman 的单 SSOT（单轨 feature-as-spec）为根，不引入 `CONTEXT.md`。
-
-### pipeline 阶段内增强（触发词进入分支）
-
-| 阶段 | 增强能力 | 触发词 | 说明 |
-|------|---------|--------|------|
-| explore | 逐问深挖 | 「深挖」「逐个问」 | 一次只问一个问题并附推荐答案；能查到的事实不问用户，只有决策才问；术语冲突时回写 live `.feature`（不另建词表） |
-| propose | 测试边界前置 + 垂直切片 | 写 tasks 前自动 | 先列将测试的边界（seam，来自 `*.feature` GWT）并确认；tasks 按垂直切片拆 + `[blocked-by]` 依赖 |
-| apply | 紧反馈诊断 | 自修复失败且判定为难定位 bug | 先建一个能复现失败的命令，再排查；禁止没有复现命令就猜原因 |
-| verify | 双轴审查 | 默认启用（规约 sdd-workflow r103 定为 MUST，非触发式） | 合约轴（`.feature` 中 @human 规约与 @executable 验收）+ 标准轴（AGENTS.md 编码规范 + 12 项代码坏味）分离呈现 |
-
-### 独立可选 skill（不属于线性 pipeline）
-
-| skill | invocation | 用途 |
-|-------|-----------|------|
-| `llman-sdd-arch-review` | model-invoked | 扫描薄模块，找出可加深（藏更多行为到更小接口后）的候选 |
-| `llman-sdd-wayfinder` | user-invoked | 把大型、一团乱的工作拆成决策地图，逐个解决决策 |
-| `llman-sdd-research` | model-invoked | 后台 agent 委托查一手资料（官方文档/源码/API） |
-
-> 注：可选 skill 候选名单 SSOT 是 `crates/llman-sdd/src/sdd/project/config.rs` 的 `OPTIONAL_SKILL_NAMES`（continue / ff / validate / arch-review / wayfinder / research 六项）；经 `llmanspec/config.yaml` 的 `extra_skills` 启用后，`init --update` 会写入/刷新。未列入 candidate 的 `llman-sdd-*` 目录会被清理——启用前先配 `extra_skills`。
-
-### 设计词汇
-
-下面这组关于模块形状的词，在 arch-review / verify 标准轴 / propose 测试边界中使用。MUST NOT 替换为 component/service/API/boundary（它们含义更宽、不够精确）：
-
-- **Module（模块）** — 有接口和实现的东西（函数/类/包都算）。
-- **Interface（接口）** — 调用者为正确使用所须知道的一切（签名 + 不变量 + 错误模式 + 性能）。
-- **Depth（厚度）** — 接口背后的行为量；厚 = 小接口后藏大量行为，薄 = 接口 ≈ 实现（调用者没省事）。
-- **Seam（接缝）** — 不改调用处就能换实现的位置；在 llman 中接缝 = `*.feature` GWT 驱动的公共边界（CLI 子进程或 public 函数）。
-- **删除验证** — 想象删除模块：复杂度直接消失（只是透传，无价值）还是在 N 处重新冒出来（在扛事，有价值）。
-
-> 上述能力的借鉴来源与第三方许可声明见根目录 `NOTICE` 文件。
-
 
 # Repository Guidelines
 
@@ -52,10 +16,10 @@
 - `src/` holds the Rust library and CLI code; `src/main.rs` wires the CLI and i18n.
 - `src/x/` contains experimental integrations (cursor, claude_code, codex).
 - `src/tool/` contains developer utilities used by the CLI.
-- `tests/it/` holds the consolidated integration-test target (single `it` binary; modules registered in `tests/it/main.rs`); `tests/bdd_steps.rs` hosts the BDD step library.
-- `templates/` stores prompt templates (codex/claude-code); `crates/llman-sdd/templates/sdd/` holds sdd templates (compile-time embedded via `include_str!` inside llman-sdd). `locales/` (root) + `crates/llman-sdd/locales/` are byte-identical copies — each published `.crate` must embed within itself (workspace member dirs are excluded from the root `.crate`, so cross-crate embed paths break in release artifacts); `scripts/check-i18n-keys.py` gates the copy consistency.
+- `tests/it/` holds the consolidated integration-test target (single `it` binary; modules registered in `tests/it/main.rs`).
+- `templates/` stores prompt templates (codex/claude-code); `locales/` holds the i18n strings (embedded at compile time via `build.rs`).
 - `artifacts/testing_config_home/` is the test fixture config root used by dev commands.
-- `scripts/` has helper scripts. SDD workflow SSOT is root `AGENTS.md` + `llmanspec/` (not a parallel `docs/sdd` tree).
+- `scripts/` has helper scripts. `llmanspec/` holds this repo's spec data (read-only for llman itself; managed by the external llman-sdd v2 tool).
 
 ## Build, Test, and Development Commands
 This project targets Rust edition 2024 and uses the nightly toolchain.
@@ -66,8 +30,7 @@ This project targets Rust edition 2024 and uses the nightly toolchain.
 - `just release`: git-tag 分发——打 `v<version>` tag 并推送（安装方式：`cargo install --git https://github.com/StrayDragon/llman --tag v<version>`）。
 - `just test`: run the full test suite (`cargo nextest run --profile ci` when `cargo-nextest` is installed; otherwise `cargo test`). Config: `.config/nextest.toml`.
 - `just check`: format check, lint, and tests.
-- `just check-all`: check plus docs (`RUSTDOCFLAGS=-D warnings`), release build, and SDD template checks.
-- `just check-sdd-templates`: verify SDD template version headers and locale parity.
+- `just check-all`: check plus docs (`RUSTDOCFLAGS=-D warnings`), release build, and README managed-section checks.
 - `just readme` / `just check-readme`: regenerate / verify the README sections marked `<!-- README:GENERATED ... -->` (install version + command tables, sourced from CLI `--help` and `Cargo.toml`); run `just readme` after changing the CLI surface or bumping the version.
 - `just fmt` / `just lint`: rustfmt and clippy.
 
@@ -84,75 +47,17 @@ Cargo equivalents use `cargo +nightly ...`.
 - Use `LLMAN_CONFIG_DIR=./artifacts/testing_config_home` to avoid touching real user config.
 - Avoid workspace pollution: tests that may create files/dirs MUST use `tempfile::TempDir` (or `TestEnvironment`) and write only inside it so everything is auto-cleaned.
 - Avoid parallel test collisions: don’t use fixed relative paths/identifiers in the repo root (e.g. `config`, `config.yaml`); prefer unique temp paths and guard env/cwd changes with `crate::test_utils::TestProcess`.
-- Editing `locales/*.yml` (or its `crates/llman-sdd/locales` twin) triggers rebuild automatically (`build.rs` declares `rerun-if-changed`); remember to keep both copies in sync (`cp locales/app.yml crates/llman-sdd/locales/app.yml`).
-- When editing `crates/llman-sdd/templates/sdd/**`, run `just check-sdd-templates` (also in `just check-all`).
+- Editing `locales/*.yml` triggers rebuild automatically (`build.rs` declares `rerun-if-changed`).
 
-## Human Review Checkpoint (SDD)
+## 规约与变更流程（llman-sdd v2）
 
-Run `llman sdd review` at three fixed moments: after each apply task batch, before
-verify→finalize, and before any archive.
+本仓库的行为规格数据在 `llmanspec/specs/*.feature`，由外部工具 llman-sdd v2 读取和管理
+（`llman-sdd validate` / `llman-sdd review` / `llman-sdd show` 等）。llman 仓库内的任何代码
+都不得写入或校验该目录——它是用户数据格式，归 llman-sdd v2 所有。
 
-- Treat `pending`/`unbound` as planning debt to schedule, `stale` as spec-vs-code drift
-  to resolve.
-- `locked` hints are prompts to inspect `llman sdd change diff <id>` — locked-rule edits are
-  report-only (spec-format r135: WARNING only, never blocks a gate); the old lock-ack
-  metadata is fully removed (零兼容，无别名)。
-- Nonzero exit = CRITICAL findings: stop and fix before proceeding.
-- Contract disputes discovered during review go back through explore/propose, never
-  edited ad-hoc.
-
-## 统一 Git-native 变更流程（单轨 feature-as-spec）
-
-标准术语（禁止用「车道」等隐喻替代）：
-
-| 标准说法 | 是什么 | 不是什么 |
-|----------|--------|---------|
-| **Skill 导航** | explore → propose → apply → verify → archive 的 agent 技能顺序 | **不是** Git-native 生命周期 |
-| **Git-native 生命周期** | Draft → Designed → Planned → Branch binding → Specs landing → apply → verify → finalize/archive | Specs landing 不是 skill |
-| **CLI 四档 `stage`** | `draft`（仅 proposal）/ `designed`（+design）/ `planned`（+tasks）/ `full`（+绑定） | full 仍可能 `readyToImplement=false` |
-| **Branch binding** | `change start`/`attach` 绑定非默认 `sdd/<id>` 分支 + `base_branch`（fork 基准分支；attach `--base` 可覆盖）+ `base_sha` | 不等于 Specs landing，不等于可 apply；base_branch 不参与 diff/lock-gate 范围 |
-| **Specs landing** | 在绑定分支编辑 `llmanspec/specs/**`（目录级 add/remove/update 任一）并留相对 merge-base 的 diff；frontmatter `needs_specs_change`（缺省 true）声明是否检查 | 不是在默认分支改 live specs |
-| **`needs_specs_change`** | 正向 frontmatter 字段（缺省 true）：true → 绑定分支必须留 specs 目录改动；false → 跳过检查 | `skip_specs_landing` 已移除（出现即 ERROR），不是跳过 Branch binding |
-| **`readyToImplement`** | apply 门禁：`Full ∧ (specsLanded ∨ needs_specs_change=false)` | 用 `show --json` 查 |
-| **`change checkpoint`** | 已移除（规约 sdd-workflow r25）：调用即以非零退出报错并指向 `change finalize` | 不是 auto-WIP；finalize 负责收口 |
-| **Locked rules（@human）** | 人拥有的约束场景；哈希锁定于有效范围（现算 merge-base，规约 spec-format r135） | 报告制：改/删以 WARNING 报告、不阻断门禁；控制点 = git 分支对比 + review/diff 浮现；`rules_touched`/`agent_acked`/`@agent`/`--yes` 已移除 |
-| **分支提交自由** | change 分支上提交自由：分段 commit 或 finalize 单次收尾均可；finalize 自动合并（目标 `--into` > 绑定 `base_branch` > 默认分支；方式 `--method` > `sdd.merge_method`，squash 缺省——基准分支上单 commit 收口；worktree 占用目标时显式降级，规约 sdd-workflow r142）并自动提交 `archive(sdd): <id>`（`--no-commit` 可跳过） | 不是必须 checkpoint；`--amend` 由用户自行处理 |
-
-线性流程：
-
-```
-draft [proposal.md]
-  → designed [+design.md]
-  → planned [+tasks.md]
-  → bound [change start|attach]
-  → specs-landed [绑定分支编辑 <capability>.feature 并 commit]
-  → apply → verify → finalize/archive（自动提交收尾）
-```
-
-### 单轨格式（规约 spec-format r131–r136、r141）
-
-> 规约锚点 `<capability> r<n>` = `llmanspec/specs/<capability>.feature` 中 `@req:r<n>` 的场景；看全文用 `llman sdd show <capability>`。
-
-- 每个 capability 恰好**一个** `.feature` 事实源，布局二选一：扁平 `specs/<capability>.feature`（新默认）或目录 `specs/<capability>/`（兼容存量；同一 id 双布局并存 = 冲突 ERROR，可用 `llman sdd project migrate --kind specs-flatten` 一次性平铺）；`spec.toon` 已废除（出现即 ERROR，跑 toon2features）。
-- 头注释 `# capability:` / `# purpose:` / `# scope:` 必填（scope 驱动 staleness）。
-- 约束 = `@req:<id> @human` 场景（statement 全文放描述）；验收 = `@executable` 场景（用 `@req:<id>` 挂回）。
-- 三态分级：enforced / manual(`@manual`) / pending —— `list --specs` 与 `show` 输出。
-- 禁止把场景嵌进 `Rule:` 块（rstest-bdd scenarios! 会静默跳过）。
-- `change delta` / solidify / `*.feature.delta.toon` 已移除；`bdd.bindings` 已退役为可选 override（tag 即声明，配置段保留仅为兼容下游自定义 step 库 tag）。
-
-
-
-## BDD 兼容测试维护规则
-
-`tests/it/sdd_bdd_compat.rs` 承载实现细节层（init 结构、serde 向后兼容、子命令 smoke）；
-行为合约在 `llmanspec/specs/sdd-bdd-mode-compat.feature`。改动以下内容必须同步适配：
-validate `--check` 语义、change 生命周期命令面、锁定门禁、index rebuild embed、
-sdd 子命令增删（smoke 列表）、step 库（保持泛化 step 可驱动全部 @executable 场景；
-注意 rstest-bdd 占位符引号陷阱：`{mode}` 含引号需 trim）。
-
-判定新增断言归属：用户可见 MUST/SHALL 行为 → `.feature` + `@executable`；
-内部实现（serde、字段结构、smoke 兜底）→ Rust 测试文件。
-
+命令入口约定：日常用 `llman-sdd <cmd>`（或别名 `llmanspec <cmd>`）。`llman sdd <cmd>` 不是
+内置命令——它经 `llman-*` 外部子命令发现自动委托给 PATH 上的 `llman-sdd`（退出码透传）；
+未安装 llman-sdd 时会报找不到可执行文件。
 
 ## Commit and Pull Request Guidelines
 - Commit messages use a short type prefix such as `feat:`, `fix:`, `refactor:`, `doc:`, or `bump:` with an optional scope, for example `fix(security): ...`.

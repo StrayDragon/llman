@@ -1,8 +1,8 @@
 [workspace]
-members = [".", "crates/gherkin-zh", "crates/llman-core", "crates/llman-sdd"]
+members = [".", "crates/llman-core"]
 
 [workspace.package]
-version = "0.0.78"
+version = "0.0.79"
 edition = "2024"
 
 # Single source of truth for dependency versions shared across workspace
@@ -37,40 +37,25 @@ crossterm = "0.29.0"
 unicode-width = "0.2"
 thiserror = "2.0.18"
 toml = "1.0.3"
-minijinja = "2.20.0"
-# (chrono replaced by `time` 0.3 for sdd timestamps/durations)
+# (chrono replaced by `time` 0.3 for CLI timestamps/durations)
 time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
 glob = "0.3.3"
 ignore = "0.4.26"
 sha2 = "0.11.0"
 regex = "1.12.3"
-# gherkin fork vendored + published as its own registry crate (gherkin-zh):
-# cargo strips git sources from published manifests, so a git dep would
-# silently resolve to upstream gherkin 0.16 (no zh-CN 规则 keyword) for
-# crates.io consumers. Vended from https://github.com/StrayDragon/gherkin
-# (single commit: i18n(zh-CN): add 规则 as rule keyword on top of 0.16.0).
-# rstest-bdd-macros pins upstream gherkin 0.14 and keeps upstream;
-# harmless because it never collects Rule-block scenarios anyway (llman's
-# gate rejects them first).
-gherkin-zh = { path = "crates/gherkin-zh", version = "0.16.0" }
-sevenz-rust2 = "0.22.2"
 llm_json = "1.0.2"
-# Blocking HTTP (rustls) for the sdd pageindex chat-model invoker. Chosen over
-# reqwest/async-openai: the agentic loop is sequential, one JSON round-trip per
-# turn — an async runtime + hyper stack would be ~45% of the dependency graph.
-ureq = { version = "3", features = ["json"] }
+
 # Versions required for publish: cargo rewrites path deps to crates.io
 # version reqs. Keep in sync with [workspace.package] version.
-llman-core = { path = "crates/llman-core", version = "0.0.78" }
-llman-sdd = { path = "crates/llman-sdd", version = "0.0.78" }
+llman-core = { path = "crates/llman-core", version = "0.0.79" }
 
 # Workspace-wide lint policy (SSOT). Every crate opts in via
 # `[lints] workspace = true`. Tighten deliberately: anything warn-level here
 # fails CI (`cargo clippy -- -D warnings`).
 [workspace.lints.rust]
-# Deliberate escapes: src/test_utils.rs and sdd change finalize use
-# `unsafe { std::env::… }` blocks for process-env test isolation (unsafe in
-# edition 2024). Keep them visible in review rather than forbidden.
+# Deliberate escapes: src/test_utils.rs uses `unsafe { std::env::… }` blocks
+# for process-env test isolation (unsafe in edition 2024). Keep them visible
+# in review rather than forbidden.
 unsafe_code = "allow"
 
 [workspace.lints.clippy]
@@ -104,10 +89,6 @@ path = "tests/it/main.rs"
 name = "llman"
 path = "src/main.rs"
 
-[[bin]]
-name = "llmanspec"
-path = "src/bin/llmanspec.rs"
-
 [lib]
 name = "llman"
 path = "src/lib.rs"
@@ -118,7 +99,6 @@ workspace = true
 [dependencies]
 anyhow.workspace = true
 llman-core.workspace = true
-llman-sdd.workspace = true
 clap.workspace = true
 clap_complete = "4.6.5"
 inquire.workspace = true
@@ -154,18 +134,6 @@ llm_json.workspace = true
 # Additional utilities
 regex.workspace = true
 serde-saphyr.workspace = true
-
-[features]
-# BDD feature-as-spec testing via rstest-bdd. Opt-in: `cargo test --features bdd`.
-# Default `cargo test` skips BDD scenarios to avoid the extra compile cost.
-# Note: rstest/rstest-bdd are always in dev-dependencies (Cargo disallows optional
-# dev-deps); the `bdd` feature only gates the test code via #[cfg(feature = "bdd")].
-bdd = []
-
-[dev-dependencies]
-rstest = "0.26"
-rstest-bdd = "0.6.0-beta3"
-rstest-bdd-macros = "0.6.0-beta3"
 
 # Keep `target/` growth in check:
 # - Compile workspace code with `line-tables-only` debuginfo: backtraces keep

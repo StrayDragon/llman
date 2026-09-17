@@ -29,16 +29,13 @@ install:
 # 发布命令
 # =============================================================================
 
-# 发布到 crates.io（依赖顺序：gherkin-zh → llman-core → llman-sdd → llman）。
+# 发布到 crates.io（依赖顺序：llman-core → llman）。
 # 可追加额外参数（如 `just publish --dry-run`）。
-# 自动跳过已在 crates.io 上的（crate, version）——gherkin-zh 固定 0.16.0 通常已发布，
-# 不重复发；版本发新链时（如 bump gherkin-zh）会自动包含。
-# 版本 SSOT 在 workspace.package.version（gherkin-zh 固定 0.16.0），
-# 已发布的版本号需先 bump。
+# 版本 SSOT 在 workspace.package.version，已发布的版本号需先 bump。
 publish *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    for crate in gherkin-zh llman-core llman-sdd llman; do
+    for crate in llman-core llman; do
         ver="$(cargo metadata --format-version 1 --no-deps 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print([p['version'] for p in d['packages'] if p['name']=='$crate'][0])")"
         if curl -sf -H "User-Agent: llman-publish" "https://crates.io/api/v1/crates/$crate/$ver" >/dev/null 2>&1; then
             echo "skip $crate@$ver (already on crates.io)"
@@ -75,19 +72,6 @@ release:
 clean:
     cargo clean
 
-# 清理 validate full mode 残留的 BDD 校验沙箱 target 目录（用后不回收会持续累积，
-# why 记录见 llmanspec/changes/archive/2026-08-28-src-cleanup-pre-split/proposal.md「磁盘卫生」）
-clean-bdd-targets:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if compgen -G "target/bdd-*" >/dev/null; then
-        du -sh target/bdd-* || true
-        rm -rf target/bdd-*
-        echo "✅ cleaned target/bdd-*"
-    else
-        echo "no target/bdd-* dirs to clean"
-    fi
-
 # =============================================================================
 # 测试命令
 # =============================================================================
@@ -101,10 +85,6 @@ clean-bdd-targets:
 # 退出码语义不变，CI 用法不受影响。
 test:
     if command -v cargo-nextest >/dev/null; then cargo nextest run --workspace --profile ci --cargo-quiet --status-level fail --final-status-level fail && cargo test --doc --workspace -q; else cargo test --workspace -q; fi
-
-# 运行 BDD 测试（feature-as-spec 可执行验证，需 --features bdd；静默策略同 test）
-test-bdd:
-    if command -v cargo-nextest >/dev/null; then cargo nextest run --features bdd --cargo-quiet --status-level fail --final-status-level fail; else cargo test --features bdd -q; fi
 
 # =============================================================================
 # 代码质量检查
@@ -133,8 +113,8 @@ doc-check:
 # 核心检查（格式化检查 + lint + 测试）
 check: fmt-check lint test
 
-# 完整检查（核心检查 + 文档 + release构建 + SDD模板检查 + README 托管段一致性）
-check-all: check doc-check build-release check-sdd-templates check-schemas check-readme
+# 完整检查（核心检查 + 文档 + release构建 + README 托管段一致性）
+check-all: check doc-check build-release check-schemas check-readme
 
 # 本地质量审计：完整检查 + i18n 键审计 + 未用依赖扫描 + 供应链审计
 #（覆盖 CI 全部 job：Test Suite=check-all、Build Check=build-release、
@@ -162,10 +142,6 @@ machete:
 # Supply-chain job（EmbarkStudios/cargo-deny-action）（未安装则跳过并提示）
 deny:
     @command -v cargo-deny >/dev/null 2>&1 && cargo deny check || echo "skip: cargo-deny 未安装（cargo install cargo-deny --locked）"
-
-# 检查 SDD 模板版本与本地化一致性
-check-sdd-templates:
-    ./scripts/check-sdd-templates.py
 
 # 重新生成 README 的托管段（README:GENERATED 标记：安装版本号 + 命令一览）
 readme:

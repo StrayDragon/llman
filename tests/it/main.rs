@@ -1,8 +1,7 @@
 //! Consolidated integration-test binary: every `tests/*_tests.rs` file used
 //! to be its own crate statically linking the whole workspace (22 binaries);
 //! merging them into one target removes the per-binary link cost while the
-//! files stay individually browsable as modules. `bdd_steps.rs` stays a
-//! separate auto-discovered target (opt-in `bdd` feature).
+//! files stay individually browsable as modules.
 
 pub mod common;
 
@@ -21,9 +20,6 @@ mod print_config_dir_path;
 mod processor;
 mod prompts_orchestrator;
 mod rm_empty_dirs;
-mod sdd_bdd_compat;
-mod sdd_change_id_convention;
-mod sdd_integration;
 mod skills_integration;
 mod skills_targets_sync;
 mod tool;

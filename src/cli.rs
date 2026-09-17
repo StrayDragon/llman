@@ -1,6 +1,5 @@
 use crate::config::{ENV_CONFIG_DIR, override_runtime_config_dir, resolve_config_dir_with};
 use crate::config_schema::ensure_global_sample_config;
-use crate::sdd::command::SddArgs;
 use crate::self_command::SelfArgs;
 use crate::skills::cli::command::SkillsArgs;
 use crate::skills::cli::interactive::is_interactive;
@@ -15,16 +14,18 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Trait to mark subcommands that require global configuration directory.
-/// Subcommands that only use project-level config (like `sdd`) should return `false`.
+/// Subcommands that only use project-level config should return `false`.
 pub trait RequiresGlobalConfig {
     fn requires_global_config(&self) -> bool;
 }
 
 impl RequiresGlobalConfig for Commands {
     fn requires_global_config(&self) -> bool {
-        // `sdd` is project-config-only; external subcommands are separate
-        // processes that resolve their own configuration (cli.feature r56).
-        !matches!(self, Commands::Sdd(_) | Commands::External(_))
+        // External subcommands are separate processes that resolve their own
+        // configuration (cli.feature r56). This includes `llman sdd`: the SDD
+        // workflow was removed from llman, so `sdd` is not a built-in anymore
+        // and delegates to `llman-sdd` on PATH via external discovery.
+        !matches!(self, Commands::External(_))
     }
 }
 
@@ -54,8 +55,6 @@ pub enum Commands {
     /// Manage skills
     #[command(alias = "skill")]
     Skills(SkillsArgs),
-    /// Spec-driven development workflow
-    Sdd(SddArgs),
     /// Experimental commands
     X(XArgs),
     /// Developer tools
@@ -126,7 +125,6 @@ pub fn run() -> Result<()> {
     match command {
         Commands::Prompts(args) => handle_prompts_command(&args),
         Commands::Skills(args) => crate::skills::cli::command::run(&args),
-        Commands::Sdd(args) => crate::sdd::command::run(&args),
         Commands::X(args) => handle_x_command(&args),
         Commands::Tool(args) => handle_tool_command(&args),
         Commands::SelfCommand(args) => crate::self_command::run(&args),
@@ -305,26 +303,6 @@ version = "0.1.0"
         )
         .expect("write Cargo.toml");
         assert!(super::is_llman_dev_project_at(temp.path()));
-    }
-
-    #[test]
-    fn test_requires_global_config_sdd_returns_false() {
-        use super::{Commands, RequiresGlobalConfig, SddArgs};
-        use crate::sdd::command::SddCommands;
-        // Create a minimal SddArgs for testing
-        let sdd_args = SddArgs {
-            max_scan_depth: crate::sdd::shared::discovery::DEFAULT_MAX_SCAN_DEPTH,
-            command: SddCommands::List {
-                specs: false,
-                changes: true,
-                sort: "recent".to_string(),
-                json: false,
-                compact_json: false,
-                no_interactive: true,
-            },
-        };
-        let command = Commands::Sdd(sdd_args);
-        assert!(!command.requires_global_config());
     }
 
     #[test]

@@ -9,7 +9,7 @@
   [![](https://img.shields.io/github/actions/workflow/status/straydragon/llman/ci.yaml?style=flat-square&logo=github&label=CI)](https://github.com/straydragon/llman/actions)
   [![](https://img.shields.io/crates/l/llman?style=flat-square&color=blue)](https://github.com/straydragon/llman/blob/main/LICENSE)
 
-  **llm**an — 管 LLM 应用的规则（prompts），也管 AI 时代的开发流程（SDD）
+  **llm**an — 管 LLM 应用的规则（prompts）与 AI 编码工作流小工具
 
 
 </div>
@@ -19,9 +19,28 @@
 llman 是一个面向 AI 编码工作流的 Rust CLI，解决两个日常痛点：
 
 1. **规则漂移** — Cursor 用 `.mdc`、Claude Code 用 `CLAUDE.md`、Codex 用 TOML，提示词各管各的，改一处忘三处。llman 把规则和 skills 收进一个配置库，一条命令生成、同步到各个工具。
-2. **AI 写码没合约** — 让智能体改代码，改得对不对全靠肉眼。`llman sdd`（独立二进制 `llmanspec`）提供 Git-native 的规格驱动开发（SDD）：规格是可执行的 Gherkin `.feature`，变更走 draft → apply → verify → archive 的生命周期，每一步都有 CLI 门禁。
+2. **AI 写码没合约** — 让智能体改代码，改得对不对全靠肉眼。这由姊妹项目 **[llman-sdd](https://github.com/StrayDragon/llman-sdd)** 解决：规格是可执行的 Gherkin `.feature`，变更走 draft → apply → verify → archive 的生命周期，每一步都有 CLI 门禁。
 
-本仓库自己就是用 `llman sdd` 开发的——规格在 [llmanspec/specs/](llmanspec/specs/)，AI 与人共用同一套合约。
+> **迁移说明（v0.0.79）**：原内置的 `llman sdd` 子系统已移出本仓库，重写为独立项目
+> [llman-sdd v2](https://github.com/StrayDragon/llman-sdd)（TypeScript + Bun，
+> npm 包 [`@llman-sdd/cli`](https://www.npmjs.com/package/@llman-sdd/cli)）。
+> 安装后提供 `llman-sdd` / `llmanspec` 两个命令；既有 `llmanspec/` 目录零迁移直接可用。
+> 旧入口 `llman sdd` 已不再内置：未命中内置命令时经 `llman-*` 外部子命令发现
+> **自动委托**给 PATH 上的 `llman-sdd`（argv 原样转发、退出码透传）。
+
+### 三个命令入口怎么选
+
+| 入口 | 状态 | 何时使用 |
+|---|---|---|
+| `llman-sdd <cmd>` | ✅ 主命令 | 日常 SDD 操作一律用它（llman-sdd v2 提供） |
+| `llmanspec <cmd>` | ✅ 等价别名 | 与 `llman-sdd` 同一二进制，按习惯选用 |
+| `llman sdd <cmd>` | 🔁 自动委托 | 非内置命令，经 `llman-*` 发现转发给 `llman-sdd`；未安装时提示找不到 |
+
+> 说明：`llman sdd` 走的是 git 风格外部子命令机制（cli.feature r56）——argv 原样转发、
+> stdio/cwd 继承、退出码透传、`-C/--config-dir` 以 `LLMAN_CONFIG_DIR` 注入子进程。
+> 未安装 llman-sdd 时报 `unrecognized command 'sdd': no llman-sdd executable found on PATH`。
+
+本仓库自身也用 llman-sdd 管理开发流程——规格在 [llmanspec/specs/](llmanspec/specs/)，AI 与人共用同一套合约。
 
 ## 提示词与技能管理
 
@@ -36,28 +55,20 @@ llman skills                         # 把技能同步安装到各 AI 工具
 
 支持 **Cursor** / **Claude Code** / **Codex** 三个应用；`sync-ignore` 还能在它们之间同步 ignore 规则，`llman tool` 另带清理无用注释、清理空目录、管理 AGENTS.md 等开发小工具。
 
-## 规格驱动开发（SDD）
+## 规格驱动开发（SDD）→ 已迁移
 
-一次功能变更被建模成有生命周期的「change」，规格（specs）是单轨的 Gherkin `.feature` 文件——人读得懂，`rstest-bdd` 能执行：
-
-```
-draft [proposal.md]
-  → designed [+design+tasks]
-  → bound [change start]            # 自动绑 sdd/<id> 分支 + base_sha
-  → specs-landed [编辑 .feature]     # 规格先落地，代码后实施
-  → apply → verify → archive
-```
-
-- `@human` 规则由人拥有、哈希锁定，改动需显式确认；
-- `llmanspec validate --all` / `llmanspec review` 是 AI 与人的共同门禁；
-- `llmanspec context` 按任务/文件检索相关规格，给智能体喂准确上下文。
+SDD 工作流不再随 llman 分发，请改用独立项目 llman-sdd v2：
 
 ```bash
-llmanspec init              # 在项目里初始化 llmanspec/（可一并安装 SDD skills）
-llmanspec change new        # 起草一个变更
-llmanspec validate --all    # 校验规格与变更
-llmanspec review            # 人工评审检查点
+npm install -g @llman-sdd/cli
+
+llman-sdd init              # 在项目里初始化 llmanspec/（--update 刷新既有）
+llman-sdd change new        # 起草一个变更
+llman-sdd validate          # 校验规格
+llman-sdd review            # 人工评审检查点
 ```
+
+命令面与数据格式兼容：`llmanspec/` 目录布局（config.yaml / specs/*.feature / changes/）不变，无需任何迁移。详见 <https://github.com/StrayDragon/llman-sdd>。
 
 ## 外部子命令（llman-* 插件）
 
@@ -67,8 +78,8 @@ llmanspec review            # 人工评审检查点
 
 <!-- README:GENERATED version START -->
 ```bash
-# crates.io（llman-core / llman-sdd / gherkin-zh 依赖一并安装）
-cargo install llman --version 0.0.78
+# crates.io（llman-core 依赖一并安装）
+cargo install llman --version 0.0.79
 ```
 <!-- README:GENERATED END -->
 
@@ -76,7 +87,7 @@ cargo install llman --version 0.0.78
 
 ```bash
 git clone https://github.com/StrayDragon/llman && cd llman
-cargo install --path . --bin llman --bin llmanspec
+cargo install --path . --bin llman
 ```
 
 也可从 GitHub tag 直接构建：`cargo install --git https://github.com/StrayDragon/llman --tag v<version>`。需要 nightly 工具链（`rust-toolchain.toml` 会自动切换）。
@@ -90,29 +101,9 @@ cargo install --path . --bin llman --bin llmanspec
 |---|---|
 | `prompts` | Prompt orchestrator (interactive-only) |
 | `skills` | Manage skills |
-| `sdd` | Spec-driven development workflow |
 | `x` | Experimental commands |
 | `tool` | Developer tools |
 | `self` | Self-management commands |
-
-**`llman sdd`**：
-
-| 子命令 | 说明 |
-|---|---|
-| `review` | Aggregate review: pending/manual rules, unbound scenarios, staleness, locked-rule hints and a validate --all sweep (sdd-review r5-r51) |
-| `init` | Initialize llmanspec in your project (use --update to refresh existing) |
-| `list` | List changes or specs |
-| `show` | Show a change or spec |
-| `validate` | Validate changes and specs |
-| `archive` | Archive workflow commands (cold backup). Prefer `sdd change archive` to seal a change |
-| `change` | Change lifecycle: new / start / attach / finalize / archive |
-| `spec` | Spec authoring helpers |
-| `graph` | Generate a change dependency graph |
-| `worktree` | Worktree management commands |
-| `context` | Get specs relevant to a task and/or file paths (agent-oriented) |
-| `index` | Index management commands (rebuild, check freshness) |
-| `config` | Project configuration commands (view/edit config.yaml) |
-| `project` | Project management commands |
 
 **`llman x`**：
 
@@ -131,17 +122,15 @@ cargo install --path . --bin llman --bin llmanspec
 | `sync-ignore` | Sync ignore rules across OpenCode/Cursor/Claude Code |
 | `agents-md` | Manage agent init files (AGENTS.md / CLAUDE.md / .cursor/ etc.) |
 
-> 独立二进制 `llmanspec` ≡ `llman sdd`（参数一致，供不带主 CLI 的场景使用）；`llman self` 提供 schema 生成与 shell 补全。
+> SDD 工作流（原 `llman sdd`）已迁移至独立项目 llman-sdd v2：`npm install -g @llman-sdd/cli`（命令 `llman-sdd` / `llmanspec`）；`llman self` 提供 schema 生成与 shell 补全。
 <!-- README:GENERATED END -->
 
 ## Workspace crates
 
 | crate | 说明 |
 |---|---|
-| [`llman`](https://crates.io/crates/llman) | 主 CLI（`llman` + `llmanspec` 两个二进制） |
+| [`llman`](https://crates.io/crates/llman) | 主 CLI |
 | [`llman-core`](https://crates.io/crates/llman-core) | 配置解析、路径等共享基础件 |
-| [`llman-sdd`](https://crates.io/crates/llman-sdd) | SDD 工作流实现（`llman sdd` / `llmanspec`） |
-| [`gherkin-zh`](https://crates.io/crates/gherkin-zh) | gherkin 0.16 的 fork，补 zh-CN「规则」关键字 |
 
 ## 开发
 
@@ -156,9 +145,9 @@ README 中 `<!-- README:GENERATED ... -->` 标记的段落由 `just readme` 从 
 
 ## 文档
 
-- [AGENTS.md](AGENTS.md) — 项目约定与 SDD 流程
-- [llmanspec/](llmanspec/) — 本仓库的活规格（`llmanspec list --specs` 查看）
-- [NOTICE](NOTICE) — 第三方致谢与许可声明
+- [AGENTS.md](AGENTS.md) — 项目约定与开发流程
+- [llmanspec/](llmanspec/) — 本仓库的活规格（`llman-sdd list --specs` 查看，工具来自 llman-sdd v2）
+- [NOTICE](NOTICE) — 第三方致谢沿革与许可声明
 
 ## 许可证
 
