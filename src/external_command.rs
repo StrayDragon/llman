@@ -61,6 +61,10 @@ fn exit_code_of(status: &std::process::ExitStatus) -> i32 {
 
 fn not_found_message(name: &str) -> String {
     let mut message = t!("ext_subcommand.not_found", name = name).to_string();
+    if name == "sdd" {
+        message.push('\n');
+        message.push_str(&t!("ext_subcommand.sdd_migration_hint"));
+    }
     let discovered = llman_core::ext_subcommand::discover();
     if !discovered.is_empty() {
         let list = discovered

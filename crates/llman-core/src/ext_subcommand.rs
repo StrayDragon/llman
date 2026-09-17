@@ -5,6 +5,11 @@
 //! shebang script, npm sh shim) qualifies on Unix: regular file with any
 //! execute bit. Directory order wins (first PATH hit), matching `which`.
 //!
+//! Beyond `PATH`, well-known package-manager global-bin dirs (bun, pnpm,
+//! npm-custom, user-local) are appended as a fallback so linked dev installs
+//! (e.g. `bun link` shims under `~/.bun/bin`) resolve even when the dir is
+//! absent from `PATH`. `PATH` hits keep precedence.
+//!
 //! The `*_in` variants take explicit directories and are the pure,
 //! env-free test surface; the public functions read the real `PATH`.
 
@@ -25,9 +30,62 @@ pub fn discover() -> Vec<String> {
 }
 
 fn path_dirs() -> Vec<PathBuf> {
-    std::env::var_os("PATH")
+    let from_path: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|paths| std::env::split_paths(&paths).collect())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    let non_empty = |key: &str| -> Option<PathBuf> {
+        std::env::var_os(key)
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+    };
+    let home = non_empty("HOME");
+    let bun_install = non_empty("BUN_INSTALL");
+    let pnpm_home = non_empty("PNPM_HOME");
+    let extras = extra_bin_dirs(
+        home.as_deref(),
+        bun_install.as_deref(),
+        pnpm_home.as_deref(),
+    );
+    merge_dirs(from_path, extras)
+}
+
+/// Well-known package-manager global-bin dirs appended after `PATH`; empty
+/// without a home dir. `$BUN_INSTALL/bin` and `$PNPM_HOME` win over their
+/// hardcoded defaults when set.
+fn extra_bin_dirs(
+    home: Option<&Path>,
+    bun_install: Option<&Path>,
+    pnpm_home: Option<&Path>,
+) -> Vec<PathBuf> {
+    let Some(home) = home else {
+        return Vec::new();
+    };
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    let mut push = |dir: PathBuf| {
+        if !dirs.contains(&dir) {
+            dirs.push(dir);
+        }
+    };
+    if let Some(bun) = bun_install {
+        push(bun.join("bin"));
+    }
+    push(home.join(".bun").join("bin"));
+    if let Some(pnpm) = pnpm_home {
+        push(pnpm.to_path_buf());
+    }
+    push(home.join(".local/share/pnpm"));
+    push(home.join(".npm-global/bin"));
+    push(home.join(".local/bin"));
+    dirs
+}
+
+fn merge_dirs(mut base: Vec<PathBuf>, extra: Vec<PathBuf>) -> Vec<PathBuf> {
+    for dir in extra {
+        if !base.contains(&dir) {
+            base.push(dir);
+        }
+    }
+    base
 }
 
 fn resolve_in(dirs: &[PathBuf], name: &str) -> Option<PathBuf> {
@@ -142,5 +200,70 @@ mod tests {
         write_exec(second.path(), "llman-gamma");
         let dirs = vec![first.path().to_path_buf(), second.path().to_path_buf()];
         assert_eq!(discover_in(&dirs), vec!["alpha", "beta", "gamma"]);
+    }
+
+    #[test]
+    fn extra_bin_dirs_lists_canonical_package_manager_bins() {
+        let home = Path::new("/home/u");
+        assert_eq!(
+            extra_bin_dirs(Some(home), None, None),
+            vec![
+                home.join(".bun/bin"),
+                home.join(".local/share/pnpm"),
+                home.join(".npm-global/bin"),
+                home.join(".local/bin"),
+            ]
+        );
+    }
+
+    #[test]
+    fn extra_bin_dirs_honors_bun_and_pnpm_env_overrides() {
+        let home = Path::new("/home/u");
+        let dirs = extra_bin_dirs(
+            Some(home),
+            Some(Path::new("/opt/bun")),
+            Some(Path::new("/pnpm-home")),
+        );
+        assert_eq!(dirs.first(), Some(&PathBuf::from("/opt/bun/bin")));
+        assert!(dirs.contains(&PathBuf::from("/pnpm-home")));
+    }
+
+    #[test]
+    fn extra_bin_dirs_dedupes_bun_install_matching_default() {
+        let home = Path::new("/home/u");
+        let dirs = extra_bin_dirs(Some(home), Some(home), None);
+        let bun_bin = home.join(".bun/bin");
+        assert_eq!(dirs.iter().filter(|dir| **dir == bun_bin).count(), 1);
+    }
+
+    #[test]
+    fn extra_bin_dirs_empty_without_home() {
+        assert!(extra_bin_dirs(None, Some(Path::new("/opt/bun")), None).is_empty());
+    }
+
+    #[test]
+    fn merge_dirs_appends_extras_after_base_without_duplicates() {
+        let base = vec![PathBuf::from("/a"), PathBuf::from("/b")];
+        let merged = merge_dirs(base, vec![PathBuf::from("/b"), PathBuf::from("/c")]);
+        assert_eq!(
+            merged,
+            vec![
+                PathBuf::from("/a"),
+                PathBuf::from("/b"),
+                PathBuf::from("/c")
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_falls_back_to_bun_bin_when_absent_from_path_dirs() {
+        let home = TempDir::new().unwrap();
+        let bun_bin = home.path().join(".bun/bin");
+        fs::create_dir_all(&bun_bin).unwrap();
+        let expected = write_exec(&bun_bin, "llman-sdd");
+        // Only an unrelated dir is on "PATH"; the plugin lives under <home>/.bun/bin.
+        let path = vec![TempDir::new().unwrap().path().to_path_buf()];
+        let dirs = merge_dirs(path, extra_bin_dirs(Some(home.path()), None, None));
+        assert_eq!(resolve_in(&dirs, "sdd"), Some(expected));
     }
 }

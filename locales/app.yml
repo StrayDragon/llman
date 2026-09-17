@@ -1363,6 +1363,8 @@ self:
 ext_subcommand:
   not_found:
     en: "unrecognized command '%{name}': no llman-%{name} executable found on PATH"
+  sdd_migration_hint:
+    en: "sdd functionality has moved: install `bun/pnpm/npm i -g @llman-sdd/cli`, then `llman sdd` will delegate to it automatically"
   hint:
     en: "discovered llman-* commands: %{list}"
   spawn_failed:
