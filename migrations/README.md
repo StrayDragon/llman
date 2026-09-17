@@ -17,3 +17,5 @@
 | 版本区间 | 破坏性内容 | 升级路径 |
 |----------|-----------|---------|
 | `v0.0.75-v0.0.76` | 移除 `skip_specs_landing` / `checkpointed` / `checkpoint_sha` / `checkpointSha` / `rules_edit_acked` / `baseSha`；stage 三态→四档；`change checkpoint` 退役 | `python3 migrations/v0.0.75-v0.0.76/upgrade_lifecycle_v2.py`（见该目录 README） |
+| `v0.0.77-v0.0.78` | 锁定规则门禁改报告制；移除 frontmatter 字段 `rules_touched` / `agent_acked`；移除 tag `@agent` | `python3 migrations/v0.0.77-v0.0.78/upgrade_lock_gate_report_only.py`（见该目录 README） |
+| `v0.0.78-v0.0.79` | 移除内置 sdd 子系统；`llman sdd` 委托外部 `llman-sdd`（llman-sdd v2 独立发行） | `python3 migrations/v0.0.78-v0.0.79/verify_sdd_external_migration.py`（纯体检，无数据变换；见该目录 README） |
