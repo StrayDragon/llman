@@ -127,7 +127,7 @@ def gen_commands() -> str:
 
     out += [
         "",
-        "> SDD 工作流（原 `llman sdd`）已迁移至独立项目 llman-sdd v2：`npm install -g @llman-sdd/cli`（命令 `llman-sdd` / `llmanspec`）；`llman self` 提供 schema 生成与 shell 补全。",
+        "> SDD 工作流（原 `llman sdd`）已迁移至独立项目 [llman-sdd v2](https://github.com/StrayDragon/llman-sdd)：`npm install -g @llman-sdd/cli`（命令 `llman-sdd` / `llmanspec`）；`llman self` 提供 schema 生成与 shell 补全。",
     ]
     return "\n".join(out)
 
