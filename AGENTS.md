@@ -55,7 +55,7 @@ Cargo equivalents use `cargo +nightly ...`.
 （`llman-sdd validate` / `llman-sdd review` / `llman-sdd show` 等）。llman 仓库内的任何代码
 都不得写入或校验该目录——它是用户数据格式，归 llman-sdd v2 所有。
 
-命令入口约定：日常用 `llman-sdd <cmd>`（或别名 `llmanspec <cmd>`）。`llman sdd <cmd>` 不是
+命令入口约定：日常用 `llman-sdd <cmd>`（旧别名 `llmanspec <cmd>` 已废弃，将随下一个发布移除）。`llman sdd <cmd>` 不是
 内置命令——它经 `llman-*` 外部子命令发现自动委托给 PATH 上的 `llman-sdd`（退出码透传）；
 未安装 llman-sdd 时会报找不到可执行文件。
 

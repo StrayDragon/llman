@@ -23,14 +23,16 @@ llman 是一个面向 AI 编码工作流的 Rust CLI，解决两个日常痛点�
 
 > **迁移说明（v0.0.79）**：内置 `llman sdd` 子系统已拆分为独立项目 [llman-sdd v2](https://github.com/StrayDragon/llman-sdd)（TypeScript + Bun，npm 包 [`@llman-sdd/cli`](https://www.npmjs.com/package/@llman-sdd/cli)）；既有 `llmanspec/` 目录零迁移直接可用。旧入口 `llman sdd` 不再内置，未命中内置命令时**自动委托**给 PATH 上的 `llman-sdd`（机制见「外部子命令」一节）。
 
-### 三个命令入口怎么选
+### 命令入口怎么选
+
+锚定单一口径 **`llman-sdd`**：所有 SDD 文档/脚本一律写 `llman-sdd <cmd>`。
 
 | 入口 | 状态 | 何时使用 |
 |---|---|---|
-| `llman-sdd <cmd>` | ✅ 主命令 | 日常 SDD 操作一律用它（[llman-sdd v2](https://github.com/StrayDragon/llman-sdd) 提供，另有等价别名 `llmanspec`） |
+| `llman-sdd <cmd>` | ✅ 主命令 | 日常 SDD 操作一律用它（[llman-sdd v2](https://github.com/StrayDragon/llman-sdd) 提供） |
 | `llman sdd <cmd>` | 🔁 自动委托 | 非内置命令，经 `llman-*` 发现转发给 [`llman-sdd`](https://github.com/StrayDragon/llman-sdd)；未安装时提示找不到 |
 
-> 未安装 [llman-sdd](https://github.com/StrayDragon/llman-sdd) 时，`llman sdd` 会报 `unrecognized command 'sdd': no llman-sdd executable found on PATH`。
+> 未安装 [llman-sdd](https://github.com/StrayDragon/llman-sdd) 时，`llman sdd` 会报 `unrecognized command 'sdd': no llman-sdd executable found on PATH`。旧别名 `llmanspec` 已废弃，将随下一个发布移除（`llmanspec/` 目录名不受影响）。
 
 本仓库自身也用 [llman-sdd](https://github.com/StrayDragon/llman-sdd) 管理开发流程——规格在 [llmanspec/specs/](llmanspec/specs/)，AI 与人共用同一套合约。
 
@@ -49,7 +51,7 @@ llman skills                         # 把技能同步安装到各 AI 工具
 
 ## 规格驱动开发（SDD）→ 已迁移
 
-SDD 工作流不再随 llman 分发，请改用独立项目 [llman-sdd v2](https://github.com/StrayDragon/llman-sdd)（安装后提供 `llman-sdd` / `llmanspec` 两个命令）：
+SDD 工作流不再随 llman 分发，请改用独立项目 [llman-sdd v2](https://github.com/StrayDragon/llman-sdd)（安装后提供 `llman-sdd` 命令）：
 
 ```bash
 npm install -g @llman-sdd/cli
@@ -114,7 +116,7 @@ cargo install --path . --bin llman
 | `sync-ignore` | Sync ignore rules across OpenCode/Cursor/Claude Code |
 | `agents-md` | Manage agent init files (AGENTS.md / CLAUDE.md / .cursor/ etc.) |
 
-> SDD 工作流（原 `llman sdd`）已迁移至独立项目 [llman-sdd v2](https://github.com/StrayDragon/llman-sdd)：`npm install -g @llman-sdd/cli`（命令 `llman-sdd` / `llmanspec`）；`llman self` 提供 schema 生成与 shell 补全。
+> SDD 工作流（原 `llman sdd`）已迁移至独立项目 [llman-sdd v2](https://github.com/StrayDragon/llman-sdd)：`npm install -g @llman-sdd/cli`（命令 `llman-sdd`）；`llman self` 提供 schema 生成与 shell 补全。
 <!-- README:GENERATED END -->
 
 ## Workspace crates

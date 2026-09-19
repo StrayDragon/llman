@@ -25,7 +25,8 @@
    ```
 5. **人工处理项**（无法自动处理，MUST 人工确认）：
    - `llmanspec/` 数据目录现归外部 llman-sdd v2 所有：校验/审查请改用
-     `llman-sdd validate` / `llman-sdd review`（别名 `llmanspec <cmd>` 同样可用）。
+     `llman-sdd validate` / `llman-sdd review`（旧别名 `llmanspec <cmd>` 已废弃，
+     将随下一个发布移除；`llmanspec/` 目录名不受影响）。
    - 依赖 llman 内置 sdd 实现的脚本或 CI，需改为直接调用 `llman-sdd`。
    - 通过 `bun link` 链接的开发版 `llman-sdd` 即使 `~/.bun/bin` 不在 PATH 上
      也能被自动发现（v0.0.79 新增包管理器 bin 目录回退）。
