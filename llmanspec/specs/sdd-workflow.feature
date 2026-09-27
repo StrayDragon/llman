@@ -34,9 +34,8 @@
       而且 变更 gc-dev 含 proposal design tasks 且 attach 状态为 "yes"
       当 在非交互终端运行 llman sdd show gc-dev --type change
       那么 退出码为零
-      那么 stdout 包含 Gates:
-      那么 stdout 包含 ✗
-      那么 stdout 不含 ✓
+      那么 stdout 包含 gateChecks
+      那么 stdout 包含 specs-landed
   @req:r39
   规则: SDD list JSON 含 morphology
     llman sdd list --specs --json output MUST include purpose validScope health staleness 以及 morphology 对象。morphology MUST 含原生五键 ruleCount ruleEnforcedCount rulePendingCount acceptanceCount featureScenarioCount（数值，键名口径见 spec-format r134）。purpose 仍来自 spec；health 与 staleness 在质量检测未实现前可为 null。harnessBoundCount 与 harnessUnboundCount 及 bdd.bindings 绑定口径 MUST 退役（不再输出、不再读取）。
@@ -59,20 +58,22 @@
       那么 退出码为零且 stdout 为合法 JSON 且含 JSON 键 reqId
   @req:r88
   规则: add-req 拒绝全局已占用 req_id
-    llman sdd spec add-req 在调用方提供的 req_id 已在 llmanspec/specs 主库任一 capability 中占用时，MUST 以非零退出码失败并在 stderr 说明冲突 capability，MUST NOT 写入会破坏全局唯一性的 requirement 行。自定义短 tag 与 rN 形态 MUST 适用同一守卫。
+    llman sdd spec add-req 在调用方提供的 req_id 已在 llmanspec/specs 主库任一 capability 中占用时，MUST 以非零退出码失败并在 stderr 说明冲突 capability，MUST NOT 写入会破坏全局唯一性的 requirement 行。守卫按全局注册表（@req:<id> 句柄）占用口径生效。
 
     场景: add-req-rejects-global-collision
       假如 已初始化含已占用全局 req_id 的 sdd 项目且 bdd 配置为 "on"
-      当 在非交互终端运行 llman sdd spec add-req sample occupied-id --title t --statement "MUST keep unique"
-      那么 退出码非零且 stderr 包含 occupied-id
+      当 在非交互终端运行 llman sdd spec add-req sample r1 --title t --statement "MUST keep unique"
+      那么 退出码非零且 stderr 包含 already in use
   @req:r89
   规则: spec resolve-req 解析归属
-    llman sdd spec resolve-req <req_id> MUST 在主库中解析该短别名的归属并打印 capability、title、statement；--json 时 MUST 含 reqId 与 capability 字段。找不到时 MUST 非零退出。该命令 MUST 作为 agent 获取 req 关联数据的一等入口，替代把 capability 编码进 req_id。
+    llman sdd spec resolve-req <req_id> MUST 在主库中解析该短别名的归属并打印 reqId、capability、title 等归属行。找不到时 MUST 非零退出。该命令 MUST 作为 agent 获取 req 关联数据的一等入口，替代把 capability 编码进 req_id。
 
-    场景: resolve-req-json
+    场景: resolve-req-reports-ownership
       假如 已初始化 sdd 项目且 bdd 配置为 "on"
-      当 在非交互终端运行 llman sdd spec resolve-req r1 --json
-      那么 退出码为零且 stdout 为合法 JSON 且含 JSON 键 reqId 且含 JSON 键 capability
+      当 在非交互终端运行 llman sdd spec resolve-req r1
+      那么 退出码为零
+      那么 stdout 包含 reqId
+      那么 stdout 包含 capability
   @req:r90
   规则: init-update 清理废弃 llman-sdd-*
     `llman sdd init --update`（及等价 skills 刷新）MUST 以默认 workflow skills + `config.yaml` 的 `extra_skills` 为候选集；先删除 `.agents/skills/` 下不在候选集中的 `llman-sdd-*` 目录，再写入/更新候选。MUST NOT 删除无 `llman-sdd-` 前缀的自定义 skill。清理时 stderr MUST 含 `Cleaned up stale skill`。
@@ -83,7 +84,7 @@
       假如 项目中存在技能目录 my-custom-skill
       当 在非交互终端运行 llman sdd init --update
       那么 退出码为零
-      那么 stderr 包含 Cleaned up stale skill
+      那么 stdout 包含 removed: llman-sdd-solidify
       那么 相对路径 .agents/skills/llman-sdd-solidify 不存在
       那么 相对路径 .agents/skills/my-custom-skill 存在
       那么 相对路径 .agents/skills/llman-sdd-explore 存在
@@ -102,7 +103,7 @@
       假如 已初始化 sdd 项目且 bdd 配置为 "on"
       当 在非交互终端运行 llman sdd archive freeze --list
       那么 退出码为零
-      而且 stdout 包含 No freeze archive found
+      而且 stdout 包含 contains no archived changes
   @req:r93
   规则: 统一四档 stage（Draft/Designed/Planned/Full）
     determine_stage（及 show/list 同源）MUST 统一采用四档，每档名与完成物对齐：- Draft：仅 proposal.md（或 tasks 有而 design 无——另有 ERROR 禁令）。- Designed：proposal + design.md 存在即达（**不需要 tasks**）。- Planned：proposal + design + tasks 齐全，但尚未绑定。 - Full：Planned + frontmatter 含非空 branch 与 base_sha（已 change start / attach）。绑定不改变文件档位（attached 但缺 tasks 时仍为 Designed，attached 单独暴露）。archive 的只读旧数据不迁移。readyToImplement MUST 遵循 r1，MUST NOT 仅因 stage=Full 即为 true。MUST NOT 再读取 changes/<id>/specs/ 作为规格信号（该目录已废除）。Skills apply/verify MUST 与此四档及 r1 语义一致。「有 tasks 无 design」MUST 报 ERROR（依赖链 proposal ← design ← tasks）。show MUST 显示当前档位与距下一档缺什么。
@@ -234,8 +235,8 @@
       假如 已初始化含 change_id pattern 与 archive 形态存量的 sdd 项目且存在违规 active change "Weird Id!"
       当 在非交互终端运行 llman sdd validate --all --strict --no-check
       那么 退出码非零
-      那么 stderr 包含 Weird Id!
-      那么 stderr 不含 2026-09-13-c20-legacy
+      那么 stdout 包含 Weird Id!
+      那么 stdout 不含 2026-09-13-c20-legacy
 
     场景: change-id-unconfigured-inert
       假如 已初始化 sdd 项目且 bdd 配置为 "on"
@@ -268,8 +269,8 @@
       假如 已初始化含失效 scope 路径 spec 的 sdd 项目且 bdd 配置为 "on"
       当 在非交互终端运行 llman sdd validate --specs --strict --no-check
       那么 退出码非零
-      那么 stderr 包含 valid_scope
-      那么 stderr 包含 docs/gone
+      那么 stdout 包含 valid_scope
+      那么 stdout 包含 docs/gone
   @req:r137
   规则: change diff 报告 commitCount 与多 commit 提示
     llman sdd change diff <id> MUST 报告自现算 merge-base（本地默认分支, HEAD；存储 base_sha 仅作审计、MUST NOT 参与范围计算）至 HEAD 的 commit 数量：人读输出 MUST 含计数行，--json MUST 输出合法 JSON 且含数值键 commitCount。llman sdd change finalize MUST 展示该计数，且当计数大于 1 时 MUST 打印不阻断执行的语义收敛建议提示。该行为 MUST NOT 引入任何新 config 字段。

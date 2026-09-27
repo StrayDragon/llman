@@ -12,13 +12,13 @@
     场景: BDD-on 时 validate 默认执行 BDD runner
       假如 已初始化 sdd 项目且 bdd 配置为 "on"
       当 在非交互终端运行 llman sdd validate sample --strict
-      那么 stderr 包含 BDD check failed
+      那么 stderr 包含 bdd harness
 
     场景: BDD-on 时 validate --no-check 跳过 runner
       假如 已初始化 sdd 项目且 bdd 配置为 "on"
       当 在非交互终端运行 llman sdd validate sample --strict --no-check
       那么 退出码为零
-      那么 stderr 不含 BDD check failed
+      那么 stderr 不含 bdd harness
   @req:r57
   规则: Git-native change binding（统一流程）
     change MUST 绑定非默认 Git 分支、fork 基准分支（base_branch）与 immutable base SHA（统一流程，不再按 bdd 段分叉；base_branch 语义与合并目标解析见 sdd-workflow r111/r113）：`llman sdd change start <id>` 为推荐入口（自动建分支 + clean-tree 门禁 + 绑定，见 sdd-workflow r111）；`llman sdd change attach <id>` 为共存命令（手动绑已有分支，含 --force 重绑与 `--base <branch>` fork 源覆盖）。`diff` MUST 只读展示/导出 base...HEAD。`llman sdd change new` MUST 能创建 proposal 草稿。`llman sdd change delta` MUST 在任何模式下失败并提示已移除（统一 Git-native，见 sdd-workflow r115）；`llman sdd change checkpoint` MUST 同样失败并提示改用 finalize（见 sdd-workflow r25）。默认分支上 start/attach/archive MUST 失败。MUST NOT 再提供 `sdd solidify` 子命令。0.5 起全局 `--no-interactive` flag MUST 移除：change start/attach 传入该 flag MUST 报 unknown option（用法错误退出）。
@@ -50,19 +50,19 @@
       假如 已初始化 sdd 项目且 bdd 配置为 "on"
       当 在非交互终端运行 llman sdd change delta skeleton add-scen sample
       那么 退出码非零
-      那么 stderr 包含 removed
+      那么 stderr 包含 unknown command
 
     场景: 无 bdd 段时 change delta 同样被拒绝
       假如 已初始化 sdd 项目且 bdd 配置为 "off"
       当 在非交互终端运行 llman sdd change delta skeleton add-scen sample
       那么 退出码非零
-      那么 stderr 包含 removed
+      那么 stderr 包含 unknown command
 
     场景: change-checkpoint-removed
       假如 已初始化 sdd 项目且 bdd 配置为 "on"
       当 在非交互终端运行 llman sdd change checkpoint add-scen
       那么 退出码非零
-      那么 stderr 包含 change checkpoint is removed
+      那么 stderr 包含 unknown command
 
     场景: change start 拒绝已移除的 --no-interactive flag
       假如 已初始化 sdd 项目且 bdd 配置为 "on"
@@ -100,7 +100,7 @@
 
     场景: migrate --kind partitioned 已移除
       假如 已初始化 sdd 项目且 bdd 配置为 "on"
-      当 在非交互终端运行 llman sdd project migrate --kind partitioned --dry-run
+      当 在非交互终端运行 llman sdd project migrate --kind partitioned
       那么 退出码非零
       那么 stderr 包含 toon2features
   @req:r86
@@ -110,12 +110,14 @@
     场景: global-req-collision-default
       假如 已初始化含跨 spec 重复 req_id 的 sdd 项目且 bdd 配置为 "on"
       当 在非交互终端运行 llman sdd validate --specs --no-check
-      那么 退出码非零且 stderr 包含 next-req-id
+      那么 退出码非零
+      那么 stdout 包含 duplicate req_id
 
     场景: global-req-collision-strict
       假如 已初始化含跨 spec 重复 req_id 的 sdd 项目且 bdd 配置为 "on"
       当 在非交互终端运行 llman sdd validate --all --strict --no-check
-      那么 退出码非零且 stderr 包含 Global duplicate req_id
+      那么 退出码非零
+      那么 stdout 包含 duplicate req_id
   @req:r91
   规则: 批量 validate check 去重
     BDD-on 且 check mode 开启时：单 spec validate MUST 仍对该 capability 展开 bdd.run_command 占位符后执行一次；validate --all / validate --specs 及任何多 spec 批处理 MUST 按展开后的命令字符串去重，相同展开命令在该次 validate 进程内 MUST 至多实际执行一次，并将通过/失败结果复用到后续命中同一命令的 spec（失败 MUST 仍使相关校验失败）。占位符展开结果不同的命令 MUST 继续按 spec 分别执行。

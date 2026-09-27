@@ -80,7 +80,7 @@ bdd.when('在非交互终端运行 llman {args:rest}', (ctx, params) => {
 
 bdd.then('退出码为零', (ctx) => {
   if (lastRun(ctx).code !== 0) {
-    throw new Error(`expected exit 0, got ${lastRun(ctx).code}\nstderr: ${lastRun(ctx).stderr}`);
+    throw new Error(`expected exit 0, got ${lastRun(ctx).code}\nstderr: ${lastRun(ctx).stderr}\nstdout: ${lastRun(ctx).stdout}`);
   }
 });
 

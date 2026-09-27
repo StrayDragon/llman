@@ -47,8 +47,12 @@ jobs:
         uses: extractions/setup-just@v4
 
       # tests/bdd (Gherkin BDD suite, bun bridge) — zero npm deps, bun only.
+      # llman-sdd is installed so the sdd-* contract scenarios execute; CI
+      # pins the minor line to keep contract verification deterministic.
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
+      - name: Install llman-sdd
+        run: bun add -g @llman-sdd/cli@^0.5.0
 
       - name: Check all
         run: just check-all

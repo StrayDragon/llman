@@ -13,7 +13,7 @@
     `just check-all` MUST execute `just check-schemas` so generated JSON schemas and sample configs remain valid and usable.
   @req:r59
   规则: Gherkin BDD 套件绑定可执行场景
-    仓库 MUST 维护 tests/bdd 下的 Gherkin BDD 套件（bun 桥，零 npm 依赖）：以受控环境（隔离 HOME 与 LLMAN_CONFIG_DIR、PATH 剔除宿主插件）驱动构建出的 llman 二进制子进程，执行 llmanspec/specs 中已绑定步骤定义的嵌套场景；未绑定 feature MUST NOT 被执行（以 allowlist 显式声明）。just bdd MUST 先构建调试二进制再运行套件，并接入 check-all 与 CI。
+    仓库 MUST 维护 tests/bdd 下的 Gherkin BDD 套件（bun 桥，零 npm 依赖）：以受控环境（隔离 HOME 与 LLMAN_CONFIG_DIR、PATH 剔除宿主插件）驱动构建出的 llman 二进制子进程，执行 llmanspec/specs 中全部嵌套场景（绑定集以 allowlist 显式声明）；依赖真实 llman-sdd 的 sdd-* 合约场景在其二进制缺失时 MUST 整体跳过（CI MUST 安装 @llman-sdd/cli 0.5.x 以全量执行）。just bdd MUST 先构建调试二进制再运行套件，并接入 check-all 与 CI。
 
 
     场景: bdd-suite-runs-bound-scenarios-green

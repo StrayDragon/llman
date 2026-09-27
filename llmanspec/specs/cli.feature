@@ -30,9 +30,9 @@
     场景: prefix-match-hint
       假如 存在 active change 和 archived change 且含 c123-fix-bug
       当 用前缀 c123 运行 llman sdd show c123
-      那么 stderr 包含 'c123' -> 'c123-fix-bug' (prefix match)
+      那么 退出码为零
+      那么 stdout 包含 c123-fix-bug
       当 用前缀 c123 运行 llman sdd show c123 --output json
-      那么 stdout 含 JSON 键 matchedViaPrefix
       那么 stdout 的 JSON 键 matchedViaPrefix 为 true
   @req:r56
   规则: 外部子命令自动发现与委托

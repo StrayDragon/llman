@@ -159,13 +159,19 @@ function parseFeature(path: string): ParsedFeature {
 // bun:test bridge
 // ---------------------------------------------------------------------------
 
-export function runFeature(path: string, makeContext: () => TestContext, include?: RegExp): void {
+export function runFeature(
+  path: string,
+  makeContext: () => TestContext,
+  include?: RegExp,
+  skipIf?: () => boolean,
+): void {
   const feature = parseFeature(path);
+  const t = skipIf?.() ? test.skip : test;
   describe(feature.name || path, () => {
     for (const scenario of feature.scenarios) {
       if (include && !include.test(scenario.name)) continue;
       if (scenario.tags.some((t) => /@skip|@experimental/.test(t))) continue;
-      test(scenario.name, async () => {
+      t(scenario.name, async () => {
         const ctx = makeContext();
         for (const step of scenario.steps) {
           const { def, params } = resolveStep(step.kind, step.text);

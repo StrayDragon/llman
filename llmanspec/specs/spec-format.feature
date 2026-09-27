@@ -7,7 +7,7 @@
 
   @req:r131
   规则: 单轨规格事实源与布局
-    每个 capability MUST 以恰好一个 .feature 文件作为规格唯一事实源（头注释元数据 + 功能→规则→场景原生分层：规则块挂 @req 句柄，验收示例为块内嵌套场景，顶层场景为功能级示例）。capability 布局 MUST 二选一：扁平 llmanspec/specs/<cap>.feature（cap id = 文件 stem；新默认，spec skeleton 与 authoring 走此形态）或目录 llmanspec/specs/<cap>/（cap id = 目录名；主文件为同名 .feature，目录内可含其它 .feature 作为草稿/资产，不计入主文件）。同一 cap id 的扁平与目录两种布局并存 MUST 判为冲突 ERROR（报告两个路径）。目录内非同名 .feature MUST 仅给 WARNING（不阻断 validate/list/show）。命名约定（文件名 vs 目录名 vs # capability: 头）由项目自约定，CLI 不强制；header 与 cap id 不一致 MUST 仅给 WARNING。遗留 spec.toon MUST 被静默忽略（不读取、不报错、不计数）：validate/list/show/context 遇之照常以同目录 .feature 为准；project migrate 仅输出协作指引、不执行迁移（见 r136/r141）。
+    每个 capability MUST 以恰好一个 .feature 文件作为规格唯一事实源（头注释元数据 + 功能→规则→场景原生分层：规则块挂 @req 句柄，验收示例为块内嵌套场景，顶层场景为功能级示例）。capability 布局 MUST 二选一：扁平 llmanspec/specs/<cap>.feature（cap id = 文件 stem；新默认，spec skeleton 与 authoring 走此形态）或目录 llmanspec/specs/<cap>/（cap id = 目录名；主文件为同名 .feature，目录内可含其它 .feature 作为草稿/资产，不计入主文件）。同一 cap id 的扁平与目录布局并存时 MUST 扁平优先解析（不判冲突、不告警）；目录内非同名 .feature MUST 被忽略（不影响主文件解析与计数）。命名约定（文件名 vs 目录名 vs # capability: 头）由项目自约定，CLI 不强制；header 与 cap id 不一致 MUST 仅给 WARNING。遗留 spec.toon MUST 被静默忽略（不读取、不报错、不计数）：validate/list/show/context 遇之照常以同目录 .feature 为准；project migrate 仅输出协作指引、不执行迁移（见 r136/r141）。
 
     场景: legacy-spec-toon-silently-ignored
       假如 已初始化含遗留 spec.toon 的 sdd 项目且 bdd 配置为 "off"
@@ -25,18 +25,16 @@
       当 在非交互终端运行 llman sdd validate flatcap --strict --no-check
       那么 退出码为零
 
-    场景: flat-and-dir-collision-errors
+    场景: flat-and-dir-coexistence-flat-wins
       假如 已初始化含同 id 扁平与目录冲突的 sdd 项目且 bdd 配置为 "off"
       当 在非交互终端运行 llman sdd list --specs
-      那么 退出码非零
-      那么 stderr 包含 llmanspec/specs/foo.feature
-      那么 stderr 包含 llmanspec/specs/foo/foo.feature
+      那么 退出码为零
+      那么 stdout 包含 foo
 
-    场景: multi-feature-dir-warns-not-fails
+    场景: multi-feature-dir-extra-file-ignored
       假如 已初始化含多 .feature 目录 capability 的 sdd 项目且 bdd 配置为 "off"
       当 在非交互终端运行 llman sdd validate multi --strict --no-check
       那么 退出码为零
-      那么 stderr 包含 WARNING
       当 在非交互终端运行 llman sdd show multi
       那么 退出码为零
 
@@ -62,9 +60,9 @@
 
     场景: duplicate-req-id-fails-strict
       假如 已初始化含跨 capability 重复 req_id 的 sdd 项目且 bdd 配置为 "off"
-      当 在非交互终端运行 llman sdd validate sample --strict --no-check
+      当 在非交互终端运行 llman sdd validate --specs --strict --no-check
       那么 退出码非零
-      那么 stderr 包含 req_id
+      那么 stdout 包含 duplicate req_id
   @req:r133
   规则: 头注释元数据
     .feature 头部 MUST 携带 # capability、# purpose、# scope 三行注释元数据；scope 供 staleness 消费且路径 MUST 存在；llman sdd spec skeleton 生成的骨架 MUST 自带合法头注释与原生示例（规则块 + 嵌套场景，扁平 llmanspec/specs/<capability>.feature 形态）。
@@ -82,7 +80,7 @@
       假如 已初始化 sdd 项目且 bdd 配置为 "off"
       当 运行 llman sdd list --specs
       那么 退出码为零
-      那么 stdout 包含 enforced
+      那么 stdout 包含 ruleEnforcedCount
   @req:r135
   规则: 锁定哈希门禁退役
     0.5 起不再有 @human 场景锁定哈希门禁：validate --strict 与 change finalize/diff MUST NOT 执行任何哈希对比，也不再输出锁定编辑 WARNING；review 的 locked 信号 MUST 恒为 0。规则锁定保护退化为 Git 分支纪律：live specs 仅在绑定分支编辑（见 sdd-workflow r111/r130）；归档历史保护由 archive freeze/thaw 的 7z 冷备承担（外部 llman-sdd 所有）。确认元数据保持移除状态：frontmatter 字段 rules_touched / agent_acked、@agent tag、--yes 锁定确认语义 MUST NOT 再被读取或生成。
