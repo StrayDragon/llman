@@ -1,7 +1,7 @@
 //! External subcommand delegation (cli.feature r56): `llman <name>` resolves
 //! `llman-<name>` on PATH and forwards argv/env/stdio/cwd/exit-code to the
 //! plugin process. Fixtures are executable shell scripts in a TempDir that
-//! is prepended to the child PATH.
+//! backs the child PATH; the real machine's PATH is never inherited.
 
 #![cfg(unix)]
 
@@ -29,10 +29,16 @@ fn run_llman_with_plugin_path(plugin_dir: &Path, args: &[&str]) -> Output {
     run_llman_with_home(plugin_dir, None, args)
 }
 
-/// Run `llman` with the plugin dir prepended to PATH and package-manager env
-/// vars pointed away from the real machine: discovery must not pick up real
-/// `~/.bun/bin` etc., so plugin assertions stay deterministic. `home=None`
-/// creates a fresh empty home.
+/// System dirs trailing the fixture plugin dir in the child PATH. User-local
+/// bin dirs (cargo/bun/npm/fnm global installs) are deliberately excluded:
+/// a dev machine following the SDD workflow has a real `llman-sdd` on PATH,
+/// and the not-found assertions need an empty discovery surface.
+const SYSTEM_PATH_DIRS: &str = "/usr/bin:/bin";
+
+/// Run `llman` with a fully controlled PATH (`plugin_dir` + system base) and
+/// package-manager env vars pointed away from the real machine: discovery
+/// must not pick up host plugins from `~/.bun/bin` etc., so plugin
+/// assertions stay deterministic. `home=None` creates a fresh empty home.
 fn run_llman_with_home(plugin_dir: &Path, home: Option<&Path>, args: &[&str]) -> Output {
     let isolated_home;
     let home = match home {
@@ -42,11 +48,7 @@ fn run_llman_with_home(plugin_dir: &Path, home: Option<&Path>, args: &[&str]) ->
             isolated_home.path()
         }
     };
-    let path_value = format!(
-        "{}:{}",
-        plugin_dir.display(),
-        std::env::var("PATH").unwrap_or_default()
-    );
+    let path_value = format!("{}:{}", plugin_dir.display(), SYSTEM_PATH_DIRS);
     run_llman_with_path_env(&path_value, home, args)
 }
 
