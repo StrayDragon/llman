@@ -31,7 +31,7 @@
       假如 llman 二进制已构建
       当 在非交互终端运行 llman sdd show
       那么 退出码为 1
-      那么 stderr 包含 Nothing to show
+      那么 stderr 包含 Error
 
     场景: 查看不存在的 spec 时正常报错而非 panic
       假如 llman 二进制已构建

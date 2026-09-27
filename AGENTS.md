@@ -31,6 +31,7 @@ This project targets Rust edition 2024 and uses the nightly toolchain.
 - `just release`: git-tag 分发——打 `v<version>` tag 并推送（安装方式：`cargo install --git https://github.com/StrayDragon/llman --tag v<version>`）。
 - `just test`: run the full test suite (`cargo nextest run --profile ci` when `cargo-nextest` is installed; otherwise `cargo test`). Config: `.config/nextest.toml`.
 - `just check`: format check, lint, and tests.
+- `just bdd`: build the debug binary and run the Gherkin BDD suite (`tests/bdd/`, bun bridge, zero npm deps) over the bound nested scenarios in `llmanspec/specs/`; wired into `check-all` and CI.
 - `just check-all`: check plus docs (`RUSTDOCFLAGS=-D warnings`), release build, and README managed-section checks.
 - `just readme` / `just check-readme`: regenerate / verify the README sections marked `<!-- README:GENERATED ... -->` (install version + command tables, sourced from CLI `--help` and `Cargo.toml`); run `just readme` after changing the CLI surface or bumping the version.
 - `just fmt` / `just lint`: rustfmt and clippy.

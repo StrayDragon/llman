@@ -86,6 +86,12 @@ clean:
 test:
     if command -v cargo-nextest >/dev/null; then cargo nextest run --workspace --profile ci --cargo-quiet --status-level fail --final-status-level fail && cargo test --doc --workspace -q; else cargo test --workspace -q; fi
 
+# Gherkin BDD 套件（tests/bdd，bun 桥）：执行 llmanspec/specs 中已绑定步骤
+# 定义的嵌套场景。需要 bun（https://bun.sh）；零 npm 依赖，无需 install。
+bdd:
+    cargo build -q
+    bun test tests/bdd
+
 # =============================================================================
 # 代码质量检查
 # =============================================================================
@@ -114,7 +120,7 @@ doc-check:
 check: fmt-check lint test
 
 # 完整检查（核心检查 + 文档 + release构建 + README 托管段一致性）
-check-all: check doc-check build-release check-schemas check-readme
+check-all: check doc-check build-release check-schemas check-readme bdd
 
 # 本地质量审计：完整检查 + i18n 键审计 + 未用依赖扫描 + 供应链审计
 #（覆盖 CI 全部 job：Test Suite=check-all、Build Check=build-release、
