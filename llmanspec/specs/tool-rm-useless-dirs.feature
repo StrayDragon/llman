@@ -8,6 +8,18 @@
   @req:r37
   规则: 命令别名与整棵树生效的 protected 目录
     对应 spec: tool-rm-useless-dirs — CLI MUST 暴露 rm-useless-dirs 主命令，rm-empty-dirs 为 废弃别名（触发同行为并告警）；protected 目录 basenames MUST 在整棵扫描树生效（不删、不遍历）。
+
+    场景: rm-useless-dirs-alias-surface
+      假如 含注释 python 文件与空目录的临时项目
+      当 运行 llman tool rm-empty-dirs
+      那么 退出码为零
+      那么 相对路径 empty-junk 不存在
   @req:r70
   规则: useless 列表移除、列表可配置、legacy 键拒绝与 gitignore 解析
     对应 spec: tool-rm-useless-dirs — useless allowlist 目录即使非空也 MUST 移除；protected/useless 列表可经 tools.rm-useless-dirs 配置（mode: extend/override）；legacy 配置键 MUST 被拒绝； 默认 gitignore MUST 基于扫描目标所属仓库/目标自身解析（而非调用者 CWD）。
+
+    场景: rm-useless-dirs-removes-empty-dirs
+      假如 含注释 python 文件与空目录的临时项目
+      当 运行 llman tool rm-useless-dirs
+      那么 退出码为零
+      那么 相对路径 empty-junk 不存在

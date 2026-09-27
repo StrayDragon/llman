@@ -26,7 +26,13 @@
       那么 stdout 为 HOME 下的默认配置目录
   @req:r46
   规则: context 索引写入 .context 目录
-    The CLI MUST store the embedding index under `<config-dir>/.context/` (overridable by `LLMAN_CONTEXT_DIR`), containing metadata.toml, vectors.bin, specs.json, and optional chunks.json as specified for context indexing.
+    embedding 索引的存储布局（`<config-dir>/.context/` 下 metadata.toml、vectors.bin、specs.json、可选 chunks.json，`LLMAN_CONTEXT_DIR` 可覆盖）自 0.0.79 起属外置 `llman-context` 插件契约；`llman` 侧 MUST 保证插件缺席时委托报错且不产生任何部分目录写入。
+
+    场景: context-plugin-absence-no-partial-writes
+      假如 临时工作目录
+      当 运行 llman context --task 检索规格
+      那么 退出码非零
+      那么 相对路径 .context 不存在
   @req:r72
   规则: 非法路径报错与安全 IO 边界
     The resolver MUST error on empty/whitespace CLI/env paths without creating directories. `read_with_max_size` MUST reject oversized files (default 10 MiB). Atomic writes MUST delete a symlink target first rather than following it.

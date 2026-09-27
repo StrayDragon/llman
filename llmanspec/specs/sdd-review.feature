@@ -18,7 +18,13 @@
       那么 stdout 包含 stale
   @req:r6
   规则: 零配置契约
-    v1 MUST NOT 引入任何 config.yaml 新字段；上述信号默认全部启用；无项目 config 时 MUST 以明确错误退出而非静默空结果。
+    v1 MUST NOT 引入任何 config.yaml 新字段；上述信号默认全部启用；无项目 config.yaml 时 MUST 以缺省配置正常聚合（零配置可用），MUST NOT 静默空结果或报配置缺失错误。
+
+    场景: review-without-config-still-aggregates
+      假如 已初始化无 config.yaml 的 sdd 项目
+      当 运行 llman sdd review
+      那么 退出码为零
+      那么 stdout 包含 signals
   @req:r20
   规则: 退出码策略
     存在 CRITICAL 级发现（validate sweep 的 FAIL 清单：结构门 ERROR、规则缺 @req、全局重复 req_id 等，见 spec-format r132）MUST 以非零退出码结束；仅 WARNING/pending 类发现 MUST 退出零。退出码策略 MUST 供 CI 与 agent 门禁直接复用。

@@ -11,6 +11,19 @@
 保留此托管块，便于 `llman-sdd init --update` 刷新。
 <!-- LLMANSPEC:END -->
 
+# 可选增强能力
+
+SDD 流水线之外提供以下可选增强能力（经 `llmanspec/config.yaml` 的 `extra_skills` 启用），触发条件索引：
+
+- **explore grilling**：用户说『深挖』『grill』『逐个问』时进入逐问深对齐分支。
+- **apply diagnose**：apply 自修复循环失败时升级 red-capable 命令 + 假设排序的 diagnose 子流程。
+- **verify 双轴**：Spec 轴与 Standards 轴（AGENTS.md coding style + Fowler smell baseline）分离审查。
+- **arch-review**：说『架构审查』『deepening』『shallow module』时扫描薄模块产出加深候选。
+- **wayfinder**：大型雾状工作的 decision ticket map 规划（仅用户显式调用）。
+- **research**：后台 agent 外部文献调研，引用回写 proposal Further Notes。
+
+词汇约定：`seam` = GWT 步骤驱动的公共边界；`depth`/`shallow module` 沿用 codebase-design 语义，不与 llman 已有词汇双轨。
+
 # Repository Guidelines
 
 ## Project Structure and Module Organization

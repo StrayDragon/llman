@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/add-executable-acceptance-batch2
+base_branch: main
+base_sha: 6b84d2fe46e0928f4128825feca901a23a3a8607
 ---
 
 ## Why

@@ -8,15 +8,35 @@
   @req:r32
   规则: SDD 技能结构化提示协议含原生分层 SSOT
     llman SDD 的技能模板 MUST 采用统一结构化提示协议（Context/Goal/Constraints/Workflow/Decision Policy/Output Contract），并通过模板单元注入组装。Constraints MUST 含 context-first 与 triage。propose/archive/apply/verify/explore 技能 MUST 描述 Git-native 单轨 SSOT：.feature 以原生分层为唯一规格事实源（规则块挂 @req 句柄 + 嵌套场景验收）、在绑定分支编辑 live 文件并用 change start/attach/finalize 收口、禁止教导 feature_delta 或 solidify 或任何 toon 投影覆盖 feature。
+
+    场景: propose-skill-describes-native-ssot
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      那么 渲染技能 llman-sdd-propose 内容包含 change start
+      那么 渲染技能 llman-sdd-propose 内容包含 --help
   @req:r65
   规则: propose 与 archive 技能对齐 Git-native
     llman-sdd-propose 与 llman-sdd-archive 技能 MUST 声明：在绑定分支编辑 live `<capability>.feature`，finalize/docs-only archive 自动合并收口；禁止要求 agent 双写可执行 GWT 或运行 solidify。Git merge 的默认叙事 MUST 为本地 `git merge`（ff-only）进默认分支；skill 正文 MUST NOT 默认导向 `git push` 或 Hosting PR（`gh pr create/merge`）——仅当用户或项目明确要求远程审查时才作为可选步骤出现。apply-cycle 单元与模板 MUST 遵守同一默认叙事。
+
+    场景: propose-archive-skills-git-native-narrative
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      那么 渲染技能 llman-sdd-propose 内容包含 change start
+      那么 渲染技能 llman-sdd-archive 内容包含 finalize
   @req:r96
   规则: Skill 模板按 BDD 模式条件渲染
     SDD skill 模板 MUST 经 MiniJinja 按项目 bdd_enabled（config 是否含 bdd:）条件渲染：BDD-on 产物的 propose/apply/verify/archive/explore description 与正文 MUST NOT 将 change 内 delta specs 表述为主要规划产物，MUST 以 feature 分支 live `<capability>.feature` 加 attach/finalize 为主路径；BDD-off 与 BDD-on 统一 Git-native 收尾（change start/attach → finalize/archive）；bdd: 仅影响 runner。对 optional skills（continue/ff/validate/new-change/arch-review/wayfinder/research）的「下一步」推荐 MUST 仅在 config.extra_skills 包含对应项时出现，否则 MUST 给出不依赖该 skill 的替代指引。渲染产物 MUST 保留 per-skill 导航 mermaid（flowchart LR，当前阶段★高亮，含一行位置/下一步文字）；权威 Git-native 生命周期 mermaid 图 MUST 仅保留在 llman-sdd-propose 渲染产物与根 AGENTS.md。sdd-commands 等共享单元 SHOULD 按模式裁剪无关命令行。
+
+    场景: optional-skills-next-step-recommendation
+      假如 已启用可选技能 llman-sdd-arch-review 的 sdd 项目
+      那么 渲染技能 llman-sdd-arch-review 存在
+      那么 渲染技能 llman-sdd-arch-review 内容包含 架构审查
   @req:r98
   规则: 收尾提示不默认导向 PR/push
     统一 Git-native 下：llman-sdd-apply-cycle 技能 MUST 含「本地合回默认分支」步骤（finalize 已自动合并时为确认性步骤；手动兜底命令与 finalize 合并语义一致（sdd-workflow r113，squash 缺省）：`git switch <default> && git merge --squash <feature> && git commit`，可选 `git branch -D <feature>`（squash 收口后分支不再是目标分支祖先，`git branch -d` 会被拒绝）），且其硬约束 MUST 声明「未获用户明确要求时禁止 git push / gh pr create|merge」。`llman sdd change finalize` 成功 stdout MUST 在归档提示后追加一行 next-step（通常指引在合并目标分支上确认收口 commit；push / hosting PR 为可选）。`llman sdd validate <change>` 失败时 MUST NOT 打印诱导编写 change 内 TOON delta 的 next-steps（如 `Ensure change has deltas in specs/`），MUST 指向 live `llmanspec/specs/**` 与 `change start`/`attach`。
+
+    场景: apply-cycle-no-push-by-default
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      那么 渲染技能 llman-sdd-apply-cycle 内容包含 squash
+      那么 渲染技能 llman-sdd-apply-cycle 内容包含 push
   @req:r99
   规则: 轻量 draft 提案路径与 change id 自动推导
     当用户意图为快速起草提案（如说「draft 提案」「draft change」「记一个提案」且未提供 change id）时，llman-sdd-propose 技能 MUST 走轻量路径：MUST NOT 询问用户确认 change id，MUST 从用户描述内容直接生成一个合法且有意义的 change id（MUST 通过 `validate_sdd_id` 的合法性格式；MUST 遵循该仓库 `llmanspec/AGENTS.md` 声明的命名约定，若无则按描述语义合理命名），并仅创建 `llmanspec/changes/<生成的 id>/proposal.md`（draft shell，不强制 tasks/design/specs/attach）。`llman sdd change new` MUST 支持从描述生成 id：提供 `--from <description>`（或等价）时 MUST 由 CLI 生成 id 并在 stdout 打印最终 id 与 proposal 路径；生成冲突既有 change 时 MUST 以非零退出码失败并提示用 `--force` 覆盖或换描述。项目配置了 `change_id.template`（sdd-workflow r29）时 MUST 按模板渲染生成 id，使产出天然符合该项目命名约定；未配置时保持启发式消毒。技能 MUST 告知用户已生成的 id（可应要求修改）；完整 propose（triage + tasks + specs + attach）仅在用户明确要求正式化时启动。
@@ -37,15 +57,42 @@
   @req:r117
   规则: 独立 draft 技能默认安装与职责分离
     llman SDD MUST 提供一个名为 `llman-sdd-draft` 的默认技能（在 `DEFAULT_SKILL_FILES` 中，随 `llman sdd init --update` 默认安装），职责单一化为「仅创建 draft proposal shell（`change new --from`，不强制 tasks/design/specs/attach）」。该技能 MUST NOT 承担 triage 或完整 propose 职责。`llman-sdd-propose` 技能 MUST NOT 内联完整 draft 路径步骤，MUST 以一句指引导向 `llman-sdd-draft`（如「仅记草案用 llman-sdd-draft」）。曾名为 `llman-sdd-new-change` 的可选技能 MUST 被此默认 `llman-sdd-draft` 取代（从 `OPTIONAL_SKILL_FILES` 移除）；已 init 项目里残留的 `extra_skills: [llman-sdd-new-change]` 条目 MUST 在下次 `init --update` 时被静默忽略（不匹配 optional 列表即过滤），旧 `llman-sdd-new-change` 目录 MUST 被 `cleanup_stale_skills` 自动清理——无需显式迁移代码。
+
+    场景: draft-skill-default-installed
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      那么 渲染技能 llman-sdd-draft 存在
+      那么 渲染技能 llman-sdd-propose 内容包含 llman-sdd-draft
   @req:r60
   规则: review 三时点检查点接线
     llman-sdd-apply、llman-sdd-verify、llman-sdd-archive 技能模板 MUST 各自在固定时点引导运行 llman sdd review：apply 在每个 task 批次门禁通过后、verify 在报告全绿之后与建议 finalize 之前、archive 在逐个归档执行之前（含批量归档逐个前置）。模板 MUST 声明非零退出等价 CRITICAL 发现：停止当前推进并修复后重跑 review，MUST NOT 在 review 非零退出时继续 finalize 或 archive。explore/propose/draft/quick/graph/specs-compact 技能 MUST NOT 注入该检查点。人审检查点时点 MUST 与根 AGENTS.md「Human Review Checkpoint」一致。
+
+    场景: review-checkpoint-wired-in-apply-verify-archive
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      那么 渲染技能 llman-sdd-apply 内容包含 review
+      那么 渲染技能 llman-sdd-verify 内容包含 review
+      那么 渲染技能 llman-sdd-archive 内容包含 review
   @req:r71
   规则: 校验修复单元按职责注入
     校验修复模板单元（feature 头注释、原生规则块结构、migrate-native 遗留标签轨迁移指引）MUST 仅注入到会编辑或审查 live specs 的技能（propose/apply/verify/archive/specs-compact）；MUST NOT 注入到 draft/quick/graph 等不编辑 live specs 的技能。注入集合的变化 MUST 经 init --update resync 反映到双 locale 渲染产物。
+
+    场景: validation-fix-unit-only-in-live-spec-skills
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      那么 渲染技能 llman-sdd-propose 内容包含 --help
+      那么 渲染技能 llman-sdd-draft 内容包含 --help
   @req:r139
   规则: skill 不内嵌命令参考，CLI help 即参考
     托管 skill MUST NOT 内嵌命令参考（手写或渲染期生成的命令表均 MUST NOT 存在）：命令的唯一参考面是 CLI 自身的 help（`llman sdd <cmd> --help`），skill 正文 MUST 以一行指引指向它。命令存在性以 clap 命令树为唯一事实源（隐藏子命令排除）；每个可见 sdd 子命令 MUST 保持非空 clap doc comment（en 基线），并有单测守卫。渲染产物 MUST NOT 出现 CLI 已不接受的历史语法（零兼容：用户以版本切换获得对应 skills）。
+
+    场景: skill-points-to-cli-help
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      那么 渲染技能 llman-sdd-propose 内容包含 --help
+      那么 渲染技能 llman-sdd-apply 内容包含 --help
+      那么 渲染技能 llman-sdd-verify 内容包含 --help
   @req:r140
   规则: propose 非阻塞推导 change id
     llman-sdd-propose 技能 MUST NOT 以阻塞式提问向用户索要 change id：用户已给出 id 时 MUST 直接采用；未给出时 MUST 按 r99 的推导规则生成合法 kebab-case id，宣布所用 id 与覆盖方式后继续执行，MUST NOT 等待确认。change id 在 Branch binding 前可低成本更换，MUST NOT 因 id 未确认而中断 propose 闭环。
+
+    场景: propose-derives-change-id-nonblocking
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      那么 渲染技能 llman-sdd-propose 内容包含 kebab
+      那么 渲染技能 llman-sdd-propose 内容包含 change id

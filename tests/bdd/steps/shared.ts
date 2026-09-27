@@ -78,6 +78,11 @@ bdd.given('llman 二进制已构建', () => {
   llmanBin();
 });
 
+bdd.given('临时工作目录', (ctx) => {
+  ctx.fixtures['工作目录'] = tempDir('llman-bdd-work-');
+  ctx.fixtures['sdd 项目'] = ctx.fixtures['工作目录'];
+});
+
 bdd.when('运行 llman {args:rest}', (ctx, params) => {
   runLlman(ctx, params.args.trim().split(/\s+/));
 });

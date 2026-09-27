@@ -9,7 +9,7 @@
 // tests when no llman-sdd binary exists (CI installs @llman-sdd/cli).
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { bdd, type TestContext } from '../runner.ts';
@@ -85,7 +85,7 @@ function commitAll(project: string, message: string): void {
 }
 
 /** One sdd project per scenario: git(main) + `llman-sdd init` + sample capability + optional bdd section, committed clean. */
-function sddProject(ctx: TestContext, bddMode: 'on' | 'off' | null = 'off'): string {
+export function sddProject(ctx: TestContext, bddMode: 'on' | 'off' | 'runner' | null = 'off'): string {
   let project = ctx.fixtures['sdd 项目'] as string | undefined;
   if (project) return project;
   project = tempDir('llman-bdd-proj-');
@@ -95,9 +95,16 @@ function sddProject(ctx: TestContext, bddMode: 'on' | 'off' | null = 'off'): str
   git(['config', 'user.email', 'bdd@local'], project);
   git(['config', 'user.name', 'bdd'], project);
   sddInit(project);
+  // 与本仓库约定一致：locale zh-Hans（替换后 init --update 重渲染中文产物）。
+  const cfgPath = join(project, 'llmanspec', 'config.yaml');
+  writeFileSync(cfgPath, readFileSync(cfgPath, 'utf8').replace('locale: en', () => 'locale: zh-Hans'));
+  spawnSync(findSddBin()!, ['init', '--update', project], { cwd: project, encoding: 'utf8' });
   writeFeature(project, 'sample', 'r1');
   if (bddMode === 'on') {
-    writeFileSync(join(project, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: en\nbdd:\n  run_command: "false"\n');
+    writeFileSync(join(project, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: zh-Hans\nbdd:\n  run_command: "false"\n');
+  } else if (bddMode === 'runner') {
+    // archive/finalize 收口门要求可执行场景声明 runner；"true" 恒通过。
+    writeFileSync(join(project, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: zh-Hans\nbdd:\n  run_command: "true"\n');
   }
   commitAll(project, 'fixture: init');
   return project;
@@ -190,6 +197,10 @@ bdd.when('在非交互终端运行 llman sdd {args:rest}', (ctx, params) => {
 // Givens: fixture projects and shapes
 // ---------------------------------------------------------------------------
 
+bdd.given('已初始化含可执行规格 runner 的 sdd 项目', (ctx) => {
+  sddProject(ctx, 'runner');
+});
+
 bdd.given('已初始化 sdd 项目且 bdd 配置为 "{mode}"', (ctx, params) => {
   const project = sddProject(ctx, params.mode.replace(/"/g, '') === 'on' ? 'on' : 'off');
   // 标准活动 change：attach/start/diff 类场景的公共前置。
@@ -246,7 +257,7 @@ bdd.given('项目 extra_skills 包含 {name}', (ctx, params) => {
   const project = sddProject(ctx);
   const configPath = join(project, 'llmanspec', 'config.yaml');
   const config = readFileSync(configPath, 'utf8');
-  writeFileSync(configPath, config.replace('locale: en', () => `locale: en\nextra_skills:\n  - ${params.name}`));
+  writeFileSync(configPath, config.replace('locale: zh-Hans', () => `locale: zh-Hans\nextra_skills:\n  - ${params.name}`));
   commitAll(project, 'fixture: extra_skills');
 });
 
@@ -254,7 +265,7 @@ bdd.given('已初始化含 change_id pattern 与 archive 形态存量的 sdd 项
   const project = sddProject(ctx, 'off');
   const configPath = join(project, 'llmanspec', 'config.yaml');
   const config = readFileSync(configPath, 'utf8');
-  writeFileSync(configPath, config.replace('locale: en', () => "locale: en\nchange_id:\n  pattern: '^[a-z0-9][a-z0-9-]*$'"));
+  writeFileSync(configPath, config.replace('locale: zh-Hans', () => "locale: zh-Hans\nchange_id:\n  pattern: '^[a-z0-9][a-z0-9-]*$'"));
   changeFixture(project, params.id.replace(/"/g, ''), 'proposal-only');
   const archived = join(project, 'llmanspec', 'changes', 'archive', '2026-09-13-c20-legacy');
   mkdirSync(archived, { recursive: true });
@@ -266,7 +277,7 @@ bdd.given('已初始化含 change_id template 的 sdd 项目', (ctx) => {
   const project = sddProject(ctx, 'off');
   const configPath = join(project, 'llmanspec', 'config.yaml');
   const config = readFileSync(configPath, 'utf8');
-  writeFileSync(configPath, config.replace('locale: en', () => "locale: en\nchange_id:\n  template: 'c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}'"));
+  writeFileSync(configPath, config.replace('locale: zh-Hans', () => "locale: zh-Hans\nchange_id:\n  template: 'c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}'"));
   commitAll(project, 'fixture: change_id template');
 });
 
@@ -274,7 +285,7 @@ bdd.given('已初始化含 change_id 段且 delayed-changes 深层目录含更�
   const project = sddProject(ctx, 'off');
   const configPath = join(project, 'llmanspec', 'config.yaml');
   const config = readFileSync(configPath, 'utf8');
-  writeFileSync(configPath, config.replace('locale: en', () => "locale: en\nchange_id:\n  template: '{{ verb }}-{{ subject }}'"));
+  writeFileSync(configPath, config.replace('locale: zh-Hans', () => "locale: zh-Hans\nchange_id:\n  template: '{{ verb }}-{{ subject }}'"));
   const deep = join(project, 'llmanspec', 'delayed-changes', 'deep', 'c2619-legacy');
   mkdirSync(deep, { recursive: true });
   writeFileSync(join(deep, 'proposal.md'), '---\ndepends_on: []\nblocks: []\n---\n# c2619-legacy\n');
@@ -435,8 +446,8 @@ function jsonKey(obj: any, key: string): any {
 }
 
 export function projectRoot(ctx: TestContext): string {
-  const project = ctx.fixtures['sdd 项目'] as string | undefined;
-  if (!project) throw new Error('no fixture sdd project for a 相对路径 step');
+  const project = (ctx.fixtures['sdd 项目'] ?? ctx.fixtures['工作目录']) as string | undefined;
+  if (!project) throw new Error('no fixture project for a 相对路径 step');
   return project;
 }
 
@@ -524,7 +535,74 @@ bdd.then('最近提交说明不含 {text:rest}', (ctx, params) => {
   if ((result.stdout ?? '').includes(params.text)) throw new Error(`latest commit subject unexpectedly contains "${params.text}"\n${result.stdout}`);
 });
 
+bdd.then('默认分支已归档 {id}', (ctx, params) => {
+  const project = ctx.fixtures['sdd 项目'] as string;
+  const r = spawnSync('git', ['ls-tree', 'main', '--name-only', '--', 'llmanspec/changes/archive/'], { cwd: project, encoding: 'utf8' });
+  const entries = (r.stdout ?? '').split('\n').filter(Boolean);
+  if (!entries.some((e) => e.endsWith(`-${params.id}`))) {
+    throw new Error(`main tree has no archive entry ending with "-${params.id}": ${entries.join(', ')}`);
+  }
+});
+
 bdd.then('工作区存在未提交改动', (ctx) => {
   const result = spawnSync('git', ['status', '--porcelain'], { cwd: projectRoot(ctx), encoding: 'utf8' });
   if (!(result.stdout ?? '').trim()) throw new Error('expected uncommitted changes, working tree is clean');
+});
+
+// ---------------------------------------------------------------------------
+// batch2 fixtures: dirty tree / nested changes / unknown frontmatter /
+// config-less project / claude-code config
+// ---------------------------------------------------------------------------
+
+bdd.given('合并目标分支已被其他 worktree 持有', (ctx) => {
+  const project = ctx.fixtures['sdd 项目'] as string;
+  const holder = tempDir('llman-bdd-wt-holder-');
+  const r = spawnSync('git', ['worktree', 'add', holder, 'main'], { cwd: project, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`git worktree add failed:\n${r.stderr}`);
+  ctx.fixtures['持有 worktree'] = holder;
+});
+
+bdd.given('工作区含未提交改动', (ctx) => {
+  const project = ctx.fixtures['sdd 项目'] as string;
+  writeFileSync(join(project, 'uncommitted.txt'), 'dirty\n');
+});
+
+bdd.given('已初始化含嵌套 change 的 sdd 项目', (ctx) => {
+  const project = sddProject(ctx, 'off');
+  const dir = join(project, 'llmanspec', 'changes', 'some_a', 'c0');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\nblocks: []\n---\n# c0\n\n## Why\n\nw\n');
+  commitAll(project, 'fixture: nested change');
+});
+
+bdd.given('已初始化含未知 frontmatter 字段 change 的 sdd 项目', (ctx) => {
+  const project = sddProject(ctx, 'off');
+  const dir = join(project, 'llmanspec', 'changes', 'bad-fm');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\nblocks: []\nstatus: bogus\n---\n# bad-fm\n\n## Why\n\nw\n');
+  commitAll(project, 'fixture: unknown frontmatter field');
+});
+
+bdd.given('已初始化无 config.yaml 的 sdd 项目', (ctx) => {
+  const project = sddProject(ctx, 'off');
+  unlinkSync(join(project, 'llmanspec', 'config.yaml'));
+  commitAll(project, 'fixture: config-less project');
+});
+
+bdd.given('含配置组的 claude-code 配置', (ctx) => {
+  const configDir = tempDir('llman-bdd-cc-cfg-');
+  writeFileSync(
+    join(configDir, 'claude-code.toml'),
+    '[groups]\n\n[groups.main]\nANTHROPIC_API_KEY = "sk-secret-2"\nANTHROPIC_BASE_URL = "https://api.example.com"\n',
+  );
+  ctx.fixtures['配置目录'] = configDir;
+});
+
+bdd.then('归档目录含 {id}', (ctx, params) => {
+  const project = ctx.fixtures['sdd 项目'] as string;
+  const archiveDir = join(project, 'llmanspec', 'changes', 'archive');
+  const entries = existsSync(archiveDir) ? readdirSync(archiveDir) : [];
+  if (!entries.some((e) => e.endsWith(`-${params.id}`))) {
+    throw new Error(`archive has no entry ending with "-${params.id}": ${entries.join(', ')}\nstdout: ${lastRun(ctx).stdout}\nstderr: ${lastRun(ctx).stderr}`);
+  }
 });

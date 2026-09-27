@@ -94,6 +94,13 @@
   @req:r7
   规则: archive docs rename + 自动合并（统一流程）
     `llman sdd change archive` 统一行为（不再按 bdd 段分叉）：MUST 先自动合并 feature 分支到合并目标分支（目标解析 `--into` > binding base_branch > 默认分支，方式解析 `--method` > config `sdd.merge_method`（缺省 squash），详见 sdd-workflow r113/r142），再移动 change 文档到 changes/archive/YYYY-MM-DD-<id>/。MUST NOT merge TOON delta（已废除 change/specs 路径）、MUST NOT apply feature_delta。活跃 `*.feature.delta.toon` MUST 作为迁移阻断（ERROR，提示人工清理遗留 delta；partitioned migrate 已移除）。顶层 `sdd archive run` 为兼容别名但 MUST 走统一的自动合并路径。
+
+    场景: archive-auto-merges-and-renames
+      假如 已初始化含可执行规格 runner 的 sdd 项目
+      而且 变更 arch-flow 含 proposal design tasks 且 attach 状态为 "yes"
+      当 运行 llman sdd change archive arch-flow
+      那么 退出码为零
+      那么 归档目录含 arch-flow
   @req:r85
   规则: partition-migrate 已移除（零兼容）
     `llman sdd project migrate --kind partitioned`（及隐藏别名 partition-migrate）MUST 以非零退出拒绝；0.5 起 migrate 为纯指引命令，`spec-md2toon` 同样按 unknown migration kind 拒绝（错误信息提示合法 kind：toon2features | specs-flatten）。遗留 change/specs/ 或活跃 *.feature.delta.toon 须人工清理或另开 change（不再提供自动 partitioned 迁移）。

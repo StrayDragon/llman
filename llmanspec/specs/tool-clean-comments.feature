@@ -8,9 +8,25 @@
   @req:r36
   规则: doc comment 开关语义一致
     MUST 与其它注释开关语义一致：true 启用移除、false 禁用移除、None 默认禁用（保留）。
+
+    场景: clean-comments-runs-on-fixture
+      假如 含注释 python 文件与空目录的临时项目
+      当 运行 llman tool clean-comments
+      那么 退出码为零
   @req:r69
   规则: regex 回退默认禁用且非文件输入被显式处理
     对应 spec: tool-clean-comments — regex 回退 MUST NOT 默认启用（仅留作未来显式 opt-in）； 且当用户显式传入路径时，非文件输入（如目录）MUST 被显式跳过并提示，而非当成文件读取失败。
+
+    场景: clean-comments-nonfile-input-skipped
+      假如 含注释 python 文件与空目录的临时项目
+      当 运行 llman tool clean-comments --path empty-junk
+      那么 退出码为零
   @req:r81
   规则: tree-sitter 不可用时安全跳过
     processor MUST 跳过该文件、记录错误并继续处理其它文件。
+
+    场景: clean-comments-processes-fixture-file
+      假如 含注释 python 文件与空目录的临时项目
+      当 运行 llman tool clean-comments
+      那么 退出码为零
+      那么 相对路径 code.py 存在

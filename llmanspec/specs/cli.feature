@@ -17,13 +17,26 @@
       那么 stdout 包含 resolve-req
   @req:r8
   规则: Context Command
-    System MUST provide a context subcommand for agent consumption. The command MUST accept --task natural language and/or --paths comma-separated file paths. The command MUST return single JSON with status ok quality qualityNote and spec arrays direct with zScore matchReqs and related. At least one of --task or --paths MUST be required. If embedding index unavailable the command MUST return quality=unavailable with clear error.
+    context 能力自 0.0.79 起外置为 `llman-context` 插件：`llman context` MUST 经外部子命令发现委托解析（未安装插件时 MUST 以明确 not-found 错误退出、无部分副作用）；插件自身契约（--task/--paths、JSON status/quality 直读/related 数组）由该插件项目所有。
+    场景: context-delegates-to-plugin
+      当 运行 llman context --task 检索规格
+      那么 退出码非零
+      那么 stderr 包含 llman-context
   @req:r9
   规则: Index Rebuild Command
-    System MUST provide an index rebuild subcommand. It MUST read all spec files extract per-requirement chunks call embedding API and write index to llmanspec/.context/. It MUST also provide --check flag for freshness check without rebuilding.
+    index rebuild 能力同属外置 `llman-context` 插件契约（读取 specs、分块、embedding 写入 `.context/`、--check 新鲜度检查均由插件项目所有）；`llman` 侧仅保证委托解析与退出码透传。
+    场景: index-rebuild-delegates-to-plugin
+      当 运行 llman index rebuild
+      那么 退出码非零
+      那么 stderr 包含 llman-context
   @req:r10
   规则: Context Index Freshness Protocol
-    The context command MUST check index freshness. Read spec_hash from metadata.toml compute current spec hash. If hash matches use semantic retrieval else use keyword with quality=keyword. If index missing return quality=unavailable with rebuild instruction. Context MUST be read-only.
+    context 新鲜度协议由外置插件实现（spec_hash 比对、keyword 回退、quality=unavailable 语义均属插件契约）；`llman` 侧 MUST 保持委托只读透传——未安装插件时 MUST NOT 在用户配置或工作区产生任何部分写入。
+
+    场景: context-absence-has-no-side-effects
+      当 运行 llman context --task 检索规格
+      那么 退出码非零
+      那么 stdout 不含 quality
   @req:r112
   规则: Change 名参数前缀匹配
     llman sdd show/validate/graph/change 等所有接收 change 名的命令，在解析 change id 时 MUST 遵循前缀匹配解析：1) 精确匹配活跃 changes（input 即为完整 id）；2) 前缀匹配活跃 changes（目录名前缀匹配）；3) 前缀匹配归档 changes。精确优先生效。MUST NOT 使用 substring contains 模糊匹配（避免意外命中子串）。前缀（非精确）命中时，命令 SHALL 在输出中提示实际命中的 change（格式 `'<input>' -> '<resolved>' (prefix match)`，人类可读输出走 stderr）；精确命中时不输出该提示。`--json` 输出 SHALL 包含 `matchedViaPrefix` 布尔字段（前缀命中为 true，精确为 false）。
