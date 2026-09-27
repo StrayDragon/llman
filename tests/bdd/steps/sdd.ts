@@ -434,7 +434,7 @@ function jsonKey(obj: any, key: string): any {
   return cur;
 }
 
-function projectRoot(ctx: TestContext): string {
+export function projectRoot(ctx: TestContext): string {
   const project = ctx.fixtures['sdd 项目'] as string | undefined;
   if (!project) throw new Error('no fixture sdd project for a 相对路径 step');
   return project;

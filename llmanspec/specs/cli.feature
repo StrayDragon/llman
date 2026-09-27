@@ -8,6 +8,13 @@
   @req:r13
   规则: 配置守卫范围与命令结构
     Only subcommands that need global config MUST enforce the dev-project config-dir guard. Authoring commands MUST use unified names (add-req/remove-req/rename-req) with deprecated aliases. Non-core commands MUST live under `sdd project`. Archive MUST require an explicit subcommand. Show MUST support combined output options.
+
+    场景: authoring-command-names-unified
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      当 在非交互终端运行 llman sdd spec --help
+      那么 退出码为零
+      那么 stdout 包含 add-req
+      那么 stdout 包含 resolve-req
   @req:r8
   规则: Context Command
     System MUST provide a context subcommand for agent consumption. The command MUST accept --task natural language and/or --paths comma-separated file paths. The command MUST return single JSON with status ok quality qualityNote and spec arrays direct with zScore matchReqs and related. At least one of --task or --paths MUST be required. If embedding index unavailable the command MUST return quality=unavailable with clear error.

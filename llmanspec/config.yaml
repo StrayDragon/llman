@@ -8,6 +8,8 @@ extra_skills:
   - llman-sdd-arch-review
 
 # llman-sdd 0.5 起规格为原生 Gherkin 分层格式（规则: 块 + 嵌套场景），历史标签
-# 不再承载语义；本仓库无可执行规格 harness（tests/bdd_steps.rs 已随 0.0.79 移除），
-# 故不配置 bdd.run_command，validate 不再运行 BDD harness。
+# 不再承载语义。可执行规格 runner = tests/bdd 的 bun 桥套件（零 npm 依赖，
+# 由 just bdd / check-all / CI 驱动）；finalize 收口与 validate --check 会执行它。
 # `llman sdd` 各命令行为由外部 llman-sdd v2 项目所有。
+bdd:
+  run_command: "bun test tests/bdd"

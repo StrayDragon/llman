@@ -31,26 +31,34 @@ export interface RunResult {
   code: number;
   stdout: string;
   stderr: string;
+  home: string;
 }
 
-export function runLlman(ctx: TestContext, args: string[], overrides?: { configDir?: string; cwd?: string; extraEnv?: Record<string, string> }): RunResult {
+export function runLlman(
+  ctx: TestContext,
+  args: string[],
+  overrides?: { configDir?: string; cwd?: string; home?: string; omitConfigEnv?: boolean; extraEnv?: Record<string, string> },
+): RunResult {
   const pluginDir = ctx.fixtures['插件目录'] as string | undefined;
+  const home = overrides?.home ?? tempDir();
   const configDir = overrides?.configDir ?? (ctx.fixtures['配置目录'] as string | undefined) ?? tempDir();
   const pathValue = [pluginDir, SYSTEM_PATH_DIRS].filter(Boolean).join(':');
+  const env: Record<string, string> = {
+    PATH: pathValue,
+    HOME: home,
+    ...(overrides?.omitConfigEnv ? {} : { LLMAN_CONFIG_DIR: configDir }),
+    ...overrides?.extraEnv,
+  };
   const result = spawnSync(llmanBin(), args, {
-    cwd: overrides?.cwd ?? tempDir(),
-    env: {
-      PATH: pathValue,
-      HOME: tempDir(),
-      LLMAN_CONFIG_DIR: configDir,
-      ...overrides?.extraEnv,
-    },
+    cwd: overrides?.cwd ?? (ctx.fixtures['工作目录'] as string | undefined) ?? tempDir(),
+    env,
     encoding: 'utf8',
   });
   const out: RunResult = {
     code: result.status ?? 1,
     stdout: result.stdout ?? '',
     stderr: result.stderr ?? '',
+    home,
   };
   ctx.fixtures['上次运行'] = out;
   return out;

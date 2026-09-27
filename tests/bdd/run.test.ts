@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import './steps/shared.ts';
 import './steps/cli.ts';
 import './steps/config_schemas.ts';
+import './steps/config_paths.ts';
 import './steps/sdd.ts';
 import { runFeature, type TestContext } from './runner.ts';
 import { findSddBin } from './steps/sdd.ts';
@@ -34,6 +35,7 @@ const BOUND_FEATURES: BoundFeature[] = [
   { file: 'cli.feature', include: /^prefix-match/, skipIf: sddMissing },
   { file: 'errors-exit.feature' },
   { file: 'config-schemas.feature' },
+  { file: 'config-paths.feature' },
   { file: 'sdd-bdd-mode-compat.feature', skipIf: sddMissing },
   { file: 'sdd-context.feature', skipIf: sddMissing },
   { file: 'sdd-review.feature', skipIf: sddMissing },
