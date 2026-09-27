@@ -1,249 +1,115 @@
 # language: zh-CN
 # capability: spec-format
-# purpose: 规范单轨 feature-as-spec 格式：每个 capability 以单个 .feature 为唯一规格事实源（扁平或目录双布局），@human 约束层与 @executable 验收层共存于同一文件，配套锁定哈希门禁、三态强制分级计数与 toon2features / specs-flatten 一次性迁移。
-# scope: crates/llman-sdd/src/sdd
+# purpose: 规范原生 Gherkin 分层单轨格式：每个 capability 以单个 .feature 为唯一规格事实源（扁平或目录双布局），功能→规则→场景分层——规则块挂 @req 句柄、描述自由文本、嵌套场景为验收示例、顶层场景为功能级示例，历史标签惰性，配套头注释元数据、morphology 计数与遗留双轨（spec.toon/标签轨）静默忽略及协作指引。
+# scope: src/external_command.rs
 
 功能: spec-format
 
-  @req:r131 @human
-  场景: 单轨规格事实源与布局
-    - 每个 capability MUST 以恰好一个 .feature 文件作为规格唯一事实源（头注释元数据 + @human 约束场景 + @executable 验收场景）。capability 布局 MUST 二选一：扁平 llmanspec/specs/<cap>.feature（cap id = 文件 stem；新默认，spec skeleton 与 authoring 走此形态）或目录 llmanspec/specs/<cap>/（cap id = 目录名；主文件为同名 .feature，目录内可含其它 .feature 作为 harness 资产/草稿，不计入主文件）。同一 cap id 的扁平与目录两种布局并存 MUST 判为冲突 ERROR（报告两个路径）。目录内非同名 .feature MUST 仅给 WARNING（不阻断 validate/list/show）。命名约定（文件名 vs 目录名 vs # capability: 头）由项目自约定，CLI 不强制；header 与 cap id 不一致 MUST 仅给 WARNING。运行时 MUST NOT 读取 spec.toon：validate/list/show/context 遇遗留 spec.toon MUST 报 ERROR 并提示执行 llman sdd project migrate --kind toon2features（legacy 仅以目录形态存在）。
-
-  @req:r141 @human
-  场景: specs-flatten 一次性平铺迁移
-    - llman sdd project migrate --kind specs-flatten MUST 只处理「纯同名单文件目录」llmanspec/specs/<cap>/<cap>.feature（目录内恰好一个 .feature、文件名 == 目录名、无其它文件）：以 git mv 平铺为 llmanspec/specs/<cap>.feature 并删除空目录（非 git 环境 fallback fs::rename），git 历史保留；文件 # scope: 列表中精确等于 llmanspec/specs/<cap> 的自引用项 MUST 自动改写为 llmanspec/specs/<cap>.feature（其余 scope 项不动）并计入 scope_rewritten。以下形态 MUST 只报告并跳过，且不使整体失败（退出码为零）：目标扁平路径已存在（conflict）、目录含 spec.toon（legacy，提示先执行 toon2features）、目录含多个 .feature（multi）、目录含非 .feature 附属文件（aux）、唯一 .feature 文件名 ≠ 目录名（misnamed）。--dry-run MUST 输出预检查报告且不改动任何文件；重复执行 MUST 幂等（无候选 → no-op）。--prompt MUST 只打印内置协作说明并成功返回，不执行任何迁移。--kind spec-md2toon 与 partitioned MUST 继续以非零退出拒绝。
-
-  @req:r132 @human
-  场景: tag 语法学
-    - 场景 tag MUST 遵循保留字汇：@req:<id>（全库唯一约束标识）、@human（人类拥有的约束场景）、@manual（人审豁免）、@executable（harness 绑定验收）。validate MUST 校验 @req 悬空链接并判失败；无任何 @req 的 @executable 场景 MUST 给 WARNING（孤儿验收）；同一 @human 场景归一化后重复 MUST 判失败。可执行场景 MUST 位于 Feature 顶层（rstest-bdd scenarios! 不展开 Rule 块内场景）。
-
-  @req:r133 @human
-  场景: 头注释元数据
-    - .feature 头部 MUST 携带 # capability、# purpose、# scope 三行注释元数据；scope 供 staleness 消费且路径 MUST 存在；llman sdd spec skeleton 生成的骨架 MUST 自带合法头注释与示例规则。
-
-  @req:r134 @human
-  场景: 三态强制分级计数
-    - list --specs 与 show MUST 输出 rule 三态口径：ruleCount、ruleEnforcedCount、ruleManualCount、rulePendingCount、acceptanceCount、orphanAcceptanceCount；harnessBound/harnessUnbound/dualWrite 计数退役；bdd.bindings 配置段退役（tag 即声明，保留可选 override 以兼容下游自定义 step 库 tag）。
-
-  @req:r135 @human
-  场景: 锁定哈希门禁与收尾确认
-    - 所有 @human 场景按规范化规则（id+name+description+steps 逐行 trim 尾随空白后 SHA-256）计算哈希；validate --strict 与 change finalize/diff MUST 对比「有效范围」内哈希集合（有效范围 = 现算 `git merge-base <本地默认分支> HEAD`...HEAD，见 sdd-workflow r111 的审计说明与 r130；git/绑定不可用时回退存储 base_sha，fail-open）。报告制（S0）：检出增删改 MUST 以 WARNING 报告且 MUST NOT 阻断 validate / change finalize / change diff；报告 MUST 按 hash→req-id 反查后的 req-id 指明被改动的规则（同一 req-id 的多版本场景哈希 MUST 挂回该 id，MUST NOT 只给哈希摘要）并 MUST 附带编辑计数；无 `@req` 的锁定场景编辑 MUST 在报告中指引回滚或补标 `@req`。确认元数据整体移除（无兼容）：frontmatter 字段 `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 锁定确认语义 MUST NOT 再被读取或生成；锁定规则改动的控制点为 git 分支对比与 `llman sdd review` / `change diff` 的报告浮现。
-
-  @req:r136 @human
-  场景: toon2features 一次性迁移
-    - llman sdd project migrate --kind toon2features MUST 只处理遗留 spec.toon：requirements[] 无损转换为 @req:<id> @human 场景（statement 全文入 description）；同目录既有 *.feature 文件是活 harness 资产，MUST NOT 被读取、改写或删除，报告 MUST 计数 left 并提示按 r131 人工合并；已存在同名 <capability>.feature 的 capability MUST 跳过（保留 spec.toon，输出 skipped 警告，人工合并后重跑）。scenarios[] 行：given/when/then 任一非空且 req_id 配对 MUST 转写为 @req:<req_id> @human 场景（id 入场景标题，步骤关键字按项目 Gherkin 语言渲染：优先 config bdd.default_language，次 locale 映射，再次任一既有 .feature 的 # language: 头，兜底英文；单元格遗留关键字前缀 MUST 剥离；空列跳过，不得产生空步骤）；req_id 未配对 MUST 计入 dropped_unpaired 且不得转写（避免悬空 @req）；三列皆空 MUST 计入 dropped_notes；feature 列仅作历史记录不再分支。迁移 MUST 幂等，成功写出后删除 spec.toon，报告 MUST 区分 converted_from_toon / dropped_notes / dropped_unpaired / left 计数并列出规则三态初值。--kind spec-md2toon MUST 以非零退出拒绝并提示合法 kind（toon2features / specs-flatten）。
-  @executable
-  @req:r136
-  场景: migrate-toon2features-converts-and-cleans
-    假如 已初始化含仅遗留 spec.toon 的 legacy capability 且 bdd 配置为 "off"
-    当 运行 llman sdd project migrate --kind toon2features --yes
-    那么 退出码为零
-    那么 相对路径 llmanspec/specs/legacy/spec.toon 不存在
-    那么 相对路径 llmanspec/specs/legacy/legacy.feature 存在
-
-
-  @executable
-  @req:r136
-  场景: migrate-toon2features-keeps-features-and-converts-gwt-notes
-    假如 已初始化含遗留 spec.toon 与既有 .feature 的 sample3 capability 且 bdd 配置为 "off"
-    当 运行 llman sdd project migrate --kind toon2features --yes
-    那么 退出码为零
-    那么 相对路径 llmanspec/specs/sample3/spec.toon 不存在
-    那么 相对路径 llmanspec/specs/sample3/sample3.feature 存在
-    那么 相对路径 llmanspec/specs/sample3/sample3.feature 内容包含 @req:r1 @human
-    那么 相对路径 llmanspec/specs/sample3/sample3.feature 内容包含 Given precondition ready
-    那么 相对路径 llmanspec/specs/sample3/legacy-acc.feature 存在
-    那么 stdout 包含 converted_from_toon 2
-    那么 stdout 包含 dropped_unpaired 1
-    那么 stdout 包含 dropped_notes 1
-    那么 stdout 包含 left 1 legacy .feature
-
-
-  @executable
-  @req:r136
-  场景: migrate-toon2features-skips-when-main-feature-exists
-    假如 已初始化含遗留 spec.toon 的 sdd 项目且 bdd 配置为 "off"
-    当 运行 llman sdd project migrate --kind toon2features --yes
-    那么 退出码为零
-    那么 相对路径 llmanspec/specs/sample/spec.toon 存在
-    那么 stdout 包含 skipped
-
-
-  @executable
-  @req:r136
-  场景: migrate-spec-md2toon-retired
-    假如 已初始化 sdd 项目且 bdd 配置为 "off"
-    当 在非交互终端运行 llman sdd project migrate --kind spec-md2toon
-    那么 退出码非零
-    那么 stderr 包含 toon2features
-
-
-  @executable
   @req:r131
-  场景: legacy-spec-toon-fails-with-pointer
-    假如 已初始化含遗留 spec.toon 的 sdd 项目且 bdd 配置为 "off"
-    当 在非交互终端运行 llman sdd validate sample --strict --no-check
-    那么 退出码非零
-    那么 stderr 包含 toon2features
+  规则: 单轨规格事实源与布局
+    每个 capability MUST 以恰好一个 .feature 文件作为规格唯一事实源（头注释元数据 + 功能→规则→场景原生分层：规则块挂 @req 句柄，验收示例为块内嵌套场景，顶层场景为功能级示例）。capability 布局 MUST 二选一：扁平 llmanspec/specs/<cap>.feature（cap id = 文件 stem；新默认，spec skeleton 与 authoring 走此形态）或目录 llmanspec/specs/<cap>/（cap id = 目录名；主文件为同名 .feature，目录内可含其它 .feature 作为草稿/资产，不计入主文件）。同一 cap id 的扁平与目录两种布局并存 MUST 判为冲突 ERROR（报告两个路径）。目录内非同名 .feature MUST 仅给 WARNING（不阻断 validate/list/show）。命名约定（文件名 vs 目录名 vs # capability: 头）由项目自约定，CLI 不强制；header 与 cap id 不一致 MUST 仅给 WARNING。遗留 spec.toon MUST 被静默忽略（不读取、不报错、不计数）：validate/list/show/context 遇之照常以同目录 .feature 为准；project migrate 仅输出协作指引、不执行迁移（见 r136/r141）。
 
+    场景: legacy-spec-toon-silently-ignored
+      假如 已初始化含遗留 spec.toon 的 sdd 项目且 bdd 配置为 "off"
+      当 在非交互终端运行 llman sdd list --specs
+      那么 退出码为零
+      那么 stdout 不含 spec.toon
 
-  @executable
-  @req:r131
-  场景: legacy-spec-toon-error-message-is-actionable
-    假如 已初始化含遗留 spec.toon 的 sdd 项目且 bdd 配置为 "off"
-    当 在非交互终端运行 llman sdd validate sample --strict --no-check
-    那么 退出码非零
-    那么 stderr 包含 spec.toon
-    那么 stderr 包含 project migrate
+    场景: specs-flat-file-is-a-capability
+      假如 已初始化含扁平 capability 的 sdd 项目且 bdd 配置为 "off"
+      当 运行 llman sdd list --specs
+      那么 退出码为零
+      那么 stdout 包含 flatcap
+      当 在非交互终端运行 llman sdd show flatcap
+      那么 退出码为零
+      当 在非交互终端运行 llman sdd validate flatcap --strict --no-check
+      那么 退出码为零
 
+    场景: flat-and-dir-collision-errors
+      假如 已初始化含同 id 扁平与目录冲突的 sdd 项目且 bdd 配置为 "off"
+      当 在非交互终端运行 llman sdd list --specs
+      那么 退出码非零
+      那么 stderr 包含 llmanspec/specs/foo.feature
+      那么 stderr 包含 llmanspec/specs/foo/foo.feature
 
-  @executable
+    场景: multi-feature-dir-warns-not-fails
+      假如 已初始化含多 .feature 目录 capability 的 sdd 项目且 bdd 配置为 "off"
+      当 在非交互终端运行 llman sdd validate multi --strict --no-check
+      那么 退出码为零
+      那么 stderr 包含 WARNING
+      当 在非交互终端运行 llman sdd show multi
+      那么 退出码为零
+
+    场景: dir-without-main-resolves-single
+      假如 已初始化含异名单文件目录 capability 的 sdd 项目且 bdd 配置为 "off"
+      当 在非交互终端运行 llman sdd show solocap
+      那么 退出码为零
+      当 在非交互终端运行 llman sdd validate solocap --strict --no-check
+      那么 退出码为零
+  @req:r141
+  规则: specs-flatten 协作指引（不执行迁移）
+    llman sdd project migrate --kind specs-flatten MUST 仅打印目录布局→扁平布局的手工迁移协作说明并成功返回，MUST NOT 执行 git mv、改写 # scope: 或删除任何文件。目录布局（llmanspec/specs/<cap>/<cap>.feature）仍是 r131 认可的合法布局，是否平铺由项目自行决定；协作说明 MUST 覆盖候选判定（纯同名单文件目录）与需人工处理形态（conflict/legacy/multi/aux/misnamed）。重复执行 MUST 幂等（纯打印，无副作用）。
+
+    场景: flatten-prints-guidance-only
+      假如 已初始化含单文件目录 capability 的 sdd 项目且 bdd 配置为 "off"
+      当 运行 llman sdd project migrate --kind specs-flatten
+      那么 退出码为零
+      那么 相对路径 llmanspec/specs/scoped/scoped.feature 存在
+      那么 stdout 包含 specs-flatten
   @req:r132
-  场景: dangling-req-link-fails-strict
-    假如 已初始化含无效 @req 的 sdd 项目且 bdd 配置为 on
-    当 在非交互终端运行 llman sdd validate sample --strict --no-check
-    那么 退出码非零
-    那么 stderr 包含 @req
+  规则: 原生分层结构与标签惰性
+    .feature MUST 按功能→规则→场景原生分层：每个需求 = `规则:` 块（`@req:<id>` 挂块头标签为唯一需求句柄，标题 + 自由文本描述，不强制 MUST/SHALL 词），验收示例 = 块内嵌套 `场景:`（GWT 步骤）；顶层 `场景:` 为功能级示例（无句柄、不告警）。validate MUST 判 ERROR：规则块缺 `@req:<id>`、跨 capability 全局重复 req_id、零规则 capability；裸规则（无嵌套场景）仅计入聚合计数 INFO（--include-info 可见）。历史标签 @human/@executable/@manual/@rule MUST NOT 再承载任何语义（解析不报错、不校验、不教学）；不再有互斥/豁免/悬空链接等旧机制。
 
-
-  @executable
+    场景: duplicate-req-id-fails-strict
+      假如 已初始化含跨 capability 重复 req_id 的 sdd 项目且 bdd 配置为 "off"
+      当 在非交互终端运行 llman sdd validate sample --strict --no-check
+      那么 退出码非零
+      那么 stderr 包含 req_id
   @req:r133
-  场景: scaffold-emits-single-track-skeleton
-    假如 已初始化 sdd 项目且 bdd 配置为 "off"
-    当 运行 llman sdd spec skeleton demo-cap --force
-    那么 退出码为零
-    那么 相对路径 llmanspec/specs/demo-cap.feature 存在
+  规则: 头注释元数据
+    .feature 头部 MUST 携带 # capability、# purpose、# scope 三行注释元数据；scope 供 staleness 消费且路径 MUST 存在；llman sdd spec skeleton 生成的骨架 MUST 自带合法头注释与原生示例（规则块 + 嵌套场景，扁平 llmanspec/specs/<capability>.feature 形态）。
 
-
-  @executable
-  @req:r131
-  场景: specs-flat-file-is-a-capability
-    假如 已初始化含扁平 capability 的 sdd 项目且 bdd 配置为 "off"
-    当 运行 llman sdd list --specs
-    那么 退出码为零
-    那么 stdout 包含 flatcap
-    当 在非交互终端运行 llman sdd show flatcap --no-interactive
-    那么 退出码为零
-    当 在非交互终端运行 llman sdd validate flatcap --strict --no-check
-    那么 退出码为零
-
-
-  @executable
-  @req:r131
-  场景: flat-and-dir-collision-errors
-    假如 已初始化含同 id 扁平与目录冲突的 sdd 项目且 bdd 配置为 "off"
-    当 在非交互终端运行 llman sdd list --specs
-    那么 退出码非零
-    那么 stderr 包含 llmanspec/specs/foo.feature
-    那么 stderr 包含 llmanspec/specs/foo/foo.feature
-
-
-  @executable
-  @req:r131
-  场景: multi-feature-dir-warns-not-fails
-    假如 已初始化含多 .feature 目录 capability 的 sdd 项目且 bdd 配置为 "off"
-    当 在非交互终端运行 llman sdd validate multi --strict --no-check
-    那么 退出码为零
-    那么 stderr 包含 WARNING
-    当 在非交互终端运行 llman sdd show multi --no-interactive
-    那么 退出码为零
-
-
-  @executable
-  @req:r131
-  场景: dir-without-main-resolves-single
-    假如 已初始化含异名单文件目录 capability 的 sdd 项目且 bdd 配置为 "off"
-    当 在非交互终端运行 llman sdd show solocap --no-interactive
-    那么 退出码为零
-    当 在非交互终端运行 llman sdd validate solocap --strict --no-check
-    那么 退出码为零
-
-
-  @executable
-  @req:r141
-  场景: flatten-converts-single-dir
-    假如 已初始化含自引用 scope 单文件目录的 sdd 项目且 bdd 配置为 "off"
-    当 运行 llman sdd project migrate --kind specs-flatten --yes
-    那么 退出码为零
-    那么 相对路径 llmanspec/specs/scoped.feature 存在
-    那么 相对路径 llmanspec/specs/scoped 不存在
-    那么 stdout 包含 flattened
-
-
-  @executable
-  @req:r141
-  场景: flatten-reports-every-skip-class
-    假如 已初始化含五类不可扁平目录的 sdd 项目且 bdd 配置为 "off"
-    当 运行 llman sdd project migrate --kind specs-flatten --yes
-    那么 退出码为零
-    那么 stdout 包含 conflict
-    那么 stdout 包含 legacy
-    那么 stdout 包含 multi
-    那么 stdout 包含 aux
-    那么 stdout 包含 misnamed
-    那么 相对路径 llmanspec/specs/foo/foo.feature 存在
-    那么 相对路径 llmanspec/specs/legacy/spec.toon 存在
-    那么 相对路径 llmanspec/specs/bar/other.feature 存在
-
-
-  @executable
-  @req:r141
-  场景: flatten-rewrites-self-scope
-    假如 已初始化含自引用 scope 单文件目录的 sdd 项目且 bdd 配置为 "off"
-    当 运行 llman sdd project migrate --kind specs-flatten --yes
-    那么 退出码为零
-    那么 相对路径 llmanspec/specs/scoped.feature 内容包含 llmanspec/specs/scoped.feature
-    那么 stdout 包含 scope_rewritten
-
-
-  @executable
-  @req:r141
-  场景: flatten-dry-run-noop
-    假如 已初始化含自引用 scope 单文件目录的 sdd 项目且 bdd 配置为 "off"
-    当 运行 llman sdd project migrate --kind specs-flatten --dry-run
-    那么 退出码为零
-    那么 相对路径 llmanspec/specs/scoped/scoped.feature 存在
-    那么 相对路径 llmanspec/specs/scoped.feature 不存在
-
-
-  @executable
-  @req:r141
-  场景: migrate-prompt-prints-and-skips
-    假如 已初始化 sdd 项目且 bdd 配置为 "off"
-    当 运行 llman sdd project migrate --prompt
-    那么 退出码为零
-    那么 stdout 包含 specs-flatten
-    那么 stdout 包含 toon2features
-    那么 相对路径 llmanspec/specs/sample/sample.feature 存在
-
-
-  @executable
+    场景: scaffold-emits-single-track-skeleton
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      当 运行 llman sdd spec skeleton demo-cap --force
+      那么 退出码为零
+      那么 相对路径 llmanspec/specs/demo-cap.feature 存在
   @req:r134
-  场景: list-specs-reports-rule-tier-counts
-    假如 已初始化 sdd 项目且 bdd 配置为 "off"
-    当 运行 llman sdd list --specs
-    那么 退出码为零
-    那么 stdout 包含 enforced
+  规则: 原生 morphology 计数
+    list --specs 与 show MUST 输出原生 morphology 五键：ruleCount、ruleEnforcedCount（含嵌套场景的规则）、rulePendingCount（裸规则）、acceptanceCount（嵌套场景）、featureScenarioCount（顶层功能级示例）。ruleManualCount、orphanAcceptanceCount、harnessBoundCount、harnessUnboundCount、dualWriteCount 与 bdd.bindings 配置段 MUST 退役（不再输出、不再读取；bdd 段仅保留 runner 开关相关键）。
 
-
-  @executable
+    场景: list-specs-reports-rule-tier-counts
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      当 运行 llman sdd list --specs
+      那么 退出码为零
+      那么 stdout 包含 enforced
   @req:r135
-  场景: locked-rule-edit-reports-without-blocking
-    假如 已初始化 sdd 项目且 bdd 配置为 "on"
-    而且 变更 rep-edit 绑定且编辑了规则 普通
-    当 在非交互终端运行 llman sdd validate rep-edit --strict --no-check
-    那么 退出码为零
-    那么 stderr 包含 WARNING
-    那么 stderr 包含 @req:r1
+  规则: 锁定哈希门禁退役
+    0.5 起不再有 @human 场景锁定哈希门禁：validate --strict 与 change finalize/diff MUST NOT 执行任何哈希对比，也不再输出锁定编辑 WARNING；review 的 locked 信号 MUST 恒为 0。规则锁定保护退化为 Git 分支纪律：live specs 仅在绑定分支编辑（见 sdd-workflow r111/r130）；归档历史保护由 archive freeze/thaw 的 7z 冷备承担（外部 llman-sdd 所有）。确认元数据保持移除状态：frontmatter 字段 rules_touched / agent_acked、@agent tag、--yes 锁定确认语义 MUST NOT 再被读取或生成。
 
+    场景: review-locked-signal-is-zero
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      当 在非交互终端运行 llman sdd review --json
+      那么 退出码为零
+      那么 stdout 的 JSON 键 signals 含 kind 为 locked 的条目且 count 为 0
 
-  @executable
-  @req:r135
-  场景: dup-req-removal-reports-req-id
-    假如 已初始化 sdd 项目且 bdd 配置为 "on"
-    而且 变更 dup-fix 绑定且删除了重复 @req 锁定场景之一
-    当 在非交互终端运行 llman sdd validate dup-fix --strict --no-check
-    那么 退出码为零
-    那么 stderr 包含 WARNING
-    那么 stderr 包含 @req:r1
-    那么 stderr 包含 1 edited
+    场景: validate-omits-locked-hash-warnings
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      当 在非交互终端运行 llman sdd validate --specs --strict --no-check
+      那么 stderr 不含 locked
+  @req:r136
+  规则: toon2features 协作指引（不执行迁移）
+    llman sdd project migrate MUST 不执行任何文件迁移：--kind toon2features MUST 仅打印手工迁移协作说明（agent/人类分工：requirements 表每行 → @req 规则块、scenarios 表 GWT 行 → 嵌套场景、既有 <cap>.feature 人工合并不覆盖、迁移后 validate 收口）并成功返回；--kind specs-flatten 同理（见 r141）；其它 --kind 值（含 spec-md2toon、partitioned 及隐藏别名）MUST 以非零退出报 unknown migration kind 并提示合法值（toon2features | specs-flatten）。遗留 spec.toon 在运行时被静默忽略，不阻断任何命令。
+
+    场景: migrate-toon2features-prints-guidance-only
+      假如 已初始化含遗留 spec.toon 的 legacy capability 且 bdd 配置为 "off"
+      当 运行 llman sdd project migrate --kind toon2features
+      那么 退出码为零
+      那么 相对路径 llmanspec/specs/legacy/spec.toon 存在
+      那么 stdout 包含 规则
+
+    场景: migrate-unknown-kind-rejected
+      假如 已初始化 sdd 项目且 bdd 配置为 "off"
+      当 在非交互终端运行 llman sdd project migrate --kind spec-md2toon
+      那么 退出码非零
+      那么 stderr 包含 specs-flatten

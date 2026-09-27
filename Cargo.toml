@@ -80,7 +80,7 @@ exclude = ["artifacts/", "llmanspec/"]
 
 # One consolidated integration-test target instead of 22 auto-discovered
 # per-file binaries (each statically linking the whole workspace). Modules
-# live in tests/it/; bdd_steps.rs stays a separate auto-discovered target.
+# live in tests/it/.
 [[test]]
 name = "it"
 path = "tests/it/main.rs"
