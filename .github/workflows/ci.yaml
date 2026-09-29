@@ -56,7 +56,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
       - name: Install llman-sdd
         run: |
-          version=0.5.1
+          version=0.6.0
           cd "$(mktemp -d)"
           curl -sSfL -o llman-sdd-linux-x64 "https://github.com/StrayDragon/llman-sdd/releases/download/v${version}/llman-sdd-linux-x64"
           curl -sSfL -o llman-sdd-linux-x64.sha256 "https://github.com/StrayDragon/llman-sdd/releases/download/v${version}/llman-sdd-linux-x64.sha256"

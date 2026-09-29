@@ -84,7 +84,7 @@ function commitAll(project: string, message: string): void {
   git(['commit', '-qm', message], project);
 }
 
-/** One sdd project per scenario: git(main) + `llman-sdd init` + sample capability + optional bdd section, committed clean. */
+/** One sdd project per scenario: git(main) + `llman-sdd init` + sample capability + optional specs section, committed clean. */
 export function sddProject(ctx: TestContext, bddMode: 'on' | 'off' | 'runner' | null = 'off'): string {
   let project = ctx.fixtures['sdd 项目'] as string | undefined;
   if (project) return project;
@@ -101,10 +101,10 @@ export function sddProject(ctx: TestContext, bddMode: 'on' | 'off' | 'runner' | 
   spawnSync(findSddBin()!, ['init', '--update', project], { cwd: project, encoding: 'utf8' });
   writeFeature(project, 'sample', 'r1');
   if (bddMode === 'on') {
-    writeFileSync(join(project, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: zh-Hans\nbdd:\n  run_command: "false"\n');
+    writeFileSync(join(project, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: zh-Hans\nspecs:\n  check_command: "false"\n');
   } else if (bddMode === 'runner') {
-    // archive/finalize 收口门要求可执行场景声明 runner；"true" 恒通过。
-    writeFileSync(join(project, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: zh-Hans\nbdd:\n  run_command: "true"\n');
+    // archive/finalize 收口门要求配置 specs.check_command；"true" 恒通过。
+    writeFileSync(join(project, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: zh-Hans\nspecs:\n  check_command: "true"\n');
   }
   commitAll(project, 'fixture: init');
   return project;
@@ -222,12 +222,12 @@ bdd.given('已初始化含跨 capability 重复 req_id 的 sdd 项目且 bdd 配
   commitAll(project, 'fixture: duplicate req ids');
 });
 
-bdd.given('已初始化含多个 capability 且无占位符计数 run_command 的 sdd 项目', (ctx) => {
+bdd.given('已初始化含多个 capability 且无占位符计数 check_command 的 sdd 项目', (ctx) => {
   const project = sddProject(ctx, 'off');
   writeFeature(project, 'sample2', 'r2');
   writeFileSync(
     join(project, 'llmanspec', 'config.yaml'),
-    'schema: spec-driven\nlocale: en\nbdd:\n  run_command: "sh -c \'echo x >> .bdd-run-count\'"\n',
+    'schema: spec-driven\nlocale: en\nspecs:\n  check_command: "sh -c \'echo x >> .bdd-run-count\'"\n',
   );
   commitAll(project, 'fixture: batch dedup harness');
 });

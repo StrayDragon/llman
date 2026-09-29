@@ -11,5 +11,5 @@ extra_skills:
 # 不再承载语义。可执行规格 runner = tests/bdd 的 bun 桥套件（零 npm 依赖，
 # 由 just bdd / check-all / CI 驱动）；finalize 收口与 validate --check 会执行它。
 # `llman sdd` 各命令行为由外部 llman-sdd v2 项目所有。
-bdd:
-  run_command: "bun test tests/bdd"
+specs:
+  check_command: "bun test tests/bdd"

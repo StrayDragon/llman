@@ -38,14 +38,14 @@
       那么 stdout 包含 specs-landed
   @req:r39
   规则: SDD list JSON 含 morphology
-    llman sdd list --specs --json output MUST include purpose validScope health staleness 以及 morphology 对象。morphology MUST 含原生五键 ruleCount ruleEnforcedCount rulePendingCount acceptanceCount featureScenarioCount（数值，键名口径见 spec-format r134）。purpose 仍来自 spec；health 与 staleness 在质量检测未实现前可为 null。harnessBoundCount 与 harnessUnboundCount 及 bdd.bindings 绑定口径 MUST 退役（不再输出、不再读取）。
+    llman sdd list --specs --json output MUST include purpose validScope health staleness 以及 morphology 对象。morphology MUST 含 requirement 系键 requirementBoundCount requirementUnboundCount 与 acceptanceCount featureScenarioCount（数值，键名口径见 spec-format r134）。purpose 仍来自 spec；health 与 staleness 在质量检测未实现前可为 null。ruleEnforcedCount 与 rulePendingCount 及 bdd.bindings 绑定口径 MUST 退役（不再输出、不再读取）。
 
     场景: list-specs-json-morphology-keys
       假如 已初始化 sdd 项目且 bdd 配置为 "off"
       当 在非交互终端运行 llman sdd list --specs --json
       那么 退出码为零
       那么 stdout 为合法 JSON
-      那么 stdout 包含 ruleEnforcedCount
+      那么 stdout 包含 requirementBoundCount
       那么 stdout 包含 featureScenarioCount
   @req:r47
   规则: Context JSON semantic protocol
@@ -248,13 +248,13 @@
       那么 相对路径 AGENTS.md 内容包含 可选增强能力
   @req:r109
   规则: config 命令总览
-    llman sdd config（无子命令时）MUST 打印当前项目 config 摘要：schema、locale、extra_skills 启用数量与列表、bdd 是否启用（on/off）、archive 配置状态。作为只读快速查看入口，MUST NOT 修改 config.yaml。
+    llman sdd config（无子命令时）MUST 打印当前项目 config 摘要：schema、locale、extra_skills 启用数量与列表、specs 验证段是否启用（on/off）、archive 配置状态。作为只读快速查看入口，MUST NOT 修改 config.yaml。
 
     场景: config-overview-printonly
       假如 已初始化 sdd 项目且 bdd 配置为 "off"
       当 在非交互终端运行 llman sdd config
       那么 退出码为零
-      那么 stdout 包含 bdd: off
+      那么 stdout 包含 specs: off
   @req:r110
   规则: config skills 非交互管理
     llman sdd config skills MUST 为非交互命令：打印当前 extra_skills 启用列表与全部候选的 available 列表（不修改文件）；--json 时 MUST 输出含 enabled 与 available 数组的 JSON。交互式多选 MUST 移除。写回 extra_skills 由用户直接编辑 config.yaml 后运行 llman sdd init --update 落地 skill 文件。
@@ -401,7 +401,7 @@
       那么 stdout 包含 2620
   @req:r2
   规则: bdd.bindings 绑定源退役
-    0.5 起 .feature 内标签不承载任何语义，bdd 段的 bindings 列表（kind=tags / kind=scenario-attrs）MUST 退役：MUST NOT 再作为 harness bound 口径的绑定源，声明与否 MUST NOT 改变 validate/list/show/review 的任何输出；历史 config.yaml 中残留的 bindings 键 MUST 被宽松剥离（解析结果不含该键，不报错）。bdd 段仅保留 runner 开关相关键（run_command 等，见 sdd-bdd-mode-compat r26）。
+    0.5 起 .feature 内标签不承载任何语义，bdd 段的 bindings 列表（kind=tags / kind=scenario-attrs）MUST 退役：MUST NOT 再作为 harness bound 口径的绑定源，声明与否 MUST NOT 改变 validate/list/show/review 的任何输出；历史 config.yaml 中残留的 bindings 键 MUST 被宽松剥离（解析结果不含该键，不报错）。specs 段仅保留 spec 验证相关键（check_command 等，见 sdd-bdd-mode-compat r26）。
 
     场景: legacy-bindings-key-tolerated
       假如 已初始化 sdd 项目且 bdd 配置为 "off"

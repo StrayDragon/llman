@@ -74,13 +74,13 @@
       那么 相对路径 llmanspec/specs/demo-cap.feature 存在
   @req:r134
   规则: 原生 morphology 计数
-    list --specs 与 show MUST 输出原生 morphology 五键：ruleCount、ruleEnforcedCount（含嵌套场景的规则）、rulePendingCount（裸规则）、acceptanceCount（嵌套场景）、featureScenarioCount（顶层功能级示例）。ruleManualCount、orphanAcceptanceCount、harnessBoundCount、harnessUnboundCount、dualWriteCount 与 bdd.bindings 配置段 MUST 退役（不再输出、不再读取；bdd 段仅保留 runner 开关相关键）。
+    list --specs 与 show MUST 输出 morphology 计量字段，以 requirement 系命名：requirementBoundCount（有至少一个 runnable 嵌套场景的规则数）、requirementUnboundCount（无 runnable 嵌套场景的规则数）。「未绑定」全局唯一定义为无 runnable 嵌套场景（0 场景或嵌套场景全部带 @skip/@experimental），与 review unbound 信号、validate 聚合 INFO、spec unbound 检索 MUST 同口径；acceptanceCount（嵌套场景）与 featureScenarioCount（顶层功能级示例）保留。历史字段名 ruleCount、ruleEnforcedCount、rulePendingCount、ruleManualCount、orphanAcceptanceCount、harnessBoundCount、harnessUnboundCount、dualWriteCount 与 bdd.bindings 配置段 MUST 退役（不再输出、不再读取）。
 
     场景: list-specs-reports-rule-tier-counts
       假如 已初始化 sdd 项目且 bdd 配置为 "off"
       当 运行 llman sdd list --specs
       那么 退出码为零
-      那么 stdout 包含 ruleEnforcedCount
+      那么 stdout 包含 requirementBoundCount
   @req:r135
   规则: 锁定哈希门禁退役
     0.5 起不再有 @human 场景锁定哈希门禁：validate --strict 与 change finalize/diff MUST NOT 执行任何哈希对比，也不再输出锁定编辑 WARNING；review 的 locked 信号 MUST 恒为 0。规则锁定保护退化为 Git 分支纪律：live specs 仅在绑定分支编辑（见 sdd-workflow r111/r130）；归档历史保护由 archive freeze/thaw 的 7z 冷备承担（外部 llman-sdd 所有）。确认元数据保持移除状态：frontmatter 字段 rules_touched / agent_acked、@agent tag、--yes 锁定确认语义 MUST NOT 再被读取或生成。
