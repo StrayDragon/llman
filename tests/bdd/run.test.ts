@@ -45,6 +45,7 @@ const BOUND_FEATURES: BoundFeature[] = [
   { file: 'sdd-workflow.feature', skipIf: sddMissing },
   { file: 'spec-format.feature', skipIf: sddMissing },
   { file: 'sdd-structured-skill-prompts.feature', skipIf: sddMissing },
+  { file: 'tool-comments.feature' },
 ];
 
 function makeContext(): TestContext {

@@ -35,6 +35,13 @@ bdd.given('含 ignore 文件的 git 项目', (ctx) => {
   writeFileSync(join(dir, '.cursorignore'), 'dist/\n');
 });
 
+bdd.given('含头注释文件与 gitignore 的临时项目', (ctx) => {
+  const dir = scratchProject(ctx);
+  writeFileSync(join(dir, 'keep.py'), '# keep me\nprint(1)\n');
+  writeFileSync(join(dir, 'skip.py'), '# skip me\nprint(1)\n');
+  writeFileSync(join(dir, '.gitignore'), 'skip.py\n');
+});
+
 bdd.given('含 agent init 文件的 git 项目', (ctx) => {
   const dir = scratchProject(ctx);
   writeFileSync(join(dir, 'AGENTS.md'), '# agents\n');

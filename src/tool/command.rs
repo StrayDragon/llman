@@ -9,8 +9,10 @@ pub struct ToolArgs {
 
 #[derive(Subcommand)]
 pub enum ToolCommands {
+    /// Comment tools (overview / clean-useless)
+    Comments(CommentsArgs),
     /// Clean useless comments from source code
-    #[command(alias = "cuc")]
+    #[command(name = "clean-useless-comments", alias = "cuc", hide = true)]
     CleanUselessComments(CleanUselessCommentsArgs),
     /// Remove useless directories recursively
     RmUselessDirs(RmUselessDirsArgs),
@@ -19,6 +21,27 @@ pub enum ToolCommands {
     SyncIgnore(SyncIgnoreArgs),
     /// Manage agent init files (AGENTS.md / CLAUDE.md / .cursor/ etc.)
     AgentsMd(AgentsMdArgs),
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct CommentsArgs {
+    #[command(subcommand)]
+    pub command: CommentsCommands,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum CommentsCommands {
+    /// Print leading file-head comments as TSV
+    Overview(CommentsOverviewArgs),
+    /// Clean useless comments from source code
+    CleanUseless(CleanUselessCommentsArgs),
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct CommentsOverviewArgs {
+    /// File, directory, or glob (`**` and `{a,b}` supported). Repeatable.
+    #[arg(required = true, value_name = "TARGET")]
+    pub targets: Vec<String>,
 }
 
 #[derive(Parser, Debug, Clone)]

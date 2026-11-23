@@ -111,7 +111,7 @@ cargo install --path . --bin llman
 
 | 子命令 | 说明 |
 |---|---|
-| `clean-useless-comments` | Clean useless comments from source code |
+| `comments` | Comment tools (overview / clean-useless) |
 | `rm-useless-dirs` | Remove useless directories recursively |
 | `sync-ignore` | Sync ignore rules across OpenCode/Cursor/Claude Code |
 | `agents-md` | Manage agent init files (AGENTS.md / CLAUDE.md / .cursor/ etc.) |

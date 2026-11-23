@@ -147,6 +147,14 @@ errors:
     en: "No rules found"
 
 tool:
+  comments:
+    overview:
+      no_match:
+        en: "no files matched %{target}"
+
+      invalid_glob:
+        en: "invalid glob pattern %{target}: %{error}"
+
   clean_comments:
     start:
       en: "Clean useless comments command"

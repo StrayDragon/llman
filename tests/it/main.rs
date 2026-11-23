@@ -8,6 +8,7 @@ pub mod common;
 mod claude_code_account_edit;
 mod claude_code_account_env;
 mod claude_code_forward_args;
+mod comments;
 mod config;
 mod configuration;
 mod error;

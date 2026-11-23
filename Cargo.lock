@@ -918,6 +918,7 @@ dependencies = [
  "clap_complete",
  "crossterm",
  "glob",
+ "globset",
  "ignore",
  "inquire",
  "jsonschema",

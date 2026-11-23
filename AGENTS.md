@@ -34,6 +34,7 @@ SDD 流水线之外提供以下可选增强能力（经 `llmanspec/config.yaml` 
 - `templates/` stores prompt templates (codex/claude-code); `locales/` holds the i18n strings (embedded at compile time via `build.rs`).
 - `artifacts/testing_config_home/` is the test fixture config root used by dev commands.
 - `scripts/` has helper scripts. `llmanspec/` holds this repo's spec data (read-only for llman itself; managed by the external llman-sdd v2 tool).
+- Helper-script inventory is the file-head comment, not this file: `llman tool comments overview 'scripts/**/*.{sh,py,lua,js,mjs,ts}'`.
 
 ## Build, Test, and Development Commands
 This project targets Rust edition 2024 and uses the nightly toolchain.

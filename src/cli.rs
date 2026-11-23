@@ -3,7 +3,7 @@ use crate::config_schema::ensure_global_sample_config;
 use crate::self_command::SelfArgs;
 use crate::skills::cli::command::SkillsArgs;
 use crate::skills::cli::interactive::is_interactive;
-use crate::tool::command::{AgentsMdCommands, ToolArgs, ToolCommands};
+use crate::tool::command::{AgentsMdCommands, CommentsCommands, ToolArgs, ToolCommands};
 use crate::x::claude_code::command::ClaudeCodeArgs;
 use crate::x::codex::command::CodexArgs;
 use crate::x::cursor::command::CursorArgs;
@@ -246,6 +246,14 @@ fn handle_x_command(args: &XArgs) -> Result<()> {
 
 fn handle_tool_command(args: &ToolArgs) -> Result<()> {
     match &args.command {
+        ToolCommands::Comments(args) => match &args.command {
+            CommentsCommands::Overview(overview_args) => {
+                crate::tool::comments::run_overview(overview_args)
+            }
+            CommentsCommands::CleanUseless(clean_args) => {
+                crate::tool::clean_comments::run(clean_args)
+            }
+        },
         ToolCommands::CleanUselessComments(args) => crate::tool::clean_comments::run(args),
         ToolCommands::RmUselessDirs(args) => crate::tool::rm_empty_dirs::run(args),
         ToolCommands::SyncIgnore(args) => crate::tool::sync_ignore::run(args),

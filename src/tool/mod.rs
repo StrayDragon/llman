@@ -1,6 +1,7 @@
 pub mod agents_md;
 pub mod clean_comments;
 pub mod command;
+pub mod comments;
 pub mod config;
 pub mod processor;
 pub mod rm_empty_dirs;
