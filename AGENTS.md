@@ -11,76 +11,159 @@
 保留此托管块，便于 `llman-sdd init --update` 刷新。
 <!-- LLMANSPEC:END -->
 
+# AGENTS.md 写法
+
+写或改本文件与 `llmanspec/AGENTS.md` 时：
+
+| 做 | 不做 |
+|----|------|
+| 真需要高度注意才加粗 | 通篇加粗、emoji、生僻符号 |
+| 对照用表；流程用 mermaid | 用长散文复述同一张图或表能说清的事 |
+| 只写当前有效约定，描述有重心 | 墓碑（已删除 / 已移除 / 已移动 / 已废弃） |
+| 数字仅当它是要守护的基准 | 会漂移的计数、扫描深度、req 编号、锁定 hash |
+| 引用目录 | 钉到易搬家的具体文件 |
+| 脚本用途用下面这条命令现查 | 在本文维护脚本清单 |
+
+```text
+llman tool comments overview 'scripts/**/*.{sh,py,lua,js,mjs,ts}'
+```
+
 # 可选增强能力
 
-SDD 流水线之外提供以下可选增强能力（经 `llmanspec/config.yaml` 的 `extra_skills` 启用），触发条件索引：
+主流水线之外的增强。阶段内分支随对应 skill 生效；独立 skill 经 `llmanspec/config.yaml` 的 `extra_skills` 启用。
 
-- **explore grilling**：用户说『深挖』『grill』『逐个问』时进入逐问深对齐分支。
-- **apply diagnose**：apply 自修复循环失败时升级 red-capable 命令 + 假设排序的 diagnose 子流程。
-- **verify 双轴**：Spec 轴与 Standards 轴（AGENTS.md coding style + Fowler smell baseline）分离审查。
-- **arch-review**：说『架构审查』『deepening』『shallow module』时扫描薄模块产出加深候选。
-- **wayfinder**：大型雾状工作的 decision ticket map 规划（仅用户显式调用）。
-- **research**：后台 agent 外部文献调研，引用回写 proposal Further Notes。
+| 阶段 / skill | 能力 | 何时 |
+|--------------|------|------|
+| explore | grilling 逐问深对齐 | 用户说「深挖」「grill」「逐个问」「彻底理清」 |
+| apply | diagnose | 自修复循环失败：先给能复现失败的命令，再排假设 |
+| verify | 双轴审查 | 默认。Spec 轴对照 `.feature`；Standards 轴对照本文 coding style + Fowler smell baseline（AGENTS.md 优先；工具已强制的跳过） |
+| `llman-sdd-arch-review` | 薄模块加深候选 | 「架构审查」「deepening」「shallow module」 |
+| `llman-sdd-wayfinder` | 雾状工作拆成决策票 | 仅用户显式调用 |
+| `llman-sdd-research` | 一手文献调研 | 后台 agent；引用回写 proposal Further Notes |
 
-词汇约定：`seam` = GWT 步骤驱动的公共边界；`depth`/`shallow module` 沿用 codebase-design 语义，不与 llman 已有词汇双轨。
+词汇（与 llman 其它词不要混用）：
+
+| 词 | 含义 |
+|----|------|
+| seam | `.feature` GWT 步骤驱动的公共边界（CLI 子进程或 public 接口） |
+| depth / shallow module | 接口背后藏了多少行为；薄 = 接口约等于实现 |
+
+# Git-native 生命周期
+
+Skill 导航（explore → propose → apply → verify → archive）不是分支生命周期。Specs landing 不是独立 skill。
+
+```mermaid
+flowchart TB
+  subgraph main_ok["可短暂在默认分支"]
+    A["change new → draft<br/>仅 proposal.md"]
+    B1["补 design.md → designed"]
+    B2["补 tasks.md → planned"]
+  end
+
+  subgraph bind["绑定分支"]
+    C{"工作区干净且在默认分支？"}
+    D["change start<br/>建 sdd/&lt;id&gt; + 写 branch / base_branch / base_sha"]
+    E["或手动建分支再 change attach"]
+  end
+
+  subgraph specs_only["仅在本 change 分支"]
+    F["编辑 llmanspec/specs/"]
+    G["commit → 落地 specs<br/>现算 merge-base 到 HEAD 含 specs 路径"]
+  end
+
+  subgraph implement["实施与收口"]
+    H["apply：按 tasks 改代码，可继续改 specs"]
+    I["verify"]
+    J["finalize：合并（默认 squash）→ 改名 → 自动提交 archive(sdd)"]
+  end
+
+  A --> B1 --> B2 --> C
+  C -->|是| D --> F
+  C -->|已在 feature| E --> F
+  F --> G --> H --> I --> J
+```
+
+硬规则：
+
+1. **先** `change start` / `attach` 绑定非默认分支，**再**在该分支编辑并提交 `llmanspec/specs/`。禁止把 specs 提交到默认分支。
+2. 无合约编辑时 frontmatter `needs_specs_change: false`。`stage=full` 且 specs-landed 门通过即可进 apply；`readyToImplement=true` 才是 verify / finalize 前置。
+3. 收口用 `llman-sdd change finalize`（`--no-commit` 跳过自动提交）。change 分支上提交自由。
+4. `base_sha` 只作审计；diff 范围一律现算 merge-base。`base_branch` 只解析 finalize / archive 的合并目标。
+
+| 工作形态 | 命令 |
+|----------|------|
+| 单检出，在默认分支且树干净 | `llman-sdd change start <id>` |
+| 保留当前检出 / 并行 change | `llman-sdd change start <id> --worktree` |
+| 已在 feature 分支 | `llman-sdd change attach <id>` |
+
+# Human Review Checkpoint
+
+固定三个时点跑 `llman-sdd review`：apply 每批 task 门禁通过后；verify 全绿之后、建议 finalize 之前；每个 archive 之前。
+
+非零退出 = CRITICAL：停下修复后再跑。合约争议走 explore / propose，不要现场改约定。
 
 # Repository Guidelines
 
-## Project Structure and Module Organization
-- `src/` holds the Rust library and CLI code; `src/main.rs` wires the CLI and i18n.
-- `src/x/` contains experimental integrations (cursor, claude_code, codex).
-- `src/tool/` contains developer utilities used by the CLI.
-- `tests/it/` holds the consolidated integration-test target (single `it` binary; modules registered in `tests/it/main.rs`).
-- `templates/` stores prompt templates (codex/claude-code); `locales/` holds the i18n strings (embedded at compile time via `build.rs`).
-- `artifacts/testing_config_home/` is the test fixture config root used by dev commands.
-- `scripts/` has helper scripts. `llmanspec/` holds this repo's spec data (read-only for llman itself; managed by the external llman-sdd v2 tool).
-- Helper-script inventory is the file-head comment, not this file: `llman tool comments overview 'scripts/**/*.{sh,py,lua,js,mjs,ts}'`.
+## Layout
 
-## Build, Test, and Development Commands
-This project targets Rust edition 2024 and uses the nightly toolchain.
+| 目录 | 用途 |
+|------|------|
+| `src/` | 库与 CLI |
+| `src/x/` | cursor / claude_code / codex 实验集成 |
+| `src/tool/` | CLI 开发者工具 |
+| `crates/llman-core/` | 共享路径与文件系统辅助（`llman::path_utils`） |
+| `tests/it/` | 集成测试（单一 `it` target） |
+| `tests/bdd/` | Gherkin BDD（`just bdd`） |
+| `templates/` | 提示词模板 |
+| `locales/` | i18n（改这里会触发重编） |
+| `artifacts/testing_config_home/` | 开发命令用的测试配置根 |
+| `scripts/` | 辅助脚本；用途用文首 overview 命令现查 |
+| `llmanspec/` | 本仓库规格数据；llman 自身只读，由外部 llman-sdd 管理 |
 
-- `just build` / `just build-release`: debug or release builds.
-- `just run -- <args>`: run with test config (`LLMAN_CONFIG_DIR=./artifacts/testing_config_home`).
-- `just run-prod -- <args>`: run with production config.
-- `just release`: git-tag 分发——打 `v<version>` tag 并推送（安装方式：`cargo install --git https://github.com/StrayDragon/llman --tag v<version>`）。
-- `just test`: run the full test suite (`cargo nextest run --profile ci` when `cargo-nextest` is installed; otherwise `cargo test`). Config: `.config/nextest.toml`.
-- `just check`: format check, lint, and tests.
-- `just bdd`: build the debug binary and run the Gherkin BDD suite (`tests/bdd/`, bun bridge, zero npm deps) over the bound nested scenarios in `llmanspec/specs/`; wired into `check-all` and CI.
-- `just check-all`: check plus docs (`RUSTDOCFLAGS=-D warnings`), release build, and README managed-section checks.
-- `just readme` / `just check-readme`: regenerate / verify the README sections marked `<!-- README:GENERATED ... -->` (install version + command tables, sourced from CLI `--help` and `Cargo.toml`); run `just readme` after changing the CLI surface or bumping the version.
-- `just fmt` / `just lint`: rustfmt and clippy.
+## Commands
 
-Cargo equivalents use `cargo +nightly ...`.
+工具链：仓库锁定的 nightly 为准，不要在文档里复写 channel。完整 recipe 见 `just --list`。
 
-## Coding Style and Naming Conventions
-- Use rustfmt defaults (4-space indentation) and keep code warning-free; clippy runs with `-D warnings`.
-- Use `snake_case` for file and module names; keep CLI subcommands lowercase with hyphens for multi-word names.
-- Prefer small, focused functions and reuse shared helpers in `crates/llman-core/src/path_utils.rs` (re-exported as `llman::path_utils`) and `src/config.rs`.
+| 命令 | 用途 |
+|------|------|
+| `just build` / `just build-release` | debug / release |
+| `just run -- <args>` | 测试配置（`LLMAN_CONFIG_DIR` → `artifacts/testing_config_home/`） |
+| `just run-prod -- <args>` | 生产配置 |
+| `just test` | 全量测试（有 nextest 走 ci profile，否则 `cargo test`） |
+| `just check` | fmt + lint + test |
+| `just check-all` | check + rustdoc `-D warnings` + release + README 托管段 + bdd |
+| `just bdd` | 对 `llmanspec/specs/` 中已绑定场景跑 BDD |
+| `just readme` / `just check-readme` | 按 CLI `--help` 刷新 / 校验 README 托管段；改 CLI 面或版本后跑 |
+| `just fmt` / `just lint` | rustfmt / clippy |
+| `just release` | 打 `v<version>` tag 并推送 |
 
-## Testing Guidelines
-- Add unit tests near the code when possible, and integration tests as modules under `tests/it/` (register them in `tests/it/main.rs`); keep test names descriptive.
-- Interactive CLI flows (e.g. `inquire` prompts) do not require automated tests; test the core, non-interactive logic instead.
-- Use `LLMAN_CONFIG_DIR=./artifacts/testing_config_home` to avoid touching real user config.
-- Avoid workspace pollution: tests that may create files/dirs MUST use `tempfile::TempDir` (or `TestEnvironment`) and write only inside it so everything is auto-cleaned.
-- Avoid parallel test collisions: don’t use fixed relative paths/identifiers in the repo root (e.g. `config`, `config.yaml`); prefer unique temp paths and guard env/cwd changes with `crate::test_utils::TestProcess`.
-- Editing `locales/*.yml` triggers rebuild automatically (`build.rs` declares `rerun-if-changed`).
+## Coding Style
 
-## 规约与变更流程（llman-sdd v2）
+- rustfmt 默认；clippy `-D warnings`（这是要守护的基准）。
+- 文件与模块 `snake_case`；CLI 子命令小写，多词用连字符。
+- 小函数；共享逻辑优先放 `crates/llman-core/` 与 `src/` 已有辅助，不要平行再造一套。
 
-本仓库的行为规格数据在 `llmanspec/specs/*.feature`，由外部工具 llman-sdd v2 读取和管理
-（`llman-sdd validate` / `llman-sdd review` / `llman-sdd show` 等）。llman 仓库内的任何代码
-都不得写入或校验该目录——它是用户数据格式，归 llman-sdd v2 所有。
+## Testing
 
-命令入口约定：日常用 `llman-sdd <cmd>`（旧别名 `llmanspec <cmd>` 已废弃，将随下一个发布移除）。`llman sdd <cmd>` 不是
-内置命令——它经 `llman-*` 外部子命令发现自动委托给 PATH 上的 `llman-sdd`（退出码透传）；
-未安装 llman-sdd 时会报找不到可执行文件。
+- 单元测试靠近代码；集成测试放 `tests/it/`。
+- 交互式 CLI（如 inquire）不强制自动化；测非交互核心逻辑。
+- 开发与测试用 `LLMAN_CONFIG_DIR` 指向 `artifacts/testing_config_home/`，不要碰真实用户配置。
+- 会写盘的测试必须落在 `tempfile::TempDir`（或 `TestEnvironment`）内。
+- 并行测试不要用仓库根下的固定相对路径；cwd / env 变更用 `crate::test_utils::TestProcess` 护住。
 
-## Commit and Pull Request Guidelines
-- Commit messages use a short type prefix such as `feat:`, `fix:`, `refactor:`, `doc:`, or `bump:` with an optional scope, for example `fix(security): ...`.
-- Keep commits focused and in present tense.
-- PRs should include a clear summary, testing commands run, and links to related issues. Include sample CLI output when user-visible behavior changes.
+## 规约入口
 
-## Configuration Notes
-- Default config lives in `~/.config/llman/` unless overridden by `LLMAN_CONFIG_DIR`.
-- `LLMAN_LANG` is reserved; only `en` is supported unless explicitly requested otherwise.
-- i18n strings are placeholders; English-only is required unless explicitly requested otherwise.
+行为规格在 `llmanspec/specs/`，由 `llman-sdd` 读写。本仓库代码不得写入或校验该目录。
+
+日常命令：`llman-sdd <cmd>`。`llman sdd <cmd>` 经 `llman-*` 外部子命令发现委托给 PATH 上的 `llman-sdd`，退出码透传。
+
+## Commits and PRs
+
+- 前缀：`feat:` / `fix:` / `refactor:` / `doc:` / `bump:`，可选 scope，如 `fix(security):`。
+- 现在时、一次一事。
+- PR 写清摘要、跑过的检查、相关 issue；用户可见行为变化附样例输出。
+
+## Configuration
+
+- 默认配置目录：`~/.config/llman/`，可被 `LLMAN_CONFIG_DIR` 覆盖。
+- `LLMAN_LANG` 预留；产品文案保持 English-only，除非明确要求加语言。
