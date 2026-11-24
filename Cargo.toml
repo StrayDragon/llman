@@ -2,7 +2,7 @@
 members = [".", "crates/llman-core"]
 
 [workspace.package]
-version = "0.0.79"
+version = "0.0.80"
 edition = "2024"
 
 # Single source of truth for dependency versions shared across workspace
@@ -48,7 +48,7 @@ llm_json = "1.0.2"
 
 # Versions required for publish: cargo rewrites path deps to crates.io
 # version reqs. Keep in sync with [workspace.package] version.
-llman-core = { path = "crates/llman-core", version = "0.0.79" }
+llman-core = { path = "crates/llman-core", version = "0.0.80" }
 
 # Workspace-wide lint policy (SSOT). Every crate opts in via
 # `[lints] workspace = true`. Tighten deliberately: anything warn-level here

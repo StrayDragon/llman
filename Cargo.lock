@@ -911,7 +911,7 @@ dependencies = [
 
 [[package]]
 name = "llman"
-version = "0.0.79"
+version = "0.0.80"
 dependencies = [
  "anyhow",
  "clap",
@@ -947,7 +947,7 @@ dependencies = [
 
 [[package]]
 name = "llman-core"
-version = "0.0.79"
+version = "0.0.80"
 dependencies = [
  "anyhow",
  "jsonschema",

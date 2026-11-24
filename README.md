@@ -73,7 +73,7 @@ llman-sdd review            # 人工评审检查点
 <!-- README:GENERATED version START -->
 ```bash
 # crates.io（llman-core 依赖一并安装）
-cargo install llman --version 0.0.79
+cargo install llman --version 0.0.80
 ```
 <!-- README:GENERATED END -->
 
